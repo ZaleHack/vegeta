@@ -8,13 +8,6 @@ const router = express.Router();
 // Rate limiting pour les tentatives de connexion
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-    if (!database.isConnected()) {
-      return res.status(503).json({
-        error: 'Service d\'authentification indisponible',
-        message: 'La base de données MySQL n\'est pas connectée'
-      });
-    }
-
   max: 10, // 10 tentatives par IP
   message: { error: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' }
 });
@@ -22,6 +15,13 @@ const loginLimiter = rateLimit({
 // Route de connexion
 router.post('/login', loginLimiter, async (req, res) => {
   try {
+    if (!database.isConnected()) {
+      return res.status(503).json({
+        error: 'Service d\'authentification indisponible',
+        message: 'La base de données MySQL n\'est pas connectée'
+      });
+    }
+
     console.log('🔐 POST /api/auth/login - Tentative de connexion');
     console.log('📥 Body reçu:', req.body);
     
