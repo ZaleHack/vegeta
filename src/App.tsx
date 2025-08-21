@@ -28,7 +28,6 @@ interface User {
 
 interface NewUser {
   login: string;
-  email?: string;
   password: string;
   role: 'ADMIN' | 'USER';
 }
@@ -80,7 +79,6 @@ function App() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [newUser, setNewUser] = useState<NewUser>({
     login: '',
-    email: '',
     password: '',
     role: 'USER'
   });
@@ -330,23 +328,6 @@ function App() {
     }
   };
 
-  const handleDeleteUser = async (userId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-      return;
-    }
-
-    try {
-      await apiRequest(`/users/${userId}`, {
-        method: 'DELETE',
-      });
-
-      await loadUsers();
-      alert('Utilisateur supprimé avec succès');
-    } catch (error: any) {
-      alert('Erreur: ' + error.message);
-    }
-  };
-
   const handleChangePassword = async () => {
     if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
       alert('Tous les champs sont requis');
@@ -416,10 +397,8 @@ function App() {
               type="text"
               value={loginData.login}
               onChange={(e) => setLoginData({ ...loginData, login: e.target.value })}
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white"
               placeholder="Entrez votre login"
-              autoComplete="username"
-              spellCheck="false"
               required
             />
           </div>
@@ -432,9 +411,8 @@ function App() {
               type="password"
               value={loginData.password}
               onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white"
               placeholder="Entrez votre mot de passe"
-              autoComplete="current-password"
               required
             />
           </div>
@@ -628,10 +606,8 @@ function App() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              className="w-full pl-12 pr-4 py-4 text-lg border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white shadow-sm"
+              className="w-full pl-12 pr-4 py-4 text-lg border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white shadow-sm"
               placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
-              autoComplete="off"
-              spellCheck="false"
             />
             <button
               onClick={handleSearch}
@@ -919,63 +895,51 @@ function App() {
   );
 
   const UsersPage = () => {
+    const availableUsers = [
+      { id: 'esolde.mytable', name: 'esolde - mytable', description: 'Données employés esolde' },
+      { id: 'rhpolice.personne_concours', name: 'rhpolice - personne_concours', description: 'Concours police nationale' },
+      { id: 'renseignement.agentfinance', name: 'renseignement - agentfinance', description: 'Agents finances publiques' },
+      { id: 'rhgendarmerie.personne', name: 'rhgendarmerie - personne', description: 'Personnel gendarmerie' },
+      { id: 'permis.tables', name: 'permis - tables', description: 'Permis de conduire' },
+      { id: 'expresso.expresso', name: 'expresso - expresso', description: 'Données Expresso Money' },
+      { id: 'elections.dakar', name: 'elections - dakar', description: 'Électeurs région Dakar' },
+      { id: 'autres.Vehicules', name: 'autres - vehicules', description: 'Immatriculations véhicules' },
+      { id: 'autres.entreprises', name: 'autres - entreprises', description: 'Registre des entreprises' }
+    ];
+
     return (
     <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'} p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen`}>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-slate-900">Gestion des utilisateurs</h2>
         <button
           onClick={() => setShowUserModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md hover:shadow-lg transform hover:scale-105"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md"
         >
-          <Users className="w-5 h-5" />
+          <Users className="w-4 h-4" />
           Nouvel utilisateur
         </button>
       </div>
 
       <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-slate-200">
-        {users.length === 0 ? (
-          <div className="p-12 text-center">
-            <Users className="w-16 h-16 mx-auto mb-4 text-slate-300" />
-            <h3 className="text-xl font-semibold text-slate-900 mb-2">Aucun utilisateur</h3>
-            <p className="text-slate-500 mb-6">Commencez par créer votre premier utilisateur</p>
-            <button
-              onClick={() => setShowUserModal(true)}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md"
-            >
-              Créer un utilisateur
-            </button>
-          </div>
-        ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">ID</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Utilisateur</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Email</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Rôle</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Statut</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Créé le</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {users.map((user) => (
                 <tr key={user.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 text-sm text-slate-600">#{user.id}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
                         {user.login.charAt(0).toUpperCase()}
                       </div>
-                      <div>
-                        <div className="font-medium text-slate-900">{user.login}</div>
-                        <div className="text-sm text-slate-500">Login: {user.login}</div>
-                      </div>
+                      <span className="font-medium text-slate-900">{user.login}</span>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {user.email || 'Non renseigné'}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -985,14 +949,6 @@ function App() {
                     }`}>
                       {user.role}
                     </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Actif
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {user.created_at ? new Date(user.created_at).toLocaleDateString('fr-FR') : 'N/A'}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
@@ -1006,15 +962,6 @@ function App() {
                       >
                         <Settings className="w-4 h-4" />
                       </button>
-                      {user.id !== user?.id && (
-                        <button
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Supprimer l'utilisateur"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -1022,7 +969,6 @@ function App() {
             </tbody>
           </table>
         </div>
-        )}
       </div>
     </div>
     );
@@ -1051,26 +997,11 @@ function App() {
                 type="text"
                 value={newUser.login}
                 onChange={(e) => setNewUser({ ...newUser, login: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Entrez le login"
-                autoComplete="off"
-                spellCheck="false"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Email (optionnel)
-              </label>
-              <input
-                type="email"
-                value={newUser.email || ''}
-                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                placeholder="Entrez l'email"
-                autoComplete="off"
-              />
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1080,9 +1011,8 @@ function App() {
                 type="password"
                 value={newUser.password}
                 onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Entrez le mot de passe (min. 8 caractères)"
-                autoComplete="new-password"
               />
             </div>
 
@@ -1093,7 +1023,7 @@ function App() {
               <select
                 value={newUser.role}
                 onChange={(e) => setNewUser({ ...newUser, role: e.target.value as 'ADMIN' | 'USER' })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="USER">Utilisateur simple</option>
                 <option value="ADMIN">Administrateur</option>
@@ -1149,9 +1079,8 @@ function App() {
                 type="password"
                 value={passwordData.currentPassword}
                 onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Entrez le mot de passe actuel"
-                autoComplete="current-password"
               />
             </div>
 
@@ -1163,9 +1092,8 @@ function App() {
                 type="password"
                 value={passwordData.newPassword}
                 onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Entrez le nouveau mot de passe (min. 8 caractères)"
-                autoComplete="new-password"
               />
             </div>
 
@@ -1177,9 +1105,8 @@ function App() {
                 type="password"
                 value={passwordData.confirmPassword}
                 onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Confirmez le nouveau mot de passe"
-                autoComplete="new-password"
               />
             </div>
           </div>
