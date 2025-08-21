@@ -652,7 +652,7 @@ function App() {
               <div><strong>Exclusion :</strong> <code>Dupont NOT Marie</code></div>
               <div><strong>Expression exacte :</strong> <code>"Jean Pierre Dupont"</code></div>
               <div><strong>Champ spécifique :</strong> <code>CNI:123456789</code></div>
-              <div><strong>Comparaison :</strong> <code>age>=25</code> ou <code>date>2020</code></div>
+              <div><strong>Comparaison :</strong> <code>age&gt;=25</code> ou <code>date&gt;2020</code></div>
             </div>
           </div>
         </div>
