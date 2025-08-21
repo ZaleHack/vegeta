@@ -1,4 +1,5 @@
 import express from 'express';
+import database from '../config/database.js';
 import rateLimit from 'express-rate-limit';
 import SearchService from '../services/SearchService.js';
 import { authenticate } from '../middleware/auth.js';
@@ -9,6 +10,13 @@ const searchService = new SearchService();
 // Rate limiting pour les recherches
 const searchLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
+    if (!database.isConnected()) {
+      return res.status(503).json({
+        error: 'Service de base de données indisponible',
+        message: 'La base de données MySQL n\'est pas connectée'
+      });
+    }
+
   max: 100, // 100 recherches par IP
   message: { error: 'Limite de recherches atteinte. Veuillez patienter.' }
 });

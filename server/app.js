@@ -75,18 +75,25 @@ app.listen(PORT, () => {
   console.log(`🚀 Serveur VEGETA démarré sur le port ${PORT}`);
   console.log(`📊 Base de données: MySQL`);
   console.log(`🔒 Mode: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`💡 Pour utiliser toutes les fonctionnalités, démarrez MySQL sur le port 3306`);
   
   // Initialiser la base de données après le démarrage
-  setTimeout(() => {
-    initDatabase().catch(console.error);
-  }, 3000);
+  if (database.isConnected()) {
+    setTimeout(() => {
+      initDatabase().catch(console.error);
+    }, 3000);
+  }
 });
 
 // Gestion propre de l'arrêt
 process.on('SIGINT', () => {
   console.log('Arrêt du serveur VEGETA...');
-  database.close().then(() => {
-    console.log('✅ Connexions fermées');
+  if (database.isConnected()) {
+    database.close().then(() => {
+      console.log('✅ Connexions fermées');
+      process.exit(0);
+    });
+  } else {
     process.exit(0);
-  });
+  }
 });

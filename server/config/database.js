@@ -6,6 +6,7 @@ dotenv.config();
 class DatabaseManager {
   constructor() {
     this.pool = null;
+    this.connected = false;
     this.init();
   }
 
@@ -22,23 +23,31 @@ class DatabaseManager {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
-        charset: 'utf8mb4'
+        charset: 'utf8mb4',
+        acquireTimeout: 5000,
+        timeout: 5000
       });
 
       // Test de connexion
       const connection = await this.pool.getConnection();
       console.log('✅ Connexion MySQL établie avec succès');
+      this.connected = true;
       connection.release();
 
       // Créer les tables système
       await this.createSystemTables();
     } catch (error) {
-      console.error('❌ Erreur connexion MySQL:', error);
-      throw error;
+      console.error('❌ Erreur connexion MySQL:', error.message);
+      console.log('⚠️  L\'application continuera sans base de données');
+      console.log('💡 Pour utiliser MySQL, assurez-vous que le serveur MySQL est démarré');
+      this.connected = false;
+      this.pool = null;
     }
   }
 
   async createSystemTables() {
+    if (!this.connected) return;
+    
     try {
       // Créer la base si elle n'existe pas
       const dbName = process.env.DB_DATABASE || 'vegeta';
@@ -81,6 +90,10 @@ class DatabaseManager {
   }
 
   async query(sql, params = []) {
+    if (!this.connected) {
+      throw new Error('Base de données non connectée');
+    }
+    
     try {
       const [rows] = await this.pool.execute(sql, params);
       return rows;
@@ -91,6 +104,10 @@ class DatabaseManager {
   }
 
   async queryOne(sql, params = []) {
+    if (!this.connected) {
+      throw new Error('Base de données non connectée');
+    }
+    
     try {
       const [rows] = await this.pool.execute(sql, params);
       return rows[0] || null;
@@ -101,10 +118,14 @@ class DatabaseManager {
   }
 
   async close() {
-    if (this.pool) {
+    if (this.pool && this.connected) {
       await this.pool.end();
       console.log('✅ Connexions MySQL fermées');
     }
+  }
+
+  isConnected() {
+    return this.connected;
   }
 }
 
