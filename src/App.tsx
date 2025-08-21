@@ -326,7 +326,7 @@ function App() {
       });
 
       await loadUsers();
-      setNewUser({ login: '', password: '', role: 'USER', email: '', nom: '', prenom: '', telephone: '' });
+      setNewUser({ login: '', password: '', role: 'USER' });
       setShowUserModal(false);
       alert('Utilisateur créé avec succès');
     } catch (error: any) {
@@ -970,6 +970,9 @@ function App() {
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Utilisateur</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Email</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Rôle</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Statut</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Téléphone</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Dernière connexion</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Statut</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Dernière connexion</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Actions</th>
