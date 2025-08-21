@@ -36,6 +36,8 @@ interface NewUser {
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('vegeta_token');
   
+  console.log('🔍 API Request:', endpoint, options);
+  
   const config: RequestInit = {
     ...options,
     headers: {
@@ -47,18 +49,27 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   
+  console.log('📡 Response status:', response.status);
+  console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+  
   // Vérifier si la réponse contient du JSON
   const contentType = response.headers.get('content-type');
   const hasJson = contentType && contentType.includes('application/json');
+  
+  console.log('📄 Content-Type:', contentType);
+  console.log('📄 Has JSON:', hasJson);
   
   if (!response.ok) {
     let errorMessage = `Erreur ${response.status}: ${response.statusText}`;
     
     if (hasJson) {
       try {
-        const error = await response.json();
+        const responseText = await response.text();
+        console.log('❌ Error response text:', responseText);
+        const error = JSON.parse(responseText);
         errorMessage = error.error || error.message || errorMessage;
       } catch (e) {
+        console.log('❌ JSON parse error:', e);
         // Si le parsing JSON échoue, utiliser le message par défaut
       }
     }
@@ -69,13 +80,18 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   // Vérifier si la réponse contient du JSON avant de parser
   if (hasJson) {
     try {
-      return await response.json();
+      const responseText = await response.text();
+      console.log('✅ Success response text:', responseText);
+      return JSON.parse(responseText);
     } catch (e) {
+      console.log('❌ JSON parse error:', e);
       throw new Error('Réponse invalide du serveur');
     }
   } else {
     // Si pas de JSON, retourner le texte
-    return await response.text();
+    const responseText = await response.text();
+    console.log('📄 Text response:', responseText);
+    return responseText;
   }
 };
 

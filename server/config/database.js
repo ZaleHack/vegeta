@@ -11,6 +11,13 @@ class DatabaseManager {
 
   async init() {
     try {
+      console.log('🔌 Initializing MySQL connection...');
+      console.log('🔌 Config:', {
+        host: process.env.DB_HOST || 'localhost',
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD ? '***' : '(empty)'
+      });
+      
       this.pool = mysql.createPool({
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',
@@ -26,6 +33,7 @@ class DatabaseManager {
       });
 
       // Test de connexion
+      console.log('🔌 Testing connection...');
       const connection = await this.pool.getConnection();
       console.log('✅ Connexion MySQL établie avec succès');
       
@@ -33,6 +41,10 @@ class DatabaseManager {
       try {
         const [databases] = await connection.execute('SHOW DATABASES');
         console.log('📊 Bases disponibles:', databases.map(db => db.Database));
+        
+        // Tester spécifiquement la table users
+        const [users] = await connection.execute('SELECT COUNT(*) as count FROM autres.users');
+        console.log('👥 Nombre d\'utilisateurs dans autres.users:', users[0].count);
       } catch (err) {
         console.warn('⚠️ Impossible de lister les bases:', err.message);
       }
