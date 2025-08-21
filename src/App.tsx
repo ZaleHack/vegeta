@@ -625,12 +625,14 @@ function App() {
           {/* Suggestions */}
           <div className="flex flex-wrap gap-2 justify-center">
             {[
-              { label: 'CNI:123456789', desc: 'Recherche par CNI' },
-              { label: 'nom:Dupont AND prenom:Jean', desc: 'Combinaison ET' },
-              { label: 'telephone:77 OR telephone:76', desc: 'Combinaison OU' },
-              { label: '"Jean Pierre Dupont"', desc: 'Expression exacte' },
-              { label: 'Dupont NOT Marie', desc: 'Exclusion' },
-              { label: 'matricule:123 AND corps:police', desc: 'Multi-critères' }
+              { label: 'CNI:123456789', desc: 'Recherche par CNI spécifique' },
+              { label: 'nom:Dupont AND prenom:Jean', desc: 'Recherche combinée ET' },
+              { label: 'telephone:77 OR telephone:76', desc: 'Recherche alternative OU' },
+              { label: 'corps:police AND grade:commissaire', desc: 'Critères professionnels' },
+              { label: 'region:Dakar NOT commune:Pikine', desc: 'Exclusion géographique' },
+              { label: '"Ministère des Finances"', desc: 'Expression exacte' },
+              { label: 'matricule:123 AND NOT sexe:F', desc: 'Combinaison avec exclusion' },
+              { label: 'age>=25 AND age<=65', desc: 'Comparaisons numériques' }
             ].map((suggestion, index) => (
               <button
                 key={index}
@@ -646,13 +648,16 @@ function App() {
           {/* Guide de recherche avancée */}
           <div className="mt-6 bg-blue-50 rounded-xl p-4">
             <h4 className="font-semibold text-blue-900 mb-3">🔍 Guide de recherche avancée</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-blue-800">
-              <div><strong>ET logique :</strong> <code>nom:Dupont AND prenom:Jean</code></div>
-              <div><strong>OU logique :</strong> <code>telephone:77 OR telephone:76</code></div>
-              <div><strong>Exclusion :</strong> <code>Dupont NOT Marie</code></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm text-blue-800">
+              <div><strong>Combinaison ET :</strong> <code>nom:Dupont AND prenom:Jean</code></div>
+              <div><strong>Alternative OU :</strong> <code>telephone:77 OR telephone:76</code></div>
+              <div><strong>Exclusion NOT :</strong> <code>Dupont NOT Marie</code></div>
               <div><strong>Expression exacte :</strong> <code>"Jean Pierre Dupont"</code></div>
-              <div><strong>Champ spécifique :</strong> <code>CNI:123456789</code></div>
-              <div><strong>Comparaison :</strong> <code>age>=25</code> ou <code>date>2020</code></div>
+              <div><strong>Champ ciblé :</strong> <code>CNI:123456789</code></div>
+              <div><strong>Comparaisons :</strong> <code>age>=25</code>, <code>date>2020</code></div>
+              <div><strong>Exclusion simple :</strong> <code>-Marie</code></div>
+              <div><strong>Multi-critères :</strong> <code>corps:police AND region:Dakar</code></div>
+              <div><strong>Complexe :</strong> <code>(nom:Diallo OR nom:Ba) AND ville:Dakar</code></div>
             </div>
           </div>
         </div>
