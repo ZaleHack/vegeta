@@ -62,7 +62,6 @@ class DatabaseManager {
           user_id INT,
           username VARCHAR(255),
           search_term TEXT,
-          filters TEXT,
           tables_searched TEXT,
           results_count INT DEFAULT 0,
           execution_time_ms INT DEFAULT 0,

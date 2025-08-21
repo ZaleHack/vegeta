@@ -106,6 +106,8 @@ function App() {
     today_searches: 0,
     active_users: 0
   });
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   // Vérification du token au démarrage
   useEffect(() => {
@@ -297,6 +299,20 @@ function App() {
       console.error('❌ Erreur de recherche:', error);
       alert('Erreur lors de la recherche: ' + error.message);
       setSearchResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleViewDetails = async (result: SearchResult) => {
+    try {
+      setIsLoading(true);
+      const tableName = `${result.database}_${result.table}`;
+      const response = await apiRequest(`/search/details/${tableName}/${result.primary_keys.id}`);
+      setSelectedRecord(response);
+      setShowDetailsModal(true);
+    } catch (error: any) {
+      alert('Erreur lors de la récupération des détails: ' + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -695,7 +711,10 @@ function App() {
                   </div>
                 </div>
                 
-                <button className="ml-4 flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md">
+                <button 
+                  onClick={() => handleViewDetails(result)}
+                  className="ml-4 flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md"
+                >
                   <Eye className="w-4 h-4" />
                   Détails
                 </button>
