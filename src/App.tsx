@@ -654,7 +654,7 @@ function App() {
               <div><strong>Exclusion NOT :</strong> <code>Dupont NOT Marie</code></div>
               <div><strong>Expression exacte :</strong> <code>"Jean Pierre Dupont"</code></div>
               <div><strong>Champ ciblé :</strong> <code>CNI:123456789</code></div>
-              <div><strong>Comparaisons :</strong> <code>age>=25</code>, <code>date>2020</code></div>
+              <div><strong>Comparaisons :</strong> <code>age&gt;=25</code>, <code>date&gt;2020</code></div>
               <div><strong>Exclusion simple :</strong> <code>-Marie</code></div>
               <div><strong>Multi-critères :</strong> <code>corps:police AND region:Dakar</code></div>
               <div><strong>Complexe :</strong> <code>(nom:Diallo OR nom:Ba) AND ville:Dakar</code></div>
