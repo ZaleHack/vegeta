@@ -1,10 +1,10 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import SearchService from '../services/SearchService.js';
+import SearchServiceClass from '../services/SearchService.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
-const searchService = new SearchService();
+const searchService = new SearchServiceClass();
 
 // Rate limiting pour les recherches
 const searchLimiter = rateLimit({

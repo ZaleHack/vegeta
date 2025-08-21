@@ -140,4 +140,4 @@ class SearchService {
   }
 }
 
-export default new SearchService();
+export default SearchService;
