@@ -16,15 +16,15 @@ class SearchService {
     }
 
     const offset = (page - 1) * limit;
-    const searchCriteria = this.parseAdvancedQuery(query);
+    const searchTerms = this.parseSearchQuery(query);
 
-    console.log('🔍 Recherche avancée:', { query, searchCriteria });
+    console.log('🔍 Recherche:', { query, searchTerms, filters });
 
     // Recherche dans toutes les tables configurées
     for (const [tableName, config] of Object.entries(this.catalog)) {
       try {
         console.log(`🔍 Recherche dans ${tableName}...`);
-        const tableResults = await this.searchInTable(tableName, config, searchCriteria);
+        const tableResults = await this.searchInTable(tableName, config, searchTerms, filters);
         if (tableResults.length > 0) {
           results.push(...tableResults);
           tablesSearched.push(tableName);
@@ -32,11 +32,12 @@ class SearchService {
         }
       } catch (error) {
         console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
+        // Continue avec les autres tables même si une échoue
       }
     }
 
     // Tri et pagination des résultats
-    const sortedResults = this.sortResults(results, searchCriteria);
+    const sortedResults = this.sortResults(results, searchTerms);
     const totalResults = sortedResults.length;
     const paginatedResults = sortedResults.slice(offset, offset + limit);
 
@@ -50,6 +51,7 @@ class SearchService {
         user_id: user.id,
         username: user.login,
         search_term: query,
+        filters: JSON.stringify(filters),
         tables_searched: JSON.stringify(tablesSearched),
         results_count: totalResults,
         execution_time_ms: executionTime,
@@ -69,91 +71,30 @@ class SearchService {
     };
   }
 
-  parseAdvancedQuery(query) {
-    const criteria = {
-      terms: [],
-      operators: [],
-      logic: 'AND' // Logique par défaut
-    };
+  parseSearchQuery(query) {
+    const terms = [];
+    const words = query.split(/\s+/);
 
-    // Nettoyer et normaliser la requête
-    let cleanQuery = query.trim();
-    
-    // Gérer les expressions entre guillemets
-    const quotedExpressions = [];
-    cleanQuery = cleanQuery.replace(/"([^"]+)"/g, (match, content) => {
-      quotedExpressions.push({ type: 'exact', value: content.trim() });
-      return `__QUOTED_${quotedExpressions.length - 1}__`;
-    });
+    for (let word of words) {
+      word = word.trim();
+      if (word.length === 0) continue;
 
-    // Séparer par les opérateurs logiques
-    const tokens = cleanQuery.split(/\s+(AND|OR|NOT)\s+/i);
-    
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i].trim();
-      
-      if (!token) continue;
-      
-      // Si c'est un opérateur logique
-      if (['AND', 'OR', 'NOT'].includes(token.toUpperCase())) {
-        criteria.operators.push(token.toUpperCase());
-        continue;
-      }
-      
-      // Traiter chaque terme
-      const words = token.split(/\s+/);
-      const termGroup = [];
-      
-      for (let word of words) {
-        word = word.trim();
-        if (!word) continue;
-        
-        // Restaurer les expressions quotées
-        if (word.includes('__QUOTED_')) {
-          const index = parseInt(word.match(/__QUOTED_(\d+)__/)[1]);
-          termGroup.push(quotedExpressions[index]);
-        }
-        // Exclusion avec -
-        else if (word.startsWith('-')) {
-          termGroup.push({ type: 'exclude', value: word.slice(1) });
-        }
-        // Recherche par champ avec :
-        else if (word.includes(':')) {
-          const [field, value] = word.split(':', 2);
-          termGroup.push({ type: 'field', field: field.trim(), value: value.trim() });
-        }
-        // Comparaisons
-        else if (word.includes('>=')) {
-          const [field, value] = word.split('>=', 2);
-          termGroup.push({ type: 'comparison', field: field.trim(), operator: '>=', value: value.trim() });
-        }
-        else if (word.includes('<=')) {
-          const [field, value] = word.split('<=', 2);
-          termGroup.push({ type: 'comparison', field: field.trim(), operator: '<=', value: value.trim() });
-        }
-        else if (word.includes('>')) {
-          const [field, value] = word.split('>', 2);
-          termGroup.push({ type: 'comparison', field: field.trim(), operator: '>', value: value.trim() });
-        }
-        else if (word.includes('<')) {
-          const [field, value] = word.split('<', 2);
-          termGroup.push({ type: 'comparison', field: field.trim(), operator: '<', value: value.trim() });
-        }
-        // Terme normal
-        else {
-          termGroup.push({ type: 'normal', value: word });
-        }
-      }
-      
-      if (termGroup.length > 0) {
-        criteria.terms.push(termGroup);
+      if (word.startsWith('"') && word.endsWith('"')) {
+        terms.push({ type: 'exact', value: word.slice(1, -1) });
+      } else if (word.startsWith('-')) {
+        terms.push({ type: 'exclude', value: word.slice(1) });
+      } else if (word.includes(':')) {
+        const [field, value] = word.split(':', 2);
+        terms.push({ type: 'field', field: field, value: value });
+      } else {
+        terms.push({ type: 'normal', value: word });
       }
     }
 
-    return criteria;
+    return terms;
   }
 
-  async searchInTable(tableName, config, searchCriteria) {
+  async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
     
     // Vérifier si la table existe
@@ -164,26 +105,69 @@ class SearchService {
       return results;
     }
 
-    // Construire la requête SQL
-    const { sql, params } = this.buildSQLQuery(tableName, config, searchCriteria);
-    
-    if (!sql) {
+    let sql = `SELECT * FROM ${tableName} WHERE `;
+    const params = [];
+    const conditions = [];
+
+    for (const term of searchTerms) {
+      if (term.type === 'exclude') continue;
+
+      const termConditions = [];
+
+      if (term.type === 'exact') {
+        for (const field of config.searchable) {
+          termConditions.push(`${field} = ?`);
+          params.push(term.value);
+        }
+      } else if (term.type === 'field') {
+        if (config.searchable.includes(term.field)) {
+          termConditions.push(`${term.field} LIKE ?`);
+          params.push(`%${term.value}%`);
+        }
+      } else if (term.type === 'normal') {
+        for (const field of config.searchable) {
+          termConditions.push(`${field} LIKE ?`);
+          params.push(`%${term.value}%`);
+        }
+      }
+
+      if (termConditions.length > 0) {
+        conditions.push(`(${termConditions.join(' OR ')})`);
+      }
+    }
+
+    if (conditions.length === 0) {
       return results;
     }
 
+    sql += conditions.join(' AND ');
+
+    // Gestion des exclusions
+    const excludeTerms = searchTerms.filter(t => t.type === 'exclude');
+    for (const term of excludeTerms) {
+      const excludeConditions = [];
+      for (const field of config.searchable) {
+        excludeConditions.push(`${field} NOT LIKE ?`);
+        params.push(`%${term.value}%`);
+      }
+      if (excludeConditions.length > 0) {
+        sql += ` AND (${excludeConditions.join(' AND ')})`;
+      }
+    }
+
+    sql += ' LIMIT 50'; // Limite par table
+
     try {
-      console.log(`🔍 SQL pour ${tableName}:`, sql);
-      console.log(`📋 Paramètres:`, params);
-      
       const rows = await database.query(sql, params);
 
       for (const row of rows) {
+        const preview = this.buildPreview(row, config);
         results.push({
           table: config.display,
           database: config.database,
-          data: row,
+          preview: preview,
           primary_keys: { id: row.id },
-          score: this.calculateRelevanceScore(row, searchCriteria, config)
+          score: this.calculateRelevanceScore(row, searchTerms, config)
         });
       }
     } catch (error) {
@@ -193,117 +177,38 @@ class SearchService {
     return results;
   }
 
-  buildSQLQuery(tableName, config, searchCriteria) {
-    let sql = `SELECT * FROM ${tableName} WHERE `;
-    const params = [];
-    const conditions = [];
-
-    // Traiter chaque groupe de termes
-    for (let i = 0; i < searchCriteria.terms.length; i++) {
-      const termGroup = searchCriteria.terms[i];
-      const groupConditions = [];
-
-      // Traiter chaque terme dans le groupe
-      for (const term of termGroup) {
-        const termConditions = this.buildTermConditions(term, config, params);
-        if (termConditions.length > 0) {
-          groupConditions.push(`(${termConditions.join(' OR ')})`);
-        }
+  buildPreview(record, config) {
+    const preview = {};
+    
+    config.preview.forEach(field => {
+      if (record[field] !== null && record[field] !== undefined && record[field] !== '') {
+        preview[field] = record[field];
       }
+    });
 
-      if (groupConditions.length > 0) {
-        const groupCondition = groupConditions.join(' AND ');
-        
-        // Appliquer l'opérateur logique
-        if (i === 0) {
-          conditions.push(`(${groupCondition})`);
-        } else {
-          const operator = searchCriteria.operators[i - 1] || 'AND';
-          if (operator === 'NOT') {
-            conditions.push(`AND NOT (${groupCondition})`);
-          } else {
-            conditions.push(`${operator} (${groupCondition})`);
-          }
-        }
-      }
-    }
-
-    if (conditions.length === 0) {
-      return { sql: null, params: [] };
-    }
-
-    sql += conditions.join(' ');
-    sql += ' LIMIT 50'; // Limite par table
-
-    return { sql, params };
+    return preview;
   }
 
-  buildTermConditions(term, config, params) {
-    const conditions = [];
-
-    switch (term.type) {
-      case 'exact':
-        for (const field of config.searchable) {
-          conditions.push(`${field} = ?`);
-          params.push(term.value);
-        }
-        break;
-
-      case 'field':
-        if (config.searchable.includes(term.field)) {
-          conditions.push(`${term.field} LIKE ?`);
-          params.push(`%${term.value}%`);
-        }
-        break;
-
-      case 'comparison':
-        if (config.searchable.includes(term.field)) {
-          conditions.push(`${term.field} ${term.operator} ?`);
-          params.push(term.value);
-        }
-        break;
-
-      case 'exclude':
-        for (const field of config.searchable) {
-          conditions.push(`${field} NOT LIKE ?`);
-          params.push(`%${term.value}%`);
-        }
-        break;
-
-      case 'normal':
-      default:
-        for (const field of config.searchable) {
-          conditions.push(`${field} LIKE ?`);
-          params.push(`%${term.value}%`);
-        }
-        break;
-    }
-
-    return conditions;
-  }
-
-  calculateRelevanceScore(record, searchCriteria, config) {
+  calculateRelevanceScore(record, searchTerms, config) {
     let score = 0;
     
-    for (const termGroup of searchCriteria.terms) {
-      for (const term of termGroup) {
-        if (term.type === 'exclude') continue;
+    for (const term of searchTerms) {
+      if (term.type === 'exclude') continue;
+      
+      const searchValue = term.value.toLowerCase();
+      
+      for (const field of config.searchable) {
+        const value = record[field];
+        if (!value) continue;
         
-        const searchValue = term.value.toLowerCase();
+        const fieldValue = value.toString().toLowerCase();
         
-        for (const field of config.searchable) {
-          const value = record[field];
-          if (!value) continue;
-          
-          const fieldValue = value.toString().toLowerCase();
-          
-          if (term.type === 'exact' && fieldValue === searchValue) {
-            score += 10;
-          } else if (fieldValue.includes(searchValue)) {
-            const position = fieldValue.indexOf(searchValue);
-            const lengthRatio = searchValue.length / fieldValue.length;
-            score += (10 - position * 0.1) * lengthRatio;
-          }
+        if (term.type === 'exact' && fieldValue === searchValue) {
+          score += 10;
+        } else if (fieldValue.includes(searchValue)) {
+          const position = fieldValue.indexOf(searchValue);
+          const lengthRatio = searchValue.length / fieldValue.length;
+          score += (10 - position * 0.1) * lengthRatio;
         }
       }
     }
@@ -311,7 +216,7 @@ class SearchService {
     return Math.round(score * 100) / 100;
   }
 
-  sortResults(results, searchCriteria) {
+  sortResults(results, searchTerms) {
     return results.sort((a, b) => {
       if (b.score !== a.score) {
         return b.score - a.score;
