@@ -76,7 +76,9 @@ function App() {
   const [users, setUsers] = useState<User[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [newUser, setNewUser] = useState<NewUser>({
     login: '',
     password: '',
@@ -357,6 +359,23 @@ function App() {
       setShowPasswordModal(false);
       setEditingUser(null);
       alert('Mot de passe modifié avec succès');
+    } catch (error: any) {
+      alert('Erreur: ' + error.message);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deletingUser) return;
+
+    try {
+      await apiRequest(`/users/${deletingUser.id}`, {
+        method: 'DELETE',
+      });
+
+      await loadUsers();
+      setShowDeleteModal(false);
+      setDeletingUser(null);
+      alert('Utilisateur supprimé avec succès');
     } catch (error: any) {
       alert('Erreur: ' + error.message);
     }
@@ -961,6 +980,16 @@ function App() {
                         title="Changer le mot de passe"
                       >
                         <Settings className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDeletingUser(user);
+                          setShowDeleteModal(true);
+                        }}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Supprimer l'utilisateur"
+                      >
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   </td>

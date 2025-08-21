@@ -134,4 +134,31 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+// Obtenir les détails d'un utilisateur
+router.get('/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'ID utilisateur invalide' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    const { mdp, ...userResponse } = user;
+    res.json({ 
+      user: {
+        ...userResponse,
+        role: user.admin === 1 ? 'ADMIN' : 'USER'
+      }
+    });
+  } catch (error) {
+    console.error('Erreur détails utilisateur:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération de l\'utilisateur' });
+  }
+});
+
 export default router;
