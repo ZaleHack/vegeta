@@ -1,36 +1,36 @@
 import database from '../config/database.js';
-import tablesCatalog from '../config/tables-catalog.js';
+import tablesCatalog from '../config/tables-catalog.json' assert { type: 'json' };
 
 class StatsService {
   async getOverviewStats() {
     try {
       // Statistiques générales
       const totalSearches = await database.queryOne(
-        'SELECT COUNT(*) as count FROM autres.search_logs'
+        'SELECT COUNT(*) as count FROM search_logs'
       );
       
       const avgExecutionTime = await database.queryOne(
-        'SELECT AVG(execution_time_ms) as avg_time FROM autres.search_logs WHERE execution_time_ms > 0'
+        'SELECT AVG(execution_time_ms) as avg_time FROM search_logs WHERE execution_time_ms > 0'
       );
       
       // Recherches aujourd'hui
       const todaySearches = await database.queryOne(`
-        SELECT COUNT(*) as count FROM autres.search_logs 
+        SELECT COUNT(*) as count FROM search_logs 
         WHERE DATE(search_date) = CURDATE()
       `);
 
       // Utilisateurs actifs
       const activeUsers = await database.queryOne(
-        'SELECT COUNT(*) as count FROM autres.users'
+        'SELECT COUNT(*) as count FROM users'
       );
       
       // Top 10 des termes de recherche
       const topSearchTerms = await database.query(`
         SELECT search_term, COUNT(*) as search_count
-        FROM autres.search_logs 
+        FROM search_logs 
         WHERE search_term IS NOT NULL 
           AND search_term != ''
-          AND search_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND search_date >= DATE('now', '-30 days')
         GROUP BY search_term
         ORDER BY search_count DESC 
         LIMIT 10
@@ -83,8 +83,8 @@ class StatsService {
           COUNT(*) as searches,
           COUNT(DISTINCT user_id) as unique_users,
           AVG(execution_time_ms) as avg_time
-        FROM autres.search_logs 
-        WHERE search_date >= DATE_SUB(NOW(), INTERVAL ? DAY)
+        FROM search_logs 
+        WHERE search_date >= DATE('now', '-' || ? || ' days')
         GROUP BY DATE(search_date)
         ORDER BY date ASC
       `, [days]);
@@ -111,7 +111,7 @@ class StatsService {
           COUNT(sl.id) as total_searches,
           AVG(sl.results_count) as avg_results,
           MAX(sl.search_date) as last_search
-        FROM autres.users u
+        FROM users u
         LEFT JOIN autres.search_logs sl ON u.id = sl.user_id
         GROUP BY u.id, u.login, u.admin
         ORDER BY total_searches DESC

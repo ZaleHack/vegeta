@@ -16,7 +16,7 @@ async function initDatabase() {
     // Vérifier si la table users existe
     console.log('🔧 Vérification de la table users...');
     try {
-      const tableCheck = await database.queryOne('SELECT COUNT(*) as count FROM autres.users');
+      const tableCheck = await database.queryOne('SELECT COUNT(*) as count FROM users');
       console.log('🔧 Table users existe, nombre d\'utilisateurs:', tableCheck.count);
     } catch (error) {
       console.log('🔧 Table users n\'existe pas encore, elle sera créée automatiquement');
@@ -25,7 +25,7 @@ async function initDatabase() {
     // Vérifier si l'utilisateur admin existe
     console.log('🔧 Recherche de l\'utilisateur admin...');
     const existingAdmin = await database.queryOne(
-      'SELECT * FROM autres.users WHERE login = ?', 
+      'SELECT * FROM users WHERE login = ?', 
       ['admin']
     );
     
@@ -46,7 +46,7 @@ async function initDatabase() {
     console.log('🔧 Password hashed, length:', hashedPassword.length);
     
     const result = await database.query(
-      'INSERT INTO autres.users (login, mdp, admin) VALUES (?, ?, ?)',
+      'INSERT INTO users (login, mdp, admin) VALUES (?, ?, ?)',
       ['admin', hashedPassword, 1]
     );
     
@@ -57,7 +57,7 @@ async function initDatabase() {
     
     // Vérifier la création
     const newAdmin = await database.queryOne(
-      'SELECT login, admin FROM autres.users WHERE login = ?', 
+      'SELECT login, admin FROM users WHERE login = ?', 
       ['admin']
     );
     
