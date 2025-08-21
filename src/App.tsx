@@ -303,8 +303,8 @@ function App() {
   };
 
   const handleCreateUser = async () => {
-    if (!newUser.login || !newUser.email || !newUser.password) {
-      alert('Login, email et mot de passe sont requis');
+    if (!newUser.login || !newUser.password) {
+      alert('Tous les champs sont requis');
       return;
     }
     
@@ -320,7 +320,7 @@ function App() {
       });
 
       await loadUsers();
-      setNewUser({ login: '', email: '', password: '', role: 'LECTEUR' });
+      setNewUser({ login: '', password: '', role: 'USER' });
       setShowUserModal(false);
       alert('Utilisateur créé avec succès');
     } catch (error: any) {
@@ -895,17 +895,6 @@ function App() {
   );
 
   const UsersPage = () => {
-    const availableUsers = [
-      { id: 'esolde.mytable', name: 'esolde - mytable', description: 'Données employés esolde' },
-      { id: 'rhpolice.personne_concours', name: 'rhpolice - personne_concours', description: 'Concours police nationale' },
-      { id: 'renseignement.agentfinance', name: 'renseignement - agentfinance', description: 'Agents finances publiques' },
-      { id: 'rhgendarmerie.personne', name: 'rhgendarmerie - personne', description: 'Personnel gendarmerie' },
-      { id: 'permis.tables', name: 'permis - tables', description: 'Permis de conduire' },
-      { id: 'expresso.expresso', name: 'expresso - expresso', description: 'Données Expresso Money' },
-      { id: 'elections.dakar', name: 'elections - dakar', description: 'Électeurs région Dakar' },
-      { id: 'autres.Vehicules', name: 'autres - vehicules', description: 'Immatriculations véhicules' },
-      { id: 'autres.entreprises', name: 'autres - entreprises', description: 'Registre des entreprises' }
-    ];
 
     return (
     <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'} p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen`}>
@@ -926,7 +915,10 @@ function App() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Utilisateur</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Email</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Rôle</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Statut</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Dernière connexion</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Actions</th>
               </tr>
             </thead>
@@ -942,12 +934,51 @@ function App() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      user.role === 'ADMIN' 
-                        ? 'bg-red-100 text-red-800' 
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {user.role}
+                    <span className="text-slate-600">{user.email || 'Non renseigné'}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <select
+                      value={user.role}
+                      onChange={(e) => handleChangeUserRole(user.id, e.target.value)}
+                      className={`px-2 py-1 rounded-full text-xs font-medium border-0 ${
+                        user.role === 'ADMIN' 
+                          ? 'bg-red-100 text-red-800' 
+                          : user.role === 'ANALYSTE'
+                          ? 'bg-orange-100 text-orange-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}
+                      disabled={user.id === user?.id} // Empêcher de modifier son propre rôle
+                    >
+                      <option value="LECTEUR">LECTEUR</option>
+                      <option value="ANALYSTE">ANALYSTE</option>
+                      <option value="ADMIN">ADMIN</option>
+                    </select>
+                  </td>
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => handleToggleUserStatus(user.id, user.is_active)}
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        user.is_active === 1
+                          ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                      } transition-colors`}
+                      disabled={user.id === user?.id} // Empêcher de désactiver son propre compte
+                    >
+                      {user.is_active === 1 ? 'Actif' : 'Inactif'}
+                    </button>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-slate-500">
+                      {user.last_login 
+                        ? new Date(user.last_login).toLocaleDateString('fr-FR', {
+                            day: '2-digit',
+                            month: '2-digit', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : 'Jamais connecté'
+                      }
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -962,6 +993,19 @@ function App() {
                       >
                         <Settings className="w-4 h-4" />
                       </button>
+                      {user.id !== user?.id && (
+                        <button
+                          onClick={() => {
+                            if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+                              handleDeleteUser(user.id);
+                            }
+                          }}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Supprimer l'utilisateur"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
