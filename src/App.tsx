@@ -40,10 +40,19 @@ const App: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/stats');
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
+      // Fetch overview stats
+      const overviewResponse = await fetch('http://localhost:3000/api/stats/overview');
+      const distributionResponse = await fetch('http://localhost:3000/api/stats/data-distribution');
+      
+      if (overviewResponse.ok && distributionResponse.ok) {
+        const overviewData = await overviewResponse.json();
+        const distributionData = await distributionResponse.json();
+        
+        setStats({
+          totalRecords: overviewData.totalRecords || 0,
+          totalTables: distributionData.distribution?.length || 0,
+          recentSearches: overviewData.recentSearches || 0
+        });
       }
     } catch (error) {
       console.error('Erreur lors du chargement des statistiques:', error);

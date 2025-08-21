@@ -6,7 +6,7 @@ const router = express.Router();
 const statsService = new StatsService();
 
 // Statistiques générales
-router.get('/overview', authenticate, async (req, res) => {
+router.get('/overview', async (req, res) => {
   try {
     const stats = await statsService.getOverviewStats();
     res.json(stats);
@@ -17,7 +17,7 @@ router.get('/overview', authenticate, async (req, res) => {
 });
 
 // Distribution des données par table
-router.get('/data-distribution', authenticate, async (req, res) => {
+router.get('/data-distribution', async (req, res) => {
   try {
     const distribution = await statsService.getDataStatistics();
     res.json({ distribution });
