@@ -21,7 +21,7 @@ class StatsService {
 
       // Utilisateurs actifs
       const activeUsers = await database.queryOne(
-        'SELECT COUNT(*) as count FROM autres.users'
+        'SELECT COUNT(*) as count FROM users'
       );
       
       // Top 10 des termes de recherche
@@ -111,7 +111,7 @@ class StatsService {
           COUNT(sl.id) as total_searches,
           AVG(sl.results_count) as avg_results,
           MAX(sl.search_date) as last_search
-        FROM autres.users u
+        FROM users u
         LEFT JOIN search_logs sl ON u.id = sl.user_id
         GROUP BY u.id, u.login, u.admin
         ORDER BY total_searches DESC
@@ -130,7 +130,7 @@ class StatsService {
       // Distribution par région depuis les entreprises
       const regions = await database.query(`
         SELECT region, COUNT(*) as count 
-        FROM autres.entreprises 
+        FROM autres_entreprises 
         WHERE region IS NOT NULL AND region != ''
         GROUP BY region 
         ORDER BY count DESC

@@ -22,7 +22,7 @@ class DatabaseManager {
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASSWORD || '',
-        // Ne pas spécifier de base par défaut pour pouvoir accéder à toutes les bases
+        database: 'autres', // Utiliser 'autres' comme base par défaut
         multipleStatements: true,
         waitForConnections: true,
         connectionLimit: 10,
@@ -43,7 +43,7 @@ class DatabaseManager {
         console.log('📊 Bases disponibles:', databases.map(db => db.Database));
         
         // Tester spécifiquement la table users
-        const [users] = await connection.execute('SELECT COUNT(*) as count FROM autres.users');
+        const [users] = await connection.execute('SELECT COUNT(*) as count FROM users');
         console.log('👥 Nombre d\'utilisateurs dans autres.users:', users[0].count);
       } catch (err) {
         console.warn('⚠️ Impossible de lister les bases:', err.message);
@@ -61,6 +61,33 @@ class DatabaseManager {
 
   async createSystemTables() {
     try {
+      // Créer la base 'autres' si elle n'existe pas
+      await this.query('CREATE DATABASE IF NOT EXISTS autres');
+      await this.query('USE autres');
+      
+      // Créer la table users si elle n'existe pas
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          login VARCHAR(255) UNIQUE NOT NULL,
+          mdp VARCHAR(255) NOT NULL,
+          admin TINYINT(1) DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+      
+      // Insérer un utilisateur admin par défaut s'il n'existe pas
+      const [existingAdmin] = await this.query('SELECT COUNT(*) as count FROM users WHERE login = ?', ['admin']);
+      if (existingAdmin.count === 0) {
+        // Mot de passe: admin123 (hashé avec bcrypt)
+        await this.query(`
+          INSERT INTO users (login, mdp, admin) VALUES 
+          ('admin', '$2a$12$LQv3c1yqBwEHFl5aysHdsOu/1oKxIRS/VKxMRUnAYF5.ZjjQK5YTC', 1)
+        `);
+        console.log('👤 Utilisateur admin créé (login: admin, password: admin123)');
+      }
+      
       // Table pour les logs de recherche
       await this.query(`
         CREATE TABLE IF NOT EXISTS search_logs (
