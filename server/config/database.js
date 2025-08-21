@@ -1,86 +1,77 @@
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
 class DatabaseManager {
   constructor() {
-    this.db = null;
+    this.pool = null;
     this.init();
   }
 
   async init() {
     try {
-      console.log('🔌 Initializing SQLite connection...');
+      console.log('🔌 Initializing MySQL connection...');
       
-      // Create database file in project root
-      const dbPath = path.join(__dirname, '../../vegeta.db');
-      
-      this.db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database
+      this.pool = mysql.createPool({
+        host: process.env.DB_HOST || 'localhost',
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || '',
+        database: 'autres',
+        multipleStatements: true,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+        charset: 'utf8mb4'
       });
 
-      console.log('✅ Connexion SQLite établie avec succès');
+      // Test de connexion
+      const connection = await this.pool.getConnection();
+      console.log('✅ Connexion MySQL établie avec succès');
+      connection.release();
 
-      // Create system tables
+      // Créer les tables système
       await this.createSystemTables();
     } catch (error) {
-      console.error('❌ Erreur connexion SQLite:', error);
+      console.error('❌ Erreur connexion MySQL:', error);
       throw error;
     }
   }
 
   async createSystemTables() {
     try {
-      // Create users table
-      await this.db.exec(`
-        CREATE TABLE IF NOT EXISTS users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          login TEXT UNIQUE NOT NULL,
-          mdp TEXT NOT NULL,
-          admin INTEGER DEFAULT 0,
-          email TEXT,
-          role TEXT DEFAULT 'LECTEUR' CHECK(role IN ('ADMIN', 'ANALYSTE', 'LECTEUR')),
-          is_active INTEGER DEFAULT 1,
-          last_login DATETIME,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
+      // Créer la base 'autres' si elle n'existe pas
+      await this.query('CREATE DATABASE IF NOT EXISTS autres');
+      
+      // Créer la table users
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.users (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          login VARCHAR(255) UNIQUE NOT NULL,
+          mdp VARCHAR(255) NOT NULL,
+          admin TINYINT(1) DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
       
-      // Create search_logs table
-      await this.db.exec(`
-        CREATE TABLE IF NOT EXISTS search_logs (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER,
-          username TEXT,
+      // Créer la table search_logs
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.search_logs (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT,
+          username VARCHAR(255),
           search_term TEXT,
           tables_searched TEXT,
-          results_count INTEGER DEFAULT 0,
-          execution_time_ms INTEGER DEFAULT 0,
-          ip_address TEXT,
+          results_count INT DEFAULT 0,
+          execution_time_ms INT DEFAULT 0,
+          ip_address VARCHAR(45),
           user_agent TEXT,
-          search_date DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
+          search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_user_id (user_id),
+          INDEX idx_search_date (search_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
-
-      // Create default admin user if not exists
-      const adminExists = await this.db.get('SELECT id FROM users WHERE login = ?', ['admin']);
-      if (!adminExists) {
-        const bcrypt = await import('bcrypt');
-        const hashedPassword = await bcrypt.hash('admin123', 10);
-        
-        await this.db.run(`
-          INSERT INTO users (login, mdp, admin, email, role, is_active)
-          VALUES (?, ?, 1, ?, 'ADMIN', 1)
-        `, ['admin', hashedPassword, 'admin@vegeta.local']);
-        
-        console.log('✅ Utilisateur admin créé (login: admin, password: admin123)');
-      }
 
       console.log('✅ Tables système créées avec succès');
     } catch (error) {
@@ -90,11 +81,8 @@ class DatabaseManager {
 
   async query(sql, params = []) {
     try {
-      if (sql.trim().toUpperCase().startsWith('SELECT')) {
-        return await this.db.all(sql, params);
-      } else {
-        return await this.db.run(sql, params);
-      }
+      const [rows] = await this.pool.execute(sql, params);
+      return rows;
     } catch (error) {
       console.error('❌ Erreur requête SQL:', error);
       throw error;
@@ -103,7 +91,8 @@ class DatabaseManager {
 
   async queryOne(sql, params = []) {
     try {
-      return await this.db.get(sql, params);
+      const [rows] = await this.pool.execute(sql, params);
+      return rows[0] || null;
     } catch (error) {
       console.error('❌ Erreur requête SQL:', error);
       throw error;
@@ -111,9 +100,9 @@ class DatabaseManager {
   }
 
   async close() {
-    if (this.db) {
-      await this.db.close();
-      console.log('✅ Connexions SQLite fermées');
+    if (this.pool) {
+      await this.pool.end();
+      console.log('✅ Connexions MySQL fermées');
     }
   }
 }

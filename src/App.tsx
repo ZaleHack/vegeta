@@ -303,8 +303,8 @@ function App() {
   };
 
   const handleCreateUser = async () => {
-    if (!newUser.login || !newUser.email || !newUser.password) {
-      alert('Login, email et mot de passe sont requis');
+    if (!newUser.login || !newUser.password) {
+      alert('Tous les champs sont requis');
       return;
     }
     
@@ -320,7 +320,7 @@ function App() {
       });
 
       await loadUsers();
-      setNewUser({ login: '', email: '', password: '', role: 'LECTEUR' });
+      setNewUser({ login: '', password: '', role: 'USER' });
       setShowUserModal(false);
       alert('Utilisateur créé avec succès');
     } catch (error: any) {
@@ -652,7 +652,7 @@ function App() {
               <div><strong>Exclusion :</strong> <code>Dupont NOT Marie</code></div>
               <div><strong>Expression exacte :</strong> <code>"Jean Pierre Dupont"</code></div>
               <div><strong>Champ spécifique :</strong> <code>CNI:123456789</code></div>
-              <div><strong>Comparaison :</strong> <code>age{'>='}25</code> ou <code>date{'>'}2020</code></div>
+              <div><strong>Comparaison :</strong> <code>age>=25</code> ou <code>date>2020</code></div>
             </div>
           </div>
         </div>
@@ -1002,18 +1002,6 @@ function App() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Email
-              </label>
-              <input
-                type="email"
-                value={newUser.email}
-                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Entrez l'email"
-              />
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1034,11 +1022,10 @@ function App() {
               </label>
               <select
                 value={newUser.role}
-                onChange={(e) => setNewUser({ ...newUser, role: e.target.value as 'ADMIN' | 'ANALYSTE' | 'LECTEUR' })}
+                onChange={(e) => setNewUser({ ...newUser, role: e.target.value as 'ADMIN' | 'USER' })}
                 className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="LECTEUR">Lecteur</option>
-                <option value="ANALYSTE">Analyste</option>
+                <option value="USER">Utilisateur simple</option>
                 <option value="ADMIN">Administrateur</option>
               </select>
             </div>
