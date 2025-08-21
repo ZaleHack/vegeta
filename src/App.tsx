@@ -1144,6 +1144,62 @@ function App() {
     )
   );
 
+  const DetailsModal = () => (
+    showDetailsModal && selectedRecord && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+          <div className="flex items-center justify-between p-6 border-b border-slate-200">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900">Détails de l'enregistrement</h3>
+              <p className="text-sm text-slate-600">
+                Table: {selectedRecord.table} | Base: {selectedRecord.database}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setShowDetailsModal(false);
+                setSelectedRecord(null);
+              }}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {Object.entries(selectedRecord.details).map(([key, value]) => (
+                <div key={key} className="bg-slate-50 rounded-lg p-4">
+                  <label className="block text-sm font-medium text-slate-700 mb-2 uppercase tracking-wide">
+                    {key.replace(/_/g, ' ')}
+                  </label>
+                  <div className="text-slate-900 font-medium break-words">
+                    {value || 'N/A'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 p-6 border-t border-slate-200 bg-slate-50">
+            <button
+              onClick={() => {
+                setShowDetailsModal(false);
+                setSelectedRecord(null);
+              }}
+              className="px-6 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              Fermer
+            </button>
+            <button className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors">
+              Exporter
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  );
+
   const PlaceholderPage = ({ title, icon: Icon }: { title: string; icon: any }) => (
     <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'} p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen`}>
       <div className="flex items-center justify-center h-96">
@@ -1174,6 +1230,7 @@ function App() {
       
       <UserModal />
       <PasswordModal />
+      <DetailsModal />
     </div>
   );
 }
