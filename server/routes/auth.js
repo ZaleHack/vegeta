@@ -14,8 +14,9 @@ const loginLimiter = rateLimit({
 // Route de connexion
 router.post('/login', loginLimiter, async (req, res) => {
   try {
-    console.log('🔐 Login attempt received');
-    console.log('🔐 Request body:', req.body);
+    console.log('🔐 POST /api/auth/login - Tentative de connexion reçue');
+    console.log('🔐 Body reçu:', req.body);
+    console.log('🔐 Headers:', req.headers);
     
     const { login, password } = req.body;
 
@@ -55,9 +56,13 @@ router.post('/login', loginLimiter, async (req, res) => {
     };
     
     console.log('📤 Sending response:', response);
+    
+    // S'assurer que la réponse est bien du JSON
+    res.setHeader('Content-Type', 'application/json');
     res.json(response);
   } catch (error) {
     console.error('❌ Login error:', error);
+    res.setHeader('Content-Type', 'application/json');
     res.status(500).json({ error: 'Erreur serveur: ' + error.message });
   }
 });

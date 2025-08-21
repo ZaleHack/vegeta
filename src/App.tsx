@@ -199,15 +199,19 @@ function App() {
     setLoginError('');
     setIsLoading(true);
 
+    console.log('🔐 Tentative de connexion avec:', loginData);
+
     try {
       const response = await apiRequest('/auth/login', {
         method: 'POST',
         body: JSON.stringify(loginData),
       });
 
+      console.log('✅ Connexion réussie:', response);
       localStorage.setItem('vegeta_token', response.token);
       setUser(response.user);
     } catch (error: any) {
+      console.error('❌ Erreur de connexion:', error);
       setLoginError(error.message);
     } finally {
       setIsLoading(false);

@@ -42,6 +42,9 @@ app.set('trust proxy', 1);
 // Servir les fichiers statiques du build React
 app.use(express.static(path.join(__dirname, '../dist')));
 
+// Servir aussi les fichiers depuis public pour le développement
+app.use(express.static(path.join(__dirname, '../public')));
+
 // Routes API
 app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
