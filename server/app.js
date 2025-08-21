@@ -9,7 +9,6 @@ import { fileURLToPath } from 'url';
 // Import des routes
 import authRoutes from './routes/auth.js';
 import searchRoutes from './routes/search.js';
-import statsRoutes from './routes/stats.js';
 
 // Initialisation de la base de données
 import database from './config/database.js';
@@ -44,7 +43,6 @@ app.set('trust proxy', 1);
 // Routes API
 app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/stats', statsRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {
@@ -77,25 +75,18 @@ app.listen(PORT, () => {
   console.log(`🚀 Serveur VEGETA démarré sur le port ${PORT}`);
   console.log(`📊 Base de données: MySQL`);
   console.log(`🔒 Mode: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`💡 Pour utiliser toutes les fonctionnalités, démarrez MySQL sur le port 3306`);
   
   // Initialiser la base de données après le démarrage
-  if (database.isConnected()) {
-    setTimeout(() => {
-      initDatabase().catch(console.error);
-    }, 3000);
-  }
+  setTimeout(() => {
+    initDatabase().catch(console.error);
+  }, 3000);
 });
 
 // Gestion propre de l'arrêt
 process.on('SIGINT', () => {
   console.log('Arrêt du serveur VEGETA...');
-  if (database.isConnected()) {
-    database.close().then(() => {
-      console.log('✅ Connexions fermées');
-      process.exit(0);
-    });
-  } else {
+  database.close().then(() => {
+    console.log('✅ Connexions fermées');
     process.exit(0);
-  }
+  });
 });

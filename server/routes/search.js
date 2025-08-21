@@ -1,5 +1,4 @@
 import express from 'express';
-import database from '../config/database.js';
 import rateLimit from 'express-rate-limit';
 import SearchService from '../services/SearchService.js';
 import { authenticate } from '../middleware/auth.js';
@@ -17,13 +16,6 @@ const searchLimiter = rateLimit({
 // Route de recherche principale
 router.post('/', authenticate, searchLimiter, async (req, res) => {
   try {
-    if (!database.isConnected()) {
-      return res.status(503).json({
-        error: 'Service de base de données indisponible',
-        message: 'La base de données MySQL n\'est pas connectée'
-      });
-    }
-
     console.log('🔍 POST /api/search - Nouvelle recherche');
     console.log('📥 Body reçu:', req.body);
     

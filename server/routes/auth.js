@@ -1,7 +1,6 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import User from '../models/User.js';
-import database from '../config/database.js';
 
 const router = express.Router();
 
@@ -15,13 +14,6 @@ const loginLimiter = rateLimit({
 // Route de connexion
 router.post('/login', loginLimiter, async (req, res) => {
   try {
-    if (!database.isConnected()) {
-      return res.status(503).json({
-        error: 'Service d\'authentification indisponible',
-        message: 'La base de données MySQL n\'est pas connectée'
-      });
-    }
-
     console.log('🔐 POST /api/auth/login - Tentative de connexion');
     console.log('📥 Body reçu:', req.body);
     
