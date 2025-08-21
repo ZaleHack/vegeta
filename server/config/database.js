@@ -22,7 +22,7 @@ class DatabaseManager {
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASSWORD || '',
-        database: 'autres', // Utiliser 'autres' comme base par défaut
+        database: 'autres',
         multipleStatements: true,
         waitForConnections: true,
         connectionLimit: 10,
@@ -61,13 +61,12 @@ class DatabaseManager {
 
   async createSystemTables() {
     try {
-      // Créer la base 'autres' si elle n'existe pas
+      // Créer la base 'autres' si elle n'existe pas (sans USE)
       await this.query('CREATE DATABASE IF NOT EXISTS autres');
-      await this.query('USE autres');
       
-      // Créer la table users si elle n'existe pas
+      // Créer la table users si elle n'existe pas (avec nom complet)
       await this.query(`
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE IF NOT EXISTS autres.users (
           id INT AUTO_INCREMENT PRIMARY KEY,
           login VARCHAR(255) UNIQUE NOT NULL,
           mdp VARCHAR(255) NOT NULL,
@@ -78,11 +77,11 @@ class DatabaseManager {
       `);
       
       // Insérer un utilisateur admin par défaut s'il n'existe pas
-      const [existingAdmin] = await this.query('SELECT COUNT(*) as count FROM users WHERE login = ?', ['admin']);
+      const existingAdmin = await this.queryOne('SELECT COUNT(*) as count FROM autres.users WHERE login = ?', ['admin']);
       if (existingAdmin.count === 0) {
         // Mot de passe: admin123 (hashé avec bcrypt)
         await this.query(`
-          INSERT INTO users (login, mdp, admin) VALUES 
+          INSERT INTO autres.users (login, mdp, admin) VALUES 
           ('admin', '$2a$12$LQv3c1yqBwEHFl5aysHdsOu/1oKxIRS/VKxMRUnAYF5.ZjjQK5YTC', 1)
         `);
         console.log('👤 Utilisateur admin créé (login: admin, password: admin123)');
@@ -90,7 +89,7 @@ class DatabaseManager {
       
       // Table pour les logs de recherche
       await this.query(`
-        CREATE TABLE IF NOT EXISTS search_logs (
+        CREATE TABLE IF NOT EXISTS autres.search_logs (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT,
           username VARCHAR(255),
@@ -109,7 +108,7 @@ class DatabaseManager {
 
       // Table pour l'historique des uploads
       await this.query(`
-        CREATE TABLE IF NOT EXISTS upload_history (
+        CREATE TABLE IF NOT EXISTS autres.upload_history (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT,
           table_name VARCHAR(255),
