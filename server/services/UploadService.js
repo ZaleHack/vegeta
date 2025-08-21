@@ -1,6 +1,6 @@
-const database = require('../config/database.js');
-const csv = require('csv-parser');
-const fs = require('fs');
+import database from '../config/database.js';
+import csv from 'csv-parser';
+import fs from 'fs';
 
 class UploadService {
   async uploadCSV(filePath, targetTable, mode = 'insert', userId = null) {
@@ -157,4 +157,4 @@ class UploadService {
   }
 }
 
-module.exports = UploadService;
+export default UploadService;
