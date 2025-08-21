@@ -4,53 +4,6 @@ import tablesCatalog from '../config/tables-catalog.js';
 class SearchService {
   constructor() {
     this.catalog = tablesCatalog;
-    this.mockData = this.generateMockData();
-  }
-
-  generateMockData() {
-    return [
-      {
-        id: 1,
-        table: 'esolde.mytable',
-        data: {
-          matricule: 'MAT001',
-          nomprenom: 'DIALLO Amadou',
-          cni: '1234567890123',
-          telephone: '77 123 45 67'
-        },
-        score: 100
-      },
-      {
-        id: 2,
-        table: 'rhpolice.personne_concours',
-        data: {
-          prenom: 'Fatou',
-          nom: 'SALL',
-          date_naiss: '1985-03-15',
-          lieu_naiss: 'Dakar',
-          sexe: 'F',
-          adresse: 'Parcelles Assainies',
-          email: 'fatou.sall@email.com',
-          telephone: '76 987 65 43',
-          cni: '9876543210987'
-        },
-        score: 95
-      },
-      {
-        id: 3,
-        table: 'autres.Vehicules',
-        data: {
-          Numero_Immatriculation: 'DK 1234 AB',
-          Marque: 'Toyota',
-          Appelation_Com: 'Corolla',
-          Prenoms: 'Moussa',
-          Nom: 'NDIAYE',
-          Date_Naissance: '1980-07-22',
-          Tel_Portable: '77 555 44 33'
-        },
-        score: 90
-      }
-    ];
   }
 
   async search(query, filters = {}, page = 1, limit = 20, user = null) {
@@ -198,23 +151,6 @@ class SearchService {
     try {
       const rows = await database.query(sql, params);
 
-      // Si en mode mock, retourner les données de démonstration
-      if (db.mockMode) {
-        console.log('🎭 Utilisation des données de démonstration');
-        const mockResults = this.mockData.filter(item => 
-          JSON.stringify(item.data).toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        
-        const executionTime = Date.now() - startTime;
-        console.log(`✅ Recherche mock terminée en ${executionTime}ms, ${mockResults.length} résultats`);
-        
-        return {
-          results: mockResults,
-          totalResults: mockResults.length,
-          executionTime,
-          searchTerm
-        };
-      }
       for (const row of rows) {
         results.push({
           table: config.display,

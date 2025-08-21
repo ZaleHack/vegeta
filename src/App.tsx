@@ -608,10 +608,6 @@ function App() {
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               className="w-full pl-12 pr-4 py-4 text-lg border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white shadow-sm"
               placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck="false"
             />
             <button
               onClick={handleSearch}
@@ -656,7 +652,7 @@ function App() {
               <div><strong>Exclusion :</strong> <code>Dupont NOT Marie</code></div>
               <div><strong>Expression exacte :</strong> <code>"Jean Pierre Dupont"</code></div>
               <div><strong>Champ spécifique :</strong> <code>CNI:123456789</code></div>
-              <div><strong>Comparaison :</strong> <code>age&gt;=25</code> ou <code>date&gt;2020</code></div>
+              <div><strong>Comparaison :</strong> <code>age>=25</code> ou <code>date>2020</code></div>
             </div>
           </div>
         </div>

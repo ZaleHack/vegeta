@@ -6,7 +6,6 @@ dotenv.config();
 class DatabaseManager {
   constructor() {
     this.pool = null;
-    this.mockMode = false;
     this.init();
   }
 
@@ -23,9 +22,7 @@ class DatabaseManager {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
-        charset: 'utf8mb4',
-        connectTimeout: 5000,
-        acquireTimeout: 5000
+        charset: 'utf8mb4'
       });
 
       // Test de connexion
@@ -36,17 +33,11 @@ class DatabaseManager {
       // Créer les tables système
       await this.createSystemTables();
     } catch (error) {
-      console.warn('⚠️ MySQL non disponible, passage en mode mock:', error.message);
-      this.mockMode = true;
-      this.pool = null;
-      await this.createMockData();
+      console.error('❌ Erreur connexion MySQL:', error);
+      throw error;
     }
   }
 
-  async createMockData() {
-    console.log('🎭 Initialisation des données de démonstration...');
-    // Les données mock seront gérées par le SearchService
-  }
   async createSystemTables() {
     try {
       // Créer la base 'autres' si elle n'existe pas
@@ -89,11 +80,6 @@ class DatabaseManager {
   }
 
   async query(sql, params = []) {
-    if (this.mockMode) {
-      console.log('🎭 Mock query:', sql.substring(0, 100) + '...');
-      return [];
-    }
-    
     try {
       const [rows] = await this.pool.execute(sql, params);
       return rows;
@@ -104,11 +90,6 @@ class DatabaseManager {
   }
 
   async queryOne(sql, params = []) {
-    if (this.mockMode) {
-      console.log('🎭 Mock queryOne:', sql.substring(0, 100) + '...');
-      return null;
-    }
-    
     try {
       const [rows] = await this.pool.execute(sql, params);
       return rows[0] || null;
