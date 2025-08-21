@@ -73,20 +73,55 @@ class SearchService {
 
   parseSearchQuery(query) {
     const terms = [];
-    const words = query.split(/\s+/);
+    
+    // Gestion des guillemets pour les phrases exactes
+    const quotedPhrases = [];
+    let cleanQuery = query;
+    
+    // Extraire les phrases entre guillemets
+    const quoteMatches = query.match(/"[^"]+"/g);
+    if (quoteMatches) {
+      quoteMatches.forEach((match, index) => {
+        const placeholder = `__QUOTED_${index}__`;
+        quotedPhrases.push(match.slice(1, -1)); // Enlever les guillemets
+        cleanQuery = cleanQuery.replace(match, placeholder);
+      });
+    }
+    
+    // Diviser par espaces en préservant les opérateurs
+    const words = cleanQuery.split(/\s+/);
 
     for (let word of words) {
       word = word.trim();
       if (word.length === 0) continue;
 
-      if (word.startsWith('"') && word.endsWith('"')) {
-        terms.push({ type: 'exact', value: word.slice(1, -1) });
+      // Restaurer les phrases quotées
+      if (word.startsWith('__QUOTED_')) {
+        const index = parseInt(word.match(/\d+/)[0]);
+        terms.push({ type: 'exact', value: quotedPhrases[index] });
       } else if (word.startsWith('-')) {
-        terms.push({ type: 'exclude', value: word.slice(1) });
+        // Exclusion
+        const excludeValue = word.slice(1);
+        if (excludeValue.startsWith('__QUOTED_')) {
+          const index = parseInt(excludeValue.match(/\d+/)[0]);
+          terms.push({ type: 'exclude', value: quotedPhrases[index] });
+        } else {
+          terms.push({ type: 'exclude', value: excludeValue });
+        }
+      } else if (word.startsWith('+')) {
+        // Terme obligatoire
+        terms.push({ type: 'required', value: word.slice(1) });
       } else if (word.includes(':')) {
-        const [field, value] = word.split(':', 2);
-        terms.push({ type: 'field', field: field, value: value });
+        // Recherche par champ
+        const [field, ...valueParts] = word.split(':');
+        const value = valueParts.join(':'); // Au cas où il y aurait plusieurs ':'
+        terms.push({ type: 'field', field: field.toLowerCase(), value: value });
+      } else if (word.toUpperCase() === 'AND' || word.toUpperCase() === 'ET') {
+        terms.push({ type: 'operator', value: 'AND' });
+      } else if (word.toUpperCase() === 'OR' || word.toUpperCase() === 'OU') {
+        terms.push({ type: 'operator', value: 'OR' });
       } else {
+        // Terme normal
         terms.push({ type: 'normal', value: word });
       }
     }
@@ -107,24 +142,54 @@ class SearchService {
 
     let sql = `SELECT * FROM ${tableName} WHERE `;
     const params = [];
-    const conditions = [];
+    let conditions = [];
+    let currentGroup = [];
+    let operator = 'AND'; // Opérateur par défaut
 
     for (const term of searchTerms) {
-      if (term.type === 'exclude') continue;
+      if (term.type === 'exclude') continue; // Traité séparément
+      if (term.type === 'operator') {
+        // Changer l'opérateur pour les prochains termes
+        if (currentGroup.length > 0) {
+          conditions.push(`(${currentGroup.join(' OR ')})`);
+          currentGroup = [];
+        }
+        operator = term.value;
+        continue;
+      }
 
       const termConditions = [];
 
       if (term.type === 'exact') {
+        // Recherche exacte
         for (const field of config.searchable) {
           termConditions.push(`${field} = ?`);
           params.push(term.value);
         }
+      } else if (term.type === 'required') {
+        // Terme obligatoire (doit être présent)
+        for (const field of config.searchable) {
+          termConditions.push(`${field} LIKE ?`);
+          params.push(`%${term.value}%`);
+        }
       } else if (term.type === 'field') {
-        if (config.searchable.includes(term.field)) {
+        // Recherche par champ spécifique
+        const matchingFields = config.searchable.filter(field => 
+          field.toLowerCase().includes(term.field) || 
+          term.field.includes(field.toLowerCase())
+        );
+        
+        if (matchingFields.length > 0) {
+          for (const field of matchingFields) {
+            termConditions.push(`${field} LIKE ?`);
+            params.push(`%${term.value}%`);
+          }
+        } else if (config.searchable.includes(term.field)) {
           termConditions.push(`${term.field} LIKE ?`);
           params.push(`%${term.value}%`);
         }
       } else if (term.type === 'normal') {
+        // Recherche normale dans tous les champs
         for (const field of config.searchable) {
           termConditions.push(`${field} LIKE ?`);
           params.push(`%${term.value}%`);
@@ -132,7 +197,22 @@ class SearchService {
       }
 
       if (termConditions.length > 0) {
-        conditions.push(`(${termConditions.join(' OR ')})`);
+        if (term.type === 'required') {
+          // Les termes obligatoires sont ajoutés directement
+          conditions.push(`(${termConditions.join(' OR ')})`);
+        } else {
+          // Les autres termes sont groupés selon l'opérateur
+          currentGroup.push(`(${termConditions.join(' OR ')})`);
+        }
+      }
+    }
+    
+    // Ajouter le dernier groupe
+    if (currentGroup.length > 0) {
+      if (operator === 'OR') {
+        conditions.push(`(${currentGroup.join(' OR ')})`);
+      } else {
+        conditions.push(...currentGroup);
       }
     }
 
@@ -140,6 +220,7 @@ class SearchService {
       return results;
     }
 
+    // Joindre les conditions avec AND par défaut
     sql += conditions.join(' AND ');
 
     // Gestion des exclusions
@@ -193,11 +274,18 @@ class SearchService {
 
   calculateRelevanceScore(record, searchTerms, config) {
     let score = 0;
+    let requiredTermsFound = 0;
+    let requiredTermsTotal = 0;
     
     for (const term of searchTerms) {
-      if (term.type === 'exclude') continue;
+      if (term.type === 'exclude' || term.type === 'operator') continue;
+      
+      if (term.type === 'required') {
+        requiredTermsTotal++;
+      }
       
       const searchValue = term.value.toLowerCase();
+      let termFound = false;
       
       for (const field of config.searchable) {
         const value = record[field];
@@ -206,13 +294,42 @@ class SearchService {
         const fieldValue = value.toString().toLowerCase();
         
         if (term.type === 'exact' && fieldValue === searchValue) {
-          score += 10;
+          score += 15; // Score plus élevé pour les correspondances exactes
+          termFound = true;
         } else if (fieldValue.includes(searchValue)) {
           const position = fieldValue.indexOf(searchValue);
           const lengthRatio = searchValue.length / fieldValue.length;
-          score += (10 - position * 0.1) * lengthRatio;
+          let termScore = (10 - position * 0.1) * lengthRatio;
+          
+          // Bonus pour les correspondances au début du champ
+          if (position === 0) {
+            termScore *= 1.5;
+          }
+          
+          // Bonus pour les termes obligatoires
+          if (term.type === 'required') {
+            termScore *= 2;
+            termFound = true;
+          }
+          
+          // Bonus pour les recherches par champ spécifique
+          if (term.type === 'field') {
+            termScore *= 1.3;
+          }
+          
+          score += termScore;
         }
       }
+      
+      if (term.type === 'required' && termFound) {
+        requiredTermsFound++;
+      }
+    }
+    
+    // Pénalité si tous les termes obligatoires ne sont pas trouvés
+    if (requiredTermsTotal > 0) {
+      const requiredRatio = requiredTermsFound / requiredTermsTotal;
+      score *= requiredRatio;
     }
     
     return Math.round(score * 100) / 100;

@@ -627,21 +627,36 @@ function App() {
           {/* Suggestions */}
           <div className="flex flex-wrap gap-2 justify-center">
             {[
-              { label: 'CNI:123456789', icon: 'id-card' },
-              { label: 'DK 1234 AB', icon: 'car' },
-              { label: 'NINEA:123456', icon: 'building' },
-              { label: '77 123 45 67', icon: 'phone' },
-              { label: 'matricule:12345', icon: 'user' },
-              { label: 'Dupont', icon: 'search' }
+              { label: 'CNI:123456789', desc: 'Recherche par CNI' },
+              { label: '+Dupont +Marie', desc: 'Termes obligatoires' },
+              { label: '"Jean Pierre"', desc: 'Phrase exacte' },
+              { label: 'Dupont -Marie', desc: 'Exclure Marie' },
+              { label: 'nom:Dupont ET prenom:Jean', desc: 'Combinaison AND' },
+              { label: 'tel:77 OU tel:76', desc: 'Combinaison OR' }
             ].map((suggestion, index) => (
               <button
                 key={index}
                 onClick={() => setSearchQuery(suggestion.label)}
-                className="bg-slate-100 hover:bg-blue-100 text-slate-700 hover:text-blue-700 px-4 py-2 rounded-lg text-sm transition-colors shadow-sm hover:shadow-md"
+                className="bg-slate-100 hover:bg-blue-100 text-slate-700 hover:text-blue-700 px-4 py-2 rounded-lg text-sm transition-colors shadow-sm hover:shadow-md flex flex-col items-center"
+                title={suggestion.desc}
               >
-                {suggestion.label}
+                <span className="font-mono text-xs">{suggestion.label}</span>
+                <span className="text-xs text-slate-500 mt-1">{suggestion.desc}</span>
               </button>
             ))}
+          </div>
+          
+          {/* Guide de recherche */}
+          <div className="mt-6 bg-blue-50 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-blue-900 mb-3">🔍 Guide de recherche avancée</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-blue-800">
+              <div><code className="bg-blue-100 px-2 py-1 rounded">+terme</code> = Terme obligatoire</div>
+              <div><code className="bg-blue-100 px-2 py-1 rounded">-terme</code> = Exclure ce terme</div>
+              <div><code className="bg-blue-100 px-2 py-1 rounded">"phrase exacte"</code> = Recherche exacte</div>
+              <div><code className="bg-blue-100 px-2 py-1 rounded">champ:valeur</code> = Recherche par champ</div>
+              <div><code className="bg-blue-100 px-2 py-1 rounded">terme1 ET terme2</code> = Combinaison AND</div>
+              <div><code className="bg-blue-100 px-2 py-1 rounded">terme1 OU terme2</code> = Combinaison OR</div>
+            </div>
           </div>
         </div>
       </div>
