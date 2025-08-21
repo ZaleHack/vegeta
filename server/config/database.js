@@ -76,17 +76,6 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
       
-      // Insérer un utilisateur admin par défaut s'il n'existe pas
-      const existingAdmin = await this.queryOne('SELECT COUNT(*) as count FROM autres.users WHERE login = ?', ['admin']);
-      if (existingAdmin.count === 0) {
-        // Mot de passe: admin123 (hashé avec bcrypt)
-        await this.query(`
-          INSERT INTO autres.users (login, mdp, admin) VALUES 
-          ('admin', '$2a$12$LQv3c1yqBwEHFl5aysHdsOu/1oKxIRS/VKxMRUnAYF5.ZjjQK5YTC', 1)
-        `);
-        console.log('👤 Utilisateur admin créé (login: admin, password: admin123)');
-      }
-      
       // Table pour les logs de recherche
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.search_logs (

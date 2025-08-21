@@ -15,6 +15,7 @@ import uploadRoutes from './routes/upload.js';
 
 // Initialisation de la base de données
 import database from './config/database.js';
+import initDatabase from './scripts/init-database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -88,6 +89,11 @@ app.listen(PORT, () => {
   console.log(`🚀 Serveur VEGETA démarré sur le port ${PORT}`);
   console.log(`📊 Base de données: MySQL`);
   console.log(`🔒 Mode: ${process.env.NODE_ENV || 'development'}`);
+  
+  // Initialiser la base de données après le démarrage
+  setTimeout(() => {
+    initDatabase().catch(console.error);
+  }, 3000);
 });
 
 // Gestion propre de l'arrêt
