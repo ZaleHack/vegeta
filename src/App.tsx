@@ -107,6 +107,9 @@ function App() {
     active_users: 0
   });
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [fieldSuggestions, setFieldSuggestions] = useState<string[]>([]);
+  const [cursorPosition, setCursorPosition] = useState(0);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -163,6 +166,106 @@ function App() {
     }
   };
 
+  // Liste complète des champs disponibles pour l'autocomplétion
+  const getAllAvailableFields = () => {
+    return [
+      // Champs identité
+      'nom', 'prenom', 'prenoms', 'cni', 'CNI', 'carteidentite', 'Numeropiece',
+      'date_naiss', 'datenaiss', 'DateNaissance', 'lieu_naiss', 'lieunaiss', 'LieuNaissance',
+      'sexe', 'Sexe', 'codesex', 'Genre',
+      
+      // Contact
+      'telephone', 'tel', 'Tel_Fixe', 'Tel_Portable', 'email',
+      'adresse', 'Adresse', 'Adresse_Vehicule',
+      
+      // Professionnel
+      'matricule', 'MATRICULE', 'MatriculeSolde', 'MatriculeMilitaire',
+      'corps', 'CORPS', 'emploi', 'EMPLOI', 'grade', 'Grade',
+      'section', 'SECTION', 'chapitre', 'CHAPITRE', 'poste', 'POSTE',
+      'direction', 'DIRECTION', 'lib_service', 'lib_org_niv1',
+      
+      // Transport
+      'Numero_Immatriculation', 'NumeroPermis', 'Categorie', 'Marque',
+      'Code_Type', 'Numero_Serie', 'Genre', 'Carrosserie', 'Energie',
+      
+      // Entreprise
+      'ninea_ninet', 'cuci', 'raison_social', 'numrc', 'forme_juridique',
+      'regime_fiscal', 'region', 'departement', 'ville', 'commune', 'quartier',
+      
+      // Géographie
+      'region', 'departement', 'ville', 'commune', 'quartier', 'naissville',
+      'Code_Localite', 'CodeLocalite',
+      
+      // Autres
+      'numero', 'numero_electeur', 'PassePort', 'login', 'bp'
+    ];
+  };
+
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const position = e.target.selectionStart || 0;
+    
+    setSearchQuery(value);
+    setCursorPosition(position);
+    
+    // Détecter si on est en train de taper un nom de champ (après : ou au début)
+    const beforeCursor = value.substring(0, position);
+    const words = beforeCursor.split(/\s+/);
+    const currentWord = words[words.length - 1];
+    
+    // Si le mot actuel contient : ou si on commence à taper
+    if (currentWord.includes(':') || (currentWord.length > 0 && !currentWord.includes(' '))) {
+      const fieldPart = currentWord.includes(':') ? currentWord.split(':')[0] : currentWord;
+      
+      if (fieldPart.length > 0) {
+        const allFields = getAllAvailableFields();
+        const matches = allFields.filter(field => 
+          field.toLowerCase().includes(fieldPart.toLowerCase())
+        ).slice(0, 8); // Limiter à 8 suggestions
+        
+        if (matches.length > 0) {
+          setFieldSuggestions(matches);
+          setShowSuggestions(true);
+          return;
+        }
+      }
+    }
+    
+    setShowSuggestions(false);
+  };
+
+  const handleFieldSuggestionClick = (field: string) => {
+    const beforeCursor = searchQuery.substring(0, cursorPosition);
+    const afterCursor = searchQuery.substring(cursorPosition);
+    const words = beforeCursor.split(/\s+/);
+    const currentWord = words[words.length - 1];
+    
+    let newQuery;
+    if (currentWord.includes(':')) {
+      // Remplacer la partie avant :
+      const colonIndex = beforeCursor.lastIndexOf(':');
+      const beforeColon = beforeCursor.substring(0, colonIndex - currentWord.split(':')[0].length);
+      newQuery = beforeColon + field + ':' + afterCursor;
+    } else {
+      // Remplacer le mot actuel
+      const wordStart = beforeCursor.lastIndexOf(' ') + 1;
+      const beforeWord = beforeCursor.substring(0, wordStart);
+      newQuery = beforeWord + field + ':' + afterCursor;
+    }
+    
+    setSearchQuery(newQuery);
+    setShowSuggestions(false);
+    
+    // Remettre le focus sur l'input
+    setTimeout(() => {
+      const input = document.getElementById('searchQuery') as HTMLInputElement;
+      if (input) {
+        input.focus();
+        const newPosition = newQuery.length - afterCursor.length;
+        input.setSelectionRange(newPosition, newPosition);
+      }
+    }, 10);
+  };
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
