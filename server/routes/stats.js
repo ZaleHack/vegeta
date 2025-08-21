@@ -2,6 +2,7 @@ import express from 'express';
 import StatsService from '../services/StatsService.js';
 import { authenticate } from '../middleware/auth.js';
 import { pool } from '../config/database.js';
+import { pool } from '../config/database.js';
 
 const router = express.Router();
 const statsService = new StatsService();
@@ -9,6 +10,13 @@ const statsService = new StatsService();
 // Statistiques générales
 router.get('/overview', async (req, res) => {
   try {
+    if (!pool.isConnected()) {
+      return res.status(503).json({ 
+        error: 'Service temporairement indisponible - Base de données non connectée',
+        code: 'DATABASE_UNAVAILABLE'
+      });
+    }
+    
     if (!pool.isConnected()) {
       return res.status(503).json({ 
         error: 'Service temporairement indisponible - Base de données non connectée',
@@ -27,6 +35,13 @@ router.get('/overview', async (req, res) => {
 // Distribution des données par table
 router.get('/data-distribution', async (req, res) => {
   try {
+    if (!pool.isConnected()) {
+      return res.status(503).json({ 
+        error: 'Service temporairement indisponible - Base de données non connectée',
+        code: 'DATABASE_UNAVAILABLE'
+      });
+    }
+    
     if (!pool.isConnected()) {
       return res.status(503).json({ 
         error: 'Service temporairement indisponible - Base de données non connectée',
