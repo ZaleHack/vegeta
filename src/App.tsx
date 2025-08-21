@@ -22,11 +22,6 @@ interface User {
   email: string;
   role: 'ADMIN' | 'USER';
   admin: number;
-  nom?: string;
-  prenom?: string;
-  telephone?: string;
-  statut?: string;
-  derniere_connexion?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -35,7 +30,6 @@ interface NewUser {
   login: string;
   password: string;
   role: 'ADMIN' | 'USER';
-  email?: string;
 }
 
 // Utilitaire pour les requêtes API
@@ -334,37 +328,6 @@ function App() {
     }
   };
 
-  const handleToggleUserStatus = async (userId: number, currentStatus: string) => {
-    try {
-      const newStatus = currentStatus === 'actif' ? 'inactif' : 'actif';
-      await apiRequest(`/users/${userId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ statut: newStatus }),
-      });
-
-      await loadUsers();
-      alert(`Utilisateur ${newStatus === 'actif' ? 'activé' : 'désactivé'} avec succès`);
-    } catch (error: any) {
-      alert('Erreur: ' + error.message);
-    }
-  };
-
-  const handleDeleteUser = async (userId: number, userLogin: string) => {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur "${userLogin}" ?`)) {
-      return;
-    }
-
-    try {
-      await apiRequest(`/users/${userId}`, {
-        method: 'DELETE',
-      });
-
-      await loadUsers();
-      alert('Utilisateur supprimé avec succès');
-    } catch (error: any) {
-      alert('Erreur: ' + error.message);
-    }
-  };
   const handleChangePassword = async () => {
     if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
       alert('Tous les champs sont requis');
@@ -689,7 +652,7 @@ function App() {
               <div><strong>Exclusion :</strong> <code>Dupont NOT Marie</code></div>
               <div><strong>Expression exacte :</strong> <code>"Jean Pierre Dupont"</code></div>
               <div><strong>Champ spécifique :</strong> <code>CNI:123456789</code></div>
-              <div><strong>Comparaison :</strong> <code>age{'>'}=25</code> ou <code>date{'>'}2020</code></div>
+              <div><strong>Comparaison :</strong> <code>age>=25</code> ou <code>date>2020</code></div>
             </div>
           </div>
         </div>
@@ -932,6 +895,18 @@ function App() {
   );
 
   const UsersPage = () => {
+    const availableUsers = [
+      { id: 'esolde.mytable', name: 'esolde - mytable', description: 'Données employés esolde' },
+      { id: 'rhpolice.personne_concours', name: 'rhpolice - personne_concours', description: 'Concours police nationale' },
+      { id: 'renseignement.agentfinance', name: 'renseignement - agentfinance', description: 'Agents finances publiques' },
+      { id: 'rhgendarmerie.personne', name: 'rhgendarmerie - personne', description: 'Personnel gendarmerie' },
+      { id: 'permis.tables', name: 'permis - tables', description: 'Permis de conduire' },
+      { id: 'expresso.expresso', name: 'expresso - expresso', description: 'Données Expresso Money' },
+      { id: 'elections.dakar', name: 'elections - dakar', description: 'Électeurs région Dakar' },
+      { id: 'autres.Vehicules', name: 'autres - vehicules', description: 'Immatriculations véhicules' },
+      { id: 'autres.entreprises', name: 'autres - entreprises', description: 'Registre des entreprises' }
+    ];
+
     return (
     <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'} p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen`}>
       <div className="flex items-center justify-between mb-6">
@@ -951,13 +926,7 @@ function App() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Utilisateur</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Email</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Rôle</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Statut</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Téléphone</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Dernière connexion</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Statut</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Dernière connexion</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Actions</th>
               </tr>
             </thead>
@@ -969,16 +938,8 @@ function App() {
                       <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
                         {user.login.charAt(0).toUpperCase()}
                       </div>
-                      <div>
-                        <div className="font-medium text-slate-900">{user.login}</div>
-                        {user.nom && user.prenom && (
-                          <div className="text-sm text-slate-500">{user.prenom} {user.nom}</div>
-                        )}
-                      </div>
+                      <span className="font-medium text-slate-900">{user.login}</span>
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-600">{user.email || '-'}</span>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -987,23 +948,6 @@ function App() {
                         : 'bg-blue-100 text-blue-800'
                     }`}>
                       {user.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      user.statut === 'actif' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {user.statut || 'actif'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-600">
-                      {user.derniere_connexion 
-                        ? new Date(user.derniere_connexion).toLocaleDateString('fr-FR')
-                        : 'Jamais'
-                      }
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -1017,24 +961,6 @@ function App() {
                         title="Changer le mot de passe"
                       >
                         <Settings className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleToggleUserStatus(user.id, user.statut || 'actif')}
-                        className={`p-2 rounded-lg transition-colors ${
-                          user.statut === 'actif' 
-                            ? 'text-orange-600 hover:bg-orange-50' 
-                            : 'text-green-600 hover:bg-green-50'
-                        }`}
-                        title={user.statut === 'actif' ? 'Désactiver' : 'Activer'}
-                      >
-                        {user.statut === 'actif' ? <Shield className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user.id, user.login)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Supprimer l'utilisateur"
-                      >
-                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
@@ -1076,18 +1002,6 @@ function App() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Email (optionnel)
-              </label>
-              <input
-                type="email"
-                value={newUser.email || ''}
-                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Entrez l'email"
-              />
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">

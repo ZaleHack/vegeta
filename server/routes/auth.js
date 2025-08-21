@@ -43,9 +43,6 @@ router.post('/login', loginLimiter, async (req, res) => {
     console.log('✅ Mot de passe valide, génération du token');
     const token = User.generateToken(user);
     
-    // Mettre à jour la dernière connexion
-    await User.update(user.id, { derniere_connexion: new Date() });
-    
     // Ne pas renvoyer le mot de passe
     const { mdp, ...userResponse } = user;
 

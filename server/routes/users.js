@@ -22,7 +22,7 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
 // Créer un nouvel utilisateur (ADMIN seulement)
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { login, password, role = 'USER', email } = req.body;
+    const { login, password, role = 'USER' } = req.body;
 
     if (!login || !password) {
       return res.status(400).json({ error: 'Login et mot de passe requis' });
@@ -45,7 +45,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 
     // Créer l'utilisateur
     const admin = role === 'ADMIN' ? 1 : 0;
-    const newUser = await User.create({ login, mdp: password, admin, email });
+    const newUser = await User.create({ login, mdp: password, admin });
     
     const { mdp, ...userResponse } = newUser;
     res.status(201).json({ 
@@ -107,38 +107,6 @@ router.post('/:id/change-password', authenticate, async (req, res) => {
   }
 });
 
-// Changer le statut d'un utilisateur (ADMIN seulement)
-router.patch('/:id/status', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const userId = parseInt(req.params.id);
-    const { statut } = req.body;
-
-    if (isNaN(userId)) {
-      return res.status(400).json({ error: 'ID utilisateur invalide' });
-    }
-
-    if (!['actif', 'inactif'].includes(statut)) {
-      return res.status(400).json({ error: 'Statut invalide' });
-    }
-
-    // Empêcher un admin de se désactiver lui-même
-    if (userId === req.user.id && statut === 'inactif') {
-      return res.status(400).json({ error: 'Vous ne pouvez pas désactiver votre propre compte' });
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé' });
-    }
-
-    await User.update(userId, { statut });
-    res.json({ message: `Utilisateur ${statut === 'actif' ? 'activé' : 'désactivé'} avec succès` });
-  } catch (error) {
-    console.error('Erreur changement statut:', error);
-    res.status(500).json({ error: 'Erreur lors du changement de statut' });
-  }
-});
-
 // Supprimer un utilisateur (ADMIN seulement)
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
@@ -163,33 +131,6 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Erreur suppression utilisateur:', error);
     res.status(500).json({ error: 'Erreur lors de la suppression de l\'utilisateur' });
-  }
-});
-
-// Obtenir les détails d'un utilisateur
-router.get('/:id', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const userId = parseInt(req.params.id);
-
-    if (isNaN(userId)) {
-      return res.status(400).json({ error: 'ID utilisateur invalide' });
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé' });
-    }
-
-    const { mdp, ...userResponse } = user;
-    res.json({ 
-      user: {
-        ...userResponse,
-        role: user.admin === 1 ? 'ADMIN' : 'USER'
-      }
-    });
-  } catch (error) {
-    console.error('Erreur détails utilisateur:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération de l\'utilisateur' });
   }
 });
 

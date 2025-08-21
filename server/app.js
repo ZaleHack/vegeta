@@ -9,8 +9,6 @@ import { fileURLToPath } from 'url';
 // Import des routes
 import authRoutes from './routes/auth.js';
 import searchRoutes from './routes/search.js';
-import usersRoutes from './routes/users.js';
-import statsRoutes from './routes/stats.js';
 
 // Initialisation de la base de données
 import database from './config/database.js';
@@ -45,8 +43,6 @@ app.set('trust proxy', 1);
 // Routes API
 app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/stats', statsRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {
