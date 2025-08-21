@@ -161,11 +161,10 @@ class SearchService {
       const rows = await database.query(sql, params);
 
       for (const row of rows) {
-        const preview = this.buildPreview(row, config);
         results.push({
           table: config.display,
           database: config.database,
-          preview: preview,
+          data: row,
           primary_keys: { id: row.id },
           score: this.calculateRelevanceScore(row, searchTerms, config)
         });
@@ -175,18 +174,6 @@ class SearchService {
     }
 
     return results;
-  }
-
-  buildPreview(record, config) {
-    const preview = {};
-    
-    config.preview.forEach(field => {
-      if (record[field] !== null && record[field] !== undefined && record[field] !== '') {
-        preview[field] = record[field];
-      }
-    });
-
-    return preview;
   }
 
   calculateRelevanceScore(record, searchTerms, config) {
