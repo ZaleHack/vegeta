@@ -1,13 +1,40 @@
-import database from '../config/database.js';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import database from '../config/database.js';
 
 class User {
+  static async create(userData) {
+    const { login, mdp, admin = 0 } = userData;
+    const hashedPassword = await bcrypt.hash(mdp, 12);
+    
+    const result = await database.query(
+      'INSERT INTO autres.users (login, mdp, admin) VALUES (?, ?, ?)',
+      [login, hashedPassword, admin]
+    );
+    
+    return { 
+      id: result.insertId, 
+      login, 
+      mdp: hashedPassword, 
+      admin 
+    };
+  }
+
+  static async findById(id) {
+    return await database.queryOne(
+      'SELECT * FROM autres.users WHERE id = ?',
+      [id]
+    );
+  }
+
   static async findByLogin(login) {
+    console.log('Recherche utilisateur avec login:', login);
     try {
-      const user = database.queryOne(
-        'SELECT * FROM users WHERE login = ?',
+      const user = await database.queryOne(
+        'SELECT * FROM autres.users WHERE login = ?',
         [login]
       );
+      console.log('Résultat recherche utilisateur:', user ? 'trouvé' : 'non trouvé');
       return user;
     } catch (error) {
       console.error('Erreur lors de la recherche utilisateur:', error);
@@ -15,75 +42,64 @@ class User {
     }
   }
 
-  static async create(userData) {
-    try {
-      const { login, password, admin = 0 } = userData;
-      const hashedPassword = await bcrypt.hash(password, 12);
-      
-      const result = database.query(
-        'INSERT INTO users (login, mdp, admin) VALUES (?, ?, ?)',
-        [login, hashedPassword, admin]
-      );
-      
-      return { id: result.lastInsertRowid, login, admin };
-    } catch (error) {
-      console.error('Erreur lors de la création utilisateur:', error);
-      throw error;
-    }
+  static async validatePassword(plainPassword, hashedPassword) {
+    return await bcrypt.compare(plainPassword, hashedPassword);
+  }
+
+  static generateToken(user) {
+    return jwt.sign(
+      { 
+        id: user.id, 
+        login: user.login, 
+        admin: user.admin 
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+  }
+
+  static verifyToken(token) {
+    return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
   }
 
   static async findAll() {
-    try {
-      const users = database.query(
-        'SELECT id, login, admin, created_at FROM users ORDER BY created_at DESC'
-      );
-      return users;
-    } catch (error) {
-      console.error('Erreur lors de la récupération des utilisateurs:', error);
-      throw error;
-    }
+    return await database.query(
+      'SELECT id, login, admin FROM autres.users ORDER BY id DESC'
+    );
   }
 
-  static async updateById(id, userData) {
-    try {
-      const { login, password, admin } = userData;
-      let query = 'UPDATE users SET login = ?, admin = ?';
-      let params = [login, admin];
-      
-      if (password) {
-        const hashedPassword = await bcrypt.hash(password, 12);
-        query += ', mdp = ?';
-        params.push(hashedPassword);
+  static async update(id, userData) {
+    const fields = [];
+    const values = [];
+    
+    Object.keys(userData).forEach(key => {
+      if (key !== 'id' && userData[key] !== undefined) {
+        if (key === 'mdp') {
+          // Hash le nouveau mot de passe
+          fields.push('mdp = ?');
+          values.push(bcrypt.hashSync(userData[key], 12));
+        } else {
+          fields.push(`${key} = ?`);
+          values.push(userData[key]);
+        }
       }
-      
-      query += ' WHERE id = ?';
-      params.push(id);
-      
-      database.query(query, params);
-      return { id, login, admin };
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour utilisateur:', error);
-      throw error;
-    }
+    });
+    
+    if (fields.length === 0) return null;
+    
+    values.push(id);
+    
+    await database.query(
+      `UPDATE autres.users SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
+    
+    return await this.findById(id);
   }
 
-  static async deleteById(id) {
-    try {
-      database.query('DELETE FROM users WHERE id = ?', [id]);
-      return true;
-    } catch (error) {
-      console.error('Erreur lors de la suppression utilisateur:', error);
-      throw error;
-    }
-  }
-
-  static async verifyPassword(plainPassword, hashedPassword) {
-    try {
-      return await bcrypt.compare(plainPassword, hashedPassword);
-    } catch (error) {
-      console.error('Erreur lors de la vérification du mot de passe:', error);
-      throw error;
-    }
+  static async delete(id) {
+    await database.query('DELETE FROM autres.users WHERE id = ?', [id]);
+    return true;
   }
 }
 

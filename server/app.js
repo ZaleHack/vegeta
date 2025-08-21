@@ -59,7 +59,7 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    database: 'SQLite'
+    database: 'MySQL'
   });
 });
 
@@ -87,19 +87,20 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`🚀 Serveur VEGETA démarré sur le port ${PORT}`);
-  console.log(`📊 Base de données: SQLite`);
+  console.log(`📊 Base de données: MySQL`);
   console.log(`🔒 Mode: ${process.env.NODE_ENV || 'development'}`);
   
   // Initialiser la base de données après le démarrage
   setTimeout(() => {
     initDatabase().catch(console.error);
-  }, 1000);
+  }, 3000);
 });
 
 // Gestion propre de l'arrêt
 process.on('SIGINT', () => {
   console.log('Arrêt du serveur VEGETA...');
-  database.close();
+  database.close().then(() => {
     console.log('✅ Connexions fermées');
     process.exit(0);
+  });
 });
