@@ -625,10 +625,12 @@ function App() {
           {/* Suggestions */}
           <div className="flex flex-wrap gap-2 justify-center">
             {[
-              { label: 'CNI: 123456789', icon: 'id-card' },
+              { label: 'CNI:123456789', icon: 'id-card' },
               { label: 'DK 1234 AB', icon: 'car' },
-              { label: 'NINEA: 123456', icon: 'building' },
-              { label: '77 123 45 67', icon: 'phone' }
+              { label: 'NINEA:123456', icon: 'building' },
+              { label: '77 123 45 67', icon: 'phone' },
+              { label: 'matricule:12345', icon: 'user' },
+              { label: 'Dupont', icon: 'search' }
             ].map((suggestion, index) => (
               <button
                 key={index}
@@ -647,7 +649,7 @@ function App() {
         <div className="grid gap-6">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-semibold text-slate-900">
-              Résultats de recherche ({searchResults.length})
+              Résultats de recherche ({searchResults.length} trouvés)
             </h3>
             <div className="flex gap-2">
               <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md">
@@ -672,9 +674,11 @@ function App() {
                     <span className="text-slate-500 text-sm">
                       Base: {result.database}
                     </span>
-                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                      Score: {result.score}%
-                    </span>
+                    {result.score > 0 && (
+                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                        Score: {result.score.toFixed(1)}
+                      </span>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -684,7 +688,7 @@ function App() {
                           {key}
                         </span>
                         <span className="text-sm font-medium text-slate-900 truncate mt-1">
-                          {value}
+                          {value || 'N/A'}
                         </span>
                       </div>
                     ))}
