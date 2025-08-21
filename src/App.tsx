@@ -733,7 +733,10 @@ function App() {
               Résultats de recherche ({searchResults.length} trouvés)
             </h3>
             <div className="flex gap-2">
-              <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md">
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md"
+              >
                 <Download className="w-4 h-4" />
                 Export CSV
               </button>
