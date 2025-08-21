@@ -399,23 +399,6 @@ function App() {
     }
   };
 
-  const handleDeleteUser = async () => {
-    if (!deletingUser) return;
-
-    try {
-      await apiRequest(`/users/${deletingUser.id}`, {
-        method: 'DELETE',
-      });
-
-      await loadUsers();
-      setShowDeleteModal(false);
-      setDeletingUser(null);
-      alert('Utilisateur supprimé avec succès');
-    } catch (error: any) {
-      alert('Erreur: ' + error.message);
-    }
-  };
-
   const canAccess = (requiredRole: string[]) => {
     return user && requiredRole.includes(user.role);
   };
