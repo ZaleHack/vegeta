@@ -42,9 +42,13 @@ class DatabaseManager {
         const [databases] = await connection.execute('SHOW DATABASES');
         console.log('📊 Bases disponibles:', databases.map(db => db.Database));
         
-        // Tester spécifiquement la table users
-        const [users] = await connection.execute('SELECT COUNT(*) as count FROM users');
-        console.log('👥 Nombre d\'utilisateurs dans autres.users:', users[0].count);
+        // Tester spécifiquement la table users si elle existe
+        try {
+          const [users] = await connection.execute('SELECT COUNT(*) as count FROM autres.users');
+          console.log('👥 Nombre d\'utilisateurs dans autres.users:', users[0].count);
+        } catch (err) {
+          console.log('⚠️ Table users pas encore créée');
+        }
       } catch (err) {
         console.warn('⚠️ Impossible de lister les bases:', err.message);
       }
