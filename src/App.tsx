@@ -108,6 +108,70 @@ function App() {
   });
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
 
+  // Fonction d'export CSV
+  const handleExportCSV = () => {
+    if (searchResults.length === 0) {
+      alert('Aucun résultat à exporter');
+      return;
+    }
+
+    try {
+      // Collecter tous les champs uniques
+      const allFields = new Set<string>();
+      searchResults.forEach(result => {
+        Object.keys(result.preview).forEach(field => allFields.add(field));
+      });
+
+      const fields = Array.from(allFields).sort();
+      
+      // Créer l'en-tête CSV
+      const headers = ['Source', 'Base', 'Score', ...fields];
+      let csvContent = headers.join(',') + '\n';
+
+      // Ajouter les données
+      searchResults.forEach(result => {
+        const row = [
+          `"${result.table}"`,
+          `"${result.database}"`,
+          result.score || 0,
+          ...fields.map(field => {
+            const value = result.preview[field];
+            if (value === null || value === undefined || value === '') {
+              return '""';
+            }
+            // Échapper les guillemets et encapsuler dans des guillemets
+            return `"${String(value).replace(/"/g, '""')}"`;
+          })
+        ];
+        csvContent += row.join(',') + '\n';
+      });
+
+      // Créer et télécharger le fichier
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        
+        // Nom du fichier avec timestamp
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+        const filename = `vegeta-recherche-${searchQuery.replace(/[^a-zA-Z0-9]/g, '_')}-${timestamp}.csv`;
+        link.setAttribute('download', filename);
+        
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log(`✅ Export CSV réussi: ${searchResults.length} résultats exportés`);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'export CSV:', error);
+      alert('Erreur lors de l\'export. Veuillez réessayer.');
+    }
+  };
+
   // Vérification du token au démarrage
   useEffect(() => {
     const checkAuth = async () => {
