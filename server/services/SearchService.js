@@ -1,0 +1,261 @@
+const database = require('../config/database.js');
+const tablesCatalog = require('../config/tables-catalog.js');
+
+class SearchService {
+  constructor() {
+    this.catalog = tablesCatalog;
+  }
+
+  async search(query, filters = {}, page = 1, limit = 20, user = null) {
+    const startTime = Date.now();
+    const results = [];
+    const tablesSearched = [];
+
+    if (!query || query.trim().length === 0) {
+      throw new Error('Le terme de recherche ne peut pas être vide');
+    }
+
+    const offset = (page - 1) * limit;
+    const searchTerms = this.parseSearchQuery(query);
+
+    // Recherche dans toutes les tables configurées
+    for (const [tableName, config] of Object.entries(this.catalog)) {
+      try {
+        const tableResults = await this.searchInTable(tableName, config, searchTerms, filters);
+        if (tableResults.length > 0) {
+          results.push(...tableResults);
+          tablesSearched.push(tableName);
+        }
+      } catch (error) {
+        console.error(`Erreur recherche table ${tableName}:`, error.message);
+      }
+    }
+
+    // Tri et pagination des résultats
+    const sortedResults = this.sortResults(results, searchTerms);
+    const totalResults = sortedResults.length;
+    const paginatedResults = sortedResults.slice(offset, offset + limit);
+
+    const executionTime = Date.now() - startTime;
+
+    // Journalisation
+    if (user) {
+      await this.logSearch({
+        user_id: user.id,
+        username: user.login,
+        search_term: query,
+        filters: JSON.stringify(filters),
+        tables_searched: JSON.stringify(tablesSearched),
+        results_count: totalResults,
+        execution_time_ms: executionTime,
+        ip_address: user.ip_address || '',
+        user_agent: user.user_agent || ''
+      });
+    }
+
+    return {
+      total: totalResults,
+      page: page,
+      limit: limit,
+      pages: Math.ceil(totalResults / limit),
+      elapsed_ms: executionTime,
+      hits: paginatedResults
+    };
+  }
+
+  parseSearchQuery(query) {
+    const terms = [];
+    const words = query.split(/\s+/);
+
+    for (let word of words) {
+      word = word.trim();
+      if (word.length === 0) continue;
+
+      if (word.startsWith('"') && word.endsWith('"')) {
+        terms.push({ type: 'exact', value: word.slice(1, -1) });
+      } else if (word.startsWith('-')) {
+        terms.push({ type: 'exclude', value: word.slice(1) });
+      } else if (word.includes(':')) {
+        const [field, value] = word.split(':', 2);
+        terms.push({ type: 'field', field: field, value: value });
+      } else {
+        terms.push({ type: 'normal', value: word });
+      }
+    }
+
+    return terms;
+  }
+
+  async searchInTable(tableName, config, searchTerms, filters) {
+    const results = [];
+    let sql = `SELECT * FROM ${tableName} WHERE `;
+    const params = [];
+    const conditions = [];
+
+    for (const term of searchTerms) {
+      if (term.type === 'exclude') continue;
+
+      const termConditions = [];
+
+      if (term.type === 'exact') {
+        for (const field of config.searchable) {
+          termConditions.push(`${field} = ?`);
+          params.push(term.value);
+        }
+      } else if (term.type === 'field') {
+        if (config.searchable.includes(term.field)) {
+          termConditions.push(`${term.field} LIKE ?`);
+          params.push(`%${term.value}%`);
+        }
+      } else if (term.type === 'normal') {
+        for (const field of config.searchable) {
+          termConditions.push(`${field} LIKE ?`);
+          params.push(`%${term.value}%`);
+        }
+      }
+
+      if (termConditions.length > 0) {
+        conditions.push(`(${termConditions.join(' OR ')})`);
+      }
+    }
+
+    if (conditions.length === 0) {
+      return results;
+    }
+
+    sql += conditions.join(' AND ');
+
+    // Gestion des exclusions
+    const excludeTerms = searchTerms.filter(t => t.type === 'exclude');
+    for (const term of excludeTerms) {
+      const excludeConditions = [];
+      for (const field of config.searchable) {
+        excludeConditions.push(`${field} NOT LIKE ?`);
+        params.push(`%${term.value}%`);
+      }
+      if (excludeConditions.length > 0) {
+        sql += ` AND (${excludeConditions.join(' AND ')})`;
+      }
+    }
+
+    sql += ' LIMIT 100';
+
+    try {
+      const rows = await database.query(sql, params);
+
+      for (const row of rows) {
+        const preview = this.buildPreview(row, config);
+        results.push({
+          table: config.display,
+          database: config.database,
+          preview: preview,
+          primary_keys: { id: row.id },
+          score: this.calculateRelevanceScore(row, searchTerms, config)
+        });
+      }
+    } catch (error) {
+      console.error(`Erreur SQL table ${tableName}:`, error.message);
+    }
+
+    return results;
+  }
+
+  buildPreview(record, config) {
+    const preview = {};
+    
+    config.preview.forEach(field => {
+      if (record[field] !== null && record[field] !== undefined && record[field] !== '') {
+        preview[field] = record[field];
+      }
+    });
+
+    return preview;
+  }
+
+  calculateRelevanceScore(record, searchTerms, config) {
+    let score = 0;
+    
+    for (const term of searchTerms) {
+      if (term.type === 'exclude') continue;
+      
+      const searchValue = term.value.toLowerCase();
+      
+      for (const field of config.searchable) {
+        const value = record[field];
+        if (!value) continue;
+        
+        const fieldValue = value.toString().toLowerCase();
+        
+        if (term.type === 'exact' && fieldValue === searchValue) {
+          score += 10;
+        } else if (fieldValue.includes(searchValue)) {
+          const position = fieldValue.indexOf(searchValue);
+          const lengthRatio = searchValue.length / fieldValue.length;
+          score += (10 - position * 0.1) * lengthRatio;
+        }
+      }
+    }
+    
+    return Math.round(score * 100) / 100;
+  }
+
+  sortResults(results, searchTerms) {
+    return results.sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return a.table.localeCompare(b.table);
+    });
+  }
+
+  async logSearch(logData) {
+    try {
+      await database.query(`
+        INSERT INTO search_logs (
+          user_id, username, search_term, filters, tables_searched, 
+          results_count, execution_time_ms, ip_address, user_agent
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        logData.user_id,
+        logData.username,
+        logData.search_term,
+        logData.filters,
+        logData.tables_searched,
+        logData.results_count,
+        logData.execution_time_ms,
+        logData.ip_address,
+        logData.user_agent
+      ]);
+    } catch (error) {
+      console.error('Erreur log recherche:', error);
+    }
+  }
+
+  async getRecordDetails(tableName, id) {
+    if (!this.catalog[tableName]) {
+      throw new Error('Table non autorisée');
+    }
+
+    const sql = `SELECT * FROM ${tableName} WHERE id = ?`;
+    const record = await database.queryOne(sql, [id]);
+    
+    if (!record) {
+      throw new Error('Enregistrement non trouvé');
+    }
+
+    const details = {};
+    Object.entries(record).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== '') {
+        details[key] = value;
+      }
+    });
+
+    return {
+      table: this.catalog[tableName].display,
+      database: this.catalog[tableName].database,
+      details: details
+    };
+  }
+}
+
+module.exports = SearchService;

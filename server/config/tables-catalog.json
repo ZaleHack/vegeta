@@ -1,0 +1,166 @@
+{
+  "esolde_mytable": {
+    "display": "mytable",
+    "database": "esolde",
+    "searchable": ["matricule", "nomprenom", "cni", "telephone"],
+    "preview": ["matricule", "nomprenom", "cni", "telephone"],
+    "filters": {
+      "matricule": "string",
+      "cni": "string",
+      "telephone": "string"
+    },
+    "theme": "identite"
+  },
+  "rhpolice_personne_concours": {
+    "display": "personne_concours",
+    "database": "rhpolice",
+    "searchable": ["prenom", "nom", "date_naiss", "lieu_naiss", "sexe", "adresse", "email", "telephone", "cni", "prenom_pere", "nom_pere", "nom_mere"],
+    "preview": ["prenom", "nom", "cni", "telephone", "email"],
+    "filters": {
+      "sexe": "enum",
+      "lieu_naiss": "string",
+      "date_naiss": "date",
+      "telephone": "string",
+      "cni": "string"
+    },
+    "theme": "identite"
+  },
+  "renseignement_agentfinance": {
+    "display": "agentfinance",
+    "database": "renseignement",
+    "searchable": ["MATRICULE", "PRENOM", "NOM", "CORPS", "EMPLOI", "SECTION", "CHAPITRE", "POSTE", "DIRECTION"],
+    "preview": ["MATRICULE", "PRENOM", "NOM", "CORPS", "EMPLOI"],
+    "filters": {
+      "CORPS": "string",
+      "EMPLOI": "string",
+      "SECTION": "string",
+      "DIRECTION": "string"
+    },
+    "theme": "pro"
+  },
+  "rhgendarmerie_personne": {
+    "display": "personne",
+    "database": "rhgendarmerie",
+    "searchable": ["matricule", "prenom", "nom", "carteidentite", "tel", "email", "adresse"],
+    "preview": ["matricule", "prenom", "nom", "carteidentite", "tel"],
+    "filters": {
+      "codesex": "enum",
+      "naissville": "string",
+      "carteidentite": "string",
+      "tel": "string"
+    },
+    "theme": "identite"
+  },
+  "permis_tables": {
+    "display": "tables",
+    "database": "permis",
+    "searchable": ["NumeroPermis", "Prenoms", "Nom", "Numeropiece", "Categorie"],
+    "preview": ["NumeroPermis", "Prenoms", "Nom", "Categorie", "DateObtention"],
+    "filters": {
+      "Categorie": "enum",
+      "Sexe": "enum",
+      "DateObtention": "date",
+      "DateNaissance": "date"
+    },
+    "theme": "transport"
+  },
+  "expresso_expresso": {
+    "display": "expresso",
+    "database": "expresso",
+    "searchable": ["numero", "prenom", "nom", "cni"],
+    "preview": ["numero", "prenom", "nom", "cni"],
+    "filters": {
+      "cni": "string",
+      "date_creation": "date",
+      "datefermeture": "date"
+    },
+    "theme": "telecom"
+  },
+  "elections_dakar": {
+    "display": "dakar",
+    "database": "elections",
+    "searchable": ["numero_electeur", "prenoms", "nom", "CNI", "lieunaiss"],
+    "preview": ["numero_electeur", "prenoms", "nom", "CNI"],
+    "filters": {
+      "CNI": "string",
+      "datenaiss": "date",
+      "lieunaiss": "string"
+    },
+    "theme": "civique"
+  },
+  "autres_vehicules": {
+    "display": "Vehicules",
+    "database": "autres",
+    "searchable": ["Numero_Immatriculation", "Code_Type", "Numero_Serie", "Prenoms", "Nom", "Tel_Fixe", "Tel_Portable", "Marque"],
+    "preview": ["Numero_Immatriculation", "Marque", "Categorie", "Prenoms", "Nom"],
+    "filters": {
+      "Categorie": "string",
+      "Marque": "string",
+      "Energie": "string",
+      "Date_Mise_Circulation": "date",
+      "Genre": "string"
+    },
+    "theme": "transport"
+  },
+  "autres_entreprises": {
+    "display": "entreprises",
+    "database": "autres",
+    "searchable": ["ninea_ninet", "cuci", "raison_social", "ensemble_sigle", "numrc", "telephone", "email"],
+    "preview": ["ninea_ninet", "raison_social", "telephone", "region", "forme_juridique"],
+    "filters": {
+      "forme_juridique": "string",
+      "region": "string",
+      "ville": "string",
+      "regime_fiscal": "string",
+      "premiere_annee_exercice": "number"
+    },
+    "theme": "entreprise"
+  },
+  "autres_affaire_etrangere": {
+    "display": "affaire_etrangere",
+    "database": "autres",
+    "searchable": ["prenom", "nom", "cni", "corps", "emploi", "lib_service", "lib_org_niv1"],
+    "preview": ["prenom", "nom", "cni", "corps", "emploi"],
+    "filters": {
+      "corps": "string",
+      "emploi": "string",
+      "lib_service": "string"
+    },
+    "theme": "pro"
+  },
+  "autres_agent_non_fonctionnaire": {
+    "display": "agent_non_fonctionnaire",
+    "database": "autres",
+    "searchable": ["prenom", "nom", "datenaiss", "cni", "sexe", "corps", "emploi", "lib_service", "lib_org_niv1"],
+    "preview": ["prenom", "nom", "cni", "corps", "emploi"],
+    "filters": {
+      "sexe": "enum",
+      "corps": "string",
+      "emploi": "string",
+      "datenaiss": "date"
+    },
+    "theme": "pro"
+  },
+  "autres_fpublique": {
+    "display": "fpublique",
+    "database": "autres",
+    "searchable": ["cni", "login", "prenom", "nom", "email"],
+    "preview": ["login", "prenom", "nom", "cni", "email"],
+    "filters": {
+      "cni": "string",
+      "login": "string"
+    },
+    "theme": "identite"
+  },
+  "autres_demdikk": {
+    "display": "demdikk",
+    "database": "autres",
+    "searchable": ["Prenom", "Nom", "Numero", "PassePort"],
+    "preview": ["Prenom", "Nom", "Numero", "PassePort"],
+    "filters": {
+      "Numero": "string",
+      "PassePort": "string"
+    },
+    "theme": "identite"
+  }
+}
