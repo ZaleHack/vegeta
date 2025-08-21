@@ -1,303 +1,153 @@
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
 class DatabaseManager {
   constructor() {
-    this.db = null;
+    this.pool = null;
     this.init();
   }
 
   async init() {
     try {
-      console.log('🔌 Initializing SQLite database...');
+      console.log('🔌 Initializing MySQL connection...');
+      console.log('🔌 Config:', {
+        host: process.env.DB_HOST || 'localhost',
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD ? '***' : '(empty)'
+      });
       
-      // Créer le dossier data s'il n'existe pas
-      const dataDir = path.join(__dirname, '../../data');
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-      }
-
-      const dbPath = path.join(dataDir, 'vegeta.db');
-      
-      // Ouvrir la base SQLite
-      this.db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database
+      this.pool = mysql.createPool({
+        host: process.env.DB_HOST || 'localhost',
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || '',
+        database: 'autres',
+        multipleStatements: true,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+        charset: 'utf8mb4',
+        acquireTimeout: 60000,
+        timeout: 60000
       });
 
-      // Configuration SQLite
-      await this.db.exec('PRAGMA foreign_keys = ON');
-      await this.db.exec('PRAGMA journal_mode = WAL');
+      // Test de connexion
+      console.log('🔌 Testing connection...');
+      const connection = await this.pool.getConnection();
+      console.log('✅ Connexion MySQL établie avec succès');
       
-      console.log('✅ SQLite database connected successfully');
+      // Tester l'accès aux bases
+      try {
+        const [databases] = await connection.execute('SHOW DATABASES');
+        console.log('📊 Bases disponibles:', databases.map(db => db.Database));
+        
+        // Tester spécifiquement la table users
+        const [users] = await connection.execute('SELECT COUNT(*) as count FROM users');
+        console.log('👥 Nombre d\'utilisateurs dans autres.users:', users[0].count);
+      } catch (err) {
+        console.warn('⚠️ Impossible de lister les bases:', err.message);
+      }
       
-      // Créer les tables
+      connection.release();
+
+      // Créer les tables système si elles n'existent pas
       await this.createSystemTables();
-      
     } catch (error) {
-      console.error('❌ SQLite connection error:', error);
+      console.error('❌ Erreur connexion MySQL:', error);
       throw error;
     }
   }
 
   async createSystemTables() {
     try {
-      // Table des utilisateurs
-      await this.db.exec(`
-        CREATE TABLE IF NOT EXISTS users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          login TEXT UNIQUE NOT NULL,
-          mdp TEXT NOT NULL,
-          admin INTEGER DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
+      // Créer la base 'autres' si elle n'existe pas (sans USE)
+      await this.query('CREATE DATABASE IF NOT EXISTS autres');
+      
+      // Créer la table users si elle n'existe pas (avec nom complet)
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.users (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          login VARCHAR(255) UNIQUE NOT NULL,
+          mdp VARCHAR(255) NOT NULL,
+          admin TINYINT(1) DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
       
       // Table pour les logs de recherche
-      await this.db.exec(`
-        CREATE TABLE IF NOT EXISTS search_logs (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER,
-          username TEXT,
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.search_logs (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT,
+          username VARCHAR(255),
           search_term TEXT,
-          filters TEXT,
-          tables_searched TEXT,
-          results_count INTEGER DEFAULT 0,
-          execution_time_ms INTEGER DEFAULT 0,
-          ip_address TEXT,
+          filters JSON,
+          tables_searched JSON,
+          results_count INT DEFAULT 0,
+          execution_time_ms INT DEFAULT 0,
+          ip_address VARCHAR(45),
           user_agent TEXT,
-          search_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-        )
+          search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_user_id (user_id),
+          INDEX idx_search_date (search_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
       // Table pour l'historique des uploads
-      await this.db.exec(`
-        CREATE TABLE IF NOT EXISTS upload_history (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER,
-          table_name TEXT,
-          file_name TEXT,
-          total_rows INTEGER DEFAULT 0,
-          success_rows INTEGER DEFAULT 0,
-          error_rows INTEGER DEFAULT 0,
-          upload_mode TEXT,
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.upload_history (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT,
+          table_name VARCHAR(255),
+          file_name VARCHAR(255),
+          total_rows INT DEFAULT 0,
+          success_rows INT DEFAULT 0,
+          error_rows INT DEFAULT 0,
+          upload_mode VARCHAR(50),
           errors TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-        )
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_user_id (user_id),
+          INDEX idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      // Créer les tables de données
-      await this.createDataTables();
-
-      // Créer les index
-      await this.createIndexes();
-
-      console.log('✅ System tables created successfully');
+      console.log('✅ Tables système créées avec succès');
     } catch (error) {
-      console.error('❌ Error creating system tables:', error);
-    }
-  }
-
-  async createDataTables() {
-    const dataTables = [
-      // Base esolde - mytable
-      `CREATE TABLE IF NOT EXISTS esolde_mytable (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        matricule TEXT,
-        nomprenom TEXT,
-        cni TEXT,
-        telephone TEXT
-      )`,
-
-      // Base rhpolice - personne_concours
-      `CREATE TABLE IF NOT EXISTS rhpolice_personne_concours (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        prenom TEXT,
-        nom TEXT,
-        date_naiss TEXT,
-        lieu_naiss TEXT,
-        sexe TEXT,
-        adresse TEXT,
-        email TEXT,
-        telephone TEXT,
-        cni TEXT,
-        prenom_pere TEXT,
-        nom_pere TEXT,
-        nom_mere TEXT
-      )`,
-
-      // Base renseignement - agentfinance
-      `CREATE TABLE IF NOT EXISTS renseignement_agentfinance (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        MATRICULE TEXT,
-        PRENOM TEXT,
-        NOM TEXT,
-        CORPS TEXT,
-        EMPLOI TEXT,
-        SECTION TEXT,
-        CHAPITRE TEXT,
-        POSTE TEXT,
-        DIRECTION TEXT
-      )`,
-
-      // Base rhgendarmerie - personne
-      `CREATE TABLE IF NOT EXISTS rhgendarmerie_personne (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        matricule TEXT,
-        prenom TEXT,
-        nom TEXT,
-        codesex TEXT,
-        naissville TEXT,
-        adresse TEXT,
-        tel TEXT,
-        email TEXT,
-        carteidentite TEXT,
-        pere TEXT,
-        mere TEXT
-      )`,
-
-      // Base permis - tables
-      `CREATE TABLE IF NOT EXISTS permis_tables (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        NumeroPermis TEXT,
-        DateObtention TEXT,
-        Categorie TEXT,
-        Prenoms TEXT,
-        Nom TEXT,
-        Sexe TEXT,
-        DateNaissance TEXT,
-        LieuNaissance TEXT,
-        Adresse TEXT,
-        Numeropiece TEXT
-      )`,
-
-      // Base expresso - expresso
-      `CREATE TABLE IF NOT EXISTS expresso_expresso (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        numero TEXT,
-        prenom TEXT,
-        nom TEXT,
-        cni TEXT,
-        date_creation TEXT,
-        datefermeture TEXT
-      )`,
-
-      // Base elections - dakar
-      `CREATE TABLE IF NOT EXISTS elections_dakar (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        numero_electeur TEXT,
-        prenoms TEXT,
-        nom TEXT,
-        datenaiss TEXT,
-        lieunaiss TEXT,
-        CNI TEXT
-      )`,
-
-      // Base autres - Vehicules
-      `CREATE TABLE IF NOT EXISTS autres_vehicules (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        Numero_Immatriculation TEXT,
-        Code_Type TEXT,
-        Numero_Serie TEXT,
-        Categorie TEXT,
-        Marque TEXT,
-        Genre TEXT,
-        Prenoms TEXT,
-        Nom TEXT,
-        Tel_Fixe TEXT,
-        Tel_Portable TEXT
-      )`,
-
-      // Base autres - entreprises
-      `CREATE TABLE IF NOT EXISTS autres_entreprises (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ninea_ninet TEXT,
-        raison_social TEXT,
-        telephone TEXT,
-        email TEXT,
-        region TEXT,
-        forme_juridique TEXT
-      )`
-    ];
-
-    for (const sql of dataTables) {
-      try {
-        await this.db.exec(sql);
-      } catch (error) {
-        console.error('Error creating data table:', error);
-      }
-    }
-  }
-
-  async createIndexes() {
-    const indexes = [
-      'CREATE INDEX IF NOT EXISTS idx_search_logs_date ON search_logs(search_date)',
-      'CREATE INDEX IF NOT EXISTS idx_search_logs_user ON search_logs(user_id)',
-      'CREATE INDEX IF NOT EXISTS idx_users_login ON users(login)',
-      'CREATE INDEX IF NOT EXISTS idx_esolde_cni ON esolde_mytable(cni)',
-      'CREATE INDEX IF NOT EXISTS idx_rhpolice_cni ON rhpolice_personne_concours(cni)',
-      'CREATE INDEX IF NOT EXISTS idx_rhgend_cni ON rhgendarmerie_personne(carteidentite)',
-      'CREATE INDEX IF NOT EXISTS idx_vehicules_immat ON autres_vehicules(Numero_Immatriculation)',
-      'CREATE INDEX IF NOT EXISTS idx_entreprises_ninea ON autres_entreprises(ninea_ninet)'
-    ];
-
-    for (const sql of indexes) {
-      try {
-        await this.db.exec(sql);
-      } catch (error) {
-        console.warn('Warning creating index:', error.message);
-      }
+      console.error('❌ Erreur création tables système:', error);
     }
   }
 
   async query(sql, params = []) {
     try {
-      const rows = await this.db.all(sql, params);
+      const [rows] = await this.pool.execute(sql, params);
       return rows;
     } catch (error) {
-      console.error('❌ SQL query error:', error);
+      console.error('❌ Erreur requête SQL:', error);
       throw error;
     }
   }
 
   async queryOne(sql, params = []) {
     try {
-      const row = await this.db.get(sql, params);
-      return row || null;
+      const [rows] = await this.pool.execute(sql, params);
+      return rows[0] || null;
     } catch (error) {
-      console.error('❌ SQL query error:', error);
-      throw error;
-    }
-  }
-
-  async run(sql, params = []) {
-    try {
-      const result = await this.db.run(sql, params);
-      return result;
-    } catch (error) {
-      console.error('❌ SQL execution error:', error);
+      console.error('❌ Erreur requête SQL:', error);
       throw error;
     }
   }
 
   async close() {
-    if (this.db) {
-      await this.db.close();
-      console.log('✅ SQLite connections closed');
+    if (this.pool) {
+      await this.pool.end();
+      console.log('✅ Connexions MySQL fermées');
     }
   }
 
-  getDb() {
-    return this.db;
+  getPool() {
+    return this.pool;
   }
 }
 

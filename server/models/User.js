@@ -28,24 +28,16 @@ class User {
   }
 
   static async findByLogin(login) {
-    console.log('👤 Recherche utilisateur avec login:', login);
+    console.log('Recherche utilisateur avec login:', login);
     try {
       const user = await database.queryOne(
         'SELECT * FROM autres.users WHERE login = ?',
         [login]
       );
-      console.log('👤 Résultat recherche utilisateur:', user ? 'trouvé' : 'non trouvé');
-      if (user) {
-        console.log('👤 User data:', { 
-          id: user.id, 
-          login: user.login, 
-          admin: user.admin,
-          hasPassword: !!user.mdp 
-        });
-      }
+      console.log('Résultat recherche utilisateur:', user ? 'trouvé' : 'non trouvé');
       return user;
     } catch (error) {
-      console.error('👤 Erreur lors de la recherche utilisateur:', error);
+      console.error('Erreur lors de la recherche utilisateur:', error);
       throw error;
     }
   }
