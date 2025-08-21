@@ -3,6 +3,7 @@ import tablesCatalog from '../config/tables-catalog.js';
 
 class SearchService {
   constructor() {
+    this.catalog = tablesCatalog;
     this.mockData = this.generateMockData();
   }
 
@@ -50,9 +51,6 @@ class SearchService {
         score: 90
       }
     ];
-  }
-  constructor() {
-    this.catalog = tablesCatalog;
   }
 
   async search(query, filters = {}, page = 1, limit = 20, user = null) {
