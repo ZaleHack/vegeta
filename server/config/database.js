@@ -50,6 +50,10 @@ class DatabaseManager {
           login VARCHAR(255) UNIQUE NOT NULL,
           mdp VARCHAR(255) NOT NULL,
           admin TINYINT(1) DEFAULT 0,
+          email VARCHAR(255),
+          role ENUM('ADMIN', 'ANALYSTE', 'LECTEUR') DEFAULT 'LECTEUR',
+          is_active TINYINT(1) DEFAULT 1,
+          last_login TIMESTAMP NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4

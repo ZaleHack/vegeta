@@ -4,19 +4,24 @@ import database from '../config/database.js';
 
 class User {
   static async create(userData) {
-    const { login, mdp, admin = 0 } = userData;
+    const { login, mdp, email, role = 'LECTEUR', admin = 0 } = userData;
     const hashedPassword = await bcrypt.hash(mdp, 12);
     
+    // Convertir le rôle en admin flag pour compatibilité
+    const adminFlag = role === 'ADMIN' ? 1 : 0;
+    
     const result = await database.query(
-      'INSERT INTO autres.users (login, mdp, admin) VALUES (?, ?, ?)',
-      [login, hashedPassword, admin]
+      'INSERT INTO autres.users (login, mdp, email, role, admin, is_active) VALUES (?, ?, ?, ?, ?, ?)',
+      [login, hashedPassword, email, role, adminFlag, 1]
     );
     
     return { 
       id: result.insertId, 
       login, 
-      mdp: hashedPassword, 
-      admin 
+      email,
+      role,
+      admin: adminFlag,
+      is_active: 1
     };
   }
 
@@ -64,7 +69,7 @@ class User {
 
   static async findAll() {
     return await database.query(
-      'SELECT id, login, admin FROM autres.users ORDER BY id DESC'
+      'SELECT id, login, email, role, admin, is_active, created_at, last_login FROM autres.users ORDER BY created_at DESC'
     );
   }
 
@@ -77,6 +82,11 @@ class User {
         if (key === 'mdp') {
           fields.push('mdp = ?');
           values.push(bcrypt.hashSync(userData[key], 12));
+        } else if (key === 'role') {
+          fields.push('role = ?');
+          fields.push('admin = ?');
+          values.push(userData[key]);
+          values.push(userData[key] === 'ADMIN' ? 1 : 0);
         } else {
           fields.push(`${key} = ?`);
           values.push(userData[key]);
@@ -86,6 +96,7 @@ class User {
     
     if (fields.length === 0) return null;
     
+    fields.push('updated_at = NOW()');
     values.push(id);
     
     await database.query(

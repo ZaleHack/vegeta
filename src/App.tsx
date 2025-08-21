@@ -303,8 +303,8 @@ function App() {
   };
 
   const handleCreateUser = async () => {
-    if (!newUser.login || !newUser.password) {
-      alert('Tous les champs sont requis');
+    if (!newUser.login || !newUser.email || !newUser.password) {
+      alert('Login, email et mot de passe sont requis');
       return;
     }
     
@@ -320,7 +320,7 @@ function App() {
       });
 
       await loadUsers();
-      setNewUser({ login: '', password: '', role: 'USER' });
+      setNewUser({ login: '', email: '', password: '', role: 'LECTEUR' });
       setShowUserModal(false);
       alert('Utilisateur créé avec succès');
     } catch (error: any) {
