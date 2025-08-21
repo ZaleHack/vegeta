@@ -73,19 +73,48 @@ class SearchService {
 
   parseSearchQuery(query) {
     const terms = [];
-    const words = query.split(/\s+/);
+    
+    // Gérer les guillemets pour les expressions exactes
+    const quotedExpressions = [];
+    let cleanQuery = query.replace(/"([^"]+)"/g, (match, content) => {
+      quotedExpressions.push(content);
+      return `__QUOTED_${quotedExpressions.length - 1}__`;
+    });
+    
+    // Séparer par espaces mais garder les opérateurs logiques
+    const words = cleanQuery.split(/\s+/);
 
     for (let word of words) {
       word = word.trim();
       if (word.length === 0) continue;
 
-      if (word.startsWith('"') && word.endsWith('"')) {
-        terms.push({ type: 'exact', value: word.slice(1, -1) });
+      // Restaurer les expressions quotées
+      if (word.includes('__QUOTED_')) {
+        const index = parseInt(word.match(/__QUOTED_(\d+)__/)[1]);
+        terms.push({ type: 'exact', value: quotedExpressions[index] });
+      } else if (word.toUpperCase() === 'AND') {
+        terms.push({ type: 'operator', value: 'AND' });
+      } else if (word.toUpperCase() === 'OR') {
+        terms.push({ type: 'operator', value: 'OR' });
+      } else if (word.toUpperCase() === 'NOT') {
+        terms.push({ type: 'operator', value: 'NOT' });
       } else if (word.startsWith('-')) {
         terms.push({ type: 'exclude', value: word.slice(1) });
       } else if (word.includes(':')) {
         const [field, value] = word.split(':', 2);
         terms.push({ type: 'field', field: field, value: value });
+      } else if (word.includes('>=')) {
+        const [field, value] = word.split('>=', 2);
+        terms.push({ type: 'comparison', field: field, operator: '>=', value: value });
+      } else if (word.includes('<=')) {
+        const [field, value] = word.split('<=', 2);
+        terms.push({ type: 'comparison', field: field, operator: '<=', value: value });
+      } else if (word.includes('>')) {
+        const [field, value] = word.split('>', 2);
+        terms.push({ type: 'comparison', field: field, operator: '>', value: value });
+      } else if (word.includes('<')) {
+        const [field, value] = word.split('<', 2);
+        terms.push({ type: 'comparison', field: field, operator: '<', value: value });
       } else {
         terms.push({ type: 'normal', value: word });
       }
@@ -107,53 +136,15 @@ class SearchService {
 
     let sql = `SELECT * FROM ${tableName} WHERE `;
     const params = [];
-    const conditions = [];
+    
+    // Construire les conditions avec support des opérateurs logiques
+    const conditions = this.buildAdvancedConditions(searchTerms, config, params);
 
-    for (const term of searchTerms) {
-      if (term.type === 'exclude') continue;
-
-      const termConditions = [];
-
-      if (term.type === 'exact') {
-        for (const field of config.searchable) {
-          termConditions.push(`${field} = ?`);
-          params.push(term.value);
-        }
-      } else if (term.type === 'field') {
-        if (config.searchable.includes(term.field)) {
-          termConditions.push(`${term.field} LIKE ?`);
-          params.push(`%${term.value}%`);
-        }
-      } else if (term.type === 'normal') {
-        for (const field of config.searchable) {
-          termConditions.push(`${field} LIKE ?`);
-          params.push(`%${term.value}%`);
-        }
-      }
-
-      if (termConditions.length > 0) {
-        conditions.push(`(${termConditions.join(' OR ')})`);
-      }
-    }
-
-    if (conditions.length === 0) {
+    if (!conditions || conditions.length === 0) {
       return results;
     }
 
-    sql += conditions.join(' AND ');
-
-    // Gestion des exclusions
-    const excludeTerms = searchTerms.filter(t => t.type === 'exclude');
-    for (const term of excludeTerms) {
-      const excludeConditions = [];
-      for (const field of config.searchable) {
-        excludeConditions.push(`${field} NOT LIKE ?`);
-        params.push(`%${term.value}%`);
-      }
-      if (excludeConditions.length > 0) {
-        sql += ` AND (${excludeConditions.join(' AND ')})`;
-      }
-    }
+    sql += conditions;
 
     sql += ' LIMIT 50'; // Limite par table
 
@@ -201,6 +192,74 @@ class SearchService {
     }
     
     return Math.round(score * 100) / 100;
+  }
+
+  buildAdvancedConditions(searchTerms, config, params) {
+    if (searchTerms.length === 0) return '';
+    
+    const conditions = [];
+    let currentOperator = 'AND'; // Opérateur par défaut
+    
+    for (let i = 0; i < searchTerms.length; i++) {
+      const term = searchTerms[i];
+      
+      if (term.type === 'operator') {
+        currentOperator = term.value;
+        continue;
+      }
+      
+      const termConditions = [];
+      
+      if (term.type === 'exact') {
+        for (const field of config.searchable) {
+          termConditions.push(`${field} = ?`);
+          params.push(term.value);
+        }
+      } else if (term.type === 'field') {
+        if (config.searchable.includes(term.field)) {
+          termConditions.push(`${term.field} LIKE ?`);
+          params.push(`%${term.value}%`);
+        }
+      } else if (term.type === 'comparison') {
+        if (config.searchable.includes(term.field)) {
+          termConditions.push(`${term.field} ${term.operator} ?`);
+          params.push(term.value);
+        }
+      } else if (term.type === 'exclude') {
+        const excludeConditions = [];
+        for (const field of config.searchable) {
+          excludeConditions.push(`${field} NOT LIKE ?`);
+          params.push(`%${term.value}%`);
+        }
+        if (excludeConditions.length > 0) {
+          termConditions.push(`(${excludeConditions.join(' AND ')})`);
+        }
+      } else if (term.type === 'normal') {
+        for (const field of config.searchable) {
+          termConditions.push(`${field} LIKE ?`);
+          params.push(`%${term.value}%`);
+        }
+      }
+      
+      if (termConditions.length > 0) {
+        const condition = `(${termConditions.join(' OR ')})`;
+        
+        if (conditions.length === 0) {
+          conditions.push(condition);
+        } else {
+          if (currentOperator === 'NOT') {
+            conditions.push(`AND NOT ${condition}`);
+          } else {
+            conditions.push(`${currentOperator} ${condition}`);
+          }
+        }
+        
+        // Reset à AND par défaut après chaque terme
+        currentOperator = 'AND';
+      }
+    }
+    
+    return conditions.join(' ');
   }
 
   sortResults(results, searchTerms) {
