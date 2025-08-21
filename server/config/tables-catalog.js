@@ -88,7 +88,7 @@ const tablesCatalog = {
     theme: 'telecom'
   },
 
-  // Base elections - toutes les régions
+  // Base elections - régions principales
   'elections.dakar': {
     display: 'dakar',
     database: 'elections',
@@ -202,4 +202,4 @@ const tablesCatalog = {
   }
 };
 
-module.exports = tablesCatalog;
+export default tablesCatalog;
