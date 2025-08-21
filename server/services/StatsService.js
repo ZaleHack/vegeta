@@ -1,5 +1,5 @@
 import database from '../config/database.js';
-import tablesCatalog from '../config/tables-catalog.json' assert { type: 'json' };
+import tablesCatalog from '../config/tables-catalog.json\' assert { type: 'json' };
 
 class StatsService {
   async getOverviewStats() {
