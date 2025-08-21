@@ -8,7 +8,22 @@ async function initDatabase() {
     // Attendre que la base soit prête
     await new Promise(resolve => setTimeout(resolve, 2000));
     
+    // Vérifier la connexion à la base
+    console.log('🔧 Test de connexion à la base...');
+    const testQuery = await database.queryOne('SELECT 1 as test');
+    console.log('🔧 Test connexion résultat:', testQuery);
+    
+    // Vérifier si la table users existe
+    console.log('🔧 Vérification de la table users...');
+    try {
+      const tableCheck = await database.queryOne('SELECT COUNT(*) as count FROM autres.users');
+      console.log('🔧 Table users existe, nombre d\'utilisateurs:', tableCheck.count);
+    } catch (error) {
+      console.log('🔧 Table users n\'existe pas encore, elle sera créée automatiquement');
+    }
+    
     // Vérifier si l'utilisateur admin existe
+    console.log('🔧 Recherche de l\'utilisateur admin...');
     const existingAdmin = await database.queryOne(
       'SELECT * FROM autres.users WHERE login = ?', 
       ['admin']
@@ -16,17 +31,26 @@ async function initDatabase() {
     
     if (existingAdmin) {
       console.log('✅ Utilisateur admin existe déjà');
+      console.log('✅ Admin details:', { 
+        id: existingAdmin.id, 
+        login: existingAdmin.login, 
+        admin: existingAdmin.admin,
+        hasPassword: !!existingAdmin.mdp
+      });
       return;
     }
     
+    console.log('🔧 Création de l\'utilisateur admin...');
     // Créer l'utilisateur admin
     const hashedPassword = await bcrypt.hash('admin123', 12);
+    console.log('🔧 Password hashed, length:', hashedPassword.length);
     
-    await database.query(
+    const result = await database.query(
       'INSERT INTO autres.users (login, mdp, admin) VALUES (?, ?, ?)',
       ['admin', hashedPassword, 1]
     );
     
+    console.log('🔧 Insert result:', result);
     console.log('✅ Utilisateur admin créé avec succès');
     console.log('📋 Login: admin');
     console.log('📋 Mot de passe: admin123');
@@ -40,7 +64,8 @@ async function initDatabase() {
     console.log('✅ Vérification:', newAdmin);
     
   } catch (error) {
-    console.error('❌ Erreur lors de l\'initialisation:', error);
+    console.error('❌ Erreur lors de l\'initialisation:', error.message);
+    console.error('❌ Stack trace:', error.stack);
   }
 }
 

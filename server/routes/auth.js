@@ -15,25 +15,34 @@ const loginLimiter = rateLimit({
 router.post('/login', loginLimiter, async (req, res) => {
   try {
     console.log('🔐 POST /api/auth/login - Tentative de connexion reçue');
-    console.log('🔐 Body reçu:', req.body);
-    console.log('🔐 Headers:', req.headers);
+    console.log('🔐 Body reçu:', JSON.stringify(req.body, null, 2));
+    console.log('🔐 Content-Type:', req.headers['content-type']);
     
     const { login, password } = req.body;
 
     if (!login || !password) {
       console.log('❌ Missing login or password');
+      console.log('❌ Login:', login, 'Password:', password ? '[PROVIDED]' : '[MISSING]');
       return res.status(400).json({ error: 'Login et mot de passe requis' });
     }
 
     console.log('🔍 Searching for user:', login);
     const user = await User.findByLogin(login);
+    console.log('🔍 User found:', user ? 'YES' : 'NO');
+    if (user) {
+      console.log('🔍 User details:', { id: user.id, login: user.login, admin: user.admin });
+    }
+    
     if (!user) {
       console.log('❌ User not found:', login);
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
 
     console.log('✅ User found, validating password');
+    console.log('🔐 Stored password hash:', user.mdp ? user.mdp.substring(0, 20) + '...' : 'NO HASH');
     const isValidPassword = await User.validatePassword(password, user.mdp);
+    console.log('🔐 Password validation result:', isValidPassword);
+    
     if (!isValidPassword) {
       console.log('❌ Invalid password for:', login);
       return res.status(401).json({ error: 'Identifiants invalides' });
