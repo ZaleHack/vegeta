@@ -608,6 +608,10 @@ function App() {
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               className="w-full pl-12 pr-4 py-4 text-lg border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white shadow-sm"
               placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
             />
             <button
               onClick={handleSearch}
