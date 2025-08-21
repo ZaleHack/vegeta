@@ -18,16 +18,21 @@ class SearchService {
     const offset = (page - 1) * limit;
     const searchTerms = this.parseSearchQuery(query);
 
+    console.log('🔍 Recherche:', { query, searchTerms, filters });
+
     // Recherche dans toutes les tables configurées
     for (const [tableName, config] of Object.entries(this.catalog)) {
       try {
+        console.log(`🔍 Recherche dans ${tableName}...`);
         const tableResults = await this.searchInTable(tableName, config, searchTerms, filters);
         if (tableResults.length > 0) {
           results.push(...tableResults);
           tablesSearched.push(tableName);
+          console.log(`✅ ${tableResults.length} résultats trouvés dans ${tableName}`);
         }
       } catch (error) {
-        console.error(`Erreur recherche table ${tableName}:`, error.message);
+        console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
+        // Continue avec les autres tables même si une échoue
       }
     }
 
@@ -37,6 +42,8 @@ class SearchService {
     const paginatedResults = sortedResults.slice(offset, offset + limit);
 
     const executionTime = Date.now() - startTime;
+
+    console.log(`🎯 Recherche terminée: ${totalResults} résultats en ${executionTime}ms`);
 
     // Journalisation
     if (user) {
@@ -59,7 +66,8 @@ class SearchService {
       limit: limit,
       pages: Math.ceil(totalResults / limit),
       elapsed_ms: executionTime,
-      hits: paginatedResults
+      hits: paginatedResults,
+      tables_searched: tablesSearched
     };
   }
 
@@ -88,6 +96,15 @@ class SearchService {
 
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
+    
+    // Vérifier si la table existe
+    try {
+      await database.query(`SELECT 1 FROM ${tableName} LIMIT 1`);
+    } catch (error) {
+      console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
+      return results;
+    }
+
     let sql = `SELECT * FROM ${tableName} WHERE `;
     const params = [];
     const conditions = [];
@@ -138,7 +155,7 @@ class SearchService {
       }
     }
 
-    sql += ' LIMIT 100';
+    sql += ' LIMIT 50'; // Limite par table
 
     try {
       const rows = await database.query(sql, params);
@@ -154,7 +171,7 @@ class SearchService {
         });
       }
     } catch (error) {
-      console.error(`Erreur SQL table ${tableName}:`, error.message);
+      console.error(`❌ Erreur SQL table ${tableName}:`, error.message);
     }
 
     return results;
@@ -211,7 +228,7 @@ class SearchService {
   async logSearch(logData) {
     try {
       await database.query(`
-        INSERT INTO search_logs (
+        INSERT INTO autres.search_logs (
           user_id, username, search_term, filters, tables_searched, 
           results_count, execution_time_ms, ip_address, user_agent
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -227,7 +244,7 @@ class SearchService {
         logData.user_agent
       ]);
     } catch (error) {
-      console.error('Erreur log recherche:', error);
+      console.error('❌ Erreur log recherche:', error);
     }
   }
 

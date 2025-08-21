@@ -276,9 +276,11 @@ function App() {
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     
+    console.log('🔍 Début de la recherche:', searchQuery);
     setIsLoading(true);
     
     try {
+      console.log('📡 Envoi de la requête de recherche...');
       const response = await apiRequest('/search', {
         method: 'POST',
         body: JSON.stringify({
@@ -289,8 +291,10 @@ function App() {
         }),
       });
       
+      console.log('✅ Réponse reçue:', response);
       setSearchResults(response.hits || []);
     } catch (error: any) {
+      console.error('❌ Erreur de recherche:', error);
       alert('Erreur lors de la recherche: ' + error.message);
       setSearchResults([]);
     } finally {

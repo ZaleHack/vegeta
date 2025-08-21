@@ -1,4 +1,4 @@
-const tablesCatalog = {
+export default {
   // Base esolde
   'esolde.mytable': {
     display: 'mytable',
@@ -102,24 +102,6 @@ const tablesCatalog = {
     theme: 'civique'
   },
 
-  'elections.bambey': {
-    display: 'bambey',
-    database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
-    filters: { CNI: 'string', datenaiss: 'date', lieunaiss: 'string' },
-    theme: 'civique'
-  },
-
-  'elections.thies': {
-    display: 'thies',
-    database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
-    filters: { CNI: 'string', datenaiss: 'date', lieunaiss: 'string' },
-    theme: 'civique'
-  },
-
   // Base autres - principales tables
   'autres.Vehicules': {
     display: 'Vehicules',
@@ -186,20 +168,5 @@ const tablesCatalog = {
       PassePort: 'string'
     },
     theme: 'identite'
-  },
-
-  'autres.fichemilitaire': {
-    display: 'fichemilitaire',
-    database: 'autres',
-    searchable: ['Nom', 'Prenom', 'MatriculeSolde', 'MatriculeMilitaire', 'CNI', 'Grade'],
-    preview: ['Nom', 'Prenom', 'CNI', 'Grade', 'Bataillon'],
-    filters: {
-      Grade: 'string',
-      Bataillon: 'string',
-      CNI: 'string'
-    },
-    theme: 'militaire'
   }
 };
-
-export default tablesCatalog;
