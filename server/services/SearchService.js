@@ -323,7 +323,7 @@ class SearchService {
   async logSearch(logData) {
     try {
       await database.query(`
-        INSERT INTO search_logs (
+        INSERT INTO autres.search_logs (
           user_id, username, search_term, tables_searched, 
           results_count, execution_time_ms, ip_address, user_agent
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)

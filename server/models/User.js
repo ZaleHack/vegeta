@@ -8,7 +8,7 @@ class User {
     const hashedPassword = await bcrypt.hash(mdp, 12);
     
     const result = await database.query(
-      'INSERT INTO users (login, mdp, admin) VALUES (?, ?, ?)',
+      'INSERT INTO autres.users (login, mdp, admin) VALUES (?, ?, ?)',
       [login, hashedPassword, admin]
     );
     
@@ -22,7 +22,7 @@ class User {
 
   static async findById(id) {
     return await database.queryOne(
-      'SELECT * FROM users WHERE id = ?',
+      'SELECT * FROM autres.users WHERE id = ?',
       [id]
     );
   }
@@ -31,7 +31,7 @@ class User {
     console.log('🔍 Recherche utilisateur avec login:', login);
     try {
       const user = await database.queryOne(
-        'SELECT * FROM users WHERE login = ?',
+        'SELECT * FROM autres.users WHERE login = ?',
         [login]
       );
       console.log('✅ Résultat recherche utilisateur:', user ? 'trouvé' : 'non trouvé');
@@ -64,7 +64,7 @@ class User {
 
   static async findAll() {
     return await database.query(
-      'SELECT id, login, admin FROM users ORDER BY id DESC'
+      'SELECT id, login, admin FROM autres.users ORDER BY id DESC'
     );
   }
 
@@ -89,7 +89,7 @@ class User {
     values.push(id);
     
     await database.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+      `UPDATE autres.users SET ${fields.join(', ')} WHERE id = ?`,
       values
     );
     
@@ -97,7 +97,7 @@ class User {
   }
 
   static async delete(id) {
-    await database.query('DELETE FROM users WHERE id = ?', [id]);
+    await database.query('DELETE FROM autres.users WHERE id = ?', [id]);
     return true;
   }
 }
