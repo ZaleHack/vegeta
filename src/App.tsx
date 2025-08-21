@@ -326,7 +326,7 @@ function App() {
       });
 
       await loadUsers();
-      setNewUser({ login: '', password: '', role: 'USER' });
+      setNewUser({ login: '', password: '', role: 'USER', email: '', nom: '', prenom: '', telephone: '' });
       setShowUserModal(false);
       alert('Utilisateur créé avec succès');
     } catch (error: any) {

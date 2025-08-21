@@ -4,16 +4,34 @@ import database from '../config/database.js';
 
 class User {
   static async create(userData) {
-    const { login, mdp, admin = 0, email } = userData;
+    const { login, mdp, admin = 0, email, nom, prenom, telephone } = userData;
     const hashedPassword = await bcrypt.hash(mdp, 12);
     
-    const fields = ['login', 'mdp', 'admin'];
-    const values = [login, hashedPassword, admin];
-    const placeholders = ['?', '?', '?'];
+    const fields = ['login', 'mdp', 'admin', 'statut'];
+    const values = [login, hashedPassword, admin, 'actif'];
+    const placeholders = ['?', '?', '?', '?'];
     
     if (email) {
       fields.push('email');
       values.push(email);
+      placeholders.push('?');
+    }
+    
+    if (nom) {
+      fields.push('nom');
+      values.push(nom);
+      placeholders.push('?');
+    }
+    
+    if (prenom) {
+      fields.push('prenom');
+      values.push(prenom);
+      placeholders.push('?');
+    }
+    
+    if (telephone) {
+      fields.push('telephone');
+      values.push(telephone);
       placeholders.push('?');
     }
     
@@ -27,7 +45,11 @@ class User {
       login, 
       mdp: hashedPassword, 
       admin,
-      email
+      email,
+      nom,
+      prenom,
+      telephone,
+      statut: 'actif'
     };
   }
 
