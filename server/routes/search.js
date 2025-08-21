@@ -10,13 +10,6 @@ const searchService = new SearchService();
 // Rate limiting pour les recherches
 const searchLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-    if (!database.isConnected()) {
-      return res.status(503).json({
-        error: 'Service de base de données indisponible',
-        message: 'La base de données MySQL n\'est pas connectée'
-      });
-    }
-
   max: 100, // 100 recherches par IP
   message: { error: 'Limite de recherches atteinte. Veuillez patienter.' }
 });
@@ -24,6 +17,13 @@ const searchLimiter = rateLimit({
 // Route de recherche principale
 router.post('/', authenticate, searchLimiter, async (req, res) => {
   try {
+    if (!database.isConnected()) {
+      return res.status(503).json({
+        error: 'Service de base de données indisponible',
+        message: 'La base de données MySQL n\'est pas connectée'
+      });
+    }
+
     console.log('🔍 POST /api/search - Nouvelle recherche');
     console.log('📥 Body reçu:', req.body);
     
