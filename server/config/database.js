@@ -17,7 +17,7 @@ class DatabaseManager {
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASSWORD || '',
-        database: 'autres',
+        database: process.env.DB_DATABASE || 'vegeta',
         multipleStatements: true,
         waitForConnections: true,
         connectionLimit: 10,
@@ -40,12 +40,13 @@ class DatabaseManager {
 
   async createSystemTables() {
     try {
-      // Créer la base 'autres' si elle n'existe pas
-      await this.query('CREATE DATABASE IF NOT EXISTS autres');
+      // Créer la base si elle n'existe pas
+      const dbName = process.env.DB_DATABASE || 'vegeta';
+      await this.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
       
       // Créer la table users
       await this.query(`
-        CREATE TABLE IF NOT EXISTS autres.users (
+        CREATE TABLE IF NOT EXISTS users (
           id INT AUTO_INCREMENT PRIMARY KEY,
           login VARCHAR(255) UNIQUE NOT NULL,
           mdp VARCHAR(255) NOT NULL,
@@ -57,7 +58,7 @@ class DatabaseManager {
       
       // Créer la table search_logs
       await this.query(`
-        CREATE TABLE IF NOT EXISTS autres.search_logs (
+        CREATE TABLE IF NOT EXISTS search_logs (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT,
           username VARCHAR(255),
