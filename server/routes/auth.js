@@ -1,6 +1,6 @@
-const express = require('express');
-const User = require('../models/User.js');
-const rateLimit = require('express-rate-limit');
+import express from 'express';
+import rateLimit from 'express-rate-limit';
+import User from '../models/User.js';
 
 const router = express.Router();
 
@@ -82,4 +82,4 @@ router.get('/verify', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

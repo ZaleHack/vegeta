@@ -1,6 +1,6 @@
-const User = require('../models/User.js');
+import User from '../models/User.js';
 
-const authenticate = async (req, res, next) => {
+export const authenticate = async (req, res, next) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   
   if (!token) {
@@ -22,7 +22,7 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-const requireAdmin = (req, res, next) => {
+export const requireAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentification requise' });
   }
@@ -33,5 +33,3 @@ const requireAdmin = (req, res, next) => {
 
   next();
 };
-
-module.exports = { authenticate, requireAdmin };

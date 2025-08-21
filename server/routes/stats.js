@@ -1,6 +1,6 @@
-const express = require('express');
-const StatsService = require('../services/StatsService.js');
-const { authenticate } = require('../middleware/auth.js');
+import express from 'express';
+import StatsService from '../services/StatsService.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 const statsService = new StatsService();
@@ -61,4 +61,4 @@ router.get('/regions', authenticate, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

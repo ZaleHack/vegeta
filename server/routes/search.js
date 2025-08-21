@@ -1,7 +1,7 @@
-const express = require('express');
-const SearchService = require('../services/SearchService.js');
-const { authenticate } = require('../middleware/auth.js');
-const rateLimit = require('express-rate-limit');
+import express from 'express';
+import rateLimit from 'express-rate-limit';
+import SearchService from '../services/SearchService.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 const searchService = new SearchService();
@@ -75,4 +75,4 @@ router.get('/details/:table/:id', authenticate, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

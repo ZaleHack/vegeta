@@ -1,17 +1,23 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
+import dotenv from 'dotenv';
+dotenv.config();
+
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Import des routes
-const authRoutes = require('./routes/auth.js');
-const searchRoutes = require('./routes/search.js');
-const statsRoutes = require('./routes/stats.js');
-const userRoutes = require('./routes/users.js');
-const uploadRoutes = require('./routes/upload.js');
+import authRoutes from './routes/auth.js';
+import searchRoutes from './routes/search.js';
+import statsRoutes from './routes/stats.js';
+import userRoutes from './routes/users.js';
+import uploadRoutes from './routes/upload.js';
 
 // Initialisation de la base de données
-const database = require('./config/database.js');
+import database from './config/database.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 

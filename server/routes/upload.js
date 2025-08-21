@@ -1,9 +1,13 @@
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const UploadService = require('../services/UploadService.js');
-const { authenticate, requireAdmin } = require('../middleware/auth.js');
+import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import UploadService from '../services/UploadService.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 const uploadService = new UploadService();
@@ -113,4 +117,4 @@ router.get('/databases', authenticate, (req, res) => {
   res.json({ databases });
 });
 
-module.exports = router;
+export default router;

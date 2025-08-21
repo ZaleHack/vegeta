@@ -1,5 +1,5 @@
-const database = require('../config/database.js');
-const tablesCatalog = require('../config/tables-catalog.js');
+import database from '../config/database.js';
+import tablesCatalog from '../config/tables-catalog.js';
 
 class StatsService {
   async getOverviewStats() {
@@ -145,4 +145,4 @@ class StatsService {
   }
 }
 
-module.exports = StatsService;
+export default StatsService;

@@ -1,5 +1,7 @@
-const mysql = require('mysql2/promise');
-require('dotenv').config();
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 class DatabaseManager {
   constructor() {
@@ -111,4 +113,4 @@ class DatabaseManager {
   }
 }
 
-module.exports = new DatabaseManager();
+export default new DatabaseManager();

@@ -1,6 +1,6 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const database = require('../config/database.js');
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import database from '../config/database.js';
 
 class User {
   static async create(userData) {
@@ -95,4 +95,4 @@ class User {
   }
 }
 
-module.exports = User;
+export default User;
