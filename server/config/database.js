@@ -12,11 +12,6 @@ class DatabaseManager {
   async init() {
     try {
       console.log('🔌 Initializing MySQL connection...');
-      console.log('🔌 Config:', {
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD ? '***' : '(empty)'
-      });
       
       this.pool = mysql.createPool({
         host: process.env.DB_HOST || 'localhost',
@@ -27,31 +22,15 @@ class DatabaseManager {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
-        charset: 'utf8mb4',
-        acquireTimeout: 60000,
-        timeout: 60000
+        charset: 'utf8mb4'
       });
 
       // Test de connexion
-      console.log('🔌 Testing connection...');
       const connection = await this.pool.getConnection();
       console.log('✅ Connexion MySQL établie avec succès');
-      
-      // Tester l'accès aux bases
-      try {
-        const [databases] = await connection.execute('SHOW DATABASES');
-        console.log('📊 Bases disponibles:', databases.map(db => db.Database));
-        
-        // Tester spécifiquement la table users
-        const [users] = await connection.execute('SELECT COUNT(*) as count FROM users');
-        console.log('👥 Nombre d\'utilisateurs dans autres.users:', users[0].count);
-      } catch (err) {
-        console.warn('⚠️ Impossible de lister les bases:', err.message);
-      }
-      
       connection.release();
 
-      // Créer les tables système si elles n'existent pas
+      // Créer les tables système
       await this.createSystemTables();
     } catch (error) {
       console.error('❌ Erreur connexion MySQL:', error);
@@ -61,10 +40,10 @@ class DatabaseManager {
 
   async createSystemTables() {
     try {
-      // Créer la base 'autres' si elle n'existe pas (sans USE)
+      // Créer la base 'autres' si elle n'existe pas
       await this.query('CREATE DATABASE IF NOT EXISTS autres');
       
-      // Créer la table users si elle n'existe pas (avec nom complet)
+      // Créer la table users
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.users (
           id INT AUTO_INCREMENT PRIMARY KEY,
@@ -76,7 +55,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
       
-      // Table pour les logs de recherche
+      // Créer la table search_logs
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.search_logs (
           id INT AUTO_INCREMENT PRIMARY KEY,
@@ -92,24 +71,6 @@ class DatabaseManager {
           search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX idx_user_id (user_id),
           INDEX idx_search_date (search_date)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-      `);
-
-      // Table pour l'historique des uploads
-      await this.query(`
-        CREATE TABLE IF NOT EXISTS autres.upload_history (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id INT,
-          table_name VARCHAR(255),
-          file_name VARCHAR(255),
-          total_rows INT DEFAULT 0,
-          success_rows INT DEFAULT 0,
-          error_rows INT DEFAULT 0,
-          upload_mode VARCHAR(50),
-          errors TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_user_id (user_id),
-          INDEX idx_created_at (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
@@ -144,10 +105,6 @@ class DatabaseManager {
       await this.pool.end();
       console.log('✅ Connexions MySQL fermées');
     }
-  }
-
-  getPool() {
-    return this.pool;
   }
 }
 

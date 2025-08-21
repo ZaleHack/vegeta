@@ -28,16 +28,16 @@ class User {
   }
 
   static async findByLogin(login) {
-    console.log('Recherche utilisateur avec login:', login);
+    console.log('🔍 Recherche utilisateur avec login:', login);
     try {
       const user = await database.queryOne(
         'SELECT * FROM autres.users WHERE login = ?',
         [login]
       );
-      console.log('Résultat recherche utilisateur:', user ? 'trouvé' : 'non trouvé');
+      console.log('✅ Résultat recherche utilisateur:', user ? 'trouvé' : 'non trouvé');
       return user;
     } catch (error) {
-      console.error('Erreur lors de la recherche utilisateur:', error);
+      console.error('❌ Erreur lors de la recherche utilisateur:', error);
       throw error;
     }
   }
@@ -75,7 +75,6 @@ class User {
     Object.keys(userData).forEach(key => {
       if (key !== 'id' && userData[key] !== undefined) {
         if (key === 'mdp') {
-          // Hash le nouveau mot de passe
           fields.push('mdp = ?');
           values.push(bcrypt.hashSync(userData[key], 12));
         } else {

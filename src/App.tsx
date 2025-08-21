@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 
 // Configuration API
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://localhost:3000/api';
 
 interface SearchResult {
   table: string;
@@ -34,64 +34,33 @@ interface NewUser {
 
 // Utilitaire pour les requêtes API
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
-  const token = localStorage.getItem('vegeta_token');
-  
-  console.log('🔍 API Request:', endpoint, options);
-  
-  const config: RequestInit = {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
-  };
+  try {
+    const token = localStorage.getItem('vegeta_token');
+    
+    console.log('🔍 API Request:', endpoint, options);
+    
+    const config: RequestInit = {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options.headers,
+      },
+    };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  
-  console.log('📡 Response status:', response.status);
-  console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
-  
-  // Vérifier si la réponse contient du JSON
-  const contentType = response.headers.get('content-type');
-  const hasJson = contentType && contentType.includes('application/json');
-  
-  console.log('📄 Content-Type:', contentType);
-  console.log('📄 Has JSON:', hasJson);
-  
-  if (!response.ok) {
-    let errorMessage = `Erreur ${response.status}: ${response.statusText}`;
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
     
-    if (hasJson) {
-      try {
-        const responseText = await response.text();
-        console.log('❌ Error response text:', responseText);
-        const error = JSON.parse(responseText);
-        errorMessage = error.error || error.message || errorMessage;
-      } catch (e) {
-        console.log('❌ JSON parse error:', e);
-        // Si le parsing JSON échoue, utiliser le message par défaut
-      }
+    console.log('📡 Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Erreur serveur' }));
+      throw new Error(errorData.error || `Erreur ${response.status}`);
     }
     
-    throw new Error(errorMessage);
-  }
-  
-  // Vérifier si la réponse contient du JSON avant de parser
-  if (hasJson) {
-    try {
-      const responseText = await response.text();
-      console.log('✅ Success response text:', responseText);
-      return JSON.parse(responseText);
-    } catch (e) {
-      console.log('❌ JSON parse error:', e);
-      throw new Error('Réponse invalide du serveur');
-    }
-  } else {
-    // Si pas de JSON, retourner le texte
-    const responseText = await response.text();
-    console.log('📄 Text response:', responseText);
-    return responseText;
+    return await response.json();
+  } catch (error: any) {
+    console.error('❌ Erreur API:', error);
+    throw error;
   }
 };
 
@@ -199,12 +168,15 @@ function App() {
     setLoginError('');
     setIsLoading(true);
 
-    console.log('🔐 Tentative de connexion avec:', loginData);
+    console.log('🔐 Tentative de connexion avec:', { login: loginData.login, password: '***' });
 
     try {
       const response = await apiRequest('/auth/login', {
         method: 'POST',
-        body: JSON.stringify(loginData),
+        body: JSON.stringify({
+          login: loginData.login,
+          password: loginData.password
+        }),
       });
 
       console.log('✅ Connexion réussie:', response);

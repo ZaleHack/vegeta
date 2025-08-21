@@ -14,38 +14,39 @@ const loginLimiter = rateLimit({
 // Route de connexion
 router.post('/login', loginLimiter, async (req, res) => {
   try {
-    console.log('🔐 POST /api/auth/login - Tentative de connexion reçue');
-    console.log('🔐 Body reçu:', req.body);
-    console.log('🔐 Headers:', req.headers);
+    console.log('🔐 POST /api/auth/login - Tentative de connexion');
+    console.log('📥 Body reçu:', req.body);
     
     const { login, password } = req.body;
 
     if (!login || !password) {
-      console.log('❌ Missing login or password');
+      console.log('❌ Login ou password manquant');
       return res.status(400).json({ error: 'Login et mot de passe requis' });
     }
 
-    console.log('🔍 Searching for user:', login);
+    console.log('🔍 Recherche utilisateur:', login);
     const user = await User.findByLogin(login);
+    
     if (!user) {
-      console.log('❌ User not found:', login);
+      console.log('❌ Utilisateur non trouvé:', login);
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
 
-    console.log('✅ User found, validating password');
+    console.log('✅ Utilisateur trouvé, validation du mot de passe');
     const isValidPassword = await User.validatePassword(password, user.mdp);
+    
     if (!isValidPassword) {
-      console.log('❌ Invalid password for:', login);
+      console.log('❌ Mot de passe invalide pour:', login);
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
 
-    console.log('✅ Password valid, generating token');
+    console.log('✅ Mot de passe valide, génération du token');
     const token = User.generateToken(user);
     
     // Ne pas renvoyer le mot de passe
     const { mdp, ...userResponse } = user;
 
-    console.log('✅ Login successful for:', login);
+    console.log('✅ Connexion réussie pour:', login);
     const response = {
       message: 'Connexion réussie',
       user: {
@@ -55,14 +56,11 @@ router.post('/login', loginLimiter, async (req, res) => {
       token: token
     };
     
-    console.log('📤 Sending response:', response);
-    
-    // S'assurer que la réponse est bien du JSON
-    res.setHeader('Content-Type', 'application/json');
+    console.log('📤 Envoi de la réponse:', response);
     res.json(response);
+    
   } catch (error) {
-    console.error('❌ Login error:', error);
-    res.setHeader('Content-Type', 'application/json');
+    console.error('❌ Erreur lors de la connexion:', error);
     res.status(500).json({ error: 'Erreur serveur: ' + error.message });
   }
 });
