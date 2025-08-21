@@ -178,15 +178,17 @@ class SearchService {
   }
 
   buildPreview(record, config) {
-    const preview = {};
+    // Retourner TOUTES les données, pas seulement un aperçu
+    const allData = {};
     
-    config.preview.forEach(field => {
+    // Inclure tous les champs de l'enregistrement
+    Object.keys(record).forEach(field => {
       if (record[field] !== null && record[field] !== undefined && record[field] !== '') {
-        preview[field] = record[field];
+        allData[field] = record[field];
       }
     });
 
-    return preview;
+    return allData;
   }
 
   calculateRelevanceScore(record, searchTerms, config) {

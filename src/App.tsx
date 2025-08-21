@@ -107,7 +107,6 @@ function App() {
     active_users: 0
   });
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   // Vérification du token au démarrage
   useEffect(() => {
@@ -304,19 +303,6 @@ function App() {
     }
   };
 
-  const handleViewDetails = async (result: SearchResult) => {
-    try {
-      setIsLoading(true);
-      const tableName = `${result.database}_${result.table}`;
-      const response = await apiRequest(`/search/details/${tableName}/${result.primary_keys.id}`);
-      setSelectedRecord(response);
-      setShowDetailsModal(true);
-    } catch (error: any) {
-      alert('Erreur lors de la récupération des détails: ' + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleCreateUser = async () => {
     if (!newUser.login || !newUser.password) {
@@ -697,27 +683,33 @@ function App() {
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                     {Object.entries(result.preview).map(([key, value]) => (
-                      <div key={key} className="flex flex-col">
-                        <span className="text-xs text-slate-500 uppercase tracking-wide font-medium">
-                          {key}
+                      <div key={key} className="bg-slate-50 rounded-lg p-3">
+                        <span className="text-xs text-slate-500 uppercase tracking-wide font-medium block mb-1">
+                          {key.replace(/_/g, ' ')}
                         </span>
-                        <span className="text-sm font-medium text-slate-900 truncate mt-1">
-                          {value || 'N/A'}
+                        <span className="text-sm font-medium text-slate-900 break-words">
+                          {value && value.toString().length > 50 
+                            ? `${value.toString().substring(0, 50)}...` 
+                            : (value || 'N/A')
+                          }
                         </span>
                       </div>
                     ))}
                   </div>
                 </div>
                 
-                <button 
-                  onClick={() => handleViewDetails(result)}
-                  className="ml-4 flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md"
-                >
-                  <Eye className="w-4 h-4" />
-                  Détails
-                </button>
+                <div className="ml-4 flex flex-col gap-2">
+                  <span className="text-xs text-slate-500 font-medium">
+                    {Object.keys(result.preview).length} champs
+                  </span>
+                  {result.score > 0 && (
+                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                      Score: {result.score.toFixed(1)}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -1144,61 +1136,6 @@ function App() {
     )
   );
 
-  const DetailsModal = () => (
-    showDetailsModal && selectedRecord && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-          <div className="flex items-center justify-between p-6 border-b border-slate-200">
-            <div>
-              <h3 className="text-xl font-bold text-slate-900">Détails de l'enregistrement</h3>
-              <p className="text-sm text-slate-600">
-                Table: {selectedRecord.table} | Base: {selectedRecord.database}
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setShowDetailsModal(false);
-                setSelectedRecord(null);
-              }}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {Object.entries(selectedRecord.details).map(([key, value]) => (
-                <div key={key} className="bg-slate-50 rounded-lg p-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2 uppercase tracking-wide">
-                    {key.replace(/_/g, ' ')}
-                  </label>
-                  <div className="text-slate-900 font-medium break-words">
-                    {value || 'N/A'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 p-6 border-t border-slate-200 bg-slate-50">
-            <button
-              onClick={() => {
-                setShowDetailsModal(false);
-                setSelectedRecord(null);
-              }}
-              className="px-6 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
-            >
-              Fermer
-            </button>
-            <button className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors">
-              Exporter
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  );
 
   const PlaceholderPage = ({ title, icon: Icon }: { title: string; icon: any }) => (
     <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'} p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen`}>
@@ -1230,7 +1167,6 @@ function App() {
       
       <UserModal />
       <PasswordModal />
-      <DetailsModal />
     </div>
   );
 }
