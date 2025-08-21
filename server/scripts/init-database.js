@@ -6,24 +6,26 @@ async function initDatabase() {
     console.log('🔧 Initialisation de la base de données...');
     
     // Attendre que la base soit prête
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Vérifier si l'utilisateur admin existe
-    const existingAdmin = await database.queryOne(
-      'SELECT * FROM autres.users WHERE login = ?', 
+    const existingAdmin = database.queryOne(
+      'SELECT * FROM users WHERE login = ?', 
       ['admin']
     );
     
     if (existingAdmin) {
       console.log('✅ Utilisateur admin existe déjà');
+      console.log('📋 Login: admin');
+      console.log('📋 Mot de passe: admin123');
       return;
     }
     
     // Créer l'utilisateur admin
     const hashedPassword = await bcrypt.hash('admin123', 12);
     
-    await database.query(
-      'INSERT INTO autres.users (login, mdp, admin) VALUES (?, ?, ?)',
+    database.query(
+      'INSERT INTO users (login, mdp, admin) VALUES (?, ?, ?)',
       ['admin', hashedPassword, 1]
     );
     
@@ -32,12 +34,22 @@ async function initDatabase() {
     console.log('📋 Mot de passe: admin123');
     
     // Vérifier la création
-    const newAdmin = await database.queryOne(
-      'SELECT login, admin FROM autres.users WHERE login = ?', 
+    const newAdmin = database.queryOne(
+      'SELECT login, admin FROM users WHERE login = ?', 
       ['admin']
     );
     
     console.log('✅ Vérification:', newAdmin);
+    
+    // Afficher les statistiques
+    const userCount = database.queryOne('SELECT COUNT(*) as count FROM users');
+    const esoldeCount = database.queryOne('SELECT COUNT(*) as count FROM esolde_mytable');
+    const rhpoliceCount = database.queryOne('SELECT COUNT(*) as count FROM rhpolice_personne_concours');
+    
+    console.log('📊 Statistiques de la base:');
+    console.log(`   - Utilisateurs: ${userCount.count}`);
+    console.log(`   - Esolde: ${esoldeCount.count} enregistrements`);
+    console.log(`   - RH Police: ${rhpoliceCount.count} enregistrements`);
     
   } catch (error) {
     console.error('❌ Erreur lors de l\'initialisation:', error);
