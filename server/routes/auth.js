@@ -14,19 +14,26 @@ const loginLimiter = rateLimit({
 // Route de connexion
 router.post('/login', loginLimiter, async (req, res) => {
   try {
+    console.log('Tentative de connexion:', req.body);
+    
     const { login, password } = req.body;
 
     if (!login || !password) {
+      console.log('Login ou password manquant');
       return res.status(400).json({ error: 'Login et mot de passe requis' });
     }
 
+    console.log('Recherche utilisateur:', login);
     const user = await User.findByLogin(login);
     if (!user) {
+      console.log('Utilisateur non trouvé:', login);
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
 
+    console.log('Utilisateur trouvé, vérification mot de passe');
     const isValidPassword = await User.validatePassword(password, user.mdp);
     if (!isValidPassword) {
+      console.log('Mot de passe invalide pour:', login);
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
 
@@ -35,6 +42,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     // Ne pas renvoyer le mot de passe
     const { mdp, ...userResponse } = user;
 
+    console.log('Connexion réussie pour:', login);
     res.json({
       message: 'Connexion réussie',
       user: {

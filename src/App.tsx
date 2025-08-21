@@ -47,12 +47,36 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   
+  // Vérifier si la réponse contient du JSON
+  const contentType = response.headers.get('content-type');
+  const hasJson = contentType && contentType.includes('application/json');
+  
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Erreur API');
+    let errorMessage = `Erreur ${response.status}: ${response.statusText}`;
+    
+    if (hasJson) {
+      try {
+        const error = await response.json();
+        errorMessage = error.error || error.message || errorMessage;
+      } catch (e) {
+        // Si le parsing JSON échoue, utiliser le message par défaut
+      }
+    }
+    
+    throw new Error(errorMessage);
   }
   
-  return response.json();
+  // Vérifier si la réponse contient du JSON avant de parser
+  if (hasJson) {
+    try {
+      return await response.json();
+    } catch (e) {
+      throw new Error('Réponse invalide du serveur');
+    }
+  } else {
+    // Si pas de JSON, retourner le texte
+    return await response.text();
+  }
 };
 
 function App() {

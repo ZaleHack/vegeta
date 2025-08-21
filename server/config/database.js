@@ -15,17 +15,28 @@ class DatabaseManager {
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'vegeta',
+        // Ne pas spécifier de base par défaut pour pouvoir accéder à toutes les bases
+        multipleStatements: true,
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
         charset: 'utf8mb4',
-        multipleStatements: true
+        acquireTimeout: 60000,
+        timeout: 60000
       });
 
       // Test de connexion
       const connection = await this.pool.getConnection();
       console.log('✅ Connexion MySQL établie avec succès');
+      
+      // Tester l'accès aux bases
+      try {
+        const [databases] = await connection.execute('SHOW DATABASES');
+        console.log('📊 Bases disponibles:', databases.map(db => db.Database));
+      } catch (err) {
+        console.warn('⚠️ Impossible de lister les bases:', err.message);
+      }
+      
       connection.release();
 
       // Créer les tables système si elles n'existent pas
