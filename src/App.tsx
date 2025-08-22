@@ -149,11 +149,11 @@ function App() {
             }
         }
 
-        function displayUsers(users) {
+        function displayUsers(users: any) {
             const tbody = document.getElementById('usersTableBody');
             tbody.innerHTML = '';
             
-            users.forEach(user => {
+            users.forEach((user: any) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${user.id}</td>
@@ -210,7 +210,7 @@ function App() {
             modal.show();
         }
 
-        async function loadUserData(userId) {
+        async function loadUserData(userId: any) {
             try {
                 const response = await fetch(`/api/users/${userId}`, {
                     headers: {
@@ -230,11 +230,11 @@ function App() {
             }
         }
 
-        async function editUser(userId) {
+        async function editUser(userId: any) {
             showUserModal(userId);
         }
 
-        async function deleteUser(userId) {
+        async function deleteUser(userId: any) {
             if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
                 return;
             }
@@ -921,27 +921,6 @@ function App() {
                       </div>
                     ))}
                   </div>
-                    <li class="nav-item" id="usersNavItem" style="display: none;">
-                        <a class="nav-link" href="#" onclick="showPage('users')">
-                            <i data-lucide="users" class="me-1"></i>
-                            Utilisateurs
-                        </a>
-                    </li>
-                    <li class="nav-item dropdown" id="userDropdown" style="display: none;">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i data-lucide="user" class="me-1"></i>
-                            <span id="currentUserName"></span>
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" onclick="showChangePasswordModal()">
-                                <i data-lucide="key" class="me-2"></i>Changer mot de passe
-                            </a></li>
-                            <li><hr class="dropdown-divider" /></li>
-                            <li><a class="dropdown-item" href="#" onclick="logout()">
-                                <i data-lucide="log-out" class="me-2"></i>Déconnexion
-                            </a></li>
-                        </ul>
-                    </li>
                 </div>
                 
                 <div className="ml-4 flex flex-col gap-2">
@@ -1099,41 +1078,6 @@ function App() {
               </button>
             </form>
           </div>
-        </div>
-
-        {/* Page Gestion des utilisateurs */}
-        <div id="usersPage" class="page-content" style="display: none;">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>
-                    <i data-lucide="users" class="me-2 text-primary"></i>
-                    Gestion des utilisateurs
-                </h2>
-                <button class="btn btn-primary" onclick="showUserModal()">
-                    <i data-lucide="user-plus" class="me-2"></i>
-                    Nouvel utilisateur
-                </button>
-            </div>
-            
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table id="usersTable" class="table table-striped table-hover">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Login</th>
-                                    <th>Rôle</th>
-                                    <th>Créé le</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="usersTableBody">
-                                <!-- Utilisateurs chargés dynamiquement -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
         </div>
 
         {/* Informations et historique */}
