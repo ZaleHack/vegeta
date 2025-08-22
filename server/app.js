@@ -43,6 +43,7 @@ app.set('trust proxy', 1);
 // Routes API
 app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/users', import('./routes/users.js').then(m => m.default));
 
 // Route de santé
 app.get('/api/health', (req, res) => {

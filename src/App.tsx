@@ -1,116 +1,181 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Search, Database, BarChart3, Upload, Users, Filter, Download, Eye, Shield, 
-  Clock, TrendingUp, Menu, X, Globe, PieChart, Activity, FileText, Settings,
-  ChevronRight, AlertCircle, CheckCircle, XCircle, Info, Home, LogOut
-} from 'lucide-react';
+import { Search, Database, Users, Settings, LogOut, User, Plus, Edit, Trash2, Key, Eye, EyeOff, Download } from 'lucide-react';
 
-// Configuration API
-const API_BASE_URL = 'http://localhost:3000/api';
+interface User {
+  id: number;
+  login: string;
+  admin: number;
+  created_at: string;
+}
 
 interface SearchResult {
   table: string;
   database: string;
   preview: Record<string, any>;
-  primary_keys: Record<string, any>;
+  primary_keys: { id: number };
   score: number;
 }
 
-interface User {
-  id: number;
-  login: string;
-  email: string;
-  role: 'ADMIN' | 'USER';
-  admin: number;
-  created_at: string;
-  updated_at?: string;
+interface SearchResponse {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+  elapsed_ms: number;
+  hits: SearchResult[];
+  tables_searched: string[];
 }
 
-interface NewUser {
-  login: string;
-  password: string;
-  role: 'ADMIN' | 'USER';
-}
+const App: React.FC = () => {
+  // États principaux
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentPage, setCurrentPage] = useState('login');
+  const [loading, setLoading] = useState(false);
 
-// Utilitaire pour les requêtes API
-const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
-  try {
-    const token = localStorage.getItem('vegeta_token');
-    
-    console.log('🔍 API Request:', endpoint, options);
-    
-    const config: RequestInit = {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...options.headers,
-      },
-    };
-
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    
-    console.log('📡 Response status:', response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Erreur serveur' }));
-      throw new Error(errorData.error || `Erreur ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error: any) {
-    console.error('❌ Erreur API:', error);
-    throw error;
-  }
-};
-
-function App() {
-  const [currentPage, setCurrentPage] = useState('home');
-  const [user, setUser] = useState<User | null>(null);
+  // États de recherche
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [filters, setFilters] = useState({});
+  const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
+  const [searchError, setSearchError] = useState('');
+
+  // États d'authentification
+  const [loginData, setLoginData] = useState({ login: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+
+  // États de gestion des utilisateurs
   const [users, setUsers] = useState<User[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [newUser, setNewUser] = useState<NewUser>({
+  const [userFormData, setUserFormData] = useState({
     login: '',
     password: '',
-    role: 'USER'
+    admin: 0
   });
-  const [passwordData, setPasswordData] = useState({
+  const [passwordFormData, setPasswordFormData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
-  const [loginData, setLoginData] = useState({
-    login: '',
-    password: ''
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false
   });
-  const [loginError, setLoginError] = useState('');
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [selectedDatabase, setSelectedDatabase] = useState('');
-  const [newDatabaseName, setNewDatabaseName] = useState('');
-  const [uploadMode, setUploadMode] = useState<'existing' | 'new'>('existing');
-  const [csvPreview, setCsvPreview] = useState<any[]>([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadHistory, setUploadHistory] = useState<any[]>([]);
-  const [stats, setStats] = useState({
-    total_searches: 0,
-    avg_execution_time: 0,
-    today_searches: 0,
-    active_users: 0
-  });
-  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
-  // Fonction d'export CSV
-  const handleExportCSV = () => {
-    if (searchResults.length === 0) {
+  // Vérification de l'authentification au démarrage
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      verifyToken(token);
+    }
+  }, []);
+
+  // Fermer le dropdown quand on clique ailleurs
+  useEffect(() => {
+    const handleClickOutside = () => setShowUserDropdown(false);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  const verifyToken = async (token: string) => {
+    try {
+      const response = await fetch('/api/auth/verify', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentUser(data.user);
+        setIsAuthenticated(true);
+        setCurrentPage('search');
+      } else {
+        localStorage.removeItem('token');
+      }
+    } catch (error) {
+      console.error('Erreur vérification token:', error);
+      localStorage.removeItem('token');
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setLoginError('');
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginData)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        setCurrentUser(data.user);
+        setIsAuthenticated(true);
+        setCurrentPage('search');
+        setLoginData({ login: '', password: '' });
+      } else {
+        setLoginError(data.error || 'Erreur de connexion');
+      }
+    } catch (error) {
+      setLoginError('Erreur de connexion au serveur');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    setCurrentPage('login');
+    setSearchResults(null);
+    setShowUserDropdown(false);
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setLoading(true);
+    setSearchError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          query: searchQuery,
+          page: 1,
+          limit: 50
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSearchResults(data);
+      } else {
+        setSearchError(data.error || 'Erreur lors de la recherche');
+      }
+    } catch (error) {
+      setSearchError('Erreur de connexion au serveur');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const exportToCSV = () => {
+    if (!searchResults || searchResults.hits.length === 0) {
       alert('Aucun résultat à exporter');
       return;
     }
@@ -118,1139 +183,786 @@ function App() {
     try {
       // Collecter tous les champs uniques
       const allFields = new Set<string>();
-      searchResults.forEach(result => {
-        Object.keys(result.preview).forEach(field => allFields.add(field));
+      searchResults.hits.forEach(hit => {
+        Object.keys(hit.preview).forEach(field => allFields.add(field));
       });
 
-      const fields = Array.from(allFields).sort();
+      const fields = ['Source', 'Base', 'Score', ...Array.from(allFields)];
       
-      // Créer l'en-tête CSV
-      const headers = ['Source', 'Base', 'Score', ...fields];
-      let csvContent = headers.join(',') + '\n';
-
-      // Ajouter les données
-      searchResults.forEach(result => {
+      // Créer le contenu CSV
+      let csvContent = fields.map(field => `"${field}"`).join(',') + '\n';
+      
+      searchResults.hits.forEach(hit => {
         const row = [
-          `"${result.table}"`,
-          `"${result.database}"`,
-          result.score || 0,
-          ...fields.map(field => {
-            const value = result.preview[field];
-            if (value === null || value === undefined || value === '') {
-              return '""';
-            }
-            // Échapper les guillemets et encapsuler dans des guillemets
+          `"${hit.table || ''}"`,
+          `"${hit.database || ''}"`,
+          `"${hit.score || 0}"`,
+          ...Array.from(allFields).map(field => {
+            const value = hit.preview[field];
+            if (value === null || value === undefined) return '""';
             return `"${String(value).replace(/"/g, '""')}"`;
           })
         ];
         csvContent += row.join(',') + '\n';
       });
 
-      // Créer et télécharger le fichier
+      // Télécharger le fichier
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
       
-      if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        
-        // Nom du fichier avec timestamp
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
-        const filename = `vegeta-recherche-${searchQuery.replace(/[^a-zA-Z0-9]/g, '_')}-${timestamp}.csv`;
-        link.setAttribute('download', filename);
-        
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        console.log(`✅ Export CSV réussi: ${searchResults.length} résultats exportés`);
-      }
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      const searchTerm = searchQuery.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_');
+      link.setAttribute('download', `vegeta-export-${searchTerm}-${timestamp}.csv`);
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      alert(`Export réussi ! ${searchResults.hits.length} résultats exportés.`);
     } catch (error) {
-      console.error('❌ Erreur lors de l\'export CSV:', error);
-      alert('Erreur lors de l\'export. Veuillez réessayer.');
+      console.error('Erreur export:', error);
+      alert('Erreur lors de l\'export');
     }
   };
 
-  // Vérification du token au démarrage
-  useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('vegeta_token');
-      if (token) {
-        try {
-          const response = await apiRequest('/auth/verify');
-          setUser(response.user);
-        } catch (error) {
-          localStorage.removeItem('vegeta_token');
-        }
-      }
-      setIsInitializing(false);
-    };
-    
-    checkAuth();
-  }, []);
-
-  // Charger les données selon le rôle
-  useEffect(() => {
-    if (user) {
-      loadStats();
-      if (user.role === 'ADMIN') {
-        loadUsers();
-        loadUploadHistory();
-      }
-    }
-  }, [user]);
-
-  const loadStats = async () => {
-    try {
-      const response = await apiRequest('/stats/overview');
-      setStats(response);
-    } catch (error) {
-      console.error('Erreur chargement stats:', error);
-    }
-  };
-
+  // Gestion des utilisateurs
   const loadUsers = async () => {
     try {
-      const response = await apiRequest('/users');
-      setUsers(response.users);
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/users', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users);
+      }
     } catch (error) {
       console.error('Erreur chargement utilisateurs:', error);
     }
   };
 
-  const loadUploadHistory = async () => {
-    try {
-      const response = await apiRequest('/upload/history');
-      setUploadHistory(response.history);
-    } catch (error) {
-      console.error('Erreur chargement historique:', error);
-    }
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginError('');
-    setIsLoading(true);
-
-    console.log('🔐 Tentative de connexion avec:', { login: loginData.login, password: '***' });
+    setLoading(true);
 
     try {
-      const response = await apiRequest('/auth/login', {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/users', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
-          login: loginData.login,
-          password: loginData.password
-        }),
+          login: userFormData.login,
+          mdp: userFormData.password,
+          admin: userFormData.admin
+        })
       });
 
-      console.log('✅ Connexion réussie:', response);
-      localStorage.setItem('vegeta_token', response.token);
-      setUser(response.user);
-    } catch (error: any) {
-      console.error('❌ Erreur de connexion:', error);
-      setLoginError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      const data = await response.json();
 
-  const handleLogout = async () => {
-    try {
-      await apiRequest('/auth/logout', { method: 'POST' });
+      if (response.ok) {
+        alert('Utilisateur créé avec succès');
+        setShowUserModal(false);
+        setUserFormData({ login: '', password: '', admin: 0 });
+        setEditingUser(null);
+        loadUsers();
+      } else {
+        alert(data.error || 'Erreur lors de la création');
+      }
     } catch (error) {
-      console.error('Erreur déconnexion:', error);
+      alert('Erreur de connexion au serveur');
     } finally {
-      localStorage.removeItem('vegeta_token');
-      setUser(null);
-      setCurrentPage('home');
+      setLoading(false);
     }
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type === 'text/csv') {
-      setUploadFile(file);
-      // Simuler la prévisualisation du CSV
-      setTimeout(() => {
-        setCsvPreview([
-          { nom: 'Dupont', prenom: 'Jean', cni: '1234567890123', telephone: '77 123 45 67' },
-          { nom: 'Martin', prenom: 'Marie', cni: '9876543210987', telephone: '76 987 65 43' },
-          { nom: 'Diallo', prenom: 'Amadou', cni: '5555666677778', telephone: '78 555 66 77' }
-        ]);
-      }, 500);
-    } else {
-      alert('Veuillez sélectionner un fichier CSV valide');
-    }
-  };
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
 
-  const handleUpload = async () => {
-    if (!uploadFile) {
-      alert('Veuillez sélectionner un fichier');
-      return;
-    }
+    setLoading(true);
 
-    if (uploadMode === 'existing' && !selectedDatabase) {
-      alert('Veuillez sélectionner une base de données');
-      return;
-    }
-
-    if (uploadMode === 'new' && !newDatabaseName.trim()) {
-      alert('Veuillez entrer un nom pour la nouvelle base');
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    // Simulation de l'upload avec progression
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsUploading(false);
-          
-          // Ajouter à l'historique
-          const newUpload = {
-            id: uploadHistory.length + 1,
-            filename: uploadFile.name,
-            database: uploadMode === 'existing' ? selectedDatabase : newDatabaseName,
-            rows: csvPreview.length * 100, // Simulation
-            success: csvPreview.length * 98,
-            errors: csvPreview.length * 2,
-            date: new Date().toISOString(),
-            status: 'completed'
-          };
-          
-          setUploadHistory([newUpload, ...uploadHistory]);
-          
-          // Reset du formulaire
-          setUploadFile(null);
-          setSelectedDatabase('');
-          setNewDatabaseName('');
-          setCsvPreview([]);
-          
-          alert('Upload terminé avec succès !');
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
-  };
-
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    
-    console.log('🔍 Début de la recherche:', searchQuery);
-    setIsLoading(true);
-    
     try {
-      console.log('📡 Envoi de la requête de recherche...');
-      const response = await apiRequest('/search', {
-        method: 'POST',
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/users/${editingUser.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
-          query: searchQuery,
-          filters: filters,
-          page: 1,
-          limit: 20
-        }),
+          login: userFormData.login,
+          admin: userFormData.admin
+        })
       });
-      
-      console.log('✅ Réponse reçue:', response);
-      setSearchResults(response.hits || []);
-    } catch (error: any) {
-      console.error('❌ Erreur de recherche:', error);
-      alert('Erreur lors de la recherche: ' + error.message);
-      setSearchResults([]);
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('Utilisateur modifié avec succès');
+        setShowUserModal(false);
+        setUserFormData({ login: '', password: '', admin: 0 });
+        setEditingUser(null);
+        loadUsers();
+      } else {
+        alert(data.error || 'Erreur lors de la modification');
+      }
+    } catch (error) {
+      alert('Erreur de connexion au serveur');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
+  const handleDeleteUser = async (userId: number) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) return;
 
-  const handleCreateUser = async () => {
-    if (!newUser.login || !newUser.password) {
-      alert('Tous les champs sont requis');
-      return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        alert('Utilisateur supprimé avec succès');
+        loadUsers();
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Erreur lors de la suppression');
+      }
+    } catch (error) {
+      alert('Erreur de connexion au serveur');
     }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    if (newUser.password.length < 8) {
-      alert('Le mot de passe doit contenir au moins 8 caractères');
+    if (passwordFormData.newPassword !== passwordFormData.confirmPassword) {
+      alert('Les nouveaux mots de passe ne correspondent pas');
       return;
     }
+
+    if (passwordFormData.newPassword.length < 6) {
+      alert('Le nouveau mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    setLoading(true);
 
     try {
-      await apiRequest('/users', {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/users/${currentUser?.id}/change-password`, {
         method: 'POST',
-        body: JSON.stringify(newUser),
-      });
-
-      await loadUsers();
-      setNewUser({ login: '', password: '', role: 'USER' });
-      setShowUserModal(false);
-      alert('Utilisateur créé avec succès');
-    } catch (error: any) {
-      alert('Erreur: ' + error.message);
-    }
-  };
-
-  const handleChangePassword = async () => {
-    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
-      alert('Tous les champs sont requis');
-      return;
-    }
-
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('Les mots de passe ne correspondent pas');
-      return;
-    }
-
-    if (passwordData.newPassword.length < 8) {
-      alert('Le nouveau mot de passe doit contenir au moins 8 caractères');
-      return;
-    }
-
-    try {
-      await apiRequest(`/users/${editingUser?.id}/change-password`, {
-        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword
-        }),
+          currentPassword: passwordFormData.currentPassword,
+          newPassword: passwordFormData.newPassword
+        })
       });
 
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setShowPasswordModal(false);
-      setEditingUser(null);
-      alert('Mot de passe modifié avec succès');
-    } catch (error: any) {
-      alert('Erreur: ' + error.message);
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('Mot de passe modifié avec succès');
+        setShowPasswordModal(false);
+        setPasswordFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setShowPasswords({ current: false, new: false, confirm: false });
+      } else {
+        alert(data.error || 'Erreur lors du changement de mot de passe');
+      }
+    } catch (error) {
+      alert('Erreur de connexion au serveur');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const canAccess = (requiredRole: string[]) => {
-    return user && requiredRole.includes(user.role);
+  const openEditModal = (user: User) => {
+    setEditingUser(user);
+    setUserFormData({
+      login: user.login,
+      password: '',
+      admin: user.admin
+    });
+    setShowUserModal(true);
   };
 
-  if (isInitializing) {
+  const openCreateModal = () => {
+    setEditingUser(null);
+    setUserFormData({ login: '', password: '', admin: 0 });
+    setShowUserModal(true);
+  };
+
+  // Charger les utilisateurs quand on accède à la page
+  useEffect(() => {
+    if (currentPage === 'users' && currentUser?.admin === 1) {
+      loadUsers();
+    }
+  }, [currentPage, currentUser]);
+
+  // Page de connexion
+  if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600">Chargement...</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <Database className="mx-auto h-12 w-12 text-blue-600" />
+            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">VEGETA</h2>
+            <p className="mt-2 text-sm text-gray-600">Plateforme de recherche professionnelle</p>
+          </div>
+          <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="login" className="block text-sm font-medium text-gray-700">
+                  Nom d'utilisateur
+                </label>
+                <input
+                  id="login"
+                  type="text"
+                  required
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  value={loginData.login}
+                  onChange={(e) => setLoginData({ ...loginData, login: e.target.value })}
+                />
+              </div>
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Mot de passe
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  value={loginData.password}
+                  onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {loginError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                {loginError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {loading ? 'Connexion...' : 'Se connecter'}
+            </button>
+          </form>
         </div>
       </div>
     );
   }
 
-  const LoginForm = () => (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Database className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">VEGETA</h1>
-          <p className="text-slate-600">Plateforme de recherche professionnelle multi-bases</p>
-        </div>
-        
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Login
-            </label>
-            <input
-              type="text"
-              value={loginData.login}
-              onChange={(e) => setLoginData({ ...loginData, login: e.target.value })}
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white"
-              placeholder="Entrez votre login"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Mot de passe
-            </label>
-            <input
-              type="password"
-              value={loginData.password}
-              onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white"
-              placeholder="Entrez votre mot de passe"
-              required
-            />
-          </div>
-          
-          {loginError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
-              {loginError}
-            </div>
-          )}
-          
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
-          >
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <>
-                <Shield className="w-5 h-5" />
-                Se connecter
-              </>
-            )}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-
-  const Sidebar = () => (
-    <div className={`bg-gradient-to-b from-slate-800 to-slate-900 text-white transition-all duration-300 ${sidebarCollapsed ? 'w-16' : 'w-64'} min-h-screen flex flex-col fixed left-0 top-0 z-50 shadow-2xl`}>
-      {/* Header */}
-      <div className="p-4 border-b border-slate-700/50">
-        <div className="flex items-center justify-between">
-          {!sidebarCollapsed && (
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-500 w-8 h-8 rounded-lg flex items-center justify-center shadow-md">
-                <Database className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-lg">VEGETA</span>
-            </div>
-          )}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-1 hover:bg-slate-700 rounded transition-colors"
-          >
-            {sidebarCollapsed ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
-          </button>
-        </div>
-      </div>
-
+  return (
+    <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
-      <nav className="flex-1 p-4">
-        <div className="space-y-2">
-          <SidebarItem
-            icon={Home}
-            label="Recherche"
-            active={currentPage === 'home'}
-            onClick={() => setCurrentPage('home')}
-            collapsed={sidebarCollapsed}
-          />
-          <SidebarItem
-            icon={BarChart3}
-            label="Statistiques"
-            active={currentPage === 'stats'}
-            onClick={() => setCurrentPage('stats')}
-            collapsed={sidebarCollapsed}
-          />
-          {canAccess(['ADMIN']) && (
-            <SidebarItem
-              icon={Upload}
-              label="Upload"
-              active={currentPage === 'upload'}
-              onClick={() => setCurrentPage('upload')}
-              collapsed={sidebarCollapsed}
-            />
-          )}
-          {canAccess(['ADMIN']) && (
-            <SidebarItem
-              icon={Users}
-              label="Utilisateurs"
-              active={currentPage === 'users'}
-              onClick={() => setCurrentPage('users')}
-              collapsed={sidebarCollapsed}
-            />
-          )}
+      <nav className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center space-x-8">
+              <div className="flex items-center">
+                <Database className="h-8 w-8 text-blue-600" />
+                <span className="ml-2 text-xl font-bold text-gray-900">VEGETA</span>
+              </div>
+              
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setCurrentPage('search')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    currentPage === 'search'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Search className="w-4 h-4 inline mr-2" />
+                  Recherche
+                </button>
+                
+                {currentUser?.admin === 1 && (
+                  <button
+                    onClick={() => setCurrentPage('users')}
+                    className={`px-3 py-2 rounded-md text-sm font-medium ${
+                      currentPage === 'users'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <Users className="w-4 h-4 inline mr-2" />
+                    Utilisateurs
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Menu utilisateur */}
+            <div className="flex items-center">
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowUserDropdown(!showUserDropdown);
+                  }}
+                  className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  <User className="w-4 h-4" />
+                  <span>{currentUser?.login}</span>
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    currentUser?.admin === 1 
+                      ? 'bg-red-100 text-red-800' 
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {currentUser?.admin === 1 ? 'Admin' : 'Utilisateur'}
+                  </span>
+                </button>
+
+                {showUserDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border">
+                    <button
+                      onClick={() => {
+                        setShowPasswordModal(true);
+                        setShowUserDropdown(false);
+                      }}
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    >
+                      <Key className="w-4 h-4 mr-2" />
+                      Changer mot de passe
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Déconnexion
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </nav>
 
-      {/* User Profile */}
-      <div className="p-4 border-t border-slate-700/50">
-        {!sidebarCollapsed ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-sm font-bold shadow-md">
-                {user?.login?.charAt(0).toUpperCase()}
+      {/* Contenu principal */}
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        {currentPage === 'search' && (
+          <div className="space-y-6">
+            {/* Barre de recherche */}
+            <div className="bg-white shadow rounded-lg p-6">
+              <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+                Recherche Unifiée VEGETA
+              </h1>
+              
+              <form onSubmit={handleSearch} className="space-y-4">
+                <div className="flex space-x-4">
+                  <input
+                    type="text"
+                    placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 flex items-center"
+                  >
+                    <Search className="w-5 h-5 mr-2" />
+                    {loading ? 'Recherche...' : 'Rechercher'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Suggestions */}
+              <div className="mt-4">
+                <p className="text-sm text-gray-600 mb-2">Suggestions :</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: 'CNI', example: 'CNI: 123456789' },
+                    { label: 'Immatriculation', example: 'DK 1234 AB' },
+                    { label: 'NINEA', example: 'NINEA: 123456' },
+                    { label: 'Téléphone', example: '77 123 45 67' }
+                  ].map((suggestion) => (
+                    <button
+                      key={suggestion.label}
+                      onClick={() => setSearchQuery(suggestion.example)}
+                      className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200"
+                    >
+                      {suggestion.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.login}</p>
-                <p className="text-xs text-slate-400">{user?.role}</p>
+            </div>
+
+            {/* Erreur de recherche */}
+            {searchError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                {searchError}
               </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              Déconnexion
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={handleLogout}
-            className="w-full p-2 text-slate-300 hover:bg-slate-700 rounded-lg transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
+            )}
 
-  const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed }: any) => (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-        active ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-      }`}
-    >
-      <Icon className="w-5 h-5 flex-shrink-0" />
-      {!collapsed && <span className="text-sm font-medium">{label}</span>}
-      {!collapsed && active && <ChevronRight className="w-4 h-4 ml-auto" />}
-    </button>
-  );
-
-  const TopBar = () => (
-    <div className={`bg-white/80 backdrop-blur-sm border-b border-slate-200 transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'} shadow-sm`}>
-      <div className="px-6 py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-slate-900">
-            {currentPage === 'home' && 'Recherche Unifiée'}
-            {currentPage === 'stats' && 'Tableau de bord statistiques'}
-            {currentPage === 'upload' && 'Gestion des données'}
-            {currentPage === 'users' && 'Gestion des utilisateurs'}
-          </h1>
-          
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-slate-600">
-              {user?.login}
-            </div>
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-md">
-              {user?.login?.charAt(0).toUpperCase()}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const StatsCard = ({ title, value, icon: Icon, color = 'emerald' }: any) => (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 hover:shadow-lg transition-all duration-200 hover:scale-[1.02]">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-slate-600 mb-1">{title}</p>
-          <p className={`text-3xl font-bold text-${color}-600`}>{value}</p>
-        </div>
-        <div className={`bg-${color}-100 p-3 rounded-xl`}>
-          <Icon className={`w-6 h-6 text-${color}-600`} />
-        </div>
-      </div>
-    </div>
-  );
-
-  const HomePage = () => (
-    <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'} p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen`}>
-      {/* Barre de recherche principale */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200 p-8 mb-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">
-              <Search className="inline-block w-8 h-8 mr-3 text-blue-600" />
-              Recherche Unifiée VEGETA
-            </h2>
-            <p className="text-slate-600">Recherchez dans toutes les bases de données simultanément</p>
-          </div>
-          
-          <div className="relative mb-6">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              className="w-full pl-12 pr-4 py-4 text-lg border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-slate-50 focus:bg-white shadow-sm"
-              placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
-            />
-            <button
-              onClick={handleSearch}
-              disabled={isLoading}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50 shadow-md"
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                'Rechercher'
-              )}
-            </button>
-          </div>
-          
-          {/* Suggestions */}
-          <div className="flex flex-wrap gap-2 justify-center">
-            {[
-              { label: 'CNI:123456789', desc: 'Recherche par CNI' },
-              { label: '+Dupont +Marie', desc: 'Termes obligatoires' },
-              { label: '"Jean Pierre"', desc: 'Phrase exacte' },
-              { label: 'Dupont -Marie', desc: 'Exclure Marie' },
-              { label: 'nom:Dupont ET prenom:Jean', desc: 'Combinaison AND' },
-              { label: 'tel:77 OU tel:76', desc: 'Combinaison OR' }
-            ].map((suggestion, index) => (
-              <button
-                key={index}
-                onClick={() => setSearchQuery(suggestion.label)}
-                className="bg-slate-100 hover:bg-blue-100 text-slate-700 hover:text-blue-700 px-4 py-2 rounded-lg text-sm transition-colors shadow-sm hover:shadow-md flex flex-col items-center"
-                title={suggestion.desc}
-              >
-                <span className="font-mono text-xs">{suggestion.label}</span>
-                <span className="text-xs text-slate-500 mt-1">{suggestion.desc}</span>
-              </button>
-            ))}
-          </div>
-          
-          {/* Guide de recherche */}
-          <div className="mt-6 bg-blue-50 rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-blue-900 mb-3">🔍 Guide de recherche avancée</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-blue-800">
-              <div><code className="bg-blue-100 px-2 py-1 rounded">+terme</code> = Terme obligatoire</div>
-              <div><code className="bg-blue-100 px-2 py-1 rounded">-terme</code> = Exclure ce terme</div>
-              <div><code className="bg-blue-100 px-2 py-1 rounded">"phrase exacte"</code> = Recherche exacte</div>
-              <div><code className="bg-blue-100 px-2 py-1 rounded">champ:valeur</code> = Recherche par champ</div>
-              <div><code className="bg-blue-100 px-2 py-1 rounded">terme1 ET terme2</code> = Combinaison AND</div>
-              <div><code className="bg-blue-100 px-2 py-1 rounded">terme1 OU terme2</code> = Combinaison OR</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Résultats de recherche */}
-      {searchResults.length > 0 && (
-        <div className="grid gap-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-slate-900">
-              Résultats de recherche ({searchResults.length} trouvés)
-            </h3>
-            <div className="flex gap-2">
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md"
-              >
-                <Download className="w-4 h-4" />
-                Export CSV
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-md">
-                <Download className="w-4 h-4" />
-                Export Excel
-              </button>
-            </div>
-          </div>
-
-          {searchResults.map((result, index) => (
-            <div key={index} className="bg-white/90 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-slate-200 hover:shadow-xl transition-all duration-200 hover:scale-[1.01]">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      {result.table}
-                    </span>
-                    <span className="text-slate-500 text-sm">
-                      Base: {result.database}
-                    </span>
-                    {result.score > 0 && (
-                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                        Score: {result.score.toFixed(1)}
-                      </span>
-                    )}
+            {/* Résultats */}
+            {searchResults && (
+              <div className="bg-white shadow rounded-lg">
+                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                  <div>
+                    <h2 className="text-lg font-medium text-gray-900">
+                      Résultats de recherche
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      {searchResults.total} résultat(s) trouvé(s) en {searchResults.elapsed_ms}ms
+                    </p>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                    {Object.entries(result.preview).map(([key, value]) => (
-                      <div key={key} className="bg-slate-50 rounded-lg p-3">
-                        <span className="text-xs text-slate-500 uppercase tracking-wide font-medium block mb-1">
-                          {key.replace(/_/g, ' ')}
-                        </span>
-                        <span className="text-sm font-medium text-slate-900 break-words">
-                          {value && value.toString().length > 50 
-                            ? `${value.toString().substring(0, 50)}...` 
-                            : (value || 'N/A')
-                          }
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="ml-4 flex flex-col gap-2">
-                  <span className="text-xs text-slate-500 font-medium">
-                    {Object.keys(result.preview).length} champs
-                  </span>
-                  {result.score > 0 && (
-                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                      Score: {result.score.toFixed(1)}
-                    </span>
+                  {searchResults.hits.length > 0 && (
+                    <button
+                      onClick={exportToCSV}
+                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Excel
+                    </button>
                   )}
                 </div>
+
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Source
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Base
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Score
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Aperçu
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {searchResults.hits.map((result, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {result.table}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {result.database}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {result.score.toFixed(1)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            <div className="space-y-1">
+                              {Object.entries(result.preview).slice(0, 3).map(([key, value]) => (
+                                <div key={key} className="flex">
+                                  <span className="font-medium text-gray-600 mr-2">{key}:</span>
+                                  <span className="text-gray-900">{String(value)}</span>
+                                </div>
+                              ))}
+                              {Object.keys(result.preview).length > 3 && (
+                                <div className="text-xs text-gray-500">
+                                  +{Object.keys(result.preview).length - 3} autres champs
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {searchResults.hits.length === 0 && (
+                  <div className="text-center py-12">
+                    <Search className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun résultat</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Essayez avec d'autres termes de recherche.
+                    </p>
+                  </div>
+                )}
               </div>
+            )}
+          </div>
+        )}
+
+        {currentPage === 'users' && currentUser?.admin === 1 && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold text-gray-900">Gestion des utilisateurs</h1>
+              <button
+                onClick={openCreateModal}
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Nouvel utilisateur
+              </button>
             </div>
-          ))}
+
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Login
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Rôle
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Créé le
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {users.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {user.id}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {user.login}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          user.admin === 1 
+                            ? 'bg-red-100 text-red-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {user.admin === 1 ? 'Administrateur' : 'Utilisateur'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(user.created_at).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <button
+                          onClick={() => openEditModal(user)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        {user.id !== currentUser?.id && (
+                          <button
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Modal utilisateur */}
+      {showUserModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                {editingUser ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}
+              </h3>
+              
+              <form onSubmit={editingUser ? handleUpdateUser : handleCreateUser} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Login</label>
+                  <input
+                    type="text"
+                    required
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    value={userFormData.login}
+                    onChange={(e) => setUserFormData({ ...userFormData, login: e.target.value })}
+                  />
+                </div>
+
+                {!editingUser && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      value={userFormData.password}
+                      onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                    />
+                    <p className="mt-1 text-sm text-gray-500">Minimum 6 caractères</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Rôle</label>
+                  <select
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    value={userFormData.admin}
+                    onChange={(e) => setUserFormData({ ...userFormData, admin: parseInt(e.target.value) })}
+                  >
+                    <option value={0}>Utilisateur</option>
+                    <option value={1}>Administrateur</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUserModal(false);
+                      setEditingUser(null);
+                      setUserFormData({ login: '', password: '', admin: 0 });
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
+                  >
+                    {loading ? 'Enregistrement...' : (editingUser ? 'Modifier' : 'Créer')}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal changement de mot de passe */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Changer le mot de passe
+              </h3>
+              
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mot de passe actuel</label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords.current ? 'text' : 'password'}
+                      required
+                      className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      value={passwordFormData.currentPassword}
+                      onChange={(e) => setPasswordFormData({ ...passwordFormData, currentPassword: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
+                    >
+                      {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Nouveau mot de passe</label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords.new ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      value={passwordFormData.newPassword}
+                      onChange={(e) => setPasswordFormData({ ...passwordFormData, newPassword: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
+                    >
+                      {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500">Minimum 6 caractères</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Confirmer le nouveau mot de passe</label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords.confirm ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      value={passwordFormData.confirmPassword}
+                      onChange={(e) => setPasswordFormData({ ...passwordFormData, confirmPassword: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
+                    >
+                      {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      setPasswordFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                      setShowPasswords({ current: false, new: false, confirm: false });
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
+                  >
+                    {loading ? 'Modification...' : 'Changer le mot de passe'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
-
-  const StatsPage = () => (
-    <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'} p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen`}>
-      {/* Métriques principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatsCard
-          title="Recherches totales"
-          value={stats.total_searches.toLocaleString()}
-          icon={Search}
-          color="blue"
-        />
-        <StatsCard
-          title="Recherches aujourd'hui"
-          value={stats.today_searches.toLocaleString()}
-          icon={Database}
-          color="indigo"
-        />
-        <StatsCard
-          title="Utilisateurs actifs"
-          value={stats.active_users.toLocaleString()}
-          icon={Users}
-          color="emerald"
-        />
-        <StatsCard
-          title="Temps de réponse moyen"
-          value={`${stats.avg_execution_time}ms`}
-          icon={Clock}
-          color="amber"
-        />
-      </div>
-
-      {/* Graphiques */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Top 10 des tables consultées</h3>
-          <div className="h-64 flex items-center justify-center bg-slate-50 rounded-lg">
-            <div className="text-center">
-              <BarChart3 className="w-16 h-16 mx-auto mb-4 text-slate-300" />
-              <p className="text-slate-500">Graphique en barres</p>
-              <p className="text-sm text-slate-400">Chart.js sera intégré ici</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Répartition des résultats par source</h3>
-          <div className="h-64 flex items-center justify-center bg-slate-50 rounded-lg">
-            <div className="text-center">
-              <PieChart className="w-16 h-16 mx-auto mb-4 text-slate-300" />
-              <p className="text-slate-500">Graphique en camembert</p>
-              <p className="text-sm text-slate-400">Distribution des sources</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const UploadPage = () => (
-    <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          <Upload className="inline-block w-6 h-6 mr-2 text-blue-600" />
-          Gestion des données
-        </h2>
-        <p className="text-gray-600">Importez vos données CSV dans les bases existantes ou créez de nouvelles bases.</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Formulaire d'upload */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload de fichier CSV</h3>
-            
-            <form className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Mode d'upload
-                </label>
-                <div className="grid grid-cols-2 gap-4">
-                  <label className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="uploadMode" value="existing" className="mr-3" defaultChecked />
-                    <div>
-                      <div className="font-medium text-gray-900">Base existante</div>
-                      <div className="text-sm text-gray-500">Ajouter à une table existante</div>
-                    </div>
-                  </label>
-                  <label className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="uploadMode" value="new" className="mr-3" />
-                    <div>
-                      <div className="font-medium text-gray-900">Nouvelle base</div>
-                      <div className="text-sm text-gray-500">Créer une nouvelle table</div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Base de destination
-                </label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Choisir une base...</option>
-                  <option value="esolde.mytable">esolde - mytable</option>
-                  <option value="rhpolice.personne_concours">rhpolice - personne_concours</option>
-                  <option value="renseignement.agentfinance">renseignement - agentfinance</option>
-                  <option value="autres.vehicules">autres - vehicules</option>
-                  <option value="autres.entreprises">autres - entreprises</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Fichier CSV
-                </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                  <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                  <div className="mt-4">
-                    <label className="cursor-pointer">
-                      <span className="mt-2 block text-sm font-medium text-gray-900">
-                        Cliquez pour sélectionner un fichier
-                      </span>
-                      <input type="file" className="hidden" accept=".csv" />
-                    </label>
-                    <p className="mt-1 text-sm text-gray-500">CSV jusqu'à 50MB</p>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2 px-4 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium"
-              >
-                <Upload className="inline-block w-4 h-4 mr-2" />
-                Commencer l'upload
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Informations et historique */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Guide d'upload</h3>
-            <div className="space-y-3 text-sm text-gray-600">
-              <div className="flex items-start">
-                <CheckCircle className="w-4 h-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Format CSV avec en-têtes</span>
-              </div>
-              <div className="flex items-start">
-                <CheckCircle className="w-4 h-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Encodage UTF-8 recommandé</span>
-              </div>
-              <div className="flex items-start">
-                <CheckCircle className="w-4 h-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                <span>Taille maximum : 50MB</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Historique récent</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <div className="font-medium text-gray-900">esolde_data.csv</div>
-                  <div className="text-sm text-gray-500">Il y a 2 heures</div>
-                </div>
-                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                  Terminé
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const UsersPage = () => {
-    const availableUsers = [
-      { id: 'esolde.mytable', name: 'esolde - mytable', description: 'Données employés esolde' },
-      { id: 'rhpolice.personne_concours', name: 'rhpolice - personne_concours', description: 'Concours police nationale' },
-      { id: 'renseignement.agentfinance', name: 'renseignement - agentfinance', description: 'Agents finances publiques' },
-      { id: 'rhgendarmerie.personne', name: 'rhgendarmerie - personne', description: 'Personnel gendarmerie' },
-      { id: 'permis.tables', name: 'permis - tables', description: 'Permis de conduire' },
-      { id: 'expresso.expresso', name: 'expresso - expresso', description: 'Données Expresso Money' },
-      { id: 'elections.dakar', name: 'elections - dakar', description: 'Électeurs région Dakar' },
-      { id: 'autres.Vehicules', name: 'autres - vehicules', description: 'Immatriculations véhicules' },
-      { id: 'autres.entreprises', name: 'autres - entreprises', description: 'Registre des entreprises' }
-    ];
-
-    return (
-    <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'} p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen`}>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">Gestion des utilisateurs</h2>
-        <button
-          onClick={() => setShowUserModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md"
-        >
-          <Users className="w-4 h-4" />
-          Nouvel utilisateur
-        </button>
-      </div>
-
-      <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-slate-200">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Utilisateur</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Rôle</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {users.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                        {user.login.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="font-medium text-slate-900">{user.login}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      user.role === 'ADMIN' 
-                        ? 'bg-red-100 text-red-800' 
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingUser(user);
-                          setShowPasswordModal(true);
-                        }}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Changer le mot de passe"
-                      >
-                        <Settings className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    );
-  };
-
-  const UserModal = () => (
-    showUserModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-900">Nouvel utilisateur</h3>
-            <button
-              onClick={() => setShowUserModal(false)}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Login
-              </label>
-              <input
-                type="text"
-                value={newUser.login}
-                onChange={(e) => setNewUser({ ...newUser, login: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Entrez le login"
-              />
-            </div>
-
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Mot de passe
-              </label>
-              <input
-                type="password"
-                value={newUser.password}
-                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Entrez le mot de passe (min. 8 caractères)"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Rôle
-              </label>
-              <select
-                value={newUser.role}
-                onChange={(e) => setNewUser({ ...newUser, role: e.target.value as 'ADMIN' | 'USER' })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="USER">Utilisateur simple</option>
-                <option value="ADMIN">Administrateur</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex gap-3 mt-6">
-            <button
-              onClick={() => setShowUserModal(false)}
-              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              Annuler
-            </button>
-            <button
-              onClick={handleCreateUser}
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors"
-            >
-              Créer
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  );
-
-  const PasswordModal = () => (
-    showPasswordModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-900">
-              Changer le mot de passe - {editingUser?.login}
-            </h3>
-            <button
-              onClick={() => {
-                setShowPasswordModal(false);
-                setEditingUser(null);
-                setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-              }}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Mot de passe actuel
-              </label>
-              <input
-                type="password"
-                value={passwordData.currentPassword}
-                onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Entrez le mot de passe actuel"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Nouveau mot de passe
-              </label>
-              <input
-                type="password"
-                value={passwordData.newPassword}
-                onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Entrez le nouveau mot de passe (min. 8 caractères)"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Confirmer le nouveau mot de passe
-              </label>
-              <input
-                type="password"
-                value={passwordData.confirmPassword}
-                onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Confirmez le nouveau mot de passe"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-3 mt-6">
-            <button
-              onClick={() => {
-                setShowPasswordModal(false);
-                setEditingUser(null);
-                setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-              }}
-              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              Annuler
-            </button>
-            <button
-              onClick={handleChangePassword}
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors"
-            >
-              Modifier
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  );
-
-
-  const PlaceholderPage = ({ title, icon: Icon }: { title: string; icon: any }) => (
-    <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'} p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen`}>
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <Icon className="w-16 h-16 mx-auto mb-4 text-slate-300" />
-          <h2 className="text-xl font-semibold text-slate-900 mb-2">{title}</h2>
-          <p className="text-slate-500">Cette section sera implémentée prochainement</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (!user) {
-    return <LoginForm />;
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <Sidebar />
-      <TopBar />
-      
-      <main>
-        {currentPage === 'home' && <HomePage />}
-        {currentPage === 'stats' && <StatsPage />}
-        {currentPage === 'upload' && <UploadPage />}
-        {currentPage === 'users' && <UsersPage />}
-      </main>
-      
-      <UserModal />
-      <PasswordModal />
-    </div>
-  );
-}
+};
 
 export default App;
