@@ -140,6 +140,25 @@ class StatsService {
       return regions || [];
     } catch (error) {
       console.warn('Erreur stats régions:', error);
+
+  async getSearchLogs(limit = 20) {
+    try {
+      const logs = await database.query(`
+        SELECT 
+          sl.*,
+          u.login as username
+        FROM autres.search_logs sl
+        LEFT JOIN autres.users u ON sl.user_id = u.id
+        ORDER BY sl.search_date DESC
+        LIMIT ?
+      `, [limit]);
+
+      return logs || [];
+    } catch (error) {
+      console.error('Erreur logs de recherche:', error);
+      return [];
+    }
+  }
       return [];
     }
   }

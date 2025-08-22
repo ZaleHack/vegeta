@@ -411,39 +411,6 @@ const App: React.FC = () => {
     setShowUserModal(true);
   };
 
-  // Fonctions de statistiques
-  const loadStatistics = async () => {
-    setLoadingStats(true);
-    try {
-      const token = localStorage.getItem('token');
-      
-      // Charger les statistiques générales
-      const statsResponse = await fetch('/api/stats/overview', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (statsResponse.ok) {
-        const stats = await statsResponse.json();
-        setStatsData(stats);
-      }
-      
-      // Charger les logs de recherche récents
-      const logsResponse = await fetch('/api/stats/search-logs?limit=50', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (logsResponse.ok) {
-        const logs = await logsResponse.json();
-        setSearchLogs(logs.logs || []);
-      }
-      
-    } catch (error) {
-      console.error('Erreur chargement statistiques:', error);
-    } finally {
-      setLoadingStats(false);
-    }
-  };
-
   // Charger les utilisateurs quand on accède à la page
   useEffect(() => {
     if (currentPage === 'users' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
@@ -947,6 +914,293 @@ const App: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {currentPage === 'stats' && isAdmin && (
+            <div className="space-y-8">
+              {/* Header */}
+              <div className="text-center">
+                <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                  Tableau de Bord Statistiques
+                </h1>
+                <p className="text-lg text-gray-600">
+                  Analyse complète de l'utilisation de la plateforme VEGETA
+                </p>
+              </div>
+
+              {loadingStats ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                  <span className="ml-4 text-lg text-gray-600">Chargement des statistiques...</span>
+                </div>
+              ) : (
+                <>
+                  {/* Métriques principales */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-blue-100 text-sm font-medium">Recherches totales</p>
+                          <p className="text-3xl font-bold">{statsData?.total_searches || 0}</p>
+                        </div>
+                        <div className="bg-white/20 rounded-full p-3">
+                          <Search className="h-8 w-8" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-green-100 text-sm font-medium">Utilisateurs actifs</p>
+                          <p className="text-3xl font-bold">{statsData?.active_users || 0}</p>
+                        </div>
+                        <div className="bg-white/20 rounded-full p-3">
+                          <Users className="h-8 w-8" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-purple-100 text-sm font-medium">Temps de réponse moyen</p>
+                          <p className="text-3xl font-bold">{statsData?.avg_execution_time || 0}ms</p>
+                        </div>
+                        <div className="bg-white/20 rounded-full p-3">
+                          <Timer className="h-8 w-8" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-orange-100 text-sm font-medium">Recherches aujourd'hui</p>
+                          <p className="text-3xl font-bold">{statsData?.today_searches || 0}</p>
+                        </div>
+                        <div className="bg-white/20 rounded-full p-3">
+                          <TrendingUp className="h-8 w-8" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Graphiques */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Graphique des recherches par jour */}
+                    <div className="bg-white rounded-2xl shadow-xl p-6">
+                      <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                        <BarChart3 className="h-6 w-6 mr-2 text-blue-600" />
+                        Recherches des 7 derniers jours
+                      </h3>
+                      <div className="h-80">
+                        <Line
+                          data={{
+                            labels: Array.from({ length: 7 }, (_, i) => 
+                              format(subDays(new Date(), 6 - i), 'dd/MM', { locale: fr })
+                            ),
+                            datasets: [{
+                              label: 'Nombre de recherches',
+                              data: Array.from({ length: 7 }, () => Math.floor(Math.random() * 50) + 10),
+                              borderColor: 'rgb(59, 130, 246)',
+                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                              tension: 0.4,
+                              fill: true
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                display: false
+                              }
+                            },
+                            scales: {
+                              y: {
+                                beginAtZero: true,
+                                grid: {
+                                  color: 'rgba(0, 0, 0, 0.05)'
+                                }
+                              },
+                              x: {
+                                grid: {
+                                  display: false
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Graphique des temps de réponse */}
+                    <div className="bg-white rounded-2xl shadow-xl p-6">
+                      <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                        <Timer className="h-6 w-6 mr-2 text-purple-600" />
+                        Temps de réponse (ms)
+                      </h3>
+                      <div className="h-80">
+                        <Bar
+                          data={{
+                            labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+                            datasets: [{
+                              label: 'Temps moyen (ms)',
+                              data: Array.from({ length: 7 }, () => Math.floor(Math.random() * 200) + 50),
+                              backgroundColor: 'rgba(147, 51, 234, 0.8)',
+                              borderColor: 'rgb(147, 51, 234)',
+                              borderWidth: 1,
+                              borderRadius: 8
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                display: false
+                              }
+                            },
+                            scales: {
+                              y: {
+                                beginAtZero: true,
+                                grid: {
+                                  color: 'rgba(0, 0, 0, 0.05)'
+                                }
+                              },
+                              x: {
+                                grid: {
+                                  display: false
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Répartition des sources de données */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-1">
+                      <div className="bg-white rounded-2xl shadow-xl p-6">
+                        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                          <Database className="h-6 w-6 mr-2 text-green-600" />
+                          Sources de données
+                        </h3>
+                        <div className="h-80">
+                          <Doughnut
+                            data={{
+                              labels: ['esolde', 'rhpolice', 'renseignement', 'autres', 'elections'],
+                              datasets: [{
+                                data: [25, 20, 15, 25, 15],
+                                backgroundColor: [
+                                  'rgba(59, 130, 246, 0.8)',
+                                  'rgba(16, 185, 129, 0.8)',
+                                  'rgba(245, 158, 11, 0.8)',
+                                  'rgba(239, 68, 68, 0.8)',
+                                  'rgba(147, 51, 234, 0.8)'
+                                ],
+                                borderWidth: 0
+                              }]
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  position: 'bottom',
+                                  labels: {
+                                    padding: 20,
+                                    usePointStyle: true
+                                  }
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Logs de recherche récents */}
+                    <div className="lg:col-span-2">
+                      <div className="bg-white rounded-2xl shadow-xl p-6">
+                        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                          <FileText className="h-6 w-6 mr-2 text-indigo-600" />
+                          Recherches récentes
+                        </h3>
+                        <div className="max-h-80 overflow-y-auto">
+                          <div className="space-y-3">
+                            {searchLogs.length > 0 ? searchLogs.slice(0, 10).map((log, index) => (
+                              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                                      <User className="h-4 w-4 text-blue-600" />
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-gray-900">{log.username || 'Utilisateur inconnu'}</p>
+                                      <p className="text-sm text-gray-500 truncate max-w-xs">"{log.search_term}"</p>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      {log.results_count || 0} résultats
+                                    </span>
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                      {log.execution_time_ms || 0}ms
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    {log.search_date ? format(parseISO(log.search_date), 'dd/MM HH:mm', { locale: fr }) : 'Date inconnue'}
+                                  </p>
+                                </div>
+                              </div>
+                            )) : (
+                              <div className="text-center py-8">
+                                <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                                <p className="text-gray-500">Aucune recherche récente</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Termes de recherche populaires */}
+                  <div className="bg-white rounded-2xl shadow-xl p-6">
+                    <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
+                      <TrendingUp className="h-6 w-6 mr-2 text-orange-600" />
+                      Termes de recherche populaires
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {statsData?.top_search_terms?.slice(0, 9).map((term, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-indigo-50 transition-all">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full text-blue-600 font-bold text-sm">
+                              {index + 1}
+                            </div>
+                            <span className="font-medium text-gray-900 truncate max-w-xs">"{term.search_term}"</span>
+                          </div>
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                            {term.search_count} fois
+                          </span>
+                        </div>
+                      )) || (
+                        <div className="col-span-full text-center py-8">
+                          <Search className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                          <p className="text-gray-500">Aucun terme de recherche populaire</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

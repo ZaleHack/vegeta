@@ -50,6 +50,18 @@ router.get('/user-activity', authenticate, async (req, res) => {
   }
 });
 
+// Logs de recherche récents
+router.get('/search-logs', authenticate, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    const logs = await statsService.getSearchLogs(limit);
+    res.json({ logs });
+  } catch (error) {
+    console.error('Erreur logs de recherche:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des logs' });
+  }
+});
+
 // Distribution géographique
 router.get('/regions', authenticate, async (req, res) => {
   try {
