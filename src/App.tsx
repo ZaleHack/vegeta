@@ -81,6 +81,7 @@ const App: React.FC = () => {
         const data = await response.json();
         console.log('🔍 Données utilisateur reçues:', data.user);
         console.log('🔍 Admin status:', data.user.admin);
+        console.log('🔍 Type de admin:', typeof data.user.admin);
         setCurrentUser(data.user);
         setIsAuthenticated(true);
         setCurrentPage('search');
@@ -401,7 +402,7 @@ const App: React.FC = () => {
 
   // Charger les utilisateurs quand on accède à la page
   useEffect(() => {
-    if (currentPage === 'users' && currentUser?.admin === 1) {
+    if (currentPage === 'users' && (currentUser?.admin === 1 || currentUser?.admin === "1")) {
       loadUsers();
     }
   }, [currentPage, currentUser]);
@@ -490,14 +491,7 @@ const App: React.FC = () => {
               Recherche
             </button>
             
-            {(() => {
-              console.log('🔍 Vérification menu admin:', {
-                currentUser: currentUser,
-                adminValue: currentUser?.admin,
-                condition: currentUser && currentUser.admin === 1
-              });
-              return currentUser && currentUser.admin === 1;
-            })() && (
+            {currentUser && (currentUser.admin === 1 || currentUser.admin === "1") && (
               <button
                 onClick={() => setCurrentPage('users')}
                 className={`w-full flex items-center px-3 py-2 mt-1 text-sm font-medium rounded-md ${
@@ -520,7 +514,7 @@ const App: React.FC = () => {
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-700">{currentUser?.login}</p>
               <p className="text-xs text-gray-500">
-                {currentUser?.admin === 1 ? 'Administrateur' : 'Utilisateur'}
+                {(currentUser?.admin === 1 || currentUser?.admin === "1") ? 'Administrateur' : 'Utilisateur'}
               </p>
             </div>
           </div>
@@ -748,11 +742,11 @@ const App: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            user.admin === 1 
+                            (user.admin === 1 || user.admin === "1")
                               ? 'bg-red-100 text-red-800' 
                               : 'bg-blue-100 text-blue-800'
                           }`}>
-                            {user.admin === 1 ? 'Administrateur' : 'Utilisateur'}
+                            {(user.admin === 1 || user.admin === "1") ? 'Administrateur' : 'Utilisateur'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
