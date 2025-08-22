@@ -129,6 +129,142 @@ function App() {
       let csvContent = headers.join(',') + '\n';
 
       // Ajouter les données
+        // Gestion des utilisateurs
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayUsers(data.users || []);
+                } else {
+                    showError('Erreur lors du chargement des utilisateurs');
+                }
+            } catch (error) {
+                showError('Erreur de connexion');
+            }
+        }
+
+        function displayUsers(users) {
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = '';
+            
+            users.forEach(user => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${user.id}</td>
+                    <td>${user.login}</td>
+                    <td>
+                        <span class="badge ${user.admin === 1 ? 'bg-danger' : 'bg-primary'}">
+                            ${user.admin === 1 ? 'Administrateur' : 'Utilisateur'}
+                        </span>
+                    </td>
+                    <td>${user.created_at ? new Date(user.created_at).toLocaleDateString('fr-FR') : 'N/A'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="editUser(${user.id})">
+                            <i data-lucide="edit" class="me-1"></i>Modifier
+                        </button>
+                        ${user.id !== currentUser?.id ? `
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${user.id})">
+                                <i data-lucide="trash-2" class="me-1"></i>Supprimer
+                            </button>
+                        ` : ''}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Réinitialiser les icônes Lucide
+            lucide.createIcons();
+        }
+
+        function showUserModal(userId = null) {
+            const modal = new bootstrap.Modal(document.getElementById('userModal'));
+            const form = document.getElementById('userForm');
+            const title = document.getElementById('userModalTitle');
+            const submitBtn = document.getElementById('userSubmitBtn');
+            const passwordField = document.getElementById('passwordField');
+            
+            form.reset();
+            document.getElementById('userId').value = userId || '';
+            
+            if (userId) {
+                title.textContent = 'Modifier l\'utilisateur';
+                submitBtn.textContent = 'Modifier';
+                passwordField.style.display = 'none';
+                document.getElementById('userPassword').required = false;
+                
+                // Charger les données de l'utilisateur
+                loadUserData(userId);
+            } else {
+                title.textContent = 'Nouvel utilisateur';
+                submitBtn.textContent = 'Créer';
+                passwordField.style.display = 'block';
+                document.getElementById('userPassword').required = true;
+            }
+            
+            modal.show();
+        }
+
+        async function loadUserData(userId) {
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const user = data.user;
+                    
+                    document.getElementById('userLogin').value = user.login;
+                    document.getElementById('userRole').value = user.admin;
+                }
+            } catch (error) {
+                showError('Erreur lors du chargement des données utilisateur');
+            }
+        }
+
+        async function editUser(userId) {
+            showUserModal(userId);
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    showSuccess('Utilisateur supprimé avec succès');
+                    loadUsers();
+                } else {
+                    const error = await response.json();
+                    showError(error.error || 'Erreur lors de la suppression');
+                }
+            } catch (error) {
+                showError('Erreur de connexion');
+            }
+        }
+
+        function showChangePasswordModal() {
+            const modal = new bootstrap.Modal(document.getElementById('changePasswordModal'));
+            document.getElementById('changePasswordForm').reset();
+            modal.show();
+        }
+
       searchResults.forEach(result => {
         const row = [
           `"${result.table}"`,
@@ -138,6 +274,11 @@ function App() {
             const value = result.preview[field];
             if (value === null || value === undefined || value === '') {
               return '""';
+                
+                // Charger les données spécifiques à la page
+                if (page === 'users') {
+                    loadUsers();
+                }
             }
             // Échapper les guillemets et encapsuler dans des guillemets
             return `"${String(value).replace(/"/g, '""')}"`;
