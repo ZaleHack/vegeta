@@ -493,7 +493,7 @@ const App: React.FC = () => {
             {(() => {
               console.log('🔍 Vérification menu admin:', {
                 currentUser: currentUser,
-                admin: currentUser?.admin,
+                adminValue: currentUser?.admin,
                 condition: currentUser && currentUser.admin === 1
               });
               return currentUser && currentUser.admin === 1;
@@ -520,7 +520,7 @@ const App: React.FC = () => {
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-700">{currentUser?.login}</p>
               <p className="text-xs text-gray-500">
-                {currentUser && currentUser.admin === 1 ? 'Administrateur' : 'Utilisateur'}
+                {currentUser?.admin === 1 ? 'Administrateur' : 'Utilisateur'}
               </p>
             </div>
           </div>
