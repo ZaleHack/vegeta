@@ -936,7 +936,7 @@ function App() {
                             <li><a class="dropdown-item" href="#" onclick="showChangePasswordModal()">
                                 <i data-lucide="key" class="me-2"></i>Changer mot de passe
                             </a></li>
-                            <li><hr class="dropdown-divider"></li>
+                            <li><hr class="dropdown-divider" /></li>
                             <li><a class="dropdown-item" href="#" onclick="logout()">
                                 <i data-lucide="log-out" class="me-2"></i>Déconnexion
                             </a></li>
