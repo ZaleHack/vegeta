@@ -75,7 +75,7 @@ class User {
     Object.keys(userData).forEach(key => {
       if (key !== 'id' && userData[key] !== undefined) {
         if (key === 'mdp') {
-          fields.push('mdp = ?');
+          fields.push(`${key} = ?`);
           values.push(bcrypt.hashSync(userData[key], 12));
         } else {
           fields.push(`${key} = ?`);

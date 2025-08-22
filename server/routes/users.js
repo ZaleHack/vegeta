@@ -22,19 +22,22 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
 // Créer un nouvel utilisateur (ADMIN seulement)
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { login, password, role = 'USER' } = req.body;
+    const { login, password, role = 'USER', admin } = req.body;
 
     if (!login || !password) {
       return res.status(400).json({ error: 'Login et mot de passe requis' });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères' });
     }
 
-    const allowedRoles = ['ADMIN', 'USER'];
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ error: 'Rôle invalide' });
+    // Déterminer la valeur admin
+    let adminValue = 0;
+    if (admin !== undefined) {
+      adminValue = admin ? 1 : 0;
+    } else if (role === 'ADMIN') {
+      adminValue = 1;
     }
 
     // Vérifier l'unicité
@@ -44,20 +47,100 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
     }
 
     // Créer l'utilisateur
-    const admin = role === 'ADMIN' ? 1 : 0;
-    const newUser = await User.create({ login, mdp: password, admin });
+    const newUser = await User.create({ login, mdp: password, admin: adminValue });
     
     const { mdp, ...userResponse } = newUser;
     res.status(201).json({ 
       message: 'Utilisateur créé avec succès',
       user: {
         ...userResponse,
-        role: admin === 1 ? 'ADMIN' : 'USER'
+        role: adminValue === 1 ? 'ADMIN' : 'USER'
       }
     });
   } catch (error) {
     console.error('Erreur création utilisateur:', error);
     res.status(500).json({ error: 'Erreur lors de la création de l\'utilisateur' });
+  }
+});
+
+// Obtenir les détails d'un utilisateur
+router.get('/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'ID utilisateur invalide' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    const { mdp, ...userResponse } = user;
+    res.json({ 
+      user: {
+        ...userResponse,
+        role: user.admin === 1 ? 'ADMIN' : 'USER'
+      }
+    });
+  } catch (error) {
+    console.error('Erreur détails utilisateur:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération de l\'utilisateur' });
+  }
+});
+
+// Modifier un utilisateur (ADMIN seulement)
+router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { login, role, admin } = req.body;
+
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'ID utilisateur invalide' });
+    }
+
+    const updates = {};
+    if (login !== undefined) updates.login = login;
+    
+    // Gérer le rôle/admin
+    if (admin !== undefined) {
+      updates.admin = admin ? 1 : 0;
+    } else if (role !== undefined) {
+      updates.admin = role === 'ADMIN' ? 1 : 0;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Aucune mise à jour fournie' });
+    }
+
+    // Vérifier que l'utilisateur existe
+    const existingUser = await User.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    // Empêcher un admin de se rétrograder lui-même
+    if (userId === req.user.id && updates.admin === 0) {
+      return res.status(400).json({ error: 'Vous ne pouvez pas retirer vos propres droits administrateur' });
+    }
+
+    const updatedUser = await User.update(userId, updates);
+    if (!updatedUser) {
+      return res.status(400).json({ error: 'Mise à jour impossible' });
+    }
+
+    const { mdp, ...userResponse } = updatedUser;
+    res.json({ 
+      message: 'Utilisateur mis à jour avec succès',
+      user: {
+        ...userResponse,
+        role: updatedUser.admin === 1 ? 'ADMIN' : 'USER'
+      }
+    });
+  } catch (error) {
+    console.error('Erreur mise à jour utilisateur:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour de l\'utilisateur' });
   }
 });
 
@@ -76,8 +159,8 @@ router.post('/:id/change-password', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Permissions insuffisantes' });
     }
 
-    if (!newPassword || newPassword.length < 8) {
-      return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 8 caractères' });
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 6 caractères' });
     }
 
     const targetUser = await User.findById(userId);
