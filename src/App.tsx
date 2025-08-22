@@ -411,6 +411,39 @@ const App: React.FC = () => {
     setShowUserModal(true);
   };
 
+  // Fonctions de statistiques
+  const loadStatistics = async () => {
+    setLoadingStats(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Charger les statistiques générales
+      const statsResponse = await fetch('/api/stats/overview', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (statsResponse.ok) {
+        const stats = await statsResponse.json();
+        setStatsData(stats);
+      }
+      
+      // Charger les logs de recherche récents
+      const logsResponse = await fetch('/api/stats/search-logs?limit=50', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (logsResponse.ok) {
+        const logs = await logsResponse.json();
+        setSearchLogs(logs.logs || []);
+      }
+      
+    } catch (error) {
+      console.error('Erreur chargement statistiques:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
   // Charger les utilisateurs quand on accède à la page
   useEffect(() => {
     if (currentPage === 'users' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
