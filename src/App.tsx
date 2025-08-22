@@ -709,7 +709,6 @@ const App: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto">
                     {searchResults.hits.length === 0 ? (
                       <div className="text-center py-16">
                         <Search className="mx-auto h-16 w-16 text-gray-400 mb-4" />
@@ -719,60 +718,78 @@ const App: React.FC = () => {
                         </p>
                       </div>
                     ) : (
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Source
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Base
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Score
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Aperçu
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                      <div className="p-6">
+                        <div className="grid gap-6">
                           {searchResults.hits.map((result, index) => (
-                            <tr key={index} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                  {result.table}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {result.database}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  {result.score.toFixed(1)}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-sm text-gray-900">
-                                <div className="space-y-1">
-                                  {Object.entries(result.preview).slice(0, 3).map(([key, value]) => (
-                                    <div key={key} className="flex">
-                                      <span className="font-medium text-gray-600 mr-2 min-w-0 truncate">{key}:</span>
-                                      <span className="text-gray-900 min-w-0 truncate">{String(value)}</span>
-                                    </div>
-                                  ))}
-                                  {Object.keys(result.preview).length > 3 && (
-                                    <div className="text-xs text-gray-500">
-                                      +{Object.keys(result.preview).length - 3} autres champs
-                                    </div>
-                                  )}
+                            <div key={index} className="bg-gradient-to-r from-white to-gray-50 border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all duration-300 hover:border-blue-300">
+                              {/* Header de la carte */}
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="flex items-center space-x-3">
+                                  <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg">
+                                    <Database className="w-5 h-5 text-white" />
+                                  </div>
+                                  <div>
+                                    <h3 className="text-lg font-semibold text-gray-900">{result.table}</h3>
+                                    <p className="text-sm text-gray-500">Base: {result.database}</p>
+                                  </div>
                                 </div>
-                              </td>
-                            </tr>
+                                <div className="flex items-center space-x-2">
+                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <Activity className="w-3 h-3 mr-1" />
+                                    Score: {result.score.toFixed(1)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Contenu des données */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.entries(result.preview).map(([key, value]) => {
+                                  if (!value || value === '' || value === null || value === undefined) return null;
+                                  
+                                  return (
+                                    <div key={key} className="bg-white rounded-lg p-3 border border-gray-100 hover:border-blue-200 transition-colors">
+                                      <div className="flex flex-col">
+                                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                          {key.replace(/_/g, ' ')}
+                                        </span>
+                                        <span className="text-sm font-medium text-gray-900 break-words">
+                                          {String(value)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Footer avec actions */}
+                              <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+                                <div className="text-xs text-gray-500">
+                                  {Object.keys(result.preview).filter(key => 
+                                    result.preview[key] && result.preview[key] !== '' && 
+                                    result.preview[key] !== null && result.preview[key] !== undefined
+                                  ).length} champs disponibles
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    // Copier les données dans le presse-papier
+                                    const dataText = Object.entries(result.preview)
+                                      .filter(([key, value]) => value && value !== '' && value !== null && value !== undefined)
+                                      .map(([key, value]) => `${key}: ${value}`)
+                                      .join('\n');
+                                    navigator.clipboard.writeText(dataText);
+                                    alert('Données copiées dans le presse-papier !');
+                                  }}
+                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+                                >
+                                  <User className="w-3 h-3 mr-1" />
+                                  Copier
+                                </button>
+                              </div>
+                            </div>
                           ))}
-                        </tbody>
-                      </table>
+                        </div>
+                      </div>
                     )}
-                  </div>
                 </div>
               )}
             </div>
