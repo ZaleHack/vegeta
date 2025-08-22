@@ -64,6 +64,11 @@ const App: React.FC = () => {
     confirm: false
   });
 
+  // États des statistiques
+  const [statsData, setStatsData] = useState(null);
+  const [searchLogs, setSearchLogs] = useState([]);
+  const [loadingStats, setLoadingStats] = useState(false);
+
   // Vérification de l'authentification au démarrage
   useEffect(() => {
     const token = localStorage.getItem('token');
