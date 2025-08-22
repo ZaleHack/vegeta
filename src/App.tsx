@@ -486,7 +486,7 @@ const App: React.FC = () => {
               Recherche
             </button>
             
-            {currentUser?.admin === 1 && (
+            {currentUser && currentUser.admin === 1 && (
               <button
                 onClick={() => setCurrentPage('users')}
                 className={`w-full flex items-center px-3 py-2 mt-1 text-sm font-medium rounded-md ${
@@ -509,7 +509,7 @@ const App: React.FC = () => {
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-700">{currentUser?.login}</p>
               <p className="text-xs text-gray-500">
-                {currentUser?.admin === 1 ? 'Administrateur' : 'Utilisateur'}
+                {currentUser && currentUser.admin === 1 ? 'Administrateur' : 'Utilisateur'}
               </p>
             </div>
           </div>
@@ -697,6 +697,15 @@ const App: React.FC = () => {
               </div>
 
               <div className="bg-white shadow rounded-lg overflow-hidden">
+                {users.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Users className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun utilisateur</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Commencez par créer un nouvel utilisateur.
+                    </p>
+                  </div>
+                ) : (
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -758,6 +767,7 @@ const App: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+                )}
               </div>
             </div>
           )}
