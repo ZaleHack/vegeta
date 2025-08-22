@@ -19,51 +19,7 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-// Créer un nouvel utilisateur (ADMIN seulement)
-router.post('/', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const { login, password, role = 'USER', admin } = req.body;
-
-    if (!login || !password) {
-      return res.status(400).json({ error: 'Login et mot de passe requis' });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères' });
-    }
-
-    // Déterminer la valeur admin
-    let adminValue = 0;
-    if (admin !== undefined) {
-      adminValue = admin ? 1 : 0;
-    } else if (role === 'ADMIN') {
-      adminValue = 1;
-    }
-
-    // Vérifier l'unicité
-    const existingUser = await User.findByLogin(login);
-    if (existingUser) {
-      return res.status(400).json({ error: 'Login déjà utilisé' });
-    }
-
-    // Créer l'utilisateur
-    const newUser = await User.create({ login, mdp: password, admin: adminValue });
-    
-    const { mdp, ...userResponse } = newUser;
-    res.status(201).json({ 
-      message: 'Utilisateur créé avec succès',
-      user: {
-        ...userResponse,
-        role: adminValue === 1 ? 'ADMIN' : 'USER'
-      }
-    });
-  } catch (error) {
-    console.error('Erreur création utilisateur:', error);
-    res.status(500).json({ error: 'Erreur lors de la création de l\'utilisateur' });
-  }
-});
-
-// Obtenir les détails d'un utilisateur
+// Obtenir un utilisateur spécifique (ADMIN seulement)
 router.get('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
@@ -78,15 +34,52 @@ router.get('/:id', authenticate, requireAdmin, async (req, res) => {
     }
 
     const { mdp, ...userResponse } = user;
-    res.json({ 
-      user: {
-        ...userResponse,
-        role: user.admin === 1 ? 'ADMIN' : 'USER'
-      }
-    });
+    res.json({ user: userResponse });
   } catch (error) {
     console.error('Erreur détails utilisateur:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération de l\'utilisateur' });
+  }
+});
+
+// Créer un nouvel utilisateur (ADMIN seulement)
+router.post('/', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { login, password, role = 'USER' } = req.body;
+
+    if (!login || !password) {
+      return res.status(400).json({ error: 'Login et mot de passe requis' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+    }
+
+    const allowedRoles = ['ADMIN', 'USER'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ error: 'Rôle invalide' });
+    }
+
+    // Vérifier l'unicité
+    const existingUser = await User.findByLogin(login);
+    if (existingUser) {
+      return res.status(400).json({ error: 'Login déjà utilisé' });
+    }
+
+    // Créer l'utilisateur
+    const admin = role === 'ADMIN' ? 1 : 0;
+    const newUser = await User.create({ login, mdp: password, admin });
+    
+    const { mdp, ...userResponse } = newUser;
+    res.status(201).json({ 
+      message: 'Utilisateur créé avec succès',
+      user: {
+        ...userResponse,
+        role: admin === 1 ? 'ADMIN' : 'USER'
+      }
+    });
+  } catch (error) {
+    console.error('Erreur création utilisateur:', error);
+    res.status(500).json({ error: 'Erreur lors de la création de l\'utilisateur' });
   }
 });
 
@@ -94,7 +87,7 @@ router.get('/:id', authenticate, requireAdmin, async (req, res) => {
 router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const { login, role, admin } = req.body;
+    const { login, admin } = req.body;
 
     if (isNaN(userId)) {
       return res.status(400).json({ error: 'ID utilisateur invalide' });
@@ -102,13 +95,7 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
 
     const updates = {};
     if (login !== undefined) updates.login = login;
-    
-    // Gérer le rôle/admin
-    if (admin !== undefined) {
-      updates.admin = admin ? 1 : 0;
-    } else if (role !== undefined) {
-      updates.admin = role === 'ADMIN' ? 1 : 0;
-    }
+    if (admin !== undefined) updates.admin = admin;
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'Aucune mise à jour fournie' });
@@ -120,9 +107,12 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
     }
 
-    // Empêcher un admin de se rétrograder lui-même
-    if (userId === req.user.id && updates.admin === 0) {
-      return res.status(400).json({ error: 'Vous ne pouvez pas retirer vos propres droits administrateur' });
+    // Vérifier l'unicité du login si modifié
+    if (login && login !== existingUser.login) {
+      const duplicateUser = await User.findByLogin(login);
+      if (duplicateUser) {
+        return res.status(400).json({ error: 'Login déjà utilisé' });
+      }
     }
 
     const updatedUser = await User.update(userId, updates);
@@ -133,10 +123,7 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
     const { mdp, ...userResponse } = updatedUser;
     res.json({ 
       message: 'Utilisateur mis à jour avec succès',
-      user: {
-        ...userResponse,
-        role: updatedUser.admin === 1 ? 'ADMIN' : 'USER'
-      }
+      user: userResponse 
     });
   } catch (error) {
     console.error('Erreur mise à jour utilisateur:', error);
@@ -159,8 +146,8 @@ router.post('/:id/change-password', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Permissions insuffisantes' });
     }
 
-    if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 6 caractères' });
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 8 caractères' });
     }
 
     const targetUser = await User.findById(userId);
