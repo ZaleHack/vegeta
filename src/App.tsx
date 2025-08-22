@@ -243,6 +243,44 @@ const App: React.FC = () => {
     }
   };
 
+  // Charger les statistiques
+  const loadStatistics = async () => {
+    if (!currentUser || (currentUser.admin !== 1 && currentUser.admin !== "1")) return;
+    
+    try {
+      setLoading(true);
+      
+      // Charger les statistiques générales
+      const statsResponse = await fetch('/api/stats/overview', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (statsResponse.ok) {
+        const stats = await statsResponse.json();
+        setStatsData(stats);
+      }
+      
+      // Charger les logs de recherche
+      const logsResponse = await fetch('/api/stats/search-logs?limit=10', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (logsResponse.ok) {
+        const logs = await logsResponse.json();
+        setSearchLogs(logs.logs || []);
+      }
+      
+    } catch (error) {
+      console.error('Erreur chargement statistiques:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -415,6 +453,9 @@ const App: React.FC = () => {
   useEffect(() => {
     if (currentPage === 'users' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
       loadUsers();
+    }
+    if (currentPage === 'statistics' && currentUser) {
+      loadStatistics();
     }
   }, [currentPage, currentUser]);
 
