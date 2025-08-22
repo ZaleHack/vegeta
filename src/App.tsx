@@ -79,6 +79,8 @@ const App: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('🔍 Données utilisateur reçues:', data.user);
+        console.log('🔍 Admin status:', data.user.admin);
         setCurrentUser(data.user);
         setIsAuthenticated(true);
         setCurrentPage('search');
@@ -107,6 +109,8 @@ const App: React.FC = () => {
 
       if (response.ok) {
         localStorage.setItem('token', data.token);
+        console.log('🔍 Utilisateur connecté:', data.user);
+        console.log('🔍 Admin status:', data.user.admin);
         setCurrentUser(data.user);
         setIsAuthenticated(true);
         setCurrentPage('search');
@@ -486,7 +490,14 @@ const App: React.FC = () => {
               Recherche
             </button>
             
-            {currentUser && currentUser.admin === 1 && (
+            {(() => {
+              console.log('🔍 Vérification menu admin:', {
+                currentUser: currentUser,
+                admin: currentUser?.admin,
+                condition: currentUser && currentUser.admin === 1
+              });
+              return currentUser && currentUser.admin === 1;
+            })() && (
               <button
                 onClick={() => setCurrentPage('users')}
                 className={`w-full flex items-center px-3 py-2 mt-1 text-sm font-medium rounded-md ${
