@@ -62,7 +62,6 @@ const App: React.FC = () => {
     new: false,
     confirm: false
   });
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   // Vérification de l'authentification au démarrage
   useEffect(() => {
@@ -70,13 +69,6 @@ const App: React.FC = () => {
     if (token) {
       verifyToken(token);
     }
-  }, []);
-
-  // Fermer le dropdown quand on clique ailleurs
-  useEffect(() => {
-    const handleClickOutside = () => setShowUserDropdown(false);
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   const verifyToken = async (token: string) => {
@@ -135,7 +127,6 @@ const App: React.FC = () => {
     setIsAuthenticated(false);
     setCurrentPage('login');
     setSearchResults(null);
-    setShowUserDropdown(false);
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -259,8 +250,8 @@ const App: React.FC = () => {
         },
         body: JSON.stringify({
           login: userFormData.login,
-          mdp: userFormData.password,
-          admin: userFormData.admin
+          password: userFormData.password,
+          role: userFormData.admin === 1 ? 'ADMIN' : 'USER'
         })
       });
 
@@ -471,323 +462,307 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center">
-                <Database className="h-8 w-8 text-blue-600" />
-                <span className="ml-2 text-xl font-bold text-gray-900">VEGETA</span>
-              </div>
-              
-              <div className="flex space-x-4">
-                <button
-                  onClick={() => setCurrentPage('search')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium ${
-                    currentPage === 'search'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <Search className="w-4 h-4 inline mr-2" />
-                  Recherche
-                </button>
-                
-                {currentUser?.admin === 1 && (
-                  <button
-                    onClick={() => setCurrentPage('users')}
-                    className={`px-3 py-2 rounded-md text-sm font-medium ${
-                      currentPage === 'users'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    <Users className="w-4 h-4 inline mr-2" />
-                    Utilisateurs
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Menu utilisateur */}
-            <div className="flex items-center">
-              <div className="relative">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowUserDropdown(!showUserDropdown);
-                  }}
-                  className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  <User className="w-4 h-4" />
-                  <span>{currentUser?.login}</span>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    currentUser?.admin === 1 
-                      ? 'bg-red-100 text-red-800' 
-                      : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {currentUser?.admin === 1 ? 'Admin' : 'Utilisateur'}
-                  </span>
-                </button>
-
-                {showUserDropdown && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border">
-                    <button
-                      onClick={() => {
-                        setShowPasswordModal(true);
-                        setShowUserDropdown(false);
-                      }}
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                    >
-                      <Key className="w-4 h-4 mr-2" />
-                      Changer mot de passe
-                    </button>
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                    >
-                      <LogOut className="w-4 h-4 mr-2" />
-                      Déconnexion
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Sidebar */}
+      <div className="w-64 bg-white shadow-lg">
+        <div className="p-6">
+          <div className="flex items-center">
+            <Database className="h-8 w-8 text-blue-600" />
+            <span className="ml-2 text-xl font-bold text-gray-900">VEGETA</span>
           </div>
         </div>
-      </nav>
-
-      {/* Contenu principal */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {currentPage === 'search' && (
-          <div className="space-y-6">
-            {/* Barre de recherche */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-                Recherche Unifiée VEGETA
-              </h1>
-              
-              <form onSubmit={handleSearch} className="space-y-4">
-                <div className="flex space-x-4">
-                  <input
-                    type="text"
-                    placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 flex items-center"
-                  >
-                    <Search className="w-5 h-5 mr-2" />
-                    {loading ? 'Recherche...' : 'Rechercher'}
-                  </button>
-                </div>
-              </form>
-
-              {/* Suggestions */}
-              <div className="mt-4">
-                <p className="text-sm text-gray-600 mb-2">Suggestions :</p>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: 'CNI', example: 'CNI: 123456789' },
-                    { label: 'Immatriculation', example: 'DK 1234 AB' },
-                    { label: 'NINEA', example: 'NINEA: 123456' },
-                    { label: 'Téléphone', example: '77 123 45 67' }
-                  ].map((suggestion) => (
-                    <button
-                      key={suggestion.label}
-                      onClick={() => setSearchQuery(suggestion.example)}
-                      className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200"
-                    >
-                      {suggestion.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Erreur de recherche */}
-            {searchError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                {searchError}
-              </div>
+        
+        <nav className="mt-6">
+          <div className="px-3">
+            <button
+              onClick={() => setCurrentPage('search')}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                currentPage === 'search'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Search className="mr-3 h-5 w-5" />
+              Recherche
+            </button>
+            
+            {currentUser?.admin === 1 && (
+              <button
+                onClick={() => setCurrentPage('users')}
+                className={`w-full flex items-center px-3 py-2 mt-1 text-sm font-medium rounded-md ${
+                  currentPage === 'users'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <Users className="mr-3 h-5 w-5" />
+                Utilisateurs
+              </button>
             )}
+          </div>
+        </nav>
 
-            {/* Résultats */}
-            {searchResults && (
-              <div className="bg-white shadow rounded-lg">
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                  <div>
-                    <h2 className="text-lg font-medium text-gray-900">
-                      Résultats de recherche
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      {searchResults.total} résultat(s) trouvé(s) en {searchResults.elapsed_ms}ms
-                    </p>
-                  </div>
-                  
-                  {searchResults.hits.length > 0 && (
+        {/* User info */}
+        <div className="absolute bottom-0 w-64 p-4 border-t border-gray-200">
+          <div className="flex items-center">
+            <User className="h-8 w-8 text-gray-400" />
+            <div className="ml-3">
+              <p className="text-sm font-medium text-gray-700">{currentUser?.login}</p>
+              <p className="text-xs text-gray-500">
+                {currentUser?.admin === 1 ? 'Administrateur' : 'Utilisateur'}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 flex space-x-2">
+            <button
+              onClick={() => setShowPasswordModal(true)}
+              className="flex-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+            >
+              <Key className="w-3 h-3 inline mr-1" />
+              Mot de passe
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded"
+            >
+              <LogOut className="w-3 h-3 inline mr-1" />
+              Déconnexion
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="flex-1 overflow-auto">
+        <div className="p-8">
+          {currentPage === 'search' && (
+            <div className="space-y-6">
+              {/* Barre de recherche */}
+              <div className="bg-white shadow rounded-lg p-6">
+                <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+                  Recherche Unifiée VEGETA
+                </h1>
+                
+                <form onSubmit={handleSearch} className="space-y-4">
+                  <div className="flex space-x-4">
+                    <input
+                      type="text"
+                      placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                     <button
-                      onClick={exportToCSV}
-                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                      type="submit"
+                      disabled={loading}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 flex items-center"
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      Export Excel
+                      <Search className="w-5 h-5 mr-2" />
+                      {loading ? 'Recherche...' : 'Rechercher'}
                     </button>
+                  </div>
+                </form>
+
+                {/* Suggestions */}
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600 mb-2">Suggestions :</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'CNI', example: 'CNI: 123456789' },
+                      { label: 'Immatriculation', example: 'DK 1234 AB' },
+                      { label: 'NINEA', example: 'NINEA: 123456' },
+                      { label: 'Téléphone', example: '77 123 45 67' }
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion.label}
+                        onClick={() => setSearchQuery(suggestion.example)}
+                        className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200"
+                      >
+                        {suggestion.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Erreur de recherche */}
+              {searchError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                  {searchError}
+                </div>
+              )}
+
+              {/* Résultats */}
+              {searchResults && (
+                <div className="bg-white shadow rounded-lg">
+                  <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <div>
+                      <h2 className="text-lg font-medium text-gray-900">
+                        Résultats de recherche
+                      </h2>
+                      <p className="text-sm text-gray-500">
+                        {searchResults.total} résultat(s) trouvé(s) en {searchResults.elapsed_ms}ms
+                      </p>
+                    </div>
+                    
+                    {searchResults.hits.length > 0 && (
+                      <button
+                        onClick={exportToCSV}
+                        className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export Excel
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Source
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Base
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Score
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Aperçu
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {searchResults.hits.map((result, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {result.table}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {result.database}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {result.score.toFixed(1)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900">
+                              <div className="space-y-1">
+                                {Object.entries(result.preview).slice(0, 3).map(([key, value]) => (
+                                  <div key={key} className="flex">
+                                    <span className="font-medium text-gray-600 mr-2">{key}:</span>
+                                    <span className="text-gray-900">{String(value)}</span>
+                                  </div>
+                                ))}
+                                {Object.keys(result.preview).length > 3 && (
+                                  <div className="text-xs text-gray-500">
+                                    +{Object.keys(result.preview).length - 3} autres champs
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {searchResults.hits.length === 0 && (
+                    <div className="text-center py-12">
+                      <Search className="mx-auto h-12 w-12 text-gray-400" />
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun résultat</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Essayez avec d'autres termes de recherche.
+                      </p>
+                    </div>
                   )}
                 </div>
+              )}
+            </div>
+          )}
 
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Source
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Base
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Score
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Aperçu
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {searchResults.hits.map((result, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {result.table}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {result.database}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {result.score.toFixed(1)}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
-                            <div className="space-y-1">
-                              {Object.entries(result.preview).slice(0, 3).map(([key, value]) => (
-                                <div key={key} className="flex">
-                                  <span className="font-medium text-gray-600 mr-2">{key}:</span>
-                                  <span className="text-gray-900">{String(value)}</span>
-                                </div>
-                              ))}
-                              {Object.keys(result.preview).length > 3 && (
-                                <div className="text-xs text-gray-500">
-                                  +{Object.keys(result.preview).length - 3} autres champs
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {searchResults.hits.length === 0 && (
-                  <div className="text-center py-12">
-                    <Search className="mx-auto h-12 w-12 text-gray-400" />
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun résultat</h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Essayez avec d'autres termes de recherche.
-                    </p>
-                  </div>
-                )}
+          {currentPage === 'users' && currentUser?.admin === 1 && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold text-gray-900">Gestion des utilisateurs</h1>
+                <button
+                  onClick={openCreateModal}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nouvel utilisateur
+                </button>
               </div>
-            )}
-          </div>
-        )}
 
-        {currentPage === 'users' && currentUser?.admin === 1 && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-gray-900">Gestion des utilisateurs</h1>
-              <button
-                onClick={openCreateModal}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Nouvel utilisateur
-              </button>
-            </div>
-
-            <div className="bg-white shadow rounded-lg overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Login
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Rôle
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Créé le
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {users.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {user.id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {user.login}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          user.admin === 1 
-                            ? 'bg-red-100 text-red-800' 
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {user.admin === 1 ? 'Administrateur' : 'Utilisateur'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(user.created_at).toLocaleDateString('fr-FR')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => openEditModal(user)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        {user.id !== currentUser?.id && (
-                          <button
-                            onClick={() => handleDeleteUser(user.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </td>
+              <div className="bg-white shadow rounded-lg overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        ID
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Login
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Rôle
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Créé le
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {users.map((user) => (
+                      <tr key={user.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {user.id}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {user.login}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            user.admin === 1 
+                              ? 'bg-red-100 text-red-800' 
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {user.admin === 1 ? 'Administrateur' : 'Utilisateur'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(user.created_at).toLocaleDateString('fr-FR')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                          <button
+                            onClick={() => openEditModal(user)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          {user.id !== currentUser?.id && (
+                            <button
+                              onClick={() => handleDeleteUser(user.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
-      </main>
+          )}
+        </div>
+      </div>
 
       {/* Modal utilisateur */}
       {showUserModal && (
