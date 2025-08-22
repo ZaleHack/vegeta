@@ -244,6 +244,12 @@ const App: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
+      console.log('🔍 Création utilisateur - Token:', token ? 'présent' : 'absent');
+      console.log('🔍 Données à envoyer:', {
+        login: userFormData.login,
+        role: userFormData.admin === 1 ? 'ADMIN' : 'USER'
+      });
+      
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: {
@@ -258,6 +264,7 @@ const App: React.FC = () => {
       });
 
       const data = await response.json();
+      console.log('🔍 Réponse serveur:', { status: response.status, data });
 
       if (response.ok) {
         alert('Utilisateur créé avec succès');
@@ -266,9 +273,11 @@ const App: React.FC = () => {
         setEditingUser(null);
         loadUsers();
       } else {
+        console.error('❌ Erreur création:', data);
         alert(data.error || 'Erreur lors de la création');
       }
     } catch (error) {
+      console.error('❌ Erreur réseau:', error);
       alert('Erreur de connexion au serveur');
     } finally {
       setLoading(false);

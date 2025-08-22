@@ -51,7 +51,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
     }
 
     if (password.length < 8) {
-      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères' });
     }
 
     const allowedRoles = ['ADMIN', 'USER'];
