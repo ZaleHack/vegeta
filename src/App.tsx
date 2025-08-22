@@ -1101,7 +1101,7 @@ function App() {
           </div>
         </div>
 
-        <!-- Page Gestion des utilisateurs -->
+        {/* Page Gestion des utilisateurs */}
         <div id="usersPage" class="page-content" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2>
