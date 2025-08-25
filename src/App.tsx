@@ -22,7 +22,8 @@ import {
   Timer,
   TrendingUp,
   BarChart3,
-  FileText
+  FileText,
+  Upload
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -104,6 +105,9 @@ const App: React.FC = () => {
     new: false,
     confirm: false
   });
+  const [passwordTargetUser, setPasswordTargetUser] = useState<User | null>(null);
+  const [uploadTable, setUploadTable] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -511,7 +515,14 @@ const App: React.FC = () => {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    const targetUser = passwordTargetUser || currentUser;
+    if (!targetUser) return;
+
+    const isAdminUser = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
+    const changingOther = targetUser.id !== currentUser?.id;
+    const requireCurrent = !isAdminUser || !changingOther;
+
     if (passwordFormData.newPassword !== passwordFormData.confirmPassword) {
       alert('Les nouveaux mots de passe ne correspondent pas');
       return;
@@ -522,20 +533,26 @@ const App: React.FC = () => {
       return;
     }
 
+    if (requireCurrent && !passwordFormData.currentPassword) {
+      alert('Mot de passe actuel requis');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/users/${currentUser?.id}/change-password`, {
+      const body: any = { newPassword: passwordFormData.newPassword };
+      if (requireCurrent) {
+        body.currentPassword = passwordFormData.currentPassword;
+      }
+      const response = await fetch(`/api/users/${targetUser.id}/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          currentPassword: passwordFormData.currentPassword,
-          newPassword: passwordFormData.newPassword
-        })
+        body: JSON.stringify(body)
       });
 
       const data = await response.json();
@@ -543,6 +560,7 @@ const App: React.FC = () => {
       if (response.ok) {
         alert('Mot de passe modifié avec succès');
         setShowPasswordModal(false);
+        setPasswordTargetUser(null);
         setPasswordFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
         setShowPasswords({ current: false, new: false, confirm: false });
       } else {
@@ -553,6 +571,13 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openPasswordModal = (user: User | null = null) => {
+    setPasswordTargetUser(user || currentUser);
+    setPasswordFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setShowPasswords({ current: false, new: false, confirm: false });
+    setShowPasswordModal(true);
   };
 
   const openEditModal = (user: User) => {
@@ -569,6 +594,39 @@ const App: React.FC = () => {
     setEditingUser(null);
     setUserFormData({ login: '', password: '', admin: 0 });
     setShowUserModal(true);
+  };
+
+  const handleUploadData = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadFile) {
+      alert('Veuillez sélectionner un fichier');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('dataFile', uploadFile);
+      formData.append('tableName', uploadTable);
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/upload/file', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert('Données chargées avec succès');
+        setUploadTable('');
+        setUploadFile(null);
+      } else {
+        alert(data.error || 'Erreur lors du chargement');
+      }
+    } catch (error) {
+      alert('Erreur de connexion au serveur');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Charger les utilisateurs quand on accède à la page
@@ -726,6 +784,18 @@ const App: React.FC = () => {
                   <Activity className="h-5 w-5" />
                   {sidebarOpen && <span className="ml-3">Statistiques</span>}
                 </button>
+
+                <button
+                  onClick={() => setCurrentPage('upload')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                    currentPage === 'upload'
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  } ${!sidebarOpen && 'justify-center'}`}
+                >
+                  <Upload className="h-5 w-5" />
+                  {sidebarOpen && <span className="ml-3">Charger des données</span>}
+                </button>
               </>
             )}
           </div>
@@ -760,7 +830,7 @@ const App: React.FC = () => {
           {sidebarOpen && (
             <div className="mt-4 flex space-x-2">
               <button
-                onClick={() => setShowPasswordModal(true)}
+                onClick={() => openPasswordModal()}
                 className="flex-1 flex items-center justify-center px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
               >
                 <Key className="w-3 h-3 mr-1" />
@@ -1081,6 +1151,13 @@ const App: React.FC = () => {
                                   title="Modifier l'utilisateur"
                                 >
                                   <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => openPasswordModal(user)}
+                                  className="text-green-600 hover:text-green-900 transition-colors"
+                                  title="Changer le mot de passe"
+                                >
+                                  <Key className="w-4 h-4" />
                                 </button>
                                 {user.id !== currentUser?.id && (
                                   <button
@@ -1438,6 +1515,41 @@ const App: React.FC = () => {
         </div>
       </div>
 
+      {currentPage === 'upload' && isAdmin && (
+        <div className="max-w-xl mx-auto">
+          <h1 className="text-2xl font-bold mb-6">Charger des données</h1>
+          <form onSubmit={handleUploadData} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Nom de la table</label>
+              <input
+                type="text"
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={uploadTable}
+                onChange={(e) => setUploadTable(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Fichier (CSV ou SQL)</label>
+              <input
+                type="file"
+                accept=".csv,.sql"
+                required
+                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                className="w-full"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
+            >
+              {loading ? 'Chargement...' : 'Charger'}
+            </button>
+          </form>
+        </div>
+      )}
+
       {/* Modal utilisateur */}
       {showUserModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
@@ -1523,25 +1635,27 @@ const App: React.FC = () => {
             </div>
             
             <form onSubmit={handleChangePassword} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe actuel</label>
-                <div className="relative">
-                  <input
-                    type={showPasswords.current ? 'text' : 'password'}
-                    required
-                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={passwordFormData.currentPassword}
-                    onChange={(e) => setPasswordFormData({ ...passwordFormData, currentPassword: e.target.value })}
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
-                  >
-                    {showPasswords.current ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
-                  </button>
+              {(!isAdmin || passwordTargetUser?.id === currentUser?.id) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe actuel</label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords.current ? 'text' : 'password'}
+                      required
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={passwordFormData.currentPassword}
+                      onChange={(e) => setPasswordFormData({ ...passwordFormData, currentPassword: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
+                    >
+                      {showPasswords.current ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Nouveau mot de passe</label>
@@ -1591,6 +1705,7 @@ const App: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setShowPasswordModal(false);
+                    setPasswordTargetUser(null);
                     setPasswordFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
                     setShowPasswords({ current: false, new: false, confirm: false });
                   }}
