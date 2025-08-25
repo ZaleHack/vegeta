@@ -1,11 +1,36 @@
 import database from '../config/database.js';
-import tablesCatalog from '../config/tables-catalog.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 /**
  * Service de génération de statistiques basées sur les journaux de recherche
  * et les différentes tables configurées dans la plateforme.
  */
 class StatsService {
+  constructor() {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
+  }
+
+  loadCatalog() {
+    try {
+      const raw = fs.readFileSync(this.catalogPath, 'utf-8');
+      const json = JSON.parse(raw);
+      const catalog = {};
+      for (const [key, value] of Object.entries(json)) {
+        const [db, ...tableParts] = key.split('_');
+        const tableName = `${db}.${tableParts.join('_')}`;
+        catalog[tableName] = value;
+      }
+      return catalog;
+    } catch (error) {
+      console.error('❌ Erreur chargement catalogue:', error);
+      return {};
+    }
+  }
+
   /**
    * Récupère les statistiques globales d'utilisation de la plateforme.
    */
@@ -64,7 +89,8 @@ class StatsService {
    * Compte le nombre d'enregistrements pour chaque table de données.
    */
   async getDataStatistics() {
-    const entries = Object.entries(tablesCatalog);
+    const catalog = this.loadCatalog();
+    const entries = Object.entries(catalog);
     const results = await Promise.all(
       entries.map(async ([tableName, config]) => {
         try {
