@@ -11,24 +11,24 @@ class StatsService {
    */
   async getOverviewStats() {
     try {
-      const totalSearches = await database.queryOne(
-        'SELECT COUNT(*) as count FROM autres.search_logs'
-      );
-
-      const avgExecutionTime = await database.queryOne(
-        'SELECT AVG(execution_time_ms) as avg_time FROM autres.search_logs WHERE execution_time_ms > 0'
-      );
-
-      const todaySearches = await database.queryOne(`
+      const [
+        totalSearches,
+        avgExecutionTime,
+        todaySearches,
+        activeUsers,
+        topSearchTerms,
+        searchesByType
+      ] = await Promise.all([
+        database.queryOne('SELECT COUNT(*) as count FROM autres.search_logs'),
+        database.queryOne(
+          'SELECT AVG(execution_time_ms) as avg_time FROM autres.search_logs WHERE execution_time_ms > 0'
+        ),
+        database.queryOne(`
         SELECT COUNT(*) as count FROM autres.search_logs
         WHERE DATE(search_date) = CURDATE()
-      `);
-
-      const activeUsers = await database.queryOne(
-        'SELECT COUNT(*) as count FROM autres.users'
-      );
-
-      const topSearchTerms = await database.query(`
+      `),
+        database.queryOne('SELECT COUNT(*) as count FROM autres.users'),
+        database.query(`
         SELECT search_term, COUNT(*) as search_count
         FROM autres.search_logs
         WHERE search_term IS NOT NULL
@@ -37,14 +37,14 @@ class StatsService {
         GROUP BY search_term
         ORDER BY search_count DESC
         LIMIT 10
-      `);
-
-      const searchesByType = await database.query(`
+      `),
+        database.query(`
         SELECT COALESCE(search_type, 'unknown') as search_type, COUNT(*) as search_count
         FROM autres.search_logs
         GROUP BY search_type
         ORDER BY search_count DESC
-      `);
+      `)
+      ]);
 
       return {
         total_searches: totalSearches?.count || 0,
@@ -64,28 +64,29 @@ class StatsService {
    * Compte le nombre d'enregistrements pour chaque table de données.
    */
   async getDataStatistics() {
-    const stats = {};
+    const entries = Object.entries(tablesCatalog);
+    const results = await Promise.all(
+      entries.map(async ([tableName, config]) => {
+        try {
+          const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${tableName}`);
+          return [tableName, {
+            total_records: result?.count || 0,
+            table_name: config.display,
+            database: config.database
+          }];
+        } catch (error) {
+          console.warn(`Table ${tableName} non accessible:`, error.message);
+          return [tableName, {
+            total_records: 0,
+            table_name: config.display,
+            database: config.database,
+            error: error.message
+          }];
+        }
+      })
+    );
 
-    for (const [tableName, config] of Object.entries(tablesCatalog)) {
-      try {
-        const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${tableName}`);
-        stats[tableName] = {
-          total_records: result?.count || 0,
-          table_name: config.display,
-          database: config.database
-        };
-      } catch (error) {
-        console.warn(`Table ${tableName} non accessible:`, error.message);
-        stats[tableName] = {
-          total_records: 0,
-          table_name: config.display,
-          database: config.database,
-          error: error.message
-        };
-      }
-    }
-
-    return stats;
+    return Object.fromEntries(results);
   }
 
   /**
