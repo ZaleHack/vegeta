@@ -4,46 +4,41 @@ const tablesCatalog = require('../config/tables-catalog.json');
 class StatsService {
   async getOverviewStats() {
     try {
-      // Statistiques générales
-      const totalSearches = database.queryOne(
+      const totalSearches = await database.queryOne(
         'SELECT COUNT(*) as count FROM search_logs'
       );
-      
-      const totalUsers = database.queryOne(
-        'SELECT COUNT(*) as count FROM users WHERE is_active = TRUE'
-      );
-      
-      const avgExecutionTime = database.queryOne(
+
+      const avgExecutionTime = await database.queryOne(
         'SELECT AVG(execution_time_ms) as avg_time FROM search_logs WHERE execution_time_ms > 0'
       );
-      
-      // Recherches aujourd'hui
-      const todaySearches = database.queryOne(`
-        SELECT COUNT(*) as count FROM search_logs 
+
+      const todaySearches = await database.queryOne(`
+        SELECT COUNT(*) as count FROM search_logs
         WHERE DATE(search_date) = DATE('now')
       `);
-      
-      // Top 10 des tables les plus consultées (approximation avec SQLite)
-      const topTables = database.query(`
-        SELECT 
-          SUBSTR(tables_searched, 3, LENGTH(tables_searched) - 4) as table_name,
-          COUNT(*) as search_count
-        FROM search_logs 
-        WHERE tables_searched IS NOT NULL 
-          AND tables_searched != '[]'
-        GROUP BY table_name
-        ORDER BY search_count DESC 
+
+      const activeUsers = await database.queryOne(
+        'SELECT COUNT(*) as count FROM users WHERE is_active = TRUE'
+      );
+
+      const topSearchTerms = await database.query(`
+        SELECT search_term, COUNT(*) as search_count
+        FROM search_logs
+        WHERE search_term IS NOT NULL
+          AND search_term != ''
+          AND search_date >= DATE('now', '-30 day')
+        GROUP BY search_term
+        ORDER BY search_count DESC
         LIMIT 10
       `);
-      
+
       return {
-        total_searches: totalSearches.count,
-        total_users: totalUsers.count,
-        avg_execution_time: Math.round(avgExecutionTime.avg_time || 0),
-        today_searches: todaySearches.count,
-        top_tables: topTables
+        total_searches: totalSearches?.count || 0,
+        avg_execution_time: Math.round(avgExecutionTime?.avg_time || 0),
+        today_searches: todaySearches?.count || 0,
+        active_users: activeUsers?.count || 0,
+        top_search_terms: topSearchTerms || []
       };
-      
     } catch (error) {
       console.error('Erreur statistiques overview:', error);
       throw error;
@@ -53,7 +48,7 @@ class StatsService {
   async getDataStatistics() {
     const tables = [
       'esolde_mytable',
-      'rhpolice_personne_concours', 
+      'rhpolice_personne_concours',
       'renseignement_agentfinance',
       'rhgendarmerie_personne',
       'permis_tables',
@@ -69,7 +64,7 @@ class StatsService {
       try {
         const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${table}`);
         stats[table] = {
-          total_records: result.count,
+          total_records: result?.count || 0,
           table_name: table
         };
       } catch (error) {
@@ -83,17 +78,16 @@ class StatsService {
     return stats;
   }
 
-  async getTablesDistribution() {
+  async getTableDistribution() {
     try {
-      // Compter les enregistrements par table
       const distribution = [];
-      
+
       for (const [tableName, config] of Object.entries(tablesCatalog)) {
         try {
-          const result = database.queryOne(`SELECT COUNT(*) as count FROM ${tableName}`);
+          const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${tableName}`);
           distribution.push({
             table: config.display,
-            count: result.count
+            count: result?.count || 0
           });
         } catch (error) {
           console.warn(`Table ${tableName} non accessible:`, error.message);
@@ -103,9 +97,8 @@ class StatsService {
           });
         }
       }
-      
+
       return distribution.sort((a, b) => b.count - a.count);
-      
     } catch (error) {
       console.error('Erreur distribution tables:', error);
       throw error;
@@ -113,16 +106,14 @@ class StatsService {
   }
 
   async getRegionDistribution() {
-    // Distribution géographique (exemple avec entreprises et véhicules)
     const regions = [];
 
     try {
-      // Entreprises par région
       const enterpriseRegions = await database.query(`
-        SELECT region, COUNT(*) as count 
-        FROM autres_entreprises 
+        SELECT region, COUNT(*) as count
+        FROM autres_entreprises
         WHERE region IS NOT NULL AND region != ''
-        GROUP BY region 
+        GROUP BY region
         ORDER BY count DESC
         LIMIT 10
       `);
@@ -137,55 +128,34 @@ class StatsService {
 
   async getTimeSeriesData(days = 30) {
     try {
-      const rows = database.query(`
-        SELECT 
+      const rows = await database.query(`
+        SELECT
           DATE(search_date) as date,
           COUNT(*) as searches,
           COUNT(DISTINCT user_id) as unique_users,
           AVG(execution_time_ms) as avg_time
-        FROM search_logs 
+        FROM search_logs
         WHERE search_date >= DATE('now', '-' || ? || ' days')
         GROUP BY DATE(search_date)
         ORDER BY date ASC
       `, [days]);
-      
+
       return rows.map(row => ({
         date: row.date,
         searches: row.searches,
         unique_users: row.unique_users,
         avg_time: Math.round(row.avg_time || 0)
       }));
-      
     } catch (error) {
       console.error('Erreur données temporelles:', error);
       throw error;
     }
   }
 
-  async getPopularSearchTerms(limit = 20) {
-    // Termes de recherche les plus populaires
-    const popularTerms = await database.query(`
-      SELECT 
-        search_term,
-        COUNT(*) as frequency,
-        AVG(results_count) as avg_results
-      FROM search_logs
-      WHERE search_term IS NOT NULL 
-        AND search_term != ''
-        AND search_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-      GROUP BY search_term
-      ORDER BY frequency DESC
-      LIMIT ${limit}
-    `);
-
-    return popularTerms;
-  }
-
-  async getUserActivityStats() {
+  async getUserActivity() {
     try {
-      // Activité par utilisateur
-      const userActivity = database.query(`
-        SELECT 
+      const userActivity = await database.query(`
+        SELECT
           u.username,
           u.role,
           COUNT(sl.id) as total_searches,
@@ -197,59 +167,55 @@ class StatsService {
         GROUP BY u.id, u.username, u.role
         ORDER BY total_searches DESC
       `);
-      
-      // Répartition par rôle
-      const roleDistribution = database.query(`
-        SELECT 
-          role,
-          COUNT(*) as count
-        FROM users 
-        WHERE is_active = TRUE
-        GROUP BY role
-      `);
-      
-      return {
-        user_activity: userActivity,
-        role_distribution: roleDistribution
-      };
-      
+
+      return userActivity || [];
     } catch (error) {
       console.error('Erreur statistiques utilisateurs:', error);
       throw error;
     }
   }
 
+  async getSearchLogs(limit = 20) {
+    try {
+      const logs = await database.query(`
+        SELECT
+          sl.*, u.username
+        FROM search_logs sl
+        LEFT JOIN users u ON sl.user_id = u.id
+        ORDER BY sl.search_date DESC
+        LIMIT ?
+      `, [limit]);
+
+      return logs || [];
+    } catch (error) {
+      console.error('Erreur logs de recherche:', error);
+      return [];
+    }
+  }
+
   async exportStats(format = 'csv') {
     const stats = await this.getOverviewStats();
-    
+
     if (format === 'csv') {
       return this.generateCSVExport(stats);
     } else if (format === 'json') {
       return JSON.stringify(stats, null, 2);
     }
-    
+
     throw new Error('Format d\'export non supporté');
   }
 
   generateCSVExport(stats) {
     let csv = 'Statistiques VEGETA\n\n';
-    
-    // Stats générales
-    csv += 'Recherches totales,' + stats.search_stats.total_searches + '\n';
-    csv += '\nTop Tables\n';
-    csv += 'Table,Recherches\n';
-    
-    for (const table of stats.search_stats.top_tables) {
-      csv += `${table.table_name},${table.search_count}\n`;
+
+    csv += 'Recherches totales,' + stats.total_searches + '\n';
+    csv += '\nTop termes\n';
+    csv += 'Terme,Recherches\n';
+
+    for (const term of stats.top_search_terms) {
+      csv += `${term.search_term},${term.search_count}\n`;
     }
-    
-    csv += '\nUtilisateurs actifs\n';
-    csv += 'Utilisateur,Recherches\n';
-    
-    for (const user of stats.search_stats.top_users) {
-      csv += `${user.username},${user.search_count}\n`;
-    }
-    
+
     return csv;
   }
 }
