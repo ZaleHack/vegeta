@@ -42,17 +42,21 @@ class SearchService {
 
     // Journalisation
     if (user) {
-      SearchLog.create({
-        user_id: user.id,
-        username: user.username,
-        search_term: query,
-        filters: filters,
-        tables_searched: tablesSearched,
-        results_count: totalResults,
-        execution_time_ms: executionTime,
-        ip_address: user.ip_address,
-        user_agent: user.user_agent
-      });
+      try {
+        await SearchLog.create({
+          user_id: user.id,
+          username: user.username,
+          search_term: query,
+          filters: filters,
+          tables_searched: tablesSearched,
+          results_count: totalResults,
+          execution_time_ms: executionTime,
+          ip_address: user.ip_address,
+          user_agent: user.user_agent
+        });
+      } catch (err) {
+        console.error('Erreur journalisation recherche:', err);
+      }
     }
 
     return {
