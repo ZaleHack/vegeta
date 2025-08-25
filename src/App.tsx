@@ -1533,75 +1533,75 @@ const App: React.FC = () => {
               )}
             </div>
           )}
+
+          {currentPage === 'upload' && isAdmin && (
+            <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+              <div className="w-full max-w-2xl">
+                <div className="bg-white rounded-2xl shadow-xl p-8">
+                  <div className="text-center mb-8">
+                    <UploadCloud className="h-12 w-12 mx-auto text-blue-600" />
+                    <h1 className="mt-4 text-3xl font-bold text-gray-900">Charger des données</h1>
+                    <p className="mt-2 text-gray-600">Importez un fichier CSV ou SQL dans la table de votre choix.</p>
+                  </div>
+                  <form onSubmit={handleUploadData} className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nom de la table</label>
+                      <input
+                        type="text"
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={uploadTable}
+                        onChange={(e) => setUploadTable(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Fichier à importer</label>
+                      <input
+                        type="file"
+                        accept=".csv,.sql"
+                        required
+                        onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
+                    >
+                      {loading ? 'Chargement...' : 'Importer'}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="mt-8">
+                  <h2 className="text-xl font-semibold text-center text-gray-900 mb-4">Bases importées</h2>
+                  {uploadHistory.length === 0 ? (
+                    <p className="text-center text-gray-500">Aucune base importée pour le moment</p>
+                  ) : (
+                    <div className="bg-white rounded-2xl shadow overflow-hidden max-h-64 overflow-y-auto">
+                      {uploadHistory.map((item, index) => (
+                        <div
+                          key={index}
+                          className="p-4 flex items-center justify-between border-b last:border-b-0 border-gray-200"
+                        >
+                          <div>
+                            <p className="font-medium text-gray-900">{item.table_name}</p>
+                            <p className="text-sm text-gray-500">{item.file_name}</p>
+                          </div>
+                          {item.created_at && (
+                            <span className="text-xs text-gray-400">{format(parseISO(item.created_at), 'dd/MM/yyyy HH:mm')}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {currentPage === 'upload' && isAdmin && (
-        <div className="flex flex-col items-center">
-          <div className="w-full max-w-2xl">
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <div className="text-center mb-8">
-                <UploadCloud className="h-12 w-12 mx-auto text-blue-600" />
-                <h1 className="mt-4 text-3xl font-bold text-gray-900">Charger des données</h1>
-                <p className="mt-2 text-gray-600">Importez un fichier CSV ou SQL dans la table de votre choix.</p>
-              </div>
-              <form onSubmit={handleUploadData} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Nom de la table</label>
-                  <input
-                    type="text"
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={uploadTable}
-                    onChange={(e) => setUploadTable(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Fichier à importer</label>
-                  <input
-                    type="file"
-                    accept=".csv,.sql"
-                    required
-                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                    className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
-                >
-                  {loading ? 'Chargement...' : 'Importer'}
-                </button>
-              </form>
-            </div>
-
-            <div className="mt-8">
-              <h2 className="text-xl font-semibold text-center text-gray-900 mb-4">Bases importées</h2>
-              {uploadHistory.length === 0 ? (
-                <p className="text-center text-gray-500">Aucune base importée pour le moment</p>
-              ) : (
-                <div className="bg-white rounded-2xl shadow overflow-hidden max-h-64 overflow-y-auto">
-                  {uploadHistory.map((item, index) => (
-                    <div
-                      key={index}
-                      className="p-4 flex items-center justify-between border-b last:border-b-0 border-gray-200"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-900">{item.table_name}</p>
-                        <p className="text-sm text-gray-500">{item.file_name}</p>
-                      </div>
-                      {item.created_at && (
-                        <span className="text-xs text-gray-400">{format(parseISO(item.created_at), 'dd/MM/yyyy HH:mm')}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal utilisateur */}
       {showUserModal && (

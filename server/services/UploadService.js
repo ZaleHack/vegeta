@@ -118,7 +118,8 @@ class UploadService {
     const startTime = Date.now();
     try {
       const sql = fs.readFileSync(filePath, 'utf-8');
-      await database.query(sql);
+      // Use pool.query to support multiple statements in SQL files
+      await database.pool.query(sql);
       await this.addTableToCatalog(tableName);
 
       if (userId) {
