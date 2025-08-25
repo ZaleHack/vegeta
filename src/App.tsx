@@ -107,6 +107,7 @@ const App: React.FC = () => {
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
   const [searchLogs, setSearchLogs] = useState([]);
+  const [logUserFilter, setLogUserFilter] = useState('');
   const [loadingStats, setLoadingStats] = useState(false);
   const [timeSeries, setTimeSeries] = useState<any[]>([]);
   const [tableDistribution, setTableDistribution] = useState<any[]>([]);
@@ -294,9 +295,11 @@ const App: React.FC = () => {
       setLoadingStats(true);
       const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
 
+      const logQuery = logUserFilter ? `?username=${encodeURIComponent(logUserFilter)}` : '';
+
       const [statsResponse, logsResponse, timeResponse, distResponse] = await Promise.all([
         fetch('/api/stats/overview', { headers }),
-        fetch('/api/stats/search-logs?limit=10', { headers }),
+        fetch(`/api/stats/search-logs${logQuery}`, { headers }),
         fetch('/api/stats/time-series?days=7', { headers }),
         fetch('/api/stats/data-distribution', { headers })
       ]);
@@ -1250,11 +1253,26 @@ const App: React.FC = () => {
                       <div className="bg-white rounded-2xl shadow-xl p-6">
                         <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
                           <FileText className="h-6 w-6 mr-2 text-indigo-600" />
-                          Recherches récentes
+                          Logs de recherche
                         </h3>
+                        <div className="mb-4 flex">
+                          <input
+                            type="text"
+                            value={logUserFilter}
+                            onChange={(e) => setLogUserFilter(e.target.value)}
+                            placeholder="Filtrer par utilisateur"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button
+                            onClick={loadStatistics}
+                            className="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                          >
+                            Rechercher
+                          </button>
+                        </div>
                         <div className="max-h-80 overflow-y-auto">
                           <div className="space-y-3">
-                            {searchLogs.length > 0 ? searchLogs.slice(0, 10).map((log, index) => (
+                            {searchLogs.length > 0 ? searchLogs.map((log, index) => (
                               <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                                 <div className="flex-1">
                                   <div className="flex items-center space-x-3">

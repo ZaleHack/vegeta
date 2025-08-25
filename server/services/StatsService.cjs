@@ -175,16 +175,28 @@ class StatsService {
     }
   }
 
-  async getSearchLogs(limit = 20) {
+  async getSearchLogs(limit = null, username = '') {
     try {
-      const logs = await database.query(`
+      let sql = `
         SELECT
           sl.*, u.username
         FROM search_logs sl
-        LEFT JOIN users u ON sl.user_id = u.id
-        ORDER BY sl.search_date DESC
-        LIMIT ?
-      `, [limit]);
+        LEFT JOIN users u ON sl.user_id = u.id`;
+      const params = [];
+
+      if (username) {
+        sql += ' WHERE u.username LIKE ?';
+        params.push(`%${username}%`);
+      }
+
+      sql += ' ORDER BY sl.search_date DESC';
+
+      if (limit) {
+        sql += ' LIMIT ?';
+        params.push(limit);
+      }
+
+      const logs = await database.query(sql, params);
 
       return logs || [];
     } catch (error) {

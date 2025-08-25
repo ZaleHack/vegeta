@@ -42,8 +42,9 @@ router.get('/time-series', authenticate, authorize(['ADMIN', 'ANALYSTE']), async
 // Logs de recherche récents
 router.get('/search-logs', authenticate, authorize(['ADMIN', 'ANALYSTE']), async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 20;
-    const logs = await statsService.getSearchLogs(limit);
+    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+    const username = req.query.username || '';
+    const logs = await statsService.getSearchLogs(limit, username);
     res.json({ logs });
   } catch (error) {
     console.error('Erreur logs de recherche:', error);
