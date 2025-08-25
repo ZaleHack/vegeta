@@ -19,7 +19,7 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
     console.log('🔍 POST /api/search - Nouvelle recherche');
     console.log('📥 Body reçu:', req.body);
     
-    const { query, filters = {}, page = 1, limit = 20 } = req.body;
+    const { query, filters = {}, page = 1, limit = 20, search_type = 'global' } = req.body;
 
     if (!query || query.trim().length === 0) {
       return res.status(400).json({ 
@@ -45,7 +45,8 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
       filters,
       parseInt(page),
       parseInt(limit),
-      req.user
+      req.user,
+      search_type
     );
 
     console.log('✅ Recherche terminée, envoi des résultats');
