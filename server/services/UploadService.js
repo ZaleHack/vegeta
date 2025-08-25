@@ -6,6 +6,13 @@ import { fileURLToPath } from 'url';
 // Catalogue des tables chargé dynamiquement
 
 class UploadService {
+  parseTableName(tableName) {
+    if (tableName.includes('.')) {
+      const [database, table] = tableName.split('.');
+      return { database, table };
+    }
+    return { database: 'autres', table: tableName };
+  }
   async uploadCSV(filePath, targetTable, mode = 'insert', userId = null) {
     const startTime = Date.now();
     let totalRows = 0;
@@ -52,9 +59,10 @@ class UploadService {
 
       // Enregistrer l'historique
       if (userId) {
+        const { database, table } = this.parseTableName(targetTable);
         await this.logUpload({
           user_id: userId,
-          table_name: targetTable,
+          table_name: `${database}.${table}`,
           file_name: filePath.split('/').pop(),
           total_rows: totalRows,
           success_rows: successRows,
@@ -80,13 +88,14 @@ class UploadService {
   }
 
   async createTableFromCSV(tableName, sampleRow) {
+    const { database: db, table } = this.parseTableName(tableName);
     const columns = Object.keys(sampleRow);
-    const columnDefinitions = columns.map(col => {
-      return `\`${col}\` TEXT`;
-    }).join(', ');
+    const columnDefinitions = columns
+      .map(col => `\`${col}\` TEXT`)
+      .join(', ');
 
     const sql = `
-      CREATE TABLE IF NOT EXISTS \`${tableName}\` (
+      CREATE TABLE IF NOT EXISTS \`${db}\`.\`${table}\` (
         id INT AUTO_INCREMENT PRIMARY KEY,
         ${columnDefinitions},
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -97,18 +106,21 @@ class UploadService {
   }
 
   async insertRow(tableName, row, mode) {
+    const { database: db, table } = this.parseTableName(tableName);
     const columns = Object.keys(row);
     const values = Object.values(row);
-    
+
     const columnNames = columns.map(col => `\`${col}\``).join(', ');
     const placeholders = columns.map(() => '?').join(', ');
 
     let sql;
     if (mode === 'upsert') {
-      const updateClause = columns.map(col => `\`${col}\` = VALUES(\`${col}\`)`).join(', ');
-      sql = `INSERT INTO \`${tableName}\` (${columnNames}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateClause}`;
+      const updateClause = columns
+        .map(col => `\`${col}\` = VALUES(\`${col}\`)`)
+        .join(', ');
+      sql = `INSERT INTO \`${db}\`.\`${table}\` (${columnNames}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updateClause}`;
     } else {
-      sql = `INSERT INTO \`${tableName}\` (${columnNames}) VALUES (${placeholders})`;
+      sql = `INSERT INTO \`${db}\`.\`${table}\` (${columnNames}) VALUES (${placeholders})`;
     }
 
     await database.query(sql, values);
@@ -117,15 +129,15 @@ class UploadService {
   async uploadSQL(filePath, tableName, userId = null) {
     const startTime = Date.now();
     try {
+      const { database: db, table } = this.parseTableName(tableName);
       const sql = fs.readFileSync(filePath, 'utf-8');
-      // Use pool.query to support multiple statements in SQL files
       await database.pool.query(sql);
-      await this.addTableToCatalog(tableName);
+      await this.addTableToCatalog(`${db}.${table}`);
 
       if (userId) {
         await this.logUpload({
           user_id: userId,
-          table_name: tableName,
+          table_name: `${db}.${table}`,
           file_name: path.basename(filePath),
           total_rows: 0,
           success_rows: 0,
@@ -144,7 +156,8 @@ class UploadService {
 
   async addTableToCatalog(tableName) {
     try {
-      const columns = await database.query(`SHOW COLUMNS FROM \`${tableName}\``);
+      const { database: db, table } = this.parseTableName(tableName);
+      const columns = await database.query(`SHOW COLUMNS FROM \`${db}\`.\`${table}\``);
       const columnNames = columns.map(col => col.Field);
 
       const __filename = fileURLToPath(import.meta.url);
@@ -155,10 +168,10 @@ class UploadService {
         : '{}';
       const catalog = JSON.parse(raw);
 
-      const catalogKey = `autres_${tableName}`;
+      const catalogKey = `${db}_${table}`;
       catalog[catalogKey] = {
-        display: tableName,
-        database: 'autres',
+        display: table,
+        database: db,
         searchable: columnNames,
         preview: columnNames.slice(0, Math.min(5, columnNames.length)),
         filters: {},
