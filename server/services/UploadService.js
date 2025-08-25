@@ -3,7 +3,7 @@ import csv from 'csv-parser';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import tablesCatalog from '../config/tables-catalog.js';
+// Catalogue des tables chargé dynamiquement
 
 class UploadService {
   async uploadCSV(filePath, targetTable, mode = 'insert', userId = null) {
@@ -147,8 +147,16 @@ class UploadService {
       const columns = await database.query(`SHOW COLUMNS FROM \`${tableName}\``);
       const columnNames = columns.map(col => col.Field);
 
-      const tableKey = `autres.${tableName}`;
-      tablesCatalog[tableKey] = {
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = path.dirname(__filename);
+      const catalogPath = path.join(__dirname, '../config/tables-catalog.json');
+      const raw = fs.existsSync(catalogPath)
+        ? fs.readFileSync(catalogPath, 'utf-8')
+        : '{}';
+      const catalog = JSON.parse(raw);
+
+      const catalogKey = `autres_${tableName}`;
+      catalog[catalogKey] = {
         display: tableName,
         database: 'autres',
         searchable: columnNames,
@@ -157,11 +165,7 @@ class UploadService {
         theme: 'autres'
       };
 
-      const __filename = fileURLToPath(import.meta.url);
-      const __dirname = path.dirname(__filename);
-      const catalogPath = path.join(__dirname, '../config/tables-catalog.js');
-      const content = 'export default ' + JSON.stringify(tablesCatalog, null, 2) + '\n';
-      fs.writeFileSync(catalogPath, content);
+      fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2));
     } catch (error) {
       console.error('Erreur mise à jour catalogue:', error);
     }

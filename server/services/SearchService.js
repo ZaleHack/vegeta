@@ -1,9 +1,30 @@
 import database from '../config/database.js';
-import tablesCatalog from '../config/tables-catalog.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 class SearchService {
   constructor() {
-    this.catalog = tablesCatalog;
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
+  }
+
+  loadCatalog() {
+    try {
+      const raw = fs.readFileSync(this.catalogPath, 'utf-8');
+      const json = JSON.parse(raw);
+      const catalog = {};
+      for (const [key, value] of Object.entries(json)) {
+        const [db, ...tableParts] = key.split('_');
+        const tableName = `${db}.${tableParts.join('_')}`;
+        catalog[tableName] = value;
+      }
+      return catalog;
+    } catch (error) {
+      console.error('❌ Erreur chargement catalogue:', error);
+      return {};
+    }
   }
 
   async search(
@@ -17,6 +38,7 @@ class SearchService {
     const startTime = Date.now();
     const results = [];
     const tablesSearched = [];
+    const catalog = this.loadCatalog();
 
     if (!query || query.trim().length === 0) {
       throw new Error('Le terme de recherche ne peut pas être vide');
@@ -28,7 +50,7 @@ class SearchService {
     console.log('🔍 Recherche:', { query, searchTerms, filters });
 
     // Recherche dans toutes les tables configurées en parallèle
-    const searchTasks = Object.entries(this.catalog).map(
+    const searchTasks = Object.entries(catalog).map(
       ([tableName, config]) =>
         (async () => {
           try {
@@ -396,7 +418,8 @@ class SearchService {
   }
 
   async getRecordDetails(tableName, id) {
-    if (!this.catalog[tableName]) {
+    const catalog = this.loadCatalog();
+    if (!catalog[tableName]) {
       throw new Error('Table non autorisée');
     }
 
@@ -415,8 +438,8 @@ class SearchService {
     });
 
     return {
-      table: this.catalog[tableName].display,
-      database: this.catalog[tableName].database,
+      table: catalog[tableName].display,
+      database: catalog[tableName].database,
       details: details
     };
   }
