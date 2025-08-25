@@ -165,18 +165,28 @@ class StatsService {
 
   /**
    * Récupère les logs de recherche récents avec l'utilisateur associé.
+   * Permet de filtrer par nom d'utilisateur.
    */
-  async getSearchLogs(limit = 20) {
+  async getSearchLogs(limit = 20, username = '') {
     try {
-      const logs = await database.query(`
+      let sql = `
         SELECT
           sl.*, u.login as username
         FROM autres.search_logs sl
         LEFT JOIN autres.users u ON sl.user_id = u.id
-        ORDER BY sl.search_date DESC
-        LIMIT ?
-      `, [limit]);
+      `;
 
+      const params = [];
+
+      if (username) {
+        sql += ' WHERE u.login LIKE ?';
+        params.push(`%${username}%`);
+      }
+
+      sql += ' ORDER BY sl.search_date DESC LIMIT ?';
+      params.push(limit);
+
+      const logs = await database.query(sql, params);
       return logs || [];
     } catch (error) {
       console.error('Erreur logs de recherche:', error);
