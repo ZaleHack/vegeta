@@ -142,7 +142,8 @@ router.post('/:id/change-password', authenticate, async (req, res) => {
     }
 
     // Vérifier les permissions (admin ou propriétaire du compte)
-    if (req.user.admin !== 1 && req.user.id !== userId) {
+    const isAdmin = req.user.admin === 1 || req.user.admin === '1' || req.user.admin === true;
+    if (!isAdmin && req.user.id !== userId) {
       return res.status(403).json({ error: 'Permissions insuffisantes' });
     }
 
@@ -156,7 +157,7 @@ router.post('/:id/change-password', authenticate, async (req, res) => {
     }
 
     // Si ce n'est pas un admin, vérifier le mot de passe actuel
-    if (req.user.admin !== 1) {
+    if (!isAdmin) {
       if (!currentPassword) {
         return res.status(400).json({ error: 'Mot de passe actuel requis' });
       }
