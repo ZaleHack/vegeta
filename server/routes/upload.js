@@ -33,10 +33,11 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024 // 50MB
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'text/csv' || path.extname(file.originalname).toLowerCase() === '.csv') {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.csv' || ext === '.sql') {
       cb(null, true);
     } else {
-      cb(new Error('Seuls les fichiers CSV sont autorisés'));
+      cb(new Error('Seuls les fichiers CSV ou SQL sont autorisés'));
     }
   }
 });
@@ -83,6 +84,41 @@ router.post('/csv', authenticate, requireAdmin, upload.single('csvFile'), async 
     res.status(500).json({ 
       error: error.message || 'Erreur lors de l\'upload du fichier'
     });
+  }
+});
+
+// Upload d'un fichier CSV ou SQL vers une nouvelle table
+router.post('/file', authenticate, requireAdmin, upload.single('dataFile'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun fichier fourni' });
+    }
+
+    const { tableName } = req.body;
+    if (!tableName) {
+      return res.status(400).json({ error: 'Nom de table requis' });
+    }
+
+    const filePath = req.file.path;
+    const ext = path.extname(req.file.originalname).toLowerCase();
+
+    let result;
+    if (ext === '.csv') {
+      result = await uploadService.uploadCSV(filePath, tableName, 'new_table', req.user.id);
+    } else if (ext === '.sql') {
+      result = await uploadService.uploadSQL(filePath, tableName, req.user.id);
+    } else {
+      return res.status(400).json({ error: 'Format de fichier non supporté' });
+    }
+
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    res.json({ message: 'Données chargées avec succès', ...result });
+  } catch (error) {
+    console.error('Erreur upload fichier:', error);
+    res.status(500).json({ error: error.message || 'Erreur lors du chargement du fichier' });
   }
 });
 

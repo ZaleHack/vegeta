@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js';
 import searchRoutes from './routes/search.js';
 import usersRoutes from './routes/users.js';
 import statsRoutes from './routes/stats.js';
+import uploadRoutes from './routes/upload.js';
 
 // Initialisation de la base de données
 import database from './config/database.js';
@@ -47,6 +48,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {

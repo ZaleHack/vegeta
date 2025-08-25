@@ -1,6 +1,9 @@
 import database from '../config/database.js';
 import csv from 'csv-parser';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import tablesCatalog from '../config/tables-catalog.js';
 
 class UploadService {
   async uploadCSV(filePath, targetTable, mode = 'insert', userId = null) {
@@ -33,6 +36,7 @@ class UploadService {
       // Si c'est une nouvelle table, la créer
       if (mode === 'new_table') {
         await this.createTableFromCSV(targetTable, rows[0]);
+        await this.addTableToCatalog(targetTable);
       }
 
       // Insérer les données
@@ -108,6 +112,58 @@ class UploadService {
     }
 
     await database.query(sql, values);
+  }
+
+  async uploadSQL(filePath, tableName, userId = null) {
+    const startTime = Date.now();
+    try {
+      const sql = fs.readFileSync(filePath, 'utf-8');
+      await database.query(sql);
+      await this.addTableToCatalog(tableName);
+
+      if (userId) {
+        await this.logUpload({
+          user_id: userId,
+          table_name: tableName,
+          file_name: path.basename(filePath),
+          total_rows: 0,
+          success_rows: 0,
+          error_rows: 0,
+          upload_mode: 'sql',
+          errors: ''
+        });
+      }
+
+      return { success: true, execution_time: Date.now() - startTime };
+    } catch (error) {
+      console.error('Erreur upload SQL:', error);
+      throw error;
+    }
+  }
+
+  async addTableToCatalog(tableName) {
+    try {
+      const columns = await database.query(`SHOW COLUMNS FROM \`${tableName}\``);
+      const columnNames = columns.map(col => col.Field);
+
+      const tableKey = `autres.${tableName}`;
+      tablesCatalog[tableKey] = {
+        display: tableName,
+        database: 'autres',
+        searchable: columnNames,
+        preview: columnNames.slice(0, Math.min(5, columnNames.length)),
+        filters: {},
+        theme: 'autres'
+      };
+
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = path.dirname(__filename);
+      const catalogPath = path.join(__dirname, '../config/tables-catalog.js');
+      const content = 'export default ' + JSON.stringify(tablesCatalog, null, 2) + '\n';
+      fs.writeFileSync(catalogPath, content);
+    } catch (error) {
+      console.error('Erreur mise à jour catalogue:', error);
+    }
   }
 
   async logUpload(logData) {
