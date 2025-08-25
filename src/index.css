@@ -8,6 +8,10 @@
   .dark .text-gray-500 { @apply text-gray-400; }
   .dark .hover\:text-gray-900:hover { @apply text-gray-100; }
   .dark .bg-gray-50 { @apply bg-gray-800; }
+  .dark .bg-white { @apply bg-gray-800; }
+  .dark .border-gray-200 { @apply border-gray-700; }
+  .dark .border-gray-300 { @apply border-gray-600; }
+  .dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { @apply divide-gray-700; }
   .dark .hover\:bg-gray-100:hover { @apply bg-gray-700; }
   .dark .hover\:bg-gray-50:hover { @apply bg-gray-700; }
 }
