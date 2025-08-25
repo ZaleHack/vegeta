@@ -54,7 +54,8 @@ router.get('/user-activity', authenticate, async (req, res) => {
 router.get('/search-logs', authenticate, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 20;
-    const logs = await statsService.getSearchLogs(limit);
+    const username = req.query.username || '';
+    const logs = await statsService.getSearchLogs(limit, username);
     res.json({ logs });
   } catch (error) {
     console.error('Erreur logs de recherche:', error);

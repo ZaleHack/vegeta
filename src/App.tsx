@@ -336,6 +336,27 @@ const App: React.FC = () => {
     }
   };
 
+  const exportStats = () => {
+    const data = {
+      overview: statsData,
+      time_series: timeSeries,
+      data_distribution: tableDistribution,
+      search_logs: searchLogs
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: 'application/json'
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'statistics.json';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -1039,6 +1060,15 @@ const App: React.FC = () => {
                 </p>
               </div>
 
+              <div className="flex justify-end">
+                <button
+                  onClick={exportStats}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Download className="h-4 w-4 mr-2" /> Exporter
+                </button>
+              </div>
+
               {loadingStats ? (
                 <div className="flex items-center justify-center py-16">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1244,6 +1274,14 @@ const App: React.FC = () => {
                               }
                             }}
                           />
+                        </div>
+                        <div className="mt-6 max-h-48 overflow-y-auto space-y-1">
+                          {tableDistribution.map((d, idx) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                              <span className="text-gray-700">{d.table}</span>
+                              <span className="font-medium text-gray-900">{d.count}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
