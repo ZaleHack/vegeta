@@ -76,6 +76,14 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState('login');
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
+  );
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   // États de recherche
   const [searchQuery, setSearchQuery] = useState('');
@@ -684,7 +692,13 @@ const App: React.FC = () => {
   // Page de connexion
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+      <div
+        className={`min-h-screen flex items-center justify-center p-4 ${
+          theme === 'dark'
+            ? 'bg-gray-900 text-white'
+            : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'
+        }`}
+      >
         <div className="max-w-md w-full">
           <div className="bg-white shadow-2xl rounded-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6">
@@ -757,11 +771,21 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div
+      className={`min-h-screen flex ${
+        theme === 'dark'
+          ? 'bg-gray-900 text-gray-100'
+          : 'bg-gray-50 text-gray-900'
+      }`}
+    >
       {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-72' : 'w-20'} bg-white shadow-xl transition-all duration-300 flex flex-col`}>
+      <div
+        className={`${
+          sidebarOpen ? 'w-72' : 'w-20'
+        } bg-white dark:bg-gray-800 shadow-xl transition-all duration-300 flex flex-col`}
+      >
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className={`flex items-center ${!sidebarOpen && 'justify-center'}`}>
               <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg">
@@ -769,17 +793,27 @@ const App: React.FC = () => {
               </div>
               {sidebarOpen && (
                 <div className="ml-3">
-                  <h1 className="text-xl font-bold text-gray-900">VEGETA</h1>
-                  <p className="text-xs text-gray-500">Recherche Pro</p>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">VEGETA</h1>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Recherche Pro</p>
                 </div>
               )}
             </div>
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  setTheme(theme === 'dark' ? 'light' : 'dark')
+                }
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                {theme === 'dark' ? 'Light' : 'Black'}
+              </button>
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
+            </div>
           </div>
         </div>
         
