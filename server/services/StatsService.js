@@ -39,12 +39,20 @@ class StatsService {
         LIMIT 10
       `);
 
+      const searchesByType = await database.query(`
+        SELECT COALESCE(search_type, 'unknown') as search_type, COUNT(*) as search_count
+        FROM autres.search_logs
+        GROUP BY search_type
+        ORDER BY search_count DESC
+      `);
+
       return {
         total_searches: totalSearches?.count || 0,
         avg_execution_time: Math.round(avgExecutionTime?.avg_time || 0),
         today_searches: todaySearches?.count || 0,
         active_users: activeUsers?.count || 0,
-        top_search_terms: topSearchTerms || []
+        top_search_terms: topSearchTerms || [],
+        searches_by_type: searchesByType || []
       };
     } catch (error) {
       console.error('Erreur statistiques overview:', error);

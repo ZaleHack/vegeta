@@ -6,7 +6,14 @@ class SearchService {
     this.catalog = tablesCatalog;
   }
 
-  async search(query, filters = {}, page = 1, limit = 20, user = null) {
+  async search(
+    query,
+    filters = {},
+    page = 1,
+    limit = 20,
+    user = null,
+    searchType = 'global'
+  ) {
     const startTime = Date.now();
     const results = [];
     const tablesSearched = [];
@@ -51,6 +58,7 @@ class SearchService {
         user_id: user.id,
         username: user.login,
         search_term: query,
+        search_type: searchType,
         filters: JSON.stringify(filters),
         tables_searched: JSON.stringify(tablesSearched),
         results_count: totalResults,
@@ -348,13 +356,14 @@ class SearchService {
     try {
       await database.query(`
         INSERT INTO autres.search_logs (
-          user_id, username, search_term, tables_searched, 
+          user_id, username, search_term, search_type, tables_searched,
           results_count, execution_time_ms, ip_address, user_agent
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         logData.user_id,
         logData.username,
         logData.search_term,
+        logData.search_type,
         logData.tables_searched,
         logData.results_count,
         logData.execution_time_ms,
