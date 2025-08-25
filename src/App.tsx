@@ -38,6 +38,7 @@ import {
 } from 'chart.js';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import jsPDF from 'jspdf';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -267,6 +268,51 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Erreur export:', error);
       alert('Erreur lors de l\'export');
+    }
+  };
+
+  const exportToPDF = () => {
+    if (!searchResults || searchResults.hits.length === 0) {
+      alert('Aucun résultat à exporter');
+      return;
+    }
+
+    try {
+      const allFields = new Set<string>();
+      searchResults.hits.forEach(hit => {
+        Object.keys(hit.preview).forEach(field => allFields.add(field));
+      });
+
+      const fields = ['Source', 'Base', 'Score', ...Array.from(allFields)];
+      const doc = new jsPDF();
+      let y = 10;
+      doc.setFontSize(10);
+      doc.text(fields.join(' | '), 10, y);
+      y += 10;
+
+      searchResults.hits.forEach(hit => {
+        const row = [
+          hit.table || '',
+          hit.database || '',
+          String(hit.score || 0),
+          ...Array.from(allFields).map(field => String(hit.preview[field] ?? ''))
+        ];
+        doc.text(row.join(' | '), 10, y);
+        y += 10;
+        if (y > 280) {
+          doc.addPage();
+          y = 10;
+        }
+      });
+
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      const searchTerm = searchQuery.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_');
+      doc.save(`vegeta-export-${searchTerm}-${timestamp}.pdf`);
+
+      alert(`Export PDF réussi ! ${searchResults.hits.length} résultats exportés.`);
+    } catch (error) {
+      console.error('Erreur export PDF:', error);
+      alert('Erreur lors de l\'export PDF');
     }
   };
 
@@ -834,13 +880,22 @@ const App: React.FC = () => {
                       </div>
                       
                       {searchResults.hits.length > 0 && (
-                        <button
-                          onClick={exportToCSV}
-                          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          Export Excel
-                        </button>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={exportToCSV}
+                            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Export CSV
+                          </button>
+                          <button
+                            onClick={exportToPDF}
+                            className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            Export PDF
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
