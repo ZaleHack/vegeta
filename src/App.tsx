@@ -1,8 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Database, Users, Settings, LogOut, User, Plus, Edit, Trash2, Key, Eye, EyeOff, Download, Menu, X, Shield, UserCheck, Clock, Activity, Timer, TrendingUp, BarChart3 } from 'lucide-react';
-import { Line } from 'react-chartjs-2';
-import { format, subDays } from 'date-fns';
+import {
+  Search,
+  Database,
+  Users,
+  Settings,
+  LogOut,
+  User,
+  Plus,
+  Edit,
+  Trash2,
+  Key,
+  Eye,
+  EyeOff,
+  Download,
+  Menu,
+  X,
+  Shield,
+  UserCheck,
+  Clock,
+  Activity,
+  Timer,
+  TrendingUp,
+  BarChart3,
+  FileText
+} from 'lucide-react';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Tooltip,
+  Legend
+} from 'chart.js';
+import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
 interface User {
   id: number;
@@ -71,6 +108,9 @@ const App: React.FC = () => {
   const [statsData, setStatsData] = useState(null);
   const [searchLogs, setSearchLogs] = useState([]);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [timeSeries, setTimeSeries] = useState<any[]>([]);
+  const [tableDistribution, setTableDistribution] = useState<any[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Vérification de l'authentification au démarrage
   useEffect(() => {
@@ -249,38 +289,47 @@ const App: React.FC = () => {
   // Charger les statistiques
   const loadStatistics = async () => {
     if (!currentUser || (currentUser.admin !== 1 && currentUser.admin !== "1")) return;
-    
+
     try {
-      setLoading(true);
-      
-      // Charger les statistiques générales
-      const statsResponse = await fetch('/api/stats/overview', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
+      setLoadingStats(true);
+      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+
+      const [statsResponse, logsResponse, timeResponse, distResponse] = await Promise.all([
+        fetch('/api/stats/overview', { headers }),
+        fetch('/api/stats/search-logs?limit=10', { headers }),
+        fetch('/api/stats/time-series?days=7', { headers }),
+        fetch('/api/stats/data-distribution', { headers })
+      ]);
+
       if (statsResponse.ok) {
         const stats = await statsResponse.json();
         setStatsData(stats);
       }
-      
-      // Charger les logs de recherche
-      const logsResponse = await fetch('/api/stats/search-logs?limit=10', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
+
       if (logsResponse.ok) {
         const logs = await logsResponse.json();
         setSearchLogs(logs.logs || []);
       }
-      
+
+      if (timeResponse.ok) {
+        const ts = await timeResponse.json();
+        setTimeSeries(ts.time_series || []);
+      }
+
+      if (distResponse.ok) {
+        const dist = await distResponse.json();
+        const distribution = Object.entries(dist.distribution || {}).map(([key, info]: [string, any]) => ({
+          table: (info as any).table_name || key,
+          count: (info as any).total_records || (info as any).count || 0
+        }));
+        setTableDistribution(distribution);
+        const total = distribution.reduce((sum, item) => sum + (item.count || 0), 0);
+        setTotalRecords(total);
+      }
     } catch (error) {
       console.error('Erreur chargement statistiques:', error);
     } finally {
-      setLoading(false);
+      setLoadingStats(false);
     }
   };
 
@@ -995,7 +1044,7 @@ const App: React.FC = () => {
               ) : (
                 <>
                   {/* Métriques principales */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                     <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-xl">
                       <div className="flex items-center justify-between">
                         <div>
@@ -1004,6 +1053,18 @@ const App: React.FC = () => {
                         </div>
                         <div className="bg-white/20 rounded-full p-3">
                           <Search className="h-8 w-8" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-6 text-white shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-teal-100 text-sm font-medium">Enregistrements indexés</p>
+                          <p className="text-3xl font-bold">{totalRecords}</p>
+                        </div>
+                        <div className="bg-white/20 rounded-full p-3">
+                          <Database className="h-8 w-8" />
                         </div>
                       </div>
                     </div>
@@ -1056,12 +1117,12 @@ const App: React.FC = () => {
                       <div className="h-80">
                         <Line
                           data={{
-                            labels: Array.from({ length: 7 }, (_, i) => 
-                              format(subDays(new Date(), 6 - i), 'dd/MM', { locale: fr })
+                            labels: timeSeries.map(item =>
+                              format(parseISO(item.date), 'dd/MM', { locale: fr })
                             ),
                             datasets: [{
                               label: 'Nombre de recherches',
-                              data: Array.from({ length: 7 }, () => Math.floor(Math.random() * 50) + 10),
+                              data: timeSeries.map(item => item.searches),
                               borderColor: 'rgb(59, 130, 246)',
                               backgroundColor: 'rgba(59, 130, 246, 0.1)',
                               tension: 0.4,
@@ -1103,10 +1164,12 @@ const App: React.FC = () => {
                       <div className="h-80">
                         <Bar
                           data={{
-                            labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+                            labels: timeSeries.map(item =>
+                              format(parseISO(item.date), 'dd/MM', { locale: fr })
+                            ),
                             datasets: [{
                               label: 'Temps moyen (ms)',
-                              data: Array.from({ length: 7 }, () => Math.floor(Math.random() * 200) + 50),
+                              data: timeSeries.map(item => item.avg_time),
                               backgroundColor: 'rgba(147, 51, 234, 0.8)',
                               borderColor: 'rgb(147, 51, 234)',
                               borderWidth: 1,
@@ -1151,16 +1214,16 @@ const App: React.FC = () => {
                         <div className="h-80">
                           <Doughnut
                             data={{
-                              labels: ['esolde', 'rhpolice', 'renseignement', 'autres', 'elections'],
+                              labels: tableDistribution.map(d => d.table),
                               datasets: [{
-                                data: [25, 20, 15, 25, 15],
-                                backgroundColor: [
+                                data: tableDistribution.map(d => d.count),
+                                backgroundColor: tableDistribution.map((_, i) => [
                                   'rgba(59, 130, 246, 0.8)',
                                   'rgba(16, 185, 129, 0.8)',
                                   'rgba(245, 158, 11, 0.8)',
                                   'rgba(239, 68, 68, 0.8)',
                                   'rgba(147, 51, 234, 0.8)'
-                                ],
+                                ][i % 5]),
                                 borderWidth: 0
                               }]
                             }}
