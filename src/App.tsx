@@ -772,11 +772,7 @@ const App: React.FC = () => {
 
   return (
     <div
-      className={`min-h-screen flex ${
-        theme === 'dark'
-          ? 'bg-gray-900 text-gray-100'
-          : 'bg-gray-50 text-gray-900'
-      }`}
+      className="min-h-screen flex bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
     >
       {/* Sidebar */}
       <div
