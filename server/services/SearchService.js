@@ -27,19 +27,39 @@ class SearchService {
 
     console.log('🔍 Recherche:', { query, searchTerms, filters });
 
-    // Recherche dans toutes les tables configurées
-    for (const [tableName, config] of Object.entries(this.catalog)) {
-      try {
-        console.log(`🔍 Recherche dans ${tableName}...`);
-        const tableResults = await this.searchInTable(tableName, config, searchTerms, filters);
-        if (tableResults.length > 0) {
-          results.push(...tableResults);
-          tablesSearched.push(tableName);
-          console.log(`✅ ${tableResults.length} résultats trouvés dans ${tableName}`);
-        }
-      } catch (error) {
-        console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
-        // Continue avec les autres tables même si une échoue
+    // Recherche dans toutes les tables configurées en parallèle
+    const searchTasks = Object.entries(this.catalog).map(
+      ([tableName, config]) =>
+        (async () => {
+          try {
+            console.log(`🔍 Recherche dans ${tableName}...`);
+            const tableResults = await this.searchInTable(
+              tableName,
+              config,
+              searchTerms,
+              filters
+            );
+            if (tableResults.length > 0) {
+              console.log(
+                `✅ ${tableResults.length} résultats trouvés dans ${tableName}`
+              );
+            }
+            return { tableName, tableResults };
+          } catch (error) {
+            console.error(
+              `❌ Erreur recherche table ${tableName}:`,
+              error.message
+            );
+            return { tableName, tableResults: [] };
+          }
+        })()
+    );
+
+    const searchResults = await Promise.all(searchTasks);
+    for (const { tableName, tableResults } of searchResults) {
+      if (tableResults.length > 0) {
+        results.push(...tableResults);
+        tablesSearched.push(tableName);
       }
     }
 
