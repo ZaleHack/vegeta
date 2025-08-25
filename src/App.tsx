@@ -389,24 +389,42 @@ const App: React.FC = () => {
   };
 
   const exportStats = () => {
-    const data = {
-      overview: statsData,
-      time_series: timeSeries,
-      data_distribution: tableDistribution,
-      search_logs: searchLogs
+    const doc = new jsPDF();
+    let y = 10;
+
+    const addLine = (text: string) => {
+      const lines = doc.splitTextToSize(text, 190);
+      lines.forEach(line => {
+        doc.text(line, 10, y);
+        y += 6;
+        if (y > 280) {
+          doc.addPage();
+          y = 10;
+        }
+      });
     };
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: 'application/json'
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'statistics.json';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    doc.setFontSize(16);
+    addLine('Statistiques VEGETA');
+
+    doc.setFontSize(12);
+    addLine("--- Vue d'ensemble ---");
+    if (statsData) {
+      Object.entries(statsData).forEach(([key, value]) =>
+        addLine(`${key}: ${value}`)
+      );
+    }
+
+    addLine('--- Séries temporelles ---');
+    timeSeries.forEach(item => addLine(JSON.stringify(item)));
+
+    addLine('--- Distribution des tables ---');
+    tableDistribution.forEach(item => addLine(JSON.stringify(item)));
+
+    addLine('--- Journaux de recherche ---');
+    searchLogs.forEach(log => addLine(JSON.stringify(log)));
+
+    doc.save('statistics.pdf');
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -1218,7 +1236,7 @@ const App: React.FC = () => {
                   onClick={exportStats}
                   className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  <Download className="h-4 w-4 mr-2" /> Exporter
+                  <Download className="h-4 w-4 mr-2" /> Exporter PDF
                 </button>
               </div>
 
