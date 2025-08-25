@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Database, Users, Settings, LogOut, User, Plus, Edit, Trash2, Key, Eye, EyeOff, Download, Menu, X, Shield, UserCheck, Clock, Activity } from 'lucide-react';
+import { Search, Database, Users, Settings, LogOut, User, Plus, Edit, Trash2, Key, Eye, EyeOff, Download, Menu, X, Shield, UserCheck, Clock, Activity, Timer, TrendingUp, BarChart3 } from 'lucide-react';
+import { Line } from 'react-chartjs-2';
+import { format, subDays } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 interface User {
   id: number;
@@ -580,17 +583,31 @@ const App: React.FC = () => {
             </button>
             
             {isAdmin && (
-              <button
-                onClick={() => setCurrentPage('users')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                  currentPage === 'users'
-                    ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                } ${!sidebarOpen && 'justify-center'}`}
-              >
-                <Users className="h-5 w-5" />
-                {sidebarOpen && <span className="ml-3">Utilisateurs</span>}
-              </button>
+              <>
+                <button
+                  onClick={() => setCurrentPage('users')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                    currentPage === 'users'
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  } ${!sidebarOpen && 'justify-center'}`}
+                >
+                  <Users className="h-5 w-5" />
+                  {sidebarOpen && <span className="ml-3">Utilisateurs</span>}
+                </button>
+
+                <button
+                  onClick={() => setCurrentPage('statistics')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                    currentPage === 'statistics'
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  } ${!sidebarOpen && 'justify-center'}`}
+                >
+                  <Activity className="h-5 w-5" />
+                  {sidebarOpen && <span className="ml-3">Statistiques</span>}
+                </button>
+              </>
             )}
           </div>
         </nav>
@@ -958,7 +975,7 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {currentPage === 'stats' && isAdmin && (
+          {currentPage === 'statistics' && isAdmin && (
             <div className="space-y-8">
               {/* Header */}
               <div className="text-center">
