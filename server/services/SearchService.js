@@ -2,6 +2,7 @@ import database from '../config/database.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import baseCatalog from '../config/tables-catalog.js';
 
 class SearchService {
   constructor() {
@@ -11,20 +12,21 @@ class SearchService {
   }
 
   loadCatalog() {
+    let catalog = { ...baseCatalog };
     try {
-      const raw = fs.readFileSync(this.catalogPath, 'utf-8');
-      const json = JSON.parse(raw);
-      const catalog = {};
-      for (const [key, value] of Object.entries(json)) {
-        const [db, ...tableParts] = key.split('_');
-        const tableName = `${db}.${tableParts.join('_')}`;
-        catalog[tableName] = value;
+      if (fs.existsSync(this.catalogPath)) {
+        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
+        const json = JSON.parse(raw);
+        for (const [key, value] of Object.entries(json)) {
+          const [db, ...tableParts] = key.split('_');
+          const tableName = `${db}.${tableParts.join('_')}`;
+          catalog[tableName] = value;
+        }
       }
-      return catalog;
     } catch (error) {
       console.error('❌ Erreur chargement catalogue:', error);
-      return {};
     }
+    return catalog;
   }
 
   async search(
