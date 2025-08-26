@@ -305,7 +305,7 @@ const App: React.FC = () => {
         console.log('🔍 Admin status:', data.user.admin, 'Type:', typeof data.user.admin);
         setCurrentUser(data.user);
         setIsAuthenticated(true);
-        setCurrentPage('search');
+        setCurrentPage('statistics');
       } else {
         localStorage.removeItem('token');
       }
@@ -335,7 +335,7 @@ const App: React.FC = () => {
         console.log('🔍 Admin status:', data.user.admin, 'Type:', typeof data.user.admin);
         setCurrentUser(data.user);
         setIsAuthenticated(true);
-        setCurrentPage('search');
+        setCurrentPage('statistics');
         setLoginData({ login: '', password: '' });
       } else {
         setLoginError(data.error || 'Erreur de connexion');
@@ -2267,7 +2267,7 @@ const App: React.FC = () => {
               {/* Header */}
               <div className="text-center">
                 <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                  Tableau de Bord Statistiques
+                  Dashboard
                 </h1>
                 <p className="text-lg text-gray-600">
                   Analyse complète de l'utilisation de la plateforme VEGETA
