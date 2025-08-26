@@ -26,7 +26,8 @@ import {
   Upload,
   UploadCloud,
   Phone,
-  Building2
+  Building2,
+  Globe
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -115,6 +116,19 @@ interface EntrepriseEntry {
   systeme: string;
 }
 
+interface OngEntry {
+  id: number;
+  OrganizationName: string;
+  Type: string;
+  Name: string;
+  Title: string;
+  EmailAddress: string;
+  Telephone: string;
+  SelectAreaofInterest: string;
+  SelectSectorsofInterest: string;
+  created_at: string;
+}
+
 const App: React.FC = () => {
   // États principaux
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -170,6 +184,12 @@ const App: React.FC = () => {
   const [gendarmerieSearch, setGendarmerieSearch] = useState('');
   const [gendarmeriePage, setGendarmeriePage] = useState(1);
   const gendarmeriePerPage = 10;
+
+  // États ONG
+  const [ongData, setOngData] = useState<OngEntry[]>([]);
+  const [ongSearch, setOngSearch] = useState('');
+  const [ongPage, setOngPage] = useState(1);
+  const ongPerPage = 10;
 
   // États entreprises
   const [entreprisesData, setEntreprisesData] = useState<EntrepriseEntry[]>([]);
@@ -816,6 +836,22 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchOng = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/ong', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const entries = data.entries || data;
+        setOngData(entries);
+      }
+    } catch (error) {
+      console.error('Erreur chargement ONG:', error);
+    }
+  };
+
   const fetchEntreprises = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -845,6 +881,9 @@ const App: React.FC = () => {
     }
     if (currentPage === 'annuaire' && currentUser) {
       fetchAnnuaire();
+    }
+    if (currentPage === 'ong' && currentUser) {
+      fetchOng();
     }
     if (currentPage === 'entreprises' && currentUser) {
       fetchEntreprises();
@@ -894,6 +933,26 @@ const App: React.FC = () => {
     gendarmeriePage * gendarmeriePerPage
   );
 
+  const filteredOng =
+    ongSearch.trim() === ''
+      ? ongData
+      : ongData.filter(entry =>
+          Object.values(entry).some(val =>
+            String(val || '')
+              .toLowerCase()
+              .includes(ongSearch.toLowerCase())
+          )
+        );
+
+  const ongTotalPages = Math.max(
+    1,
+    Math.ceil(filteredOng.length / ongPerPage)
+  );
+  const paginatedOng = filteredOng.slice(
+    (ongPage - 1) * ongPerPage,
+    ongPage * ongPerPage
+  );
+
   const filteredEntreprises =
     entreprisesSearch.trim() === ''
       ? entreprisesData
@@ -917,6 +976,10 @@ const App: React.FC = () => {
   useEffect(() => {
     setGendarmeriePage(1);
   }, [gendarmerieSearch]);
+
+  useEffect(() => {
+    setOngPage(1);
+  }, [ongSearch]);
 
   useEffect(() => {
     setEntreprisesPage(1);
@@ -1071,6 +1134,18 @@ const App: React.FC = () => {
             >
               <Phone className="h-5 w-5" />
               {sidebarOpen && <span className="ml-3">Annuaire Gendarmerie</span>}
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('ong')}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'ong'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <Globe className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">ONG</span>}
             </button>
 
             <button
@@ -1444,6 +1519,77 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setGendarmeriePage((p) => Math.min(p + 1, gendarmerieTotalPages))}
                       disabled={gendarmeriePage === gendarmerieTotalPages}
+                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentPage === 'ong' && (
+            <div className="space-y-6">
+              <h1 className="text-3xl font-bold text-gray-900">ONG</h1>
+              <input
+                type="text"
+                placeholder="Rechercher..."
+                value={ongSearch}
+                onChange={(e) => {
+                  setOngSearch(e.target.value);
+                  setOngPage(1);
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="overflow-x-auto bg-white shadow rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">OrganizationName</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">EmailAddress</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telephone</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SelectAreaofInterest</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SelectSectorsofInterest</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">created_at</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {paginatedOng.map(entry => (
+                      <tr key={entry.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.OrganizationName}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Title}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.EmailAddress}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.SelectAreaofInterest}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.SelectSectorsofInterest}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.created_at}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                  <span className="text-sm text-gray-700">
+                    Page {ongPage} sur {ongTotalPages}
+                  </span>
+                  <div className="space-x-2">
+                    <button
+                      onClick={() => setOngPage(p => Math.max(p - 1, 1))}
+                      disabled={ongPage === 1}
+                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Précédent
+                    </button>
+                    <button
+                      onClick={() => setOngPage(p => Math.min(p + 1, ongTotalPages))}
+                      disabled={ongPage === ongTotalPages}
                       className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                     >
                       Suivant
