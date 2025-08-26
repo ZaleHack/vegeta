@@ -238,12 +238,14 @@ const App: React.FC = () => {
   const [entreprisesPage, setEntreprisesPage] = useState(1);
   const [entreprisesLoading, setEntreprisesLoading] = useState(false);
   const entreprisesPerPage = 12;
+  const [entreprisesTotal, setEntreprisesTotal] = useState(0);
 
   const [vehiculesData, setVehiculesData] = useState<VehiculeEntry[]>([]);
   const [vehiculesSearch, setVehiculesSearch] = useState('');
   const [vehiculesPage, setVehiculesPage] = useState(1);
   const [vehiculesLoading, setVehiculesLoading] = useState(false);
   const vehiculesPerPage = 12;
+  const [vehiculesTotal, setVehiculesTotal] = useState(0);
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -910,13 +912,21 @@ const App: React.FC = () => {
     setEntreprisesLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/entreprises', {
+      const params = new URLSearchParams({
+        page: entreprisesPage.toString(),
+        limit: entreprisesPerPage.toString()
+      });
+      if (entreprisesSearch.trim()) {
+        params.append('search', entreprisesSearch.trim());
+      }
+      const response = await fetch(`/api/entreprises?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
-        const entries = data.entries || data;
+        const entries = data.entries || [];
         setEntreprisesData(entries);
+        setEntreprisesTotal(data.total || entries.length);
       }
     } catch (error) {
       console.error('Erreur chargement entreprises:', error);
@@ -929,13 +939,21 @@ const App: React.FC = () => {
     setVehiculesLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/vehicules', {
+      const params = new URLSearchParams({
+        page: vehiculesPage.toString(),
+        limit: vehiculesPerPage.toString()
+      });
+      if (vehiculesSearch.trim()) {
+        params.append('search', vehiculesSearch.trim());
+      }
+      const response = await fetch(`/api/vehicules?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
-        const entries = data.entries || data;
+        const entries = data.entries || [];
         setVehiculesData(entries);
+        setVehiculesTotal(data.total || entries.length);
       }
     } catch (error) {
       console.error('Erreur chargement véhicules:', error);
@@ -967,7 +985,7 @@ const App: React.FC = () => {
     if (currentPage === 'vehicules' && currentUser) {
       fetchVehicules();
     }
-  }, [currentPage, currentUser]);
+  }, [currentPage, currentUser, entreprisesPage, entreprisesSearch, vehiculesPage, vehiculesSearch]);
 
   // Vérifier si l'utilisateur est admin
   const isAdmin = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
@@ -1048,45 +1066,17 @@ const App: React.FC = () => {
     ongPage * ongPerPage
   );
 
-  const filteredEntreprises =
-    entreprisesSearch.trim() === ''
-      ? entreprisesData
-      : entreprisesData.filter(entry =>
-          Object.values(entry).some(val =>
-            String(val || '')
-              .toLowerCase()
-              .includes(entreprisesSearch.toLowerCase())
-          )
-        );
-
   const entreprisesTotalPages = Math.max(
     1,
-    Math.ceil(filteredEntreprises.length / entreprisesPerPage)
+    Math.ceil(entreprisesTotal / entreprisesPerPage)
   );
-  const paginatedEntreprises = filteredEntreprises.slice(
-    (entreprisesPage - 1) * entreprisesPerPage,
-    entreprisesPage * entreprisesPerPage
-  );
-
-  const filteredVehicules =
-    vehiculesSearch.trim() === ''
-      ? vehiculesData
-      : vehiculesData.filter(entry =>
-          Object.values(entry).some(val =>
-            String(val || '')
-              .toLowerCase()
-              .includes(vehiculesSearch.toLowerCase())
-          )
-        );
+  const paginatedEntreprises = entreprisesData;
 
   const vehiculesTotalPages = Math.max(
     1,
-    Math.ceil(filteredVehicules.length / vehiculesPerPage)
+    Math.ceil(vehiculesTotal / vehiculesPerPage)
   );
-  const paginatedVehicules = filteredVehicules.slice(
-    (vehiculesPage - 1) * vehiculesPerPage,
-    vehiculesPage * vehiculesPerPage
-  );
+  const paginatedVehicules = vehiculesData;
 
   useEffect(() => {
     setGendarmeriePage(1);
