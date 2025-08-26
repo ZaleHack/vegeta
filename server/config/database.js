@@ -74,6 +74,15 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.annuaire_gendarmerie (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          Libelle VARCHAR(255) NOT NULL,
+          Telephone VARCHAR(50) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
       console.log('✅ Tables système créées avec succès');
     } catch (error) {
       console.error('❌ Erreur création tables système:', error);
