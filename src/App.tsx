@@ -27,7 +27,8 @@ import {
   UploadCloud,
   Phone,
   Building2,
-  Globe
+  Globe,
+  Car
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -129,6 +130,44 @@ interface OngEntry {
   created_at: string;
 }
 
+interface VehiculeEntry {
+  ID: number;
+  Numero_Immatriculation: string;
+  Code_Type: string;
+  Numero_Serie: string;
+  Date_Immatriculation: string;
+  Serie_Immatriculation: string;
+  Categorie: string;
+  Marque: string;
+  Appelation_Com: string;
+  Genre: string;
+  Carrosserie: string;
+  Etat_Initial: string;
+  Immat_Etrangere: string;
+  Date_Etrangere: string;
+  Date_Mise_Circulation: string;
+  Date_Premiere_Immat: string;
+  Energie: string;
+  Puissance_Adm: string;
+  Cylindre: string;
+  Places_Assises: string;
+  PTR: string;
+  PTAC_Code: string;
+  Poids_Vide: string;
+  CU: string;
+  Prenoms: string;
+  Nom: string;
+  Date_Naissance: string;
+  Exact: string;
+  Lieu_Naissance: string;
+  Adresse_Vehicule: string;
+  Code_Localite: string;
+  Tel_Fixe: string;
+  Tel_Portable: string;
+  PrecImmat: string;
+  Date_PrecImmat: string;
+}
+
 const App: React.FC = () => {
   // États principaux
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -196,6 +235,11 @@ const App: React.FC = () => {
   const [entreprisesSearch, setEntreprisesSearch] = useState('');
   const [entreprisesPage, setEntreprisesPage] = useState(1);
   const entreprisesPerPage = 10;
+
+  const [vehiculesData, setVehiculesData] = useState<VehiculeEntry[]>([]);
+  const [vehiculesSearch, setVehiculesSearch] = useState('');
+  const [vehiculesPage, setVehiculesPage] = useState(1);
+  const vehiculesPerPage = 10;
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -868,6 +912,22 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchVehicules = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/vehicules', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const entries = data.entries || data;
+        setVehiculesData(entries);
+      }
+    } catch (error) {
+      console.error('Erreur chargement véhicules:', error);
+    }
+  };
+
   // Charger les utilisateurs quand on accède à la page
   useEffect(() => {
     if (currentPage === 'users' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
@@ -887,6 +947,9 @@ const App: React.FC = () => {
     }
     if (currentPage === 'entreprises' && currentUser) {
       fetchEntreprises();
+    }
+    if (currentPage === 'vehicules' && currentUser) {
+      fetchVehicules();
     }
   }, [currentPage, currentUser]);
 
@@ -973,6 +1036,26 @@ const App: React.FC = () => {
     entreprisesPage * entreprisesPerPage
   );
 
+  const filteredVehicules =
+    vehiculesSearch.trim() === ''
+      ? vehiculesData
+      : vehiculesData.filter(entry =>
+          Object.values(entry).some(val =>
+            String(val || '')
+              .toLowerCase()
+              .includes(vehiculesSearch.toLowerCase())
+          )
+        );
+
+  const vehiculesTotalPages = Math.max(
+    1,
+    Math.ceil(filteredVehicules.length / vehiculesPerPage)
+  );
+  const paginatedVehicules = filteredVehicules.slice(
+    (vehiculesPage - 1) * vehiculesPerPage,
+    vehiculesPage * vehiculesPerPage
+  );
+
   useEffect(() => {
     setGendarmeriePage(1);
   }, [gendarmerieSearch]);
@@ -984,6 +1067,10 @@ const App: React.FC = () => {
   useEffect(() => {
     setEntreprisesPage(1);
   }, [entreprisesSearch]);
+
+  useEffect(() => {
+    setVehiculesPage(1);
+  }, [vehiculesSearch]);
 
   // Page de connexion
   if (!isAuthenticated) {
@@ -1158,6 +1245,18 @@ const App: React.FC = () => {
             >
               <Building2 className="h-5 w-5" />
               {sidebarOpen && <span className="ml-3">Entreprises</span>}
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('vehicules')}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'vehicules'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <Car className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">Véhicules</span>}
             </button>
 
             {isAdmin && (
@@ -1711,6 +1810,127 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setEntreprisesPage((p) => Math.min(p + 1, entreprisesTotalPages))}
                       disabled={entreprisesPage === entreprisesTotalPages}
+                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentPage === 'vehicules' && (
+            <div className="space-y-6">
+              <h1 className="text-3xl font-bold text-gray-900">Véhicules</h1>
+              <input
+                type="text"
+                placeholder="Rechercher..."
+                value={vehiculesSearch}
+                onChange={(e) => {
+                  setVehiculesSearch(e.target.value);
+                  setVehiculesPage(1);
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="overflow-x-auto bg-white shadow rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numero_Immatriculation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code_Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numero_Serie</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_Immatriculation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serie_Immatriculation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categorie</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marque</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Appelation_Com</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Genre</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carrosserie</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Etat_Initial</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Immat_Etrangere</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_Etrangere</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_Mise_Circulation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_Premiere_Immat</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Energie</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Puissance_Adm</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cylindre</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Places_Assises</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PTR</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PTAC_Code</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Poids_Vide</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CU</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prenoms</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_Naissance</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exact</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lieu_Naissance</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse_Vehicule</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code_Localite</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tel_Fixe</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tel_Portable</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PrecImmat</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_PrecImmat</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {paginatedVehicules.map((entry) => (
+                      <tr key={entry.ID}>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.ID}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Numero_Immatriculation}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Code_Type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Numero_Serie}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Immatriculation}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Serie_Immatriculation}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Categorie}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Marque}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Appelation_Com}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Genre}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Carrosserie}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Etat_Initial}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Immat_Etrangere}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Etrangere}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Mise_Circulation}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Premiere_Immat}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Energie}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Puissance_Adm}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Cylindre}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Places_Assises}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.PTR}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.PTAC_Code}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Poids_Vide}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.CU}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Prenoms}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Nom}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Naissance}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Exact}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Lieu_Naissance}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Adresse_Vehicule}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Code_Localite}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Tel_Fixe}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Tel_Portable}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.PrecImmat}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_PrecImmat}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                  <span className="text-sm text-gray-700">
+                    Page {vehiculesPage} sur {vehiculesTotalPages}
+                  </span>
+                  <div className="space-x-2">
+                    <button
+                      onClick={() => setVehiculesPage((p) => Math.max(p - 1, 1))}
+                      disabled={vehiculesPage === 1}
+                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Précédent
+                    </button>
+                    <button
+                      onClick={() => setVehiculesPage((p) => Math.min(p + 1, vehiculesTotalPages))}
+                      disabled={vehiculesPage === vehiculesTotalPages}
                       className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                     >
                       Suivant
