@@ -24,7 +24,8 @@ import {
   BarChart3,
   FileText,
   Upload,
-  UploadCloud
+  UploadCloud,
+  Phone
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -67,6 +68,12 @@ interface SearchResponse {
   elapsed_ms: number;
   hits: SearchResult[];
   tables_searched: string[];
+}
+
+interface GendarmerieEntry {
+  id: number;
+  Libelle: string;
+  Telephone: string;
 }
 
 const App: React.FC = () => {
@@ -118,6 +125,10 @@ const App: React.FC = () => {
   const [uploadTable, setUploadTable] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadHistory, setUploadHistory] = useState<any[]>([]);
+
+  // États annuaire gendarmerie
+  const [gendarmerieData, setGendarmerieData] = useState<GendarmerieEntry[]>([]);
+  const [gendarmerieSearch, setGendarmerieSearch] = useState('');
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -742,6 +753,22 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchAnnuaire = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/annuaire-gendarmerie', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const entries = data.entries || data.contacts || data;
+        setGendarmerieData(entries);
+      }
+    } catch (error) {
+      console.error('Erreur chargement annuaire:', error);
+    }
+  };
+
   // Charger les utilisateurs quand on accède à la page
   useEffect(() => {
     if (currentPage === 'users' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
@@ -753,10 +780,19 @@ const App: React.FC = () => {
     if (currentPage === 'upload' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
       fetchUploadHistory();
     }
+    if (currentPage === 'annuaire' && currentUser) {
+      fetchAnnuaire();
+    }
   }, [currentPage, currentUser]);
 
   // Vérifier si l'utilisateur est admin
   const isAdmin = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
+
+  const filteredGendarmerie = gendarmerieData.filter((entry) =>
+    entry.Libelle.toLowerCase().includes(gendarmerieSearch.toLowerCase()) ||
+    entry.Telephone.toLowerCase().includes(gendarmerieSearch.toLowerCase()) ||
+    entry.id.toString().includes(gendarmerieSearch)
+  );
 
   // Page de connexion
   if (!isAuthenticated) {
@@ -896,7 +932,19 @@ const App: React.FC = () => {
               <Search className="h-5 w-5" />
               {sidebarOpen && <span className="ml-3">Recherche</span>}
             </button>
-            
+
+            <button
+              onClick={() => setCurrentPage('annuaire')}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'annuaire'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <Phone className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">Annuaire Gendarmerie</span>}
+            </button>
+
             {isAdmin && (
               <>
                 <button
@@ -1200,6 +1248,39 @@ const App: React.FC = () => {
                     )}
                 </div>
               )}
+            </div>
+          )}
+
+          {currentPage === 'annuaire' && (
+            <div className="space-y-6">
+              <h1 className="text-3xl font-bold text-gray-900">Annuaire Gendarmerie</h1>
+              <input
+                type="text"
+                placeholder="Rechercher..."
+                value={gendarmerieSearch}
+                onChange={(e) => setGendarmerieSearch(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="overflow-x-auto bg-white shadow rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Libellé</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredGendarmerie.map((entry) => (
+                      <tr key={entry.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Libelle}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
