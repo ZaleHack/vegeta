@@ -525,13 +525,14 @@ const App: React.FC = () => {
 
   // Charger les statistiques
   const loadStatistics = async () => {
-    if (!currentUser || (currentUser.admin !== 1 && currentUser.admin !== "1")) return;
+    if (!currentUser) return;
 
     try {
       setLoadingStats(true);
       const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
 
-      const logQuery = logUserFilter ? `?username=${encodeURIComponent(logUserFilter)}` : '';
+      const isAdmin = currentUser.admin === 1 || currentUser.admin === "1";
+      const logQuery = isAdmin && logUserFilter ? `?username=${encodeURIComponent(logUserFilter)}` : '';
 
       const [statsResponse, logsResponse, timeResponse, distResponse] = await Promise.all([
         fetch('/api/stats/overview', { headers }),
