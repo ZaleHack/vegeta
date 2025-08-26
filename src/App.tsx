@@ -186,6 +186,14 @@ const usefulLinks = [
   {
     title: 'Liste Rouge Interpol',
     url: 'https://www.interpol.int/fr/Notre-action/Notices/Notices-rouges/Voir-les-notices-rouges'
+  },
+  {
+    title: 'search Compagnie UK',
+    url: 'https://find-and-update.company-information.service.gov.uk/'
+  },
+  {
+    title: "recherche d'entreprise en France",
+    url: 'https://data.inpi.fr/'
   }
 ];
 
