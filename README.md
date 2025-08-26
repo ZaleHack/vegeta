@@ -105,6 +105,7 @@ La plateforme supporte les bases de données suivantes :
 #### Base `autres`
 - **Vehicules** : Numero_Immatriculation, Marque, Categorie, Prenoms, Nom, etc.
 - **entreprises** : ninea_ninet, raison_social, region, forme_juridique, etc.
+- **ong** : OrganizationName, Type, Name, EmailAddress, Telephone, etc.
 - **affaire_etrangere**, **agent_non_fonctionnaire**, **fpublique**, **demdikk**
 
 ## Utilisation
