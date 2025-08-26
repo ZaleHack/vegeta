@@ -28,7 +28,9 @@ import {
   Phone,
   Building2,
   Globe,
-  Car
+  Car,
+  Link as LinkIcon,
+  ExternalLink
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -167,6 +169,25 @@ interface VehiculeEntry {
   PrecImmat: string;
   Date_PrecImmat: string;
 }
+
+const usefulLinks = [
+  {
+    title: 'INTERPOL',
+    url: 'https://www.interpol.int/en/How-we-work/Notices/View-UN-Notices-Entities'
+  },
+  {
+    title: 'Jordan AMLU',
+    url: 'https://sanctions.amlu.gov.jo/EN/CustomePages/Sanctions'
+  },
+  {
+    title: 'UK sanction List',
+    url: 'https://search-uk-sanctions-list.service.gov.uk/'
+  },
+  {
+    title: 'Liste Rouge Interpol',
+    url: 'https://www.interpol.int/fr/Notre-action/Notices/Notices-rouges/Voir-les-notices-rouges'
+  }
+];
 
 const App: React.FC = () => {
   // États principaux
@@ -1281,6 +1302,18 @@ const App: React.FC = () => {
               {sidebarOpen && <span className="ml-3">Véhicules</span>}
             </button>
 
+            <button
+              onClick={() => setCurrentPage('links')}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'links'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <LinkIcon className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">Liens Utiles</span>}
+            </button>
+
             {isAdmin && (
               <>
                 <button
@@ -2067,6 +2100,31 @@ const App: React.FC = () => {
                     </div>
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {currentPage === 'links' && (
+            <div className="space-y-6">
+              <h1 className="text-3xl font-bold text-gray-900">Liens Utiles</h1>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {usefulLinks.map((link) => (
+                  <a
+                    key={link.url}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group p-6 bg-white rounded-xl shadow hover:shadow-lg transition-shadow border border-gray-100"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600">
+                        {link.title}
+                      </h2>
+                      <ExternalLink className="h-5 w-5 text-gray-400 group-hover:text-blue-600" />
+                    </div>
+                    <p className="mt-2 text-sm text-gray-500 break-all">{link.url}</p>
+                  </a>
+                ))}
               </div>
             </div>
           )}
