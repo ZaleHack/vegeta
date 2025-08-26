@@ -8,7 +8,8 @@ const statsService = new StatsService();
 // Statistiques générales
 router.get('/overview', authenticate, async (req, res) => {
   try {
-    const stats = await statsService.getOverviewStats(req.user?.admin ? null : req.user.id);
+    const isAdmin = req.user?.admin === 1 || req.user?.admin === '1';
+    const stats = await statsService.getOverviewStats(isAdmin ? null : req.user.id);
     res.json(stats);
   } catch (error) {
     console.error('Erreur stats overview:', error);
@@ -31,7 +32,8 @@ router.get('/data-distribution', authenticate, async (req, res) => {
 router.get('/time-series', authenticate, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
-    const timeSeries = await statsService.getTimeSeriesData(days, req.user?.admin ? null : req.user.id);
+    const isAdmin = req.user?.admin === 1 || req.user?.admin === '1';
+    const timeSeries = await statsService.getTimeSeriesData(days, isAdmin ? null : req.user.id);
     res.json({ time_series: timeSeries });
   } catch (error) {
     console.error('Erreur série temporelle:', error);
@@ -42,7 +44,8 @@ router.get('/time-series', authenticate, async (req, res) => {
 // Activité des utilisateurs
 router.get('/user-activity', authenticate, async (req, res) => {
   try {
-    if (!req.user?.admin) {
+    const isAdmin = req.user?.admin === 1 || req.user?.admin === '1';
+    if (!isAdmin) {
       return res.status(403).json({ error: 'Permissions administrateur requises' });
     }
     const userActivity = await statsService.getUserActivity();
@@ -57,8 +60,9 @@ router.get('/user-activity', authenticate, async (req, res) => {
 router.get('/search-logs', authenticate, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 20;
-    const username = req.user?.admin ? req.query.username || '' : '';
-    const userId = req.user?.admin ? null : req.user.id;
+    const isAdmin = req.user?.admin === 1 || req.user?.admin === '1';
+    const username = isAdmin ? req.query.username || '' : '';
+    const userId = isAdmin ? null : req.user.id;
     const logs = await statsService.getSearchLogs(limit, username, userId);
     res.json({ logs });
   } catch (error) {
