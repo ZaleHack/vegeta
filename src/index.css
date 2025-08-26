@@ -20,3 +20,30 @@
   .dark .hover\:bg-gray-100:hover { @apply bg-gray-700; }
   .dark .hover\:bg-gray-50:hover { @apply bg-gray-700; }
 }
+
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.loading-bar-container {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  background-color: #e5e7eb;
+  overflow: hidden;
+}
+
+.loading-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background-color: #3b82f6;
+  animation: loading-bar 1.5s linear infinite;
+}

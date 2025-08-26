@@ -222,23 +222,27 @@ const App: React.FC = () => {
   const [gendarmerieData, setGendarmerieData] = useState<GendarmerieEntry[]>([]);
   const [gendarmerieSearch, setGendarmerieSearch] = useState('');
   const [gendarmeriePage, setGendarmeriePage] = useState(1);
+  const [gendarmerieLoading, setGendarmerieLoading] = useState(false);
   const gendarmeriePerPage = 12;
 
   // États ONG
   const [ongData, setOngData] = useState<OngEntry[]>([]);
   const [ongSearch, setOngSearch] = useState('');
   const [ongPage, setOngPage] = useState(1);
+  const [ongLoading, setOngLoading] = useState(false);
   const ongPerPage = 12;
 
   // États entreprises
   const [entreprisesData, setEntreprisesData] = useState<EntrepriseEntry[]>([]);
   const [entreprisesSearch, setEntreprisesSearch] = useState('');
   const [entreprisesPage, setEntreprisesPage] = useState(1);
+  const [entreprisesLoading, setEntreprisesLoading] = useState(false);
   const entreprisesPerPage = 12;
 
   const [vehiculesData, setVehiculesData] = useState<VehiculeEntry[]>([]);
   const [vehiculesSearch, setVehiculesSearch] = useState('');
   const [vehiculesPage, setVehiculesPage] = useState(1);
+  const [vehiculesLoading, setVehiculesLoading] = useState(false);
   const vehiculesPerPage = 12;
 
   // États des statistiques
@@ -865,6 +869,7 @@ const App: React.FC = () => {
   };
 
   const fetchAnnuaire = async () => {
+    setGendarmerieLoading(true);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/annuaire-gendarmerie', {
@@ -877,10 +882,13 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Erreur chargement annuaire:', error);
+    } finally {
+      setGendarmerieLoading(false);
     }
   };
 
   const fetchOng = async () => {
+    setOngLoading(true);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/ong', {
@@ -893,10 +901,13 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Erreur chargement ONG:', error);
+    } finally {
+      setOngLoading(false);
     }
   };
 
   const fetchEntreprises = async () => {
+    setEntreprisesLoading(true);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/entreprises', {
@@ -909,10 +920,13 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Erreur chargement entreprises:', error);
+    } finally {
+      setEntreprisesLoading(false);
     }
   };
 
   const fetchVehicules = async () => {
+    setVehiculesLoading(true);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/vehicules', {
@@ -925,6 +939,8 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Erreur chargement véhicules:', error);
+    } finally {
+      setVehiculesLoading(false);
     }
   };
 
@@ -955,6 +971,22 @@ const App: React.FC = () => {
 
   // Vérifier si l'utilisateur est admin
   const isAdmin = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
+
+  const getPageNumbers = (current: number, total: number) => {
+    const delta = 2;
+    const pages: (number | string)[] = [];
+    let last = 0;
+    for (let i = 1; i <= total; i++) {
+      if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+        if (last && i - last > 1) {
+          pages.push('...');
+        }
+        pages.push(i);
+        last = i;
+      }
+    }
+    return pages;
+  };
 
   const filteredGendarmerie =
     gendarmerieSearch.trim() === ''
@@ -1576,67 +1608,81 @@ const App: React.FC = () => {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-blue-600">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Libellé</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Téléphone</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {paginatedGendarmerie.map((entry) => {
-                      const isTitle = !entry.Telephone || entry.Telephone.trim() === '';
-                      return isTitle ? (
-                        <tr key={entry.id} className="bg-gray-100">
-                          <td colSpan={3} className="px-6 py-4 font-semibold">
-                            {entry.Libelle}
-                          </td>
-                        </tr>
-                      ) : (
-                        <tr key={entry.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">{entry.Libelle}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
-                  <span className="text-sm text-gray-700">
-                    Page {gendarmeriePage} sur {gendarmerieTotalPages}
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setGendarmeriePage((p) => Math.max(p - 1, 1))}
-                      disabled={gendarmeriePage === 1}
-                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Précédent
-                    </button>
-                    {Array.from({ length: gendarmerieTotalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => setGendarmeriePage(page)}
-                        className={`px-3 py-1 rounded-md border text-sm font-medium ${
-                          gendarmeriePage === page
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setGendarmeriePage((p) => Math.min(p + 1, gendarmerieTotalPages))}
-                      disabled={gendarmeriePage === gendarmerieTotalPages}
-                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Suivant
-                    </button>
+                {gendarmerieLoading ? (
+                  <div className="loading-bar-container my-4">
+                    <div className="loading-bar"></div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-blue-600">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Libellé</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Téléphone</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {paginatedGendarmerie.map((entry) => {
+                          const isTitle = !entry.Telephone || entry.Telephone.trim() === '';
+                          return isTitle ? (
+                            <tr key={entry.id} className="bg-gray-100">
+                              <td colSpan={3} className="px-6 py-4 font-semibold">
+                                {entry.Libelle}
+                              </td>
+                            </tr>
+                          ) : (
+                            <tr key={entry.id}>
+                              <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">{entry.Libelle}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                      <span className="text-sm text-gray-700">
+                        Page {gendarmeriePage} sur {gendarmerieTotalPages}
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setGendarmeriePage((p) => Math.max(p - 1, 1))}
+                          disabled={gendarmeriePage === 1}
+                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Précédent
+                        </button>
+                        {getPageNumbers(gendarmeriePage, gendarmerieTotalPages).map((page, idx) =>
+                          typeof page === 'number' ? (
+                            <button
+                              key={page}
+                              onClick={() => setGendarmeriePage(page)}
+                              className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                                gendarmeriePage === page
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          ) : (
+                            <span key={`gend-ellipsis-${idx}`} className="px-3 py-1">
+                              ...
+                            </span>
+                          )
+                        )}
+                        <button
+                          onClick={() => setGendarmeriePage((p) => Math.min(p + 1, gendarmerieTotalPages))}
+                          disabled={gendarmeriePage === gendarmerieTotalPages}
+                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Suivant
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1655,72 +1701,86 @@ const App: React.FC = () => {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-blue-600">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">OrganizationName</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Title</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">EmailAddress</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Telephone</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">SelectAreaofInterest</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">SelectSectorsofInterest</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">created_at</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {paginatedOng.map(entry => (
-                      <tr key={entry.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.OrganizationName}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Type}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Title}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.EmailAddress}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.SelectAreaofInterest}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.SelectSectorsofInterest}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.created_at}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
-                  <span className="text-sm text-gray-700">
-                    Page {ongPage} sur {ongTotalPages}
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setOngPage(p => Math.max(p - 1, 1))}
-                      disabled={ongPage === 1}
-                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Précédent
-                    </button>
-                    {Array.from({ length: ongTotalPages }, (_, i) => i + 1).map(page => (
-                      <button
-                        key={page}
-                        onClick={() => setOngPage(page)}
-                        className={`px-3 py-1 rounded-md border text-sm font-medium ${
-                          ongPage === page
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setOngPage(p => Math.min(p + 1, ongTotalPages))}
-                      disabled={ongPage === ongTotalPages}
-                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Suivant
-                    </button>
+                {ongLoading ? (
+                  <div className="loading-bar-container my-4">
+                    <div className="loading-bar"></div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-blue-600">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">OrganizationName</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Type</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Name</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Title</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">EmailAddress</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Telephone</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">SelectAreaofInterest</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">SelectSectorsofInterest</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">created_at</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {paginatedOng.map(entry => (
+                          <tr key={entry.id}>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.OrganizationName}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Type}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Title}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.EmailAddress}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.SelectAreaofInterest}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.SelectSectorsofInterest}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.created_at}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                      <span className="text-sm text-gray-700">
+                        Page {ongPage} sur {ongTotalPages}
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setOngPage(p => Math.max(p - 1, 1))}
+                          disabled={ongPage === 1}
+                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Précédent
+                        </button>
+                        {getPageNumbers(ongPage, ongTotalPages).map((page, idx) =>
+                          typeof page === 'number' ? (
+                            <button
+                              key={page}
+                              onClick={() => setOngPage(page)}
+                              className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                                ongPage === page
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          ) : (
+                            <span key={`ong-ellipsis-${idx}`} className="px-3 py-1">
+                              ...
+                            </span>
+                          )
+                        )}
+                        <button
+                          onClick={() => setOngPage(p => Math.min(p + 1, ongTotalPages))}
+                          disabled={ongPage === ongTotalPages}
+                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Suivant
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1739,122 +1799,136 @@ const App: React.FC = () => {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-blue-600">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ninea_ninet</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">cuci</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">raison_social</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ensemble_sigle</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">numrc</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa1</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa2</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa3</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">naemas</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">naemas_rev1</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">citi_rev4</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">adresse</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">telephone</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">telephone1</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">numero_telecopie</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">bp</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">region</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">departement</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ville</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">commune</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">quartier</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">personne_contact</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">adresse_personne_contact</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">qualite_personne_contact</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">premiere_annee_exercice</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">forme_juridique</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">regime_fiscal</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">pays_du_siege_de_lentreprise</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">nombre_etablissement</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">controle</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">date_reception</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">libelle_activite_principale</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">observations</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">systeme</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {paginatedEntreprises.map((entry, index) => (
-                      <tr key={index}>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.ninea_ninet}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.cuci}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.raison_social}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.ensemble_sigle}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.numrc}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.syscoa1}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.syscoa2}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.syscoa3}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.naemas}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.naemas_rev1}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.citi_rev4}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.adresse}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.telephone}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.telephone1}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.numero_telecopie}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.email}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.bp}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.region}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.departement}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.ville}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.commune}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.quartier}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.personne_contact}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.adresse_personne_contact}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.qualite_personne_contact}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.premiere_annee_exercice}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.forme_juridique}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.regime_fiscal}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.pays_du_siege_de_lentreprise}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.nombre_etablissement}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.controle}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.date_reception}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.libelle_activite_principale}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.observations}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.systeme}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
-                  <span className="text-sm text-gray-700">
-                    Page {entreprisesPage} sur {entreprisesTotalPages}
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setEntreprisesPage((p) => Math.max(p - 1, 1))}
-                      disabled={entreprisesPage === 1}
-                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Précédent
-                    </button>
-                    {Array.from({ length: entreprisesTotalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => setEntreprisesPage(page)}
-                        className={`px-3 py-1 rounded-md border text-sm font-medium ${
-                          entreprisesPage === page
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setEntreprisesPage((p) => Math.min(p + 1, entreprisesTotalPages))}
-                      disabled={entreprisesPage === entreprisesTotalPages}
-                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Suivant
-                    </button>
+                {entreprisesLoading ? (
+                  <div className="loading-bar-container my-4">
+                    <div className="loading-bar"></div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-blue-600">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ninea_ninet</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">cuci</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">raison_social</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ensemble_sigle</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">numrc</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa1</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa2</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa3</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">naemas</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">naemas_rev1</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">citi_rev4</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">adresse</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">telephone</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">telephone1</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">numero_telecopie</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">email</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">bp</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">region</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">departement</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ville</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">commune</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">quartier</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">personne_contact</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">adresse_personne_contact</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">qualite_personne_contact</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">premiere_annee_exercice</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">forme_juridique</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">regime_fiscal</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">pays_du_siege_de_lentreprise</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">nombre_etablissement</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">controle</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">date_reception</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">libelle_activite_principale</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">observations</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">systeme</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {paginatedEntreprises.map((entry, index) => (
+                          <tr key={index}>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.ninea_ninet}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.cuci}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.raison_social}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.ensemble_sigle}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.numrc}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.syscoa1}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.syscoa2}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.syscoa3}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.naemas}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.naemas_rev1}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.citi_rev4}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.adresse}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.telephone}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.telephone1}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.numero_telecopie}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.email}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.bp}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.region}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.departement}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.ville}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.commune}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.quartier}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.personne_contact}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.adresse_personne_contact}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.qualite_personne_contact}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.premiere_annee_exercice}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.forme_juridique}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.regime_fiscal}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.pays_du_siege_de_lentreprise}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.nombre_etablissement}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.controle}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.date_reception}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.libelle_activite_principale}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.observations}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.systeme}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                      <span className="text-sm text-gray-700">
+                        Page {entreprisesPage} sur {entreprisesTotalPages}
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setEntreprisesPage((p) => Math.max(p - 1, 1))}
+                          disabled={entreprisesPage === 1}
+                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Précédent
+                        </button>
+                        {getPageNumbers(entreprisesPage, entreprisesTotalPages).map((page, idx) =>
+                          typeof page === 'number' ? (
+                            <button
+                              key={page}
+                              onClick={() => setEntreprisesPage(page)}
+                              className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                                entreprisesPage === page
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          ) : (
+                            <span key={`ent-ellipsis-${idx}`} className="px-3 py-1">
+                              ...
+                            </span>
+                          )
+                        )}
+                        <button
+                          onClick={() => setEntreprisesPage((p) => Math.min(p + 1, entreprisesTotalPages))}
+                          disabled={entreprisesPage === entreprisesTotalPages}
+                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Suivant
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1873,122 +1947,136 @@ const App: React.FC = () => {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-blue-600">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Numero_Immatriculation</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Code_Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Numero_Serie</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Immatriculation</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Serie_Immatriculation</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Categorie</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Marque</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Appelation_Com</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Genre</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Carrosserie</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Etat_Initial</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Immat_Etrangere</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Etrangere</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Mise_Circulation</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Premiere_Immat</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Energie</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Puissance_Adm</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Cylindre</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Places_Assises</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PTR</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PTAC_Code</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Poids_Vide</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">CU</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Prenoms</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Nom</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Naissance</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Exact</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Lieu_Naissance</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Adresse_Vehicule</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Code_Localite</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Tel_Fixe</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Tel_Portable</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PrecImmat</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_PrecImmat</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {paginatedVehicules.map((entry) => (
-                      <tr key={entry.ID}>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.ID}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Numero_Immatriculation}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Code_Type}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Numero_Serie}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Immatriculation}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Serie_Immatriculation}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Categorie}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Marque}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Appelation_Com}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Genre}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Carrosserie}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Etat_Initial}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Immat_Etrangere}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Etrangere}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Mise_Circulation}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Premiere_Immat}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Energie}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Puissance_Adm}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Cylindre}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Places_Assises}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.PTR}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.PTAC_Code}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Poids_Vide}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.CU}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Prenoms}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Nom}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Naissance}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Exact}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Lieu_Naissance}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Adresse_Vehicule}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Code_Localite}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Tel_Fixe}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Tel_Portable}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.PrecImmat}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Date_PrecImmat}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
-                  <span className="text-sm text-gray-700">
-                    Page {vehiculesPage} sur {vehiculesTotalPages}
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setVehiculesPage((p) => Math.max(p - 1, 1))}
-                      disabled={vehiculesPage === 1}
-                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Précédent
-                    </button>
-                    {Array.from({ length: vehiculesTotalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => setVehiculesPage(page)}
-                        className={`px-3 py-1 rounded-md border text-sm font-medium ${
-                          vehiculesPage === page
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setVehiculesPage((p) => Math.min(p + 1, vehiculesTotalPages))}
-                      disabled={vehiculesPage === vehiculesTotalPages}
-                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Suivant
-                    </button>
+                {vehiculesLoading ? (
+                  <div className="loading-bar-container my-4">
+                    <div className="loading-bar"></div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-blue-600">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Numero_Immatriculation</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Code_Type</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Numero_Serie</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Immatriculation</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Serie_Immatriculation</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Categorie</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Marque</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Appelation_Com</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Genre</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Carrosserie</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Etat_Initial</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Immat_Etrangere</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Etrangere</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Mise_Circulation</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Premiere_Immat</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Energie</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Puissance_Adm</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Cylindre</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Places_Assises</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PTR</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PTAC_Code</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Poids_Vide</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">CU</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Prenoms</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Nom</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Naissance</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Exact</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Lieu_Naissance</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Adresse_Vehicule</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Code_Localite</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Tel_Fixe</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Tel_Portable</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PrecImmat</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_PrecImmat</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {paginatedVehicules.map((entry) => (
+                          <tr key={entry.ID}>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.ID}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Numero_Immatriculation}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Code_Type}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Numero_Serie}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Immatriculation}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Serie_Immatriculation}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Categorie}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Marque}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Appelation_Com}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Genre}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Carrosserie}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Etat_Initial}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Immat_Etrangere}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Etrangere}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Mise_Circulation}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Premiere_Immat}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Energie}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Puissance_Adm}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Cylindre}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Places_Assises}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.PTR}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.PTAC_Code}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Poids_Vide}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.CU}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Prenoms}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Nom}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Naissance}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Exact}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Lieu_Naissance}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Adresse_Vehicule}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Code_Localite}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Tel_Fixe}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Tel_Portable}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.PrecImmat}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_PrecImmat}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                      <span className="text-sm text-gray-700">
+                        Page {vehiculesPage} sur {vehiculesTotalPages}
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setVehiculesPage((p) => Math.max(p - 1, 1))}
+                          disabled={vehiculesPage === 1}
+                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Précédent
+                        </button>
+                        {getPageNumbers(vehiculesPage, vehiculesTotalPages).map((page, idx) =>
+                          typeof page === 'number' ? (
+                            <button
+                              key={page}
+                              onClick={() => setVehiculesPage(page)}
+                              className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                                vehiculesPage === page
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          ) : (
+                            <span key={`veh-ellipsis-${idx}`} className="px-3 py-1">
+                              ...
+                            </span>
+                          )
+                        )}
+                        <button
+                          onClick={() => setVehiculesPage((p) => Math.min(p + 1, vehiculesTotalPages))}
+                          disabled={vehiculesPage === vehiculesTotalPages}
+                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Suivant
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
