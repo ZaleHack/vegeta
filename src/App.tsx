@@ -222,24 +222,24 @@ const App: React.FC = () => {
   const [gendarmerieData, setGendarmerieData] = useState<GendarmerieEntry[]>([]);
   const [gendarmerieSearch, setGendarmerieSearch] = useState('');
   const [gendarmeriePage, setGendarmeriePage] = useState(1);
-  const gendarmeriePerPage = 10;
+  const gendarmeriePerPage = 12;
 
   // États ONG
   const [ongData, setOngData] = useState<OngEntry[]>([]);
   const [ongSearch, setOngSearch] = useState('');
   const [ongPage, setOngPage] = useState(1);
-  const ongPerPage = 10;
+  const ongPerPage = 12;
 
   // États entreprises
   const [entreprisesData, setEntreprisesData] = useState<EntrepriseEntry[]>([]);
   const [entreprisesSearch, setEntreprisesSearch] = useState('');
   const [entreprisesPage, setEntreprisesPage] = useState(1);
-  const entreprisesPerPage = 10;
+  const entreprisesPerPage = 12;
 
   const [vehiculesData, setVehiculesData] = useState<VehiculeEntry[]>([]);
   const [vehiculesSearch, setVehiculesSearch] = useState('');
   const [vehiculesPage, setVehiculesPage] = useState(1);
-  const vehiculesPerPage = 10;
+  const vehiculesPerPage = 12;
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -1577,11 +1577,11 @@ const App: React.FC = () => {
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-blue-600">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Libellé</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Libellé</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Téléphone</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -1607,7 +1607,7 @@ const App: React.FC = () => {
                   <span className="text-sm text-gray-700">
                     Page {gendarmeriePage} sur {gendarmerieTotalPages}
                   </span>
-                  <div className="space-x-2">
+                  <div className="flex items-center space-x-2">
                     <button
                       onClick={() => setGendarmeriePage((p) => Math.max(p - 1, 1))}
                       disabled={gendarmeriePage === 1}
@@ -1615,6 +1615,19 @@ const App: React.FC = () => {
                     >
                       Précédent
                     </button>
+                    {Array.from({ length: gendarmerieTotalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setGendarmeriePage(page)}
+                        className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                          gendarmeriePage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
                     <button
                       onClick={() => setGendarmeriePage((p) => Math.min(p + 1, gendarmerieTotalPages))}
                       disabled={gendarmeriePage === gendarmerieTotalPages}
@@ -1643,18 +1656,18 @@ const App: React.FC = () => {
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-blue-600">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">OrganizationName</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">EmailAddress</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telephone</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SelectAreaofInterest</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SelectSectorsofInterest</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">created_at</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">OrganizationName</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Title</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">EmailAddress</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Telephone</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">SelectAreaofInterest</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">SelectSectorsofInterest</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">created_at</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -1678,7 +1691,7 @@ const App: React.FC = () => {
                   <span className="text-sm text-gray-700">
                     Page {ongPage} sur {ongTotalPages}
                   </span>
-                  <div className="space-x-2">
+                  <div className="flex items-center space-x-2">
                     <button
                       onClick={() => setOngPage(p => Math.max(p - 1, 1))}
                       disabled={ongPage === 1}
@@ -1686,6 +1699,19 @@ const App: React.FC = () => {
                     >
                       Précédent
                     </button>
+                    {Array.from({ length: ongTotalPages }, (_, i) => i + 1).map(page => (
+                      <button
+                        key={page}
+                        onClick={() => setOngPage(page)}
+                        className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                          ongPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
                     <button
                       onClick={() => setOngPage(p => Math.min(p + 1, ongTotalPages))}
                       disabled={ongPage === ongTotalPages}
@@ -1714,43 +1740,43 @@ const App: React.FC = () => {
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-blue-600">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ninea_ninet</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">cuci</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">raison_social</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ensemble_sigle</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">numrc</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">syscoa1</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">syscoa2</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">syscoa3</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">naemas</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">naemas_rev1</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">citi_rev4</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">adresse</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">telephone</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">telephone1</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">numero_telecopie</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">bp</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">region</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">departement</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ville</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">commune</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">quartier</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">personne_contact</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">adresse_personne_contact</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">qualite_personne_contact</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">premiere_annee_exercice</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">forme_juridique</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">regime_fiscal</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">pays_du_siege_de_lentreprise</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">nombre_etablissement</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">controle</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">date_reception</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">libelle_activite_principale</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">observations</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">systeme</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ninea_ninet</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">cuci</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">raison_social</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ensemble_sigle</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">numrc</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa1</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa2</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa3</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">naemas</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">naemas_rev1</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">citi_rev4</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">adresse</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">telephone</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">telephone1</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">numero_telecopie</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">email</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">bp</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">region</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">departement</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ville</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">commune</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">quartier</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">personne_contact</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">adresse_personne_contact</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">qualite_personne_contact</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">premiere_annee_exercice</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">forme_juridique</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">regime_fiscal</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">pays_du_siege_de_lentreprise</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">nombre_etablissement</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">controle</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">date_reception</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">libelle_activite_principale</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">observations</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">systeme</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -1799,7 +1825,7 @@ const App: React.FC = () => {
                   <span className="text-sm text-gray-700">
                     Page {entreprisesPage} sur {entreprisesTotalPages}
                   </span>
-                  <div className="space-x-2">
+                  <div className="flex items-center space-x-2">
                     <button
                       onClick={() => setEntreprisesPage((p) => Math.max(p - 1, 1))}
                       disabled={entreprisesPage === 1}
@@ -1807,6 +1833,19 @@ const App: React.FC = () => {
                     >
                       Précédent
                     </button>
+                    {Array.from({ length: entreprisesTotalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setEntreprisesPage(page)}
+                        className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                          entreprisesPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
                     <button
                       onClick={() => setEntreprisesPage((p) => Math.min(p + 1, entreprisesTotalPages))}
                       disabled={entreprisesPage === entreprisesTotalPages}
@@ -1835,43 +1874,43 @@ const App: React.FC = () => {
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-blue-600">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numero_Immatriculation</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code_Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numero_Serie</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_Immatriculation</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serie_Immatriculation</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categorie</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marque</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Appelation_Com</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Genre</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carrosserie</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Etat_Initial</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Immat_Etrangere</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_Etrangere</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_Mise_Circulation</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_Premiere_Immat</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Energie</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Puissance_Adm</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cylindre</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Places_Assises</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PTR</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PTAC_Code</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Poids_Vide</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CU</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prenoms</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_Naissance</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exact</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lieu_Naissance</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse_Vehicule</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code_Localite</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tel_Fixe</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tel_Portable</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PrecImmat</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date_PrecImmat</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Numero_Immatriculation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Code_Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Numero_Serie</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Immatriculation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Serie_Immatriculation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Categorie</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Marque</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Appelation_Com</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Genre</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Carrosserie</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Etat_Initial</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Immat_Etrangere</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Etrangere</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Mise_Circulation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Premiere_Immat</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Energie</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Puissance_Adm</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Cylindre</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Places_Assises</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PTR</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PTAC_Code</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Poids_Vide</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">CU</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Prenoms</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Nom</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Naissance</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Exact</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Lieu_Naissance</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Adresse_Vehicule</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Code_Localite</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Tel_Fixe</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Tel_Portable</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PrecImmat</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_PrecImmat</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -1920,7 +1959,7 @@ const App: React.FC = () => {
                   <span className="text-sm text-gray-700">
                     Page {vehiculesPage} sur {vehiculesTotalPages}
                   </span>
-                  <div className="space-x-2">
+                  <div className="flex items-center space-x-2">
                     <button
                       onClick={() => setVehiculesPage((p) => Math.max(p - 1, 1))}
                       disabled={vehiculesPage === 1}
@@ -1928,6 +1967,19 @@ const App: React.FC = () => {
                     >
                       Précédent
                     </button>
+                    {Array.from({ length: vehiculesTotalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setVehiculesPage(page)}
+                        className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                          vehiculesPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
                     <button
                       onClick={() => setVehiculesPage((p) => Math.min(p + 1, vehiculesTotalPages))}
                       disabled={vehiculesPage === vehiculesTotalPages}
