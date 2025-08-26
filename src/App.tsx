@@ -790,12 +790,41 @@ const App: React.FC = () => {
   // Vérifier si l'utilisateur est admin
   const isAdmin = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
 
-  const filteredGendarmerie = gendarmerieData.filter((entry) =>
-    entry.Libelle.toLowerCase().includes(gendarmerieSearch.toLowerCase()) ||
-    entry.Telephone.toLowerCase().includes(gendarmerieSearch.toLowerCase()) ||
-    entry.id.toString().includes(gendarmerieSearch)
+  const filteredGendarmerie =
+    gendarmerieSearch.trim() === ''
+      ? gendarmerieData
+      : (() => {
+          const results: GendarmerieEntry[] = [];
+          const addedTitles = new Set<number>();
+          const searchLower = gendarmerieSearch.toLowerCase();
+          gendarmerieData.forEach((entry, index) => {
+            const matches =
+              entry.Libelle.toLowerCase().includes(searchLower) ||
+              (entry.Telephone || '').toLowerCase().includes(searchLower) ||
+              entry.id.toString().includes(searchLower);
+
+            if (matches) {
+              if (entry.Telephone && entry.Telephone.trim() !== '') {
+                const prev = gendarmerieData[index - 1];
+                if (
+                  prev &&
+                  (!prev.Telephone || prev.Telephone.trim() === '') &&
+                  !addedTitles.has(prev.id)
+                ) {
+                  results.push(prev);
+                  addedTitles.add(prev.id);
+                }
+              }
+              results.push(entry);
+            }
+          });
+          return results;
+        })();
+
+  const gendarmerieTotalPages = Math.max(
+    1,
+    Math.ceil(filteredGendarmerie.length / gendarmeriePerPage)
   );
-  const gendarmerieTotalPages = Math.max(1, Math.ceil(filteredGendarmerie.length / gendarmeriePerPage));
   const paginatedGendarmerie = filteredGendarmerie.slice(
     (gendarmeriePage - 1) * gendarmeriePerPage,
     gendarmeriePage * gendarmeriePerPage
