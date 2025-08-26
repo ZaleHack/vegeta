@@ -1282,13 +1282,22 @@ const App: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {paginatedGendarmerie.map((entry) => (
-                      <tr key={entry.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Libelle}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
-                      </tr>
-                    ))}
+                    {paginatedGendarmerie.map((entry) => {
+                      const isTitle = !entry.Telephone || entry.Telephone.trim() === '';
+                      return isTitle ? (
+                        <tr key={entry.id} className="bg-gray-100">
+                          <td colSpan={3} className="px-6 py-4 font-semibold">
+                            {entry.Libelle}
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={entry.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">{entry.Libelle}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
                 <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
