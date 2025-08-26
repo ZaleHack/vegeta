@@ -80,6 +80,9 @@ interface GendarmerieEntry {
   id: number;
   Libelle: string;
   Telephone: string;
+  'Sous-Categorie'?: string;
+  Secteur?: string;
+  created_at?: string;
 }
 
 interface EntrepriseEntry {
@@ -1048,6 +1051,8 @@ const App: React.FC = () => {
             const matches =
               entry.Libelle.toLowerCase().includes(searchLower) ||
               (entry.Telephone || '').toLowerCase().includes(searchLower) ||
+              (entry['Sous-Categorie'] || '').toLowerCase().includes(searchLower) ||
+              (entry.Secteur || '').toLowerCase().includes(searchLower) ||
               entry.id.toString().includes(searchLower);
 
             if (matches) {
@@ -1646,6 +1651,9 @@ const App: React.FC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Libellé</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Téléphone</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Sous-Categorie</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Secteur</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Créé le</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -1653,7 +1661,7 @@ const App: React.FC = () => {
                           const isTitle = !entry.Telephone || entry.Telephone.trim() === '';
                           return isTitle ? (
                             <tr key={entry.id} className="bg-gray-100">
-                              <td colSpan={3} className="px-6 py-4 font-semibold">
+                              <td colSpan={6} className="px-6 py-4 font-semibold">
                                 {entry.Libelle}
                               </td>
                             </tr>
@@ -1662,6 +1670,9 @@ const App: React.FC = () => {
                               <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.Libelle}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">{entry['Sous-Categorie']}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">{entry.Secteur}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">{entry.created_at ? new Date(entry.created_at).toLocaleDateString() : ''}</td>
                             </tr>
                           );
                         })}

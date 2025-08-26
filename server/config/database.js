@@ -79,6 +79,8 @@ class DatabaseManager {
           id INT AUTO_INCREMENT PRIMARY KEY,
           Libelle VARCHAR(255) NOT NULL,
           Telephone VARCHAR(50) NOT NULL,
+          `Sous-Categorie` VARCHAR(255) DEFAULT NULL,
+          Secteur VARCHAR(255) DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
