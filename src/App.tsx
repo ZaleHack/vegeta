@@ -999,8 +999,8 @@ const App: React.FC = () => {
 
               {/* Résultats */}
               {searchResults && (
-                <div className="bg-white/70 backdrop-blur-lg shadow-2xl rounded-3xl border border-gray-200 overflow-hidden">
-                  <div className="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
+                <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-lg shadow-2xl rounded-3xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
                     <div className="flex justify-between items-center">
                       <div>
                         <h2 className="text-xl font-bold">Résultats de recherche</h2>
@@ -1046,12 +1046,12 @@ const App: React.FC = () => {
                         </p>
                       </div>
                     ) : (
-                      <div className="p-8 bg-gradient-to-br from-white to-gray-50">
+                      <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
                         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
                           {searchResults.hits.map((result, index) => (
                             <div
                               key={index}
-                              className="group relative bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-6 hover:shadow-xl hover:border-indigo-300 transform transition-all duration-300 hover:-translate-y-1"
+                              className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-2xl p-6 hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500 transform transition-all duration-300 hover:-translate-y-1"
                             >
                               {/* Header de la carte */}
                               <div className="flex justify-between items-start mb-4">
@@ -1080,7 +1080,7 @@ const App: React.FC = () => {
                                   return (
                                     <div
                                       key={key}
-                                      className="bg-white/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-indigo-200 transition-colors"
+                                      className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-indigo-200 dark:group-hover:border-indigo-500 transition-colors"
                                     >
                                       <div className="flex flex-col">
                                         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
@@ -1096,7 +1096,7 @@ const App: React.FC = () => {
                               </div>
 
                               {/* Footer avec actions */}
-                              <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+                              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
                                 <div className="text-xs text-gray-500">
                                   {Object.keys(result.preview)
                                     .filter(
@@ -1118,7 +1118,7 @@ const App: React.FC = () => {
                                     navigator.clipboard.writeText(dataText);
                                     alert('Données copiées dans le presse-papier !');
                                   }}
-                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100 transition-colors"
+                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-800 transition-colors"
                                 >
                                   <User className="w-3 h-3 mr-1" />
                                   Copier

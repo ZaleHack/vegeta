@@ -9,6 +9,11 @@
   .dark .hover\:text-gray-900:hover { @apply text-gray-100; }
   .dark .bg-gray-50 { @apply bg-gray-800; }
   .dark .bg-white { @apply bg-gray-800; }
+  .dark .bg-white\/20 { @apply bg-gray-800/20; }
+  .dark .bg-white\/60 { @apply bg-gray-800/60; }
+  .dark .bg-white\/70 { @apply bg-gray-800/70; }
+  .dark .bg-white\/80 { @apply bg-gray-800/80; }
+  .dark .border-gray-100 { @apply border-gray-700; }
   .dark .border-gray-200 { @apply border-gray-700; }
   .dark .border-gray-300 { @apply border-gray-600; }
   .dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { @apply divide-gray-700; }
