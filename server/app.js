@@ -13,6 +13,7 @@ import usersRoutes from './routes/users.js';
 import statsRoutes from './routes/stats.js';
 import uploadRoutes from './routes/upload.js';
 import annuaireRoutes from './routes/annuaire.js';
+import entreprisesRoutes from './routes/entreprises.js';
 
 // Initialisation de la base de données
 import database from './config/database.js';
@@ -51,6 +52,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/annuaire-gendarmerie', annuaireRoutes);
+app.use('/api/entreprises', entreprisesRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {
