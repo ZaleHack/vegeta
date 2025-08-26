@@ -36,7 +36,7 @@ class StatsService {
   /**
    * Récupère les statistiques globales d'utilisation de la plateforme.
    */
-  async getOverviewStats() {
+  async getOverviewStats(userId = null) {
     try {
       const [
         totalSearches,
@@ -46,31 +46,29 @@ class StatsService {
         topSearchTerms,
         searchesByType
       ] = await Promise.all([
-        database.queryOne('SELECT COUNT(*) as count FROM autres.search_logs'),
         database.queryOne(
-          'SELECT AVG(execution_time_ms) as avg_time FROM autres.search_logs WHERE execution_time_ms > 0'
+          `SELECT COUNT(*) as count FROM autres.search_logs${userId ? ' WHERE user_id = ?' : ''}`,
+          userId ? [userId] : []
         ),
-        database.queryOne(`
-        SELECT COUNT(*) as count FROM autres.search_logs
-        WHERE DATE(search_date) = CURDATE()
-      `),
-        database.queryOne('SELECT COUNT(*) as count FROM autres.users'),
-        database.query(`
-        SELECT search_term, COUNT(*) as search_count
-        FROM autres.search_logs
-        WHERE search_term IS NOT NULL
-          AND search_term != ''
-          AND search_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-        GROUP BY search_term
-        ORDER BY search_count DESC
-        LIMIT 10
-      `),
-        database.query(`
-        SELECT COALESCE(search_type, 'unknown') as search_type, COUNT(*) as search_count
-        FROM autres.search_logs
-        GROUP BY search_type
-        ORDER BY search_count DESC
-      `)
+        database.queryOne(
+          `SELECT AVG(execution_time_ms) as avg_time FROM autres.search_logs WHERE execution_time_ms > 0${userId ? ' AND user_id = ?' : ''}`,
+          userId ? [userId] : []
+        ),
+        database.queryOne(
+          `SELECT COUNT(*) as count FROM autres.search_logs WHERE DATE(search_date) = CURDATE()${userId ? ' AND user_id = ?' : ''}`,
+          userId ? [userId] : []
+        ),
+        userId
+          ? Promise.resolve({ count: 1 })
+          : database.queryOne('SELECT COUNT(*) as count FROM autres.users'),
+        database.query(
+          `SELECT search_term, COUNT(*) as search_count FROM autres.search_logs WHERE search_term IS NOT NULL AND search_term != ''${userId ? ' AND user_id = ?' : ''} AND search_date >= DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY search_term ORDER BY search_count DESC LIMIT 10`,
+          userId ? [userId] : []
+        ),
+        database.query(
+          `SELECT COALESCE(search_type, 'unknown') as search_type, COUNT(*) as search_count FROM autres.search_logs${userId ? ' WHERE user_id = ?' : ''} GROUP BY search_type ORDER BY search_count DESC`,
+          userId ? [userId] : []
+        )
       ]);
 
       return {
@@ -120,19 +118,25 @@ class StatsService {
   /**
    * Retourne l'évolution des recherches sur une période donnée.
    */
-  async getTimeSeriesData(days = 30) {
+  async getTimeSeriesData(days = 30, userId = null) {
     try {
-      const rows = await database.query(`
+      let sql = `
         SELECT
           DATE(search_date) as date,
           COUNT(*) as searches,
           COUNT(DISTINCT user_id) as unique_users,
           AVG(execution_time_ms) as avg_time
         FROM autres.search_logs
-        WHERE search_date >= DATE_SUB(NOW(), INTERVAL ? DAY)
-        GROUP BY DATE(search_date)
-        ORDER BY date ASC
-      `, [days]);
+        WHERE search_date >= DATE_SUB(NOW(), INTERVAL ? DAY)`;
+
+      const params = [days];
+      if (userId) {
+        sql += ' AND user_id = ?';
+        params.push(userId);
+      }
+      sql += ' GROUP BY DATE(search_date) ORDER BY date ASC';
+
+      const rows = await database.query(sql, params);
 
       return rows.map(row => ({
         date: row.date,
@@ -196,20 +200,27 @@ class StatsService {
    * Récupère les logs de recherche récents avec l'utilisateur associé.
    * Permet de filtrer par nom d'utilisateur.
    */
-  async getSearchLogs(limit = 20, username = '') {
+  async getSearchLogs(limit = 20, username = '', userId = null) {
     try {
       let sql = `
         SELECT
           sl.*, u.login as username
         FROM autres.search_logs sl
-        LEFT JOIN autres.users u ON sl.user_id = u.id
-      `;
+        LEFT JOIN autres.users u ON sl.user_id = u.id`;
 
       const params = [];
+      const conditions = [];
 
-      if (username) {
-        sql += ' WHERE u.login LIKE ?';
+      if (userId) {
+        conditions.push('sl.user_id = ?');
+        params.push(userId);
+      } else if (username) {
+        conditions.push('u.login LIKE ?');
         params.push(`%${username}%`);
+      }
+
+      if (conditions.length > 0) {
+        sql += ' WHERE ' + conditions.join(' AND ');
       }
 
       sql += ' ORDER BY sl.search_date DESC LIMIT ?';

@@ -1323,43 +1323,43 @@ const App: React.FC = () => {
             </button>
 
             {isAdmin && (
-              <>
-                <button
-                  onClick={() => setCurrentPage('users')}
-                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                    currentPage === 'users'
-                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  } ${!sidebarOpen && 'justify-center'}`}
-                >
-                  <Users className="h-5 w-5" />
-                  {sidebarOpen && <span className="ml-3">Utilisateurs</span>}
-                </button>
+              <button
+                onClick={() => setCurrentPage('users')}
+                className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                  currentPage === 'users'
+                    ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                } ${!sidebarOpen && 'justify-center'}`}
+              >
+                <Users className="h-5 w-5" />
+                {sidebarOpen && <span className="ml-3">Utilisateurs</span>}
+              </button>
+            )}
 
-                <button
-                  onClick={() => setCurrentPage('statistics')}
-                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                    currentPage === 'statistics'
-                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  } ${!sidebarOpen && 'justify-center'}`}
-                >
-                  <Activity className="h-5 w-5" />
-                  {sidebarOpen && <span className="ml-3">Statistiques</span>}
-                </button>
+            <button
+              onClick={() => setCurrentPage('statistics')}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'statistics'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <Activity className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">Statistiques</span>}
+            </button>
 
-                <button
-                  onClick={() => setCurrentPage('upload')}
-                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                    currentPage === 'upload'
-                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  } ${!sidebarOpen && 'justify-center'}`}
-                >
-                  <Upload className="h-5 w-5" />
-                  {sidebarOpen && <span className="ml-3">Charger des données</span>}
-                </button>
-              </>
+            {isAdmin && (
+              <button
+                onClick={() => setCurrentPage('upload')}
+                className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                  currentPage === 'upload'
+                    ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                } ${!sidebarOpen && 'justify-center'}`}
+              >
+                <Upload className="h-5 w-5" />
+                {sidebarOpen && <span className="ml-3">Charger des données</span>}
+              </button>
             )}
           </div>
         </nav>
@@ -2261,7 +2261,7 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {currentPage === 'statistics' && isAdmin && (
+          {currentPage === 'statistics' && (
             <div className="space-y-8">
               {/* Header */}
               <div className="text-center">
@@ -2506,21 +2506,23 @@ const App: React.FC = () => {
                           <FileText className="h-6 w-6 mr-2 text-indigo-600" />
                           Logs de recherche
                         </h3>
-                        <div className="mb-4 flex">
-                          <input
-                            type="text"
-                            value={logUserFilter}
-                            onChange={(e) => setLogUserFilter(e.target.value)}
-                            placeholder="Filtrer par utilisateur"
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          />
-                          <button
-                            onClick={loadStatistics}
-                            className="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                          >
-                            Rechercher
-                          </button>
-                        </div>
+                        {isAdmin && (
+                          <div className="mb-4 flex">
+                            <input
+                              type="text"
+                              value={logUserFilter}
+                              onChange={(e) => setLogUserFilter(e.target.value)}
+                              placeholder="Filtrer par utilisateur"
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                            <button
+                              onClick={loadStatistics}
+                              className="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                            >
+                              Rechercher
+                            </button>
+                          </div>
+                        )}
                         <div className="max-h-80 overflow-y-auto">
                           <div className="space-y-3">
                             {searchLogs.length > 0 ? searchLogs.map((log, index) => (
