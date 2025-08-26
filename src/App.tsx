@@ -129,6 +129,8 @@ const App: React.FC = () => {
   // États annuaire gendarmerie
   const [gendarmerieData, setGendarmerieData] = useState<GendarmerieEntry[]>([]);
   const [gendarmerieSearch, setGendarmerieSearch] = useState('');
+  const [gendarmeriePage, setGendarmeriePage] = useState(1);
+  const gendarmeriePerPage = 10;
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -793,6 +795,15 @@ const App: React.FC = () => {
     entry.Telephone.toLowerCase().includes(gendarmerieSearch.toLowerCase()) ||
     entry.id.toString().includes(gendarmerieSearch)
   );
+  const gendarmerieTotalPages = Math.max(1, Math.ceil(filteredGendarmerie.length / gendarmeriePerPage));
+  const paginatedGendarmerie = filteredGendarmerie.slice(
+    (gendarmeriePage - 1) * gendarmeriePerPage,
+    gendarmeriePage * gendarmeriePerPage
+  );
+
+  useEffect(() => {
+    setGendarmeriePage(1);
+  }, [gendarmerieSearch]);
 
   // Page de connexion
   if (!isAuthenticated) {
@@ -1271,7 +1282,7 @@ const App: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredGendarmerie.map((entry) => (
+                    {paginatedGendarmerie.map((entry) => (
                       <tr key={entry.id}>
                         <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
                         <td className="px-6 py-4 whitespace-nowrap">{entry.Libelle}</td>
@@ -1280,6 +1291,27 @@ const App: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+                <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                  <span className="text-sm text-gray-700">
+                    Page {gendarmeriePage} sur {gendarmerieTotalPages}
+                  </span>
+                  <div className="space-x-2">
+                    <button
+                      onClick={() => setGendarmeriePage((p) => Math.max(p - 1, 1))}
+                      disabled={gendarmeriePage === 1}
+                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Précédent
+                    </button>
+                    <button
+                      onClick={() => setGendarmeriePage((p) => Math.min(p + 1, gendarmerieTotalPages))}
+                      disabled={gendarmeriePage === gendarmerieTotalPages}
+                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
