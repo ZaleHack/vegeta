@@ -418,6 +418,18 @@ export default {
     theme: 'pro'
   },
 
+  'autres.annuaire_gendarmerie': {
+    display: 'annuaire_gendarmerie',
+    database: 'autres',
+    searchable: ['Libelle', 'Telephone'],
+    preview: ['Libelle', 'Telephone'],
+    filters: {
+      Libelle: 'string',
+      Telephone: 'string'
+    },
+    theme: 'pro'
+  },
+
   'autres.collectes1': {
     display: 'collectes1',
     database: 'autres',
