@@ -603,6 +603,24 @@ export default {
     theme: 'militaire'
   },
 
+  'autres.ong': {
+    display: 'ong',
+    database: 'autres',
+    searchable: [
+      'OrganizationName',
+      'Name',
+      'EmailAddress',
+      'Telephone'
+    ],
+    preview: ['OrganizationName', 'Name', 'EmailAddress', 'Telephone'],
+    filters: {
+      Type: 'string',
+      SelectAreaofInterest: 'string',
+      SelectSectorsofInterest: 'string'
+    },
+    theme: 'ong'
+  },
+
   'autres.entreprises': {
     display: 'entreprises',
     database: 'autres',

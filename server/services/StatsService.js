@@ -178,7 +178,7 @@ class StatsService {
     try {
       const regions = await database.query(`
         SELECT region, COUNT(*) as count
-        FROM autres_entreprises
+        FROM autres.entreprises
         WHERE region IS NOT NULL AND region != ''
         GROUP BY region
         ORDER BY count DESC
