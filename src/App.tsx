@@ -25,7 +25,8 @@ import {
   FileText,
   Upload,
   UploadCloud,
-  Phone
+  Phone,
+  Building2
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -74,6 +75,44 @@ interface GendarmerieEntry {
   id: number;
   Libelle: string;
   Telephone: string;
+}
+
+interface EntrepriseEntry {
+  ninea_ninet: string;
+  cuci: string;
+  raison_social: string;
+  ensemble_sigle: string;
+  numrc: string;
+  syscoa1: string;
+  syscoa2: string;
+  syscoa3: string;
+  naemas: string;
+  naemas_rev1: string;
+  citi_rev4: string;
+  adresse: string;
+  telephone: string;
+  telephone1: string;
+  numero_telecopie: string;
+  email: string;
+  bp: string;
+  region: string;
+  departement: string;
+  ville: string;
+  commune: string;
+  quartier: string;
+  personne_contact: string;
+  adresse_personne_contact: string;
+  qualite_personne_contact: string;
+  premiere_annee_exercice: string;
+  forme_juridique: string;
+  regime_fiscal: string;
+  pays_du_siege_de_lentreprise: string;
+  nombre_etablissement: string;
+  controle: string;
+  date_reception: string;
+  libelle_activite_principale: string;
+  observations: string;
+  systeme: string;
 }
 
 const App: React.FC = () => {
@@ -131,6 +170,12 @@ const App: React.FC = () => {
   const [gendarmerieSearch, setGendarmerieSearch] = useState('');
   const [gendarmeriePage, setGendarmeriePage] = useState(1);
   const gendarmeriePerPage = 10;
+
+  // États entreprises
+  const [entreprisesData, setEntreprisesData] = useState<EntrepriseEntry[]>([]);
+  const [entreprisesSearch, setEntreprisesSearch] = useState('');
+  const [entreprisesPage, setEntreprisesPage] = useState(1);
+  const entreprisesPerPage = 10;
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -771,6 +816,22 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchEntreprises = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/entreprises', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const entries = data.entries || data;
+        setEntreprisesData(entries);
+      }
+    } catch (error) {
+      console.error('Erreur chargement entreprises:', error);
+    }
+  };
+
   // Charger les utilisateurs quand on accède à la page
   useEffect(() => {
     if (currentPage === 'users' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
@@ -784,6 +845,9 @@ const App: React.FC = () => {
     }
     if (currentPage === 'annuaire' && currentUser) {
       fetchAnnuaire();
+    }
+    if (currentPage === 'entreprises' && currentUser) {
+      fetchEntreprises();
     }
   }, [currentPage, currentUser]);
 
@@ -830,9 +894,33 @@ const App: React.FC = () => {
     gendarmeriePage * gendarmeriePerPage
   );
 
+  const filteredEntreprises =
+    entreprisesSearch.trim() === ''
+      ? entreprisesData
+      : entreprisesData.filter(entry =>
+          Object.values(entry).some(val =>
+            String(val || '')
+              .toLowerCase()
+              .includes(entreprisesSearch.toLowerCase())
+          )
+        );
+
+  const entreprisesTotalPages = Math.max(
+    1,
+    Math.ceil(filteredEntreprises.length / entreprisesPerPage)
+  );
+  const paginatedEntreprises = filteredEntreprises.slice(
+    (entreprisesPage - 1) * entreprisesPerPage,
+    entreprisesPage * entreprisesPerPage
+  );
+
   useEffect(() => {
     setGendarmeriePage(1);
   }, [gendarmerieSearch]);
+
+  useEffect(() => {
+    setEntreprisesPage(1);
+  }, [entreprisesSearch]);
 
   // Page de connexion
   if (!isAuthenticated) {
@@ -983,6 +1071,18 @@ const App: React.FC = () => {
             >
               <Phone className="h-5 w-5" />
               {sidebarOpen && <span className="ml-3">Annuaire Gendarmerie</span>}
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('entreprises')}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'entreprises'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <Building2 className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">Entreprises</span>}
             </button>
 
             {isAdmin && (
@@ -1344,6 +1444,127 @@ const App: React.FC = () => {
                     <button
                       onClick={() => setGendarmeriePage((p) => Math.min(p + 1, gendarmerieTotalPages))}
                       disabled={gendarmeriePage === gendarmerieTotalPages}
+                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentPage === 'entreprises' && (
+            <div className="space-y-6">
+              <h1 className="text-3xl font-bold text-gray-900">Entreprises</h1>
+              <input
+                type="text"
+                placeholder="Rechercher..."
+                value={entreprisesSearch}
+                onChange={(e) => {
+                  setEntreprisesSearch(e.target.value);
+                  setEntreprisesPage(1);
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="overflow-x-auto bg-white shadow rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ninea_ninet</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">cuci</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">raison_social</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ensemble_sigle</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">numrc</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">syscoa1</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">syscoa2</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">syscoa3</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">naemas</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">naemas_rev1</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">citi_rev4</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">adresse</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">telephone</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">telephone1</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">numero_telecopie</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">email</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">bp</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">region</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">departement</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ville</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">commune</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">quartier</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">personne_contact</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">adresse_personne_contact</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">qualite_personne_contact</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">premiere_annee_exercice</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">forme_juridique</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">regime_fiscal</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">pays_du_siege_de_lentreprise</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">nombre_etablissement</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">controle</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">date_reception</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">libelle_activite_principale</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">observations</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">systeme</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {paginatedEntreprises.map((entry, index) => (
+                      <tr key={index}>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.ninea_ninet}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.cuci}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.raison_social}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.ensemble_sigle}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.numrc}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.syscoa1}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.syscoa2}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.syscoa3}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.naemas}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.naemas_rev1}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.citi_rev4}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.adresse}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.telephone}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.telephone1}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.numero_telecopie}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.bp}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.region}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.departement}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.ville}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.commune}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.quartier}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.personne_contact}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.adresse_personne_contact}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.qualite_personne_contact}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.premiere_annee_exercice}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.forme_juridique}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.regime_fiscal}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.pays_du_siege_de_lentreprise}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.nombre_etablissement}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.controle}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.date_reception}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.libelle_activite_principale}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.observations}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{entry.systeme}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                  <span className="text-sm text-gray-700">
+                    Page {entreprisesPage} sur {entreprisesTotalPages}
+                  </span>
+                  <div className="space-x-2">
+                    <button
+                      onClick={() => setEntreprisesPage((p) => Math.max(p - 1, 1))}
+                      disabled={entreprisesPage === 1}
+                      className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Précédent
+                    </button>
+                    <button
+                      onClick={() => setEntreprisesPage((p) => Math.min(p + 1, entreprisesTotalPages))}
+                      disabled={entreprisesPage === entreprisesTotalPages}
                       className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                     >
                       Suivant
