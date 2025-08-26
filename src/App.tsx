@@ -47,6 +47,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
+import PageHeader from './components/PageHeader';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -1224,7 +1225,7 @@ const App: React.FC = () => {
               </div>
               {sidebarOpen && (
                 <div className="ml-3">
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">VEGETA</h1>
+                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">VEGETA</h1>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Recherche Pro</p>
                 </div>
               )}
@@ -1418,14 +1419,7 @@ const App: React.FC = () => {
           {currentPage === 'search' && (
             <div className="space-y-8">
               {/* Header */}
-              <div className="text-center">
-                <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                  Recherche Unifiée
-                </h1>
-                <p className="text-lg text-gray-600">
-                  Explorez toutes les bases de données en une seule recherche
-                </p>
-              </div>
+              <PageHeader icon={<Search className="h-6 w-6" />} title="Recherche Unifiée" subtitle="Explorez toutes les bases de données en une seule recherche" />
 
               {/* Barre de recherche */}
               <div className="bg-white shadow-xl rounded-2xl p-8">
@@ -1631,7 +1625,7 @@ const App: React.FC = () => {
 
           {currentPage === 'annuaire' && (
             <div className="space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900">Annuaire Gendarmerie</h1>
+              <PageHeader icon={<Phone className="h-6 w-6" />} title="Annuaire Gendarmerie" />
               <input
                 type="text"
                 placeholder="Rechercher..."
@@ -1721,7 +1715,7 @@ const App: React.FC = () => {
 
           {currentPage === 'ong' && (
             <div className="space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900">ONG</h1>
+              <PageHeader icon={<Users className="h-6 w-6" />} title="ONG" />
               <input
                 type="text"
                 placeholder="Rechercher..."
@@ -1819,7 +1813,7 @@ const App: React.FC = () => {
 
           {currentPage === 'entreprises' && (
             <div className="space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900">Entreprises</h1>
+              <PageHeader icon={<Building2 className="h-6 w-6" />} title="Entreprises" />
               <input
                 type="text"
                 placeholder="Rechercher..."
@@ -1967,7 +1961,7 @@ const App: React.FC = () => {
 
           {currentPage === 'vehicules' && (
             <div className="space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900">Véhicules</h1>
+              <PageHeader icon={<Car className="h-6 w-6" />} title="Véhicules" />
               <input
                 type="text"
                 placeholder="Rechercher..."
@@ -2115,7 +2109,7 @@ const App: React.FC = () => {
 
           {currentPage === 'links' && (
             <div className="space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900">Liens Utiles</h1>
+              <PageHeader icon={<LinkIcon className="h-6 w-6" />} title="Liens Utiles" />
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {usefulLinks.map((link) => (
                   <a
@@ -2142,10 +2136,7 @@ const App: React.FC = () => {
             <div className="space-y-8">
               {/* Header */}
               <div className="flex justify-between items-center">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Gestion des utilisateurs</h1>
-                  <p className="text-gray-600 mt-1">Créez et gérez les comptes utilisateurs</p>
-                </div>
+                <PageHeader icon={<User className="h-6 w-6" />} title="Gestion des utilisateurs" subtitle="Créez et gérez les comptes utilisateurs" />
                 <button
                   onClick={openCreateModal}
                   className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all shadow-lg"
@@ -2265,14 +2256,7 @@ const App: React.FC = () => {
           {currentPage === 'statistics' && (
             <div className="space-y-8">
               {/* Header */}
-              <div className="text-center">
-                <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                  Dashboard
-                </h1>
-                <p className="text-lg text-gray-600">
-                  Analyse complète de l'utilisation de la plateforme VEGETA
-                </p>
-              </div>
+              <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme VEGETA" />
 
               <div className="flex justify-end">
                 <button
@@ -2603,7 +2587,7 @@ const App: React.FC = () => {
                 <div className="bg-white rounded-2xl shadow-xl p-8">
                   <div className="text-center mb-8">
                     <UploadCloud className="h-12 w-12 mx-auto text-blue-600" />
-                    <h1 className="mt-4 text-3xl font-bold text-gray-900">Charger des données</h1>
+                    <PageHeader icon={<UploadCloud className="h-6 w-6" />} title="Charger des données" />
                     <p className="mt-2 text-gray-600">Importez un fichier CSV ou SQL dans la table de votre choix.</p>
                   </div>
                   <form onSubmit={handleUploadData} className="space-y-6">
