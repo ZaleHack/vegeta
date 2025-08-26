@@ -421,11 +421,13 @@ export default {
   'autres.annuaire_gendarmerie': {
     display: 'annuaire_gendarmerie',
     database: 'autres',
-    searchable: ['Libelle', 'Telephone'],
-    preview: ['Libelle', 'Telephone'],
+    searchable: ['Libelle', 'Telephone', 'Sous-Categorie', 'Secteur'],
+    preview: ['Libelle', 'Telephone', 'Sous-Categorie', 'Secteur'],
     filters: {
       Libelle: 'string',
-      Telephone: 'string'
+      Telephone: 'string',
+      'Sous-Categorie': 'string',
+      Secteur: 'string'
     },
     theme: 'pro'
   },
