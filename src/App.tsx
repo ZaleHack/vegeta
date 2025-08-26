@@ -298,32 +298,51 @@ const App: React.FC = () => {
       });
 
       const fields = ['Source', 'Base', 'Score', ...Array.from(allFields)];
-      const doc = new jsPDF();
-      let y = 10;
-      doc.setFontSize(10);
-      doc.text(fields.join(' | '), 10, y);
-      y += 10;
+      const body = searchResults.hits.map(hit => [
+        hit.table || '',
+        hit.database || '',
+        String(hit.score || 0),
+        ...Array.from(allFields).map(field => String(hit.preview[field] ?? ''))
+      ]);
 
-      searchResults.hits.forEach(hit => {
-        const row = [
-          hit.table || '',
-          hit.database || '',
-          String(hit.score || 0),
-          ...Array.from(allFields).map(field => String(hit.preview[field] ?? ''))
-        ];
-        doc.text(row.join(' | '), 10, y);
-        y += 10;
-        if (y > 280) {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth() - 20;
+      const colWidth = pageWidth / fields.length;
+      let y = 20;
+
+      const drawHeader = () => {
+        doc.setFillColor(41, 128, 185);
+        doc.setTextColor(255);
+        fields.forEach((h, i) => {
+          const x = 10 + i * colWidth;
+          doc.rect(x, y, colWidth, 8, 'FD');
+          doc.text(h, x + 2, y + 5);
+        });
+        y += 8;
+        doc.setTextColor(0);
+      };
+      drawHeader();
+
+      body.forEach((row, idx) => {
+        doc.setFillColor(idx % 2 === 0 ? 255 : 245);
+        row.forEach((cell, i) => {
+          const x = 10 + i * colWidth;
+          doc.rect(x, y, colWidth, 8, 'FD');
+          doc.text(cell.slice(0, 30), x + 2, y + 5);
+        });
+        y += 8;
+        if (y > doc.internal.pageSize.getHeight() - 20) {
           doc.addPage();
-          y = 10;
+          y = 20;
+          drawHeader();
         }
       });
 
       const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
       const searchTerm = searchQuery.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_');
-      doc.save(`vegeta-export-${searchTerm}-${timestamp}.pdf`);
+      doc.save('vegeta-export-' + searchTerm + '-' + timestamp + '.pdf');
 
-      alert(`Export PDF réussi ! ${searchResults.hits.length} résultats exportés.`);
+      alert('Export PDF réussi ! ' + searchResults.hits.length + ' résultats exportés.');
     } catch (error) {
       console.error('Erreur export PDF:', error);
       alert('Erreur lors de l\'export PDF');
@@ -398,39 +417,89 @@ const App: React.FC = () => {
 
   const exportStats = () => {
     const doc = new jsPDF();
-    let y = 10;
+    doc.setFontSize(16);
+    doc.text('Statistiques VEGETA', 14, 15);
+    let y = 25;
 
-    const addLine = (text: string) => {
-      const lines = doc.splitTextToSize(text, 190);
-      lines.forEach(line => {
-        doc.text(line, 10, y);
-        y += 6;
-        if (y > 280) {
+    const drawTable = (headers: string[], rows: string[][]) => {
+      const pageWidth = doc.internal.pageSize.getWidth() - 20;
+      const colWidth = pageWidth / headers.length;
+
+      const drawHeaderRow = () => {
+        doc.setFillColor(41, 128, 185);
+        doc.setTextColor(255);
+        headers.forEach((h, i) => {
+          const x = 10 + i * colWidth;
+          doc.rect(x, y, colWidth, 8, 'FD');
+          doc.text(h, x + 2, y + 5);
+        });
+        y += 8;
+        doc.setTextColor(0);
+      };
+
+      drawHeaderRow();
+
+      rows.forEach((row, idx) => {
+        doc.setFillColor(idx % 2 === 0 ? 255 : 245);
+        row.forEach((cell, i) => {
+          const x = 10 + i * colWidth;
+          doc.rect(x, y, colWidth, 8, 'FD');
+          doc.text(String(cell).slice(0, 30), x + 2, y + 5);
+        });
+        y += 8;
+        if (y > doc.internal.pageSize.getHeight() - 20) {
           doc.addPage();
-          y = 10;
+          y = 20;
+          drawHeaderRow();
         }
       });
+      y += 10;
     };
 
-    doc.setFontSize(16);
-    addLine('Statistiques VEGETA');
+    const addSection = (title: string) => {
+      doc.setFontSize(12);
+      doc.setTextColor(40);
+      doc.text(title, 14, y);
+      y += 8;
+    };
 
-    doc.setFontSize(12);
-    addLine("--- Vue d'ensemble ---");
     if (statsData) {
-      Object.entries(statsData).forEach(([key, value]) =>
-        addLine(`${key}: ${value}`)
-      );
+      addSection('Aperçu');
+      const overview = Object.entries(statsData)
+        .filter(([key, value]) => !Array.isArray(value))
+        .map(([key, value]) => [key, String(value)]);
+      drawTable(['Indicateur', 'Valeur'], overview);
+
+      if ((statsData as any).top_search_terms?.length) {
+        addSection('Top termes recherchés');
+        const rows = (statsData as any).top_search_terms.map((t: any) => [t.search_term, String(t.search_count)]);
+        drawTable(['Terme', 'Nombre'], rows);
+      }
+
+      if ((statsData as any).searches_by_type?.length) {
+        addSection('Recherches par type');
+        const rows = (statsData as any).searches_by_type.map((t: any) => [t.search_type, String(t.search_count)]);
+        drawTable(['Type', 'Nombre'], rows);
+      }
     }
 
-    addLine('--- Séries temporelles ---');
-    timeSeries.forEach(item => addLine(JSON.stringify(item)));
+    if (timeSeries.length) {
+      addSection('Séries temporelles');
+      const rows = timeSeries.map((item: any) => [item.date, String(item.searches), String(item.unique_users), String(item.avg_time)]);
+      drawTable(['Date', 'Recherches', 'Utilisateurs uniques', 'Temps moyen (ms)'], rows);
+    }
 
-    addLine('--- Distribution des tables ---');
-    tableDistribution.forEach(item => addLine(JSON.stringify(item)));
+    if (tableDistribution.length) {
+      addSection('Distribution des tables');
+      const rows = tableDistribution.map((item: any) => [item.table, String(item.count)]);
+      drawTable(['Table', 'Enregistrements'], rows);
+    }
 
-    addLine('--- Journaux de recherche ---');
-    searchLogs.forEach(log => addLine(JSON.stringify(log)));
+    if (searchLogs.length) {
+      addSection('Journaux de recherche');
+      const rows = searchLogs.map((log: any) => [log.username || '', log.search_term || '', log.search_date || '', String(log.results_count ?? '')]);
+      drawTable(['Utilisateur', 'Terme', 'Date', 'Résultats'], rows);
+    }
 
     doc.save('statistics.pdf');
   };
