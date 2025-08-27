@@ -76,6 +76,55 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
   }
 });
 
+// Route de recherche avec streaming progressif
+router.post('/stream', authenticate, async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query || query.trim().length === 0) {
+      return res.status(400).json({ error: 'Le terme de recherche ne peut pas être vide' });
+    }
+
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const startTime = Date.now();
+    const searchTerms = searchService.parseSearchQuery(query.trim());
+    const catalog = searchService.loadCatalog();
+
+    const tablesSearched = [];
+    let total = 0;
+
+    for (const [tableName, config] of Object.entries(catalog)) {
+      try {
+        const tableResults = await searchService.searchInTable(
+          tableName,
+          config,
+          searchTerms,
+          {}
+        );
+        if (tableResults.length > 0) {
+          total += tableResults.length;
+          tablesSearched.push(tableName);
+          res.write(
+            JSON.stringify({ table: tableName, results: tableResults }) + '\n'
+          );
+        }
+      } catch (err) {
+        console.error(`❌ Erreur recherche table ${tableName}:`, err.message);
+      }
+    }
+
+    const elapsed = Date.now() - startTime;
+    res.write(
+      JSON.stringify({ done: true, total, tables_searched: tablesSearched, elapsed_ms: elapsed }) + '\n'
+    );
+    res.end();
+  } catch (error) {
+    console.error('❌ Erreur recherche stream:', error);
+    res.end();
+  }
+});
+
 // Route pour obtenir les détails d'un enregistrement
 router.get('/details/:table/:id', authenticate, async (req, res) => {
   try {
