@@ -19,7 +19,7 @@ export default {
     display: 'personne_concours',
     database: 'rhpolice',
     searchable: ['prenom', 'nom', 'date_naiss', 'lieu_naiss', 'sexe', 'adresse', 'email', 'telephone', 'cni', 'prenom_pere', 'nom_pere', 'nom_mere'],
-    linkedFields: ['cni', 'telephone', 'email'],
+    linkedFields: ['cni', 'telephone'],
     preview: ['prenom', 'nom', 'cni', 'telephone', 'email'],
     filters: {
       sexe: 'enum',
@@ -51,7 +51,7 @@ export default {
     display: 'personne',
     database: 'rhgendarmerie',
     searchable: ['matricule', 'prenom', 'nom', 'carteidentite', 'tel', 'email', 'adresse', 'pere', 'mere'],
-    linkedFields: ['carteidentite', 'tel', 'email'],
+    linkedFields: ['carteidentite', 'tel'],
     preview: ['matricule', 'prenom', 'nom', 'carteidentite', 'tel'],
     filters: {
       codesex: 'enum',
@@ -83,7 +83,7 @@ export default {
     display: 'expresso',
     database: 'expresso',
     searchable: ['numero', 'prenom', 'nom', 'cni'],
-    linkedFields: ['cni', 'numero'],
+    linkedFields: ['cni'],
     preview: ['numero', 'prenom', 'nom', 'cni'],
     filters: {
       cni: 'string',
@@ -533,7 +533,7 @@ export default {
     display: 'fpublique',
     database: 'autres',
     searchable: ['cni', 'login', 'prenom', 'nom', 'email'],
-    linkedFields: ['cni', 'email', 'login'],
+    linkedFields: ['cni'],
     preview: ['login', 'prenom', 'nom', 'cni', 'email'],
     filters: {
       cni: 'string',
@@ -546,7 +546,6 @@ export default {
     display: 'demdikk',
     database: 'autres',
     searchable: ['Prenom', 'Nom', 'Numero', 'PassePort'],
-    linkedFields: ['Numero', 'PassePort'],
     preview: ['Prenom', 'Nom', 'Numero', 'PassePort'],
     filters: {
       Numero: 'string',
@@ -588,7 +587,7 @@ export default {
     display: 'petrosen',
     database: 'autres',
     searchable: ['nom', 'telephone', 'email', 'departement', 'titre', 'responsable'],
-    linkedFields: ['telephone', 'email'],
+    linkedFields: ['telephone'],
     preview: ['nom', 'telephone', 'email', 'departement', 'titre'],
     filters: {
       departement: 'string',
@@ -602,7 +601,7 @@ export default {
     display: 'candidats_ansd',
     database: 'autres',
     searchable: ['nin', 'prenom', 'nom', 'date_naiss', 'lieu_naiss', 'adresse', 'email', 'telephone', 'telephone2'],
-    linkedFields: ['nin', 'email', 'telephone', 'telephone2'],
+    linkedFields: ['telephone', 'telephone2'],
     preview: ['nin', 'prenom', 'nom', 'telephone', 'email'],
     filters: {
       date_naiss: 'date',
@@ -663,7 +662,7 @@ export default {
     display: 'uvs',
     database: 'autres',
     searchable: ['id', 'matricule', 'cniPasseport', 'prenom', 'nom', 'telephone', 'email', 'login'],
-    linkedFields: ['telephone', 'email'],
+    linkedFields: ['telephone'],
     preview: ['id', 'prenom', 'nom', 'telephone', 'email'],
     filters: {
       genre: 'enum',
