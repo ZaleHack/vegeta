@@ -1136,7 +1136,7 @@ const App: React.FC = () => {
       <div
         className={`min-h-screen flex items-center justify-center p-4 ${
           theme === 'dark'
-            ? 'bg-gray-900 text-white'
+            ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100'
             : 'bg-gradient-to-br from-blue-50 via-white to-indigo-50'
         }`}
       >
@@ -1213,7 +1213,7 @@ const App: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen flex bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+      className="min-h-screen flex bg-gray-50 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100"
     >
       {/* Sidebar */}
       <div
