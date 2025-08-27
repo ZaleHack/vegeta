@@ -295,6 +295,16 @@ class DatabaseManager {
         systeme TEXT
       )`,
 
+      // Base autres - annuaire gendarmerie
+      `CREATE TABLE IF NOT EXISTS autres_annuaire_gendarmerie (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        Libelle TEXT,
+        Telephone TEXT,
+        "Sous-Categorie" TEXT,
+        Secteur TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
       // Autres tables de la base "autres"
       `CREATE TABLE IF NOT EXISTS autres_affaire_etrangere (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
