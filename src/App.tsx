@@ -32,7 +32,9 @@ import {
   Globe,
   Car,
   Link as LinkIcon,
-  ExternalLink
+  ExternalLink,
+  GitBranch,
+  List
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -49,6 +51,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import PageHeader from './components/PageHeader';
+import SearchResultGraph from './components/SearchResultGraph';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -222,6 +225,7 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [searchError, setSearchError] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
 
   // États d'authentification
   const [loginData, setLoginData] = useState({ login: '', password: '' });
@@ -366,6 +370,7 @@ const App: React.FC = () => {
 
     setLoading(true);
     setSearchError('');
+    setSearchResults(null);
 
     try {
       const token = localStorage.getItem('token');
@@ -1322,6 +1327,15 @@ const App: React.FC = () => {
                   </div>
                 </div>
               )}
+              {loading && (
+                <div className="flex justify-center py-8">
+                  <div className="thinking">
+                    <div className="thinking-dot"></div>
+                    <div className="thinking-dot"></div>
+                    <div className="thinking-dot"></div>
+                  </div>
+                </div>
+              )}
 
               {/* Résultats */}
               {searchResults && (
@@ -1341,9 +1355,24 @@ const App: React.FC = () => {
                           </span>
                         </div>
                       </div>
-
-                      {searchResults.hits.length > 0 && (
-                        <div className="flex space-x-2">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => setViewMode(viewMode === 'list' ? 'graph' : 'list')}
+                          className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
+                        >
+                          {viewMode === 'list' ? (
+                            <>
+                              <GitBranch className="w-4 h-4 mr-2" />
+                              Vue graphe
+                            </>
+                          ) : (
+                            <>
+                              <List className="w-4 h-4 mr-2" />
+                              Vue liste
+                            </>
+                          )}
+                        </button>
+                        {searchResults.hits.length > 0 && (
                           <button
                             onClick={exportToCSV}
                             className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
@@ -1351,11 +1380,10 @@ const App: React.FC = () => {
                             <Download className="w-4 h-4 mr-2" />
                             Export CSV
                           </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
-
                     {searchResults.hits.length === 0 ? (
                       <div className="text-center py-16">
                         <Search className="mx-auto h-16 w-16 text-gray-400 mb-4" />
@@ -1364,7 +1392,7 @@ const App: React.FC = () => {
                           Essayez avec d'autres termes de recherche ou vérifiez l'orthographe.
                         </p>
                       </div>
-                    ) : (
+                    ) : viewMode === 'list' ? (
                       <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
                         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
                           {searchResults.hits.map((result, index) => (
@@ -1446,6 +1474,10 @@ const App: React.FC = () => {
                             </div>
                           ))}
                         </div>
+                      </div>
+                    ) : (
+                      <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
+                        <SearchResultGraph hits={searchResults.hits} query={searchQuery} />
                       </div>
                     )}
                 </div>
