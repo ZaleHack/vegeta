@@ -11,6 +11,20 @@ class SearchService {
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
   }
 
+  extractLinkedIdentifiers(results) {
+    const identifiers = new Set();
+    for (const result of results) {
+      const fields = result.linkedFields || [];
+      for (const field of fields) {
+        const value = result.preview?.[field];
+        if (value) {
+          identifiers.add(value);
+        }
+      }
+    }
+    return Array.from(identifiers);
+  }
+
   loadCatalog() {
     let catalog = { ...baseCatalog };
     try {
@@ -35,8 +49,16 @@ class SearchService {
     page = 1,
     limit = 20,
     user = null,
-    searchType = 'global'
+    searchType = 'global',
+    options = {}
   ) {
+    const {
+      followLinks = false,
+      maxDepth = 1,
+      depth = 0,
+      seen = new Set()
+    } = options;
+
     const startTime = Date.now();
     const results = [];
     const tablesSearched = [];
@@ -87,28 +109,54 @@ class SearchService {
       }
     }
 
-    // Tri et pagination des résultats
-    const sortedResults = this.sortResults(results, searchTerms);
+    let extraSearches = 0;
+    const identifiersFollowed = [];
+
+    if (followLinks && depth < maxDepth) {
+      const linkedIds = this.extractLinkedIdentifiers(results);
+      for (const id of linkedIds) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          extraSearches++;
+          identifiersFollowed.push(id);
+          const sub = await this.search(id, {}, 1, 50, null, 'linked', {
+            followLinks,
+            maxDepth,
+            depth: depth + 1,
+            seen
+          });
+          results.push(...sub.hits);
+          tablesSearched.push(...sub.tables_searched);
+        }
+      }
+    }
+
+    // Tri, fusion et pagination des résultats
+    const sortedResults = this.sortResults(results);
     const totalResults = sortedResults.length;
     const paginatedResults = sortedResults.slice(offset, offset + limit);
 
     const executionTime = Date.now() - startTime;
 
-    console.log(`🎯 Recherche terminée: ${totalResults} résultats en ${executionTime}ms`);
+    console.log(
+      `🎯 Recherche terminée: ${totalResults} résultats en ${executionTime}ms`
+    );
 
     // Journalisation
-    if (user) {
+    if (user && depth === 0) {
       await this.logSearch({
         user_id: user.id,
         username: user.login,
         search_term: query,
         search_type: searchType,
         filters: JSON.stringify(filters),
-        tables_searched: JSON.stringify(tablesSearched),
+        tables_searched: JSON.stringify([...new Set(tablesSearched)]),
         results_count: totalResults,
         execution_time_ms: executionTime,
         ip_address: user.ip_address || '',
-        user_agent: user.user_agent || ''
+        user_agent: user.user_agent || '',
+        extra_searches: extraSearches,
+        linked_identifiers: identifiersFollowed
       });
     }
 
@@ -119,7 +167,7 @@ class SearchService {
       pages: Math.ceil(totalResults / limit),
       elapsed_ms: executionTime,
       hits: paginatedResults,
-      tables_searched: tablesSearched
+      tables_searched: [...new Set(tablesSearched)]
     };
   }
 
@@ -300,7 +348,8 @@ class SearchService {
           database: config.database,
           preview: preview,
           primary_keys: { id: row.id },
-          score: this.calculateRelevanceScore(row, searchTerms, config)
+          score: this.calculateRelevanceScore(row, searchTerms, config),
+          linkedFields: config.linkedFields || []
         });
       }
     } catch (error) {
@@ -387,8 +436,16 @@ class SearchService {
     return Math.round(score * 100) / 100;
   }
 
-  sortResults(results, searchTerms) {
-    return results.sort((a, b) => {
+  sortResults(results) {
+    const unique = new Map();
+    for (const r of results) {
+      const pk = r.primary_keys ? Object.values(r.primary_keys).join(':') : '';
+      const key = `${r.database}.${r.table}:${pk}`;
+      if (!unique.has(key)) {
+        unique.set(key, r);
+      }
+    }
+    return Array.from(unique.values()).sort((a, b) => {
       if (b.score !== a.score) {
         return b.score - a.score;
       }
@@ -398,22 +455,28 @@ class SearchService {
 
   async logSearch(logData) {
     try {
-      await database.query(`
+      await database.query(
+        `
         INSERT INTO autres.search_logs (
           user_id, username, search_term, search_type, tables_searched,
-          results_count, execution_time_ms, ip_address, user_agent
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        logData.user_id,
-        logData.username,
-        logData.search_term,
-        logData.search_type,
-        logData.tables_searched,
-        logData.results_count,
-        logData.execution_time_ms,
-        logData.ip_address,
-        logData.user_agent
-      ]);
+          results_count, execution_time_ms, ip_address, user_agent,
+          extra_searches, linked_identifiers
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+        [
+          logData.user_id,
+          logData.username,
+          logData.search_term,
+          logData.search_type,
+          logData.tables_searched,
+          logData.results_count,
+          logData.execution_time_ms,
+          logData.ip_address,
+          logData.user_agent,
+          logData.extra_searches || 0,
+          JSON.stringify(logData.linked_identifiers || [])
+        ]
+      );
     } catch (error) {
       console.error('❌ Erreur log recherche:', error);
     }

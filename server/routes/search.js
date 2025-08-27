@@ -19,7 +19,15 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
     console.log('🔍 POST /api/search - Nouvelle recherche');
     console.log('📥 Body reçu:', req.body);
     
-    const { query, filters = {}, page = 1, limit = 20, search_type = 'global' } = req.body;
+    const {
+      query,
+      filters = {},
+      page = 1,
+      limit = 20,
+      search_type = 'global',
+      followLinks = false,
+      depth = 1
+    } = req.body;
 
     if (!query || query.trim().length === 0) {
       return res.status(400).json({ 
@@ -35,6 +43,14 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
       return res.status(400).json({ error: 'La limite doit être entre 1 et 100' });
     }
 
+    if (typeof followLinks !== 'boolean') {
+      return res.status(400).json({ error: 'followLinks doit être un booléen' });
+    }
+
+    if (isNaN(parseInt(depth)) || parseInt(depth) < 1) {
+      return res.status(400).json({ error: 'depth doit être >= 1' });
+    }
+
     // Ajouter les infos utilisateur pour les logs
     req.user.ip_address = req.ip;
     req.user.user_agent = req.headers['user-agent'];
@@ -46,7 +62,8 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
       parseInt(page),
       parseInt(limit),
       req.user,
-      search_type
+      search_type,
+      { followLinks, maxDepth: parseInt(depth) }
     );
 
     console.log('✅ Recherche terminée, envoi des résultats');
