@@ -117,37 +117,16 @@
                             <!-- Barre de recherche principale -->
                             <div class="row justify-content-center">
                                 <div class="col-lg-8">
-                                    <div class="input-group input-group-lg mb-4">
-                                        <input type="text" 
-                                               class="form-control" 
-                                               id="searchQuery" 
+                                    <div class="position-relative mb-4">
+                                        <i data-lucide="search" class="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                                        <input type="text"
+                                               class="form-control form-control-lg ps-5 pe-5 rounded-pill shadow-sm"
+                                               id="searchQuery"
                                                placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
                                                autocomplete="off">
-                                        <button class="btn btn-primary" type="button" id="searchBtn">
-                                            <i data-lucide="search" class="me-1"></i>
+                                        <button class="btn btn-primary rounded-pill position-absolute top-50 end-0 translate-middle-y me-2 px-4" type="button" id="searchBtn">
                                             Rechercher
                                         </button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Suggestions de recherche -->
-                            <div class="row mb-4">
-                                <div class="col-12">
-                                    <h6 class="text-muted mb-3">Suggestions de recherche :</h6>
-                                    <div class="d-flex flex-wrap gap-2" id="searchSuggestions">
-                                        <span class="badge bg-light text-dark border suggestion-badge" onclick="setSearchQuery('CNI: ')">
-                                            <i data-lucide="id-card" class="me-1"></i>Recherche par CNI
-                                        </span>
-                                        <span class="badge bg-light text-dark border suggestion-badge" onclick="setSearchQuery('DK')">
-                                            <i data-lucide="car" class="me-1"></i>Immatriculation
-                                        </span>
-                                        <span class="badge bg-light text-dark border suggestion-badge" onclick="setSearchQuery('NINEA:')">
-                                            <i data-lucide="building" class="me-1"></i>Entreprise NINEA
-                                        </span>
-                                        <span class="badge bg-light text-dark border suggestion-badge" onclick="setSearchQuery('77')">
-                                            <i data-lucide="phone" class="me-1"></i>Téléphone
-                                        </span>
                                     </div>
                                 </div>
                             </div>

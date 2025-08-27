@@ -96,24 +96,4 @@ router.get('/details/:table/:id', authenticate, async (req, res) => {
   }
 });
 
-// Route pour obtenir des suggestions de recherche
-router.get('/suggestions', authenticate, (req, res) => {
-  try {
-    const suggestions = [
-      { label: 'Recherche par CNI', example: 'CNI: 123456789', icon: 'id-card' },
-      { label: 'Recherche par nom complet', example: 'Jean Dupont', icon: 'user' },
-      { label: 'Recherche par téléphone', example: '77 123 45 67', icon: 'phone' },
-      { label: 'Recherche par immatriculation', example: 'DK 1234 AB', icon: 'car' },
-      { label: 'Recherche par NINEA', example: 'NINEA: 123456', icon: 'building' },
-      { label: 'Recherche exacte', example: '"Jean Pierre Dupont"', icon: 'search' },
-      { label: 'Exclusion de terme', example: 'Dupont -Marie', icon: 'minus-circle' }
-    ];
-
-    res.json({ suggestions });
-  } catch (error) {
-    console.error('Erreur suggestions:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des suggestions' });
-  }
-});
-
 module.exports = router;

@@ -1284,51 +1284,29 @@ const App: React.FC = () => {
               <div className="bg-white shadow-xl rounded-2xl p-8">
                 <form onSubmit={handleSearch} className="space-y-6">
                   <div className="relative">
+                    <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
-                      className="w-full px-6 py-4 text-lg border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      className="w-full pl-12 pr-40 py-4 text-lg bg-gray-50 border border-gray-200 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                     <button
                       type="submit"
                       disabled={loading}
-                      className="absolute right-2 top-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all flex items-center"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all flex items-center"
                     >
                       {loading ? (
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                       ) : (
                         <>
-                          <Search className="w-5 h-5 mr-2" />
                           Rechercher
                         </>
                       )}
                     </button>
                   </div>
                 </form>
-
-                {/* Suggestions */}
-                <div className="mt-6">
-                  <p className="text-sm font-medium text-gray-700 mb-3">Suggestions :</p>
-                  <div className="flex flex-wrap gap-3">
-                    {[
-                      { label: 'CNI', example: 'CNI: 123456789', icon: '🆔' },
-                      { label: 'Immatriculation', example: 'DK 1234 AB', icon: '🚗' },
-                      { label: 'NINEA', example: 'NINEA: 123456', icon: '🏢' },
-                      { label: 'Téléphone', example: '77 123 45 67', icon: '📞' }
-                    ].map((suggestion) => (
-                      <button
-                        key={suggestion.label}
-                        onClick={() => setSearchQuery(suggestion.example)}
-                        className="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full text-sm font-medium transition-colors"
-                      >
-                        <span className="mr-2">{suggestion.icon}</span>
-                        {suggestion.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               {/* Erreur de recherche */}
