@@ -1638,7 +1638,7 @@ const App: React.FC = () => {
                 onChange={(e) => setGendarmerieSearch(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <div className="overflow-x-auto bg-white shadow rounded-lg">
+              <div className="overflow-x-auto bg-white shadow rounded-lg dark:bg-gray-800">
                 {gendarmerieLoading ? (
                   <div className="loading-bar-container my-4">
                     <div className="loading-bar"></div>
@@ -1656,12 +1656,12 @@ const App: React.FC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Créé le</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
                         {paginatedGendarmerie.map((entry) => {
                           const isTitle = !entry.Telephone || entry.Telephone.trim() === '';
                           return isTitle ? (
-                            <tr key={entry.id} className="bg-gray-100">
-                              <td colSpan={6} className="px-6 py-4 font-semibold">
+                            <tr key={entry.id} className="bg-gray-100 dark:bg-gray-700">
+                              <td colSpan={6} className="px-6 py-4 font-semibold text-gray-900 dark:text-gray-100">
                                 {entry.Libelle}
                               </td>
                             </tr>
@@ -2561,28 +2561,28 @@ const App: React.FC = () => {
                   </div>
 
                   {/* Termes de recherche populaires */}
-                  <div className="bg-white rounded-2xl shadow-xl p-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-                      <TrendingUp className="h-6 w-6 mr-2 text-orange-600" />
+                  <div className="bg-white rounded-2xl shadow-xl p-6 dark:bg-gray-800">
+                    <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center dark:text-gray-100">
+                      <TrendingUp className="h-6 w-6 mr-2 text-orange-600 dark:text-orange-400" />
                       Termes de recherche populaires
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {statsData?.top_search_terms?.slice(0, 9).map((term, index) => (
-                        <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-indigo-50 transition-all">
+                        <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-indigo-50 transition-all dark:from-gray-800 dark:to-gray-700 dark:hover:from-blue-900 dark:hover:to-indigo-900">
                           <div className="flex items-center space-x-3">
-                            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full text-blue-600 font-bold text-sm">
+                            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full text-blue-600 font-bold text-sm dark:bg-blue-900 dark:text-blue-200">
                               {index + 1}
                             </div>
-                            <span className="font-medium text-gray-900 truncate max-w-xs">"{term.search_term}"</span>
+                            <span className="font-medium text-gray-900 truncate max-w-xs dark:text-gray-100">"{term.search_term}"</span>
                           </div>
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                             {term.search_count} fois
                           </span>
                         </div>
                       )) || (
                         <div className="col-span-full text-center py-8">
-                          <Search className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                          <p className="text-gray-500">Aucun terme de recherche populaire</p>
+                          <Search className="mx-auto h-12 w-12 text-gray-400 mb-4 dark:text-gray-500" />
+                          <p className="text-gray-500 dark:text-gray-400">Aucun terme de recherche populaire</p>
                         </div>
                       )}
                     </div>
