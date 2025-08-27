@@ -52,6 +52,7 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import PageHeader from './components/PageHeader';
 import SearchResultProfiles from './components/SearchResultProfiles';
+import LoadingSpinner from './components/LoadingSpinner';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -370,29 +371,62 @@ const App: React.FC = () => {
 
     setLoading(true);
     setSearchError('');
-    setSearchResults(null);
+    setSearchResults({
+      total: 0,
+      page: 1,
+      pages: 1,
+      limit: 20,
+      elapsed_ms: 0,
+      hits: [],
+      tables_searched: []
+    });
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/search', {
+      const response = await fetch('/api/search/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          query: searchQuery,
-          page: 1,
-          limit: 20
-        })
+        body: JSON.stringify({ query: searchQuery })
       });
 
-      const data = await response.json();
+      if (!response.ok || !response.body) {
+        const err = await response.json().catch(() => ({ error: 'Erreur lors de la recherche' }));
+        setSearchError(err.error || 'Erreur lors de la recherche');
+        return;
+      }
 
-      if (response.ok) {
-        setSearchResults(data);
-      } else {
-        setSearchError(data.error || 'Erreur lors de la recherche');
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const chunk = JSON.parse(line);
+          if (chunk.done) {
+            setSearchResults(prev =>
+              prev ? { ...prev, total: chunk.total, tables_searched: chunk.tables_searched, elapsed_ms: chunk.elapsed_ms } : prev
+            );
+          } else {
+            setSearchResults(prev =>
+              prev
+                ? {
+                    ...prev,
+                    total: prev.total + (chunk.results?.length || 0),
+                    hits: [...prev.hits, ...(chunk.results || [])],
+                    tables_searched: [...prev.tables_searched, chunk.table]
+                  }
+                : prev
+            );
+          }
+        }
       }
     } catch (error) {
       setSearchError('Erreur de connexion au serveur');
@@ -1372,15 +1406,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
               )}
-              {loading && (
-                <div className="flex justify-center py-8">
-                  <div className="thinking">
-                    <div className="thinking-dot"></div>
-                    <div className="thinking-dot"></div>
-                    <div className="thinking-dot"></div>
-                  </div>
-                </div>
-              )}
+              {loading && <LoadingSpinner />}
 
               {/* Résultats */}
               {searchResults && (
