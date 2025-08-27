@@ -425,12 +425,12 @@ export default {
   'autres.annuaire_gendarmerie': {
     display: 'annuaire_gendarmerie',
     database: 'autres',
-    searchable: ['Libelle', 'Telephone', 'Sous-Categorie', 'Secteur'],
-    preview: ['Libelle', 'Telephone', 'Sous-Categorie', 'Secteur'],
+    searchable: ['Libelle', 'Telephone', 'SousCategorie', 'Secteur'],
+    preview: ['Libelle', 'Telephone', 'SousCategorie', 'Secteur'],
     filters: {
       Libelle: 'string',
       Telephone: 'string',
-      'Sous-Categorie': 'string',
+      SousCategorie: 'string',
       Secteur: 'string'
     },
     theme: 'pro'
@@ -662,12 +662,15 @@ export default {
   'autres.uvs': {
     display: 'uvs',
     database: 'autres',
-    searchable: ['id', 'nom', 'telephone', 'email'],
+    searchable: ['id', 'matricule', 'cniPasseport', 'prenom', 'nom', 'telephone', 'email', 'login'],
     linkedFields: ['telephone', 'email'],
-    preview: ['id', 'nom', 'telephone', 'email'],
+    preview: ['id', 'prenom', 'nom', 'telephone', 'email'],
     filters: {
-      telephone: 'string',
-      email: 'string'
+      genre: 'enum',
+      date: 'date',
+      eno: 'string',
+      pole: 'string',
+      filiere: 'string'
     },
     theme: 'identite'
   },
@@ -675,11 +678,14 @@ export default {
   'autres.collections': {
     display: 'collections',
     database: 'autres',
-    searchable: ['id', 'titre', 'description'],
-    preview: ['id', 'titre', 'description'],
+    searchable: ['Nom', 'Prenom', 'DateNaissance', 'CNI', 'Telephone', 'Localite'],
+    preview: ['Nom', 'Prenom', 'Telephone', 'Localite'],
     filters: {
-      titre: 'string'
+      DateNaissance: 'date',
+      CNI: 'string',
+      Telephone: 'string',
+      Localite: 'string'
     },
-    theme: 'autre'
+    theme: 'identite'
   }
 };

@@ -81,7 +81,7 @@ interface GendarmerieEntry {
   id: number;
   Libelle: string;
   Telephone: string;
-  'Sous-Categorie'?: string;
+  SousCategorie?: string;
   Secteur?: string;
   created_at?: string;
 }
@@ -900,7 +900,7 @@ const App: React.FC = () => {
             const matches =
               entry.Libelle.toLowerCase().includes(searchLower) ||
               (entry.Telephone || '').toLowerCase().includes(searchLower) ||
-              (entry['Sous-Categorie'] || '').toLowerCase().includes(searchLower) ||
+              (entry.SousCategorie || '').toLowerCase().includes(searchLower) ||
               (entry.Secteur || '').toLowerCase().includes(searchLower) ||
               entry.id.toString().includes(searchLower);
 
@@ -1476,7 +1476,7 @@ const App: React.FC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Libellé</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Téléphone</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Sous-Categorie</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">SousCategorie</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Secteur</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Créé le</th>
                         </tr>
@@ -1495,7 +1495,7 @@ const App: React.FC = () => {
                               <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.Libelle}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
-                              <td className="px-6 py-4 whitespace-nowrap">{entry['Sous-Categorie']}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">{entry.SousCategorie}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.Secteur}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.created_at ? new Date(entry.created_at).toLocaleDateString() : ''}</td>
                             </tr>

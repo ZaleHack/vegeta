@@ -56,7 +56,9 @@ class StatsService {
       'elections_dakar',
       'autres_vehicules',
       'autres_entreprises',
-      'autres_annuaire_gendarmerie'
+      'autres_annuaire_gendarmerie',
+      'autres_uvs',
+      'autres_collections'
     ];
 
     const results = await Promise.all(

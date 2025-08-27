@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/', authenticate, async (req, res) => {
   try {
     const rows = await database.query(
-      'SELECT id, Libelle, Telephone, `Sous-Categorie`, Secteur, created_at FROM annuaire_gendarmerie ORDER BY id'
+      'SELECT id, Libelle, Telephone, SousCategorie, Secteur, created_at FROM annuaire_gendarmerie ORDER BY id'
     );
     res.json({ entries: rows });
   } catch (error) {

@@ -300,8 +300,39 @@ class DatabaseManager {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         Libelle TEXT,
         Telephone TEXT,
-        "Sous-Categorie" TEXT,
+        SousCategorie TEXT,
         Secteur TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Base autres - uvs
+      `CREATE TABLE IF NOT EXISTS autres_uvs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT,
+        matricule TEXT,
+        cniPasseport TEXT,
+        prenom TEXT,
+        genre TEXT,
+        nom TEXT,
+        email TEXT,
+        mail_perso TEXT,
+        telephone TEXT,
+        adresse TEXT,
+        eno TEXT,
+        pole TEXT,
+        filiere TEXT,
+        login TEXT
+      )`,
+
+      // Base autres - collections
+      `CREATE TABLE IF NOT EXISTS autres_collections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        Nom TEXT,
+        Prenom TEXT,
+        DateNaissance TEXT,
+        CNI TEXT,
+        Telephone TEXT,
+        Localite TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
 
