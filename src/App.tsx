@@ -371,72 +371,23 @@ const App: React.FC = () => {
 
     setLoading(true);
     setSearchError('');
-    setSearchResults({
-      total: 0,
-      page: 1,
-      pages: 1,
-      limit: 20,
-      elapsed_ms: 0,
-      hits: [],
-      tables_searched: []
-    });
-
+    setSearchResults(null);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/search/stream', {
+      const response = await fetch('/api/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ query: searchQuery })
+        body: JSON.stringify({ query: searchQuery, page: 1, limit: 20 })
       });
 
-      if (!response.ok || !response.body) {
-        const err = await response.json().catch(() => ({ error: 'Erreur lors de la recherche' }));
-        setSearchError(err.error || 'Erreur lors de la recherche');
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const chunk = JSON.parse(line);
-          if (chunk.done) {
-            setSearchResults(prev =>
-              prev
-                ? {
-                    ...prev,
-                    total: chunk.total,
-                    tables_searched: chunk.tables_searched,
-                    elapsed_ms: chunk.elapsed_ms,
-                    pages: Math.ceil(chunk.total / prev.limit)
-                  }
-                : prev
-            );
-          } else {
-            setSearchResults(prev =>
-              prev
-                ? {
-                    ...prev,
-                    total: prev.total + (chunk.results?.length || 0),
-                    hits: [...prev.hits, ...(chunk.results || [])],
-                    tables_searched: Array.from(
-                      new Set([...(prev.tables_searched || []), chunk.table])
-                    )
-                  }
-                : prev
-            );
-          }
-        }
+      const data = await response.json();
+      if (response.ok) {
+        setSearchResults(data);
+      } else {
+        setSearchError(data.error || 'Erreur lors de la recherche');
       }
     } catch (error) {
       setSearchError('Erreur de connexion au serveur');
