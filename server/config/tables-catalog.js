@@ -657,5 +657,29 @@ export default {
       premiere_annee_exercice: 'number'
     },
     theme: 'entreprise'
+  },
+
+  'autres.uvs': {
+    display: 'uvs',
+    database: 'autres',
+    searchable: ['id', 'nom', 'telephone', 'email'],
+    linkedFields: ['telephone', 'email'],
+    preview: ['id', 'nom', 'telephone', 'email'],
+    filters: {
+      telephone: 'string',
+      email: 'string'
+    },
+    theme: 'identite'
+  },
+
+  'autres.collections': {
+    display: 'collections',
+    database: 'autres',
+    searchable: ['id', 'titre', 'description'],
+    preview: ['id', 'titre', 'description'],
+    filters: {
+      titre: 'string'
+    },
+    theme: 'autre'
   }
 };
