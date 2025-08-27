@@ -131,21 +131,23 @@ class SearchService {
       }
     }
 
-    // Recherche supplémentaire pour les valeurs CNI trouvées
+    // Recherche supplémentaire pour les valeurs CNI ou téléphone trouvées
     if (depth === 0) {
-      const cniValues = new Set();
+      const extraValues = new Set();
+      const phoneRegex = /^tel(ephone)?\d*$/i;
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
-          if (key.toLowerCase() === 'cni' && value) {
-            cniValues.add(value);
+          const keyLower = key.toLowerCase();
+          if ((keyLower === 'cni' || phoneRegex.test(keyLower)) && value) {
+            extraValues.add(value);
           }
         }
       }
 
-      for (const cni of cniValues) {
+      for (const val of extraValues) {
         extraSearches++;
-        const sub = await this.search(cni, {}, 1, 50, null, 'linked', {
+        const sub = await this.search(val, {}, 1, 50, null, 'linked', {
           depth: depth + 1
         });
         results.push(...sub.hits);
