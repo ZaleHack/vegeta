@@ -107,7 +107,9 @@ La plateforme supporte les bases de données suivantes :
 - **entreprises** : ninea_ninet, raison_social, region, forme_juridique, etc.
 - **ong** : OrganizationName, Type, Name, EmailAddress, Telephone, etc.
 - **affaire_etrangere**, **agent_non_fonctionnaire**, **fpublique**, **demdikk**
-- **annuaire_gendarmerie** : id, Libelle, Telephone, Sous-Categorie, Secteur, created_at
+- **annuaire_gendarmerie** : id, Libelle, Telephone, SousCategorie, Secteur, created_at
+- **uvs** : id, date, matricule, cniPasseport, prenom, genre, nom, email, mail_perso, telephone, adresse, eno, pole, filiere, login
+- **collections** : id, Nom, Prenom, DateNaissance, CNI, Telephone, Localite, created_at
 
 ## Utilisation
 

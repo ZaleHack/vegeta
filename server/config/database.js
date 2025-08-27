@@ -79,8 +79,41 @@ class DatabaseManager {
           id INT AUTO_INCREMENT PRIMARY KEY,
           Libelle VARCHAR(255) NOT NULL,
           Telephone VARCHAR(50) NOT NULL,
-          \`Sous-Categorie\` VARCHAR(255) DEFAULT NULL,
+          SousCategorie VARCHAR(255) DEFAULT NULL,
           Secteur VARCHAR(255) DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.uvs (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          date DATE DEFAULT NULL,
+          matricule VARCHAR(100) DEFAULT NULL,
+          cniPasseport VARCHAR(100) DEFAULT NULL,
+          prenom VARCHAR(255) DEFAULT NULL,
+          genre VARCHAR(50) DEFAULT NULL,
+          nom VARCHAR(255) DEFAULT NULL,
+          email VARCHAR(255) DEFAULT NULL,
+          mail_perso VARCHAR(255) DEFAULT NULL,
+          telephone VARCHAR(50) DEFAULT NULL,
+          adresse VARCHAR(255) DEFAULT NULL,
+          eno VARCHAR(100) DEFAULT NULL,
+          pole VARCHAR(100) DEFAULT NULL,
+          filiere VARCHAR(100) DEFAULT NULL,
+          login VARCHAR(255) DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.collections (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          Nom VARCHAR(255) NOT NULL,
+          Prenom VARCHAR(255) NOT NULL,
+          DateNaissance DATE DEFAULT NULL,
+          CNI VARCHAR(100) DEFAULT NULL,
+          Telephone VARCHAR(50) DEFAULT NULL,
+          Localite VARCHAR(255) DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
