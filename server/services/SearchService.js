@@ -131,7 +131,7 @@ class SearchService {
       }
     }
 
-    // Recherche supplémentaire pour les valeurs CNI ou téléphone trouvées
+    // Recherche supplémentaire pour les valeurs CNI, téléphone ou numéro trouvées
     if (depth === 0) {
       const extraValues = new Set();
       const phoneRegex = /^tel(ephone)?\d*$/i;
@@ -139,7 +139,12 @@ class SearchService {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
           const keyLower = key.toLowerCase();
-          if ((keyLower === 'cni' || phoneRegex.test(keyLower)) && value) {
+          if (
+            (keyLower === 'cni' ||
+              phoneRegex.test(keyLower) ||
+              keyLower.includes('numero')) &&
+            value
+          ) {
             extraValues.add(value);
           }
         }
