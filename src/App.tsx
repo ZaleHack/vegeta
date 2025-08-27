@@ -383,7 +383,7 @@ const App: React.FC = () => {
         body: JSON.stringify({
           query: searchQuery,
           page: 1,
-          limit: 50
+          limit: 20
         })
       });
 
@@ -393,6 +393,51 @@ const App: React.FC = () => {
         setSearchResults(data);
       } else {
         setSearchError(data.error || 'Erreur lors de la recherche');
+      }
+    } catch (error) {
+      setSearchError('Erreur de connexion au serveur');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMoreResults = async () => {
+    if (!searchResults || searchResults.page >= searchResults.pages) return;
+
+    setLoading(true);
+    setSearchError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          query: searchQuery,
+          page: searchResults.page + 1,
+          limit: 20
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSearchResults(prev =>
+          prev
+            ? {
+                ...data,
+                hits: [...prev.hits, ...data.hits],
+                tables_searched: Array.from(
+                  new Set([...(prev.tables_searched || []), ...(data.tables_searched || [])])
+                )
+              }
+            : data
+        );
+      } else {
+        setSearchError(data.error || 'Erreur lors du chargement des résultats');
       }
     } catch (error) {
       setSearchError('Erreur de connexion au serveur');
@@ -1478,6 +1523,17 @@ const App: React.FC = () => {
                     ) : (
                       <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
                         <SearchResultProfiles hits={searchResults.hits} query={searchQuery} />
+                      </div>
+                    )}
+                    {searchResults.page < searchResults.pages && (
+                      <div className="text-center p-4">
+                        <button
+                          onClick={loadMoreResults}
+                          disabled={loading}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          Charger plus
+                        </button>
                       </div>
                     )}
                 </div>
