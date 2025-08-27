@@ -131,8 +131,40 @@ class SearchService {
       }
     }
 
+    // Recherche supplémentaire pour les valeurs CNI trouvées
+    if (depth === 0) {
+      const cniValues = new Set();
+      for (const res of results) {
+        const preview = res.preview || {};
+        for (const [key, value] of Object.entries(preview)) {
+          if (key.toLowerCase() === 'cni' && value) {
+            cniValues.add(value);
+          }
+        }
+      }
+
+      for (const cni of cniValues) {
+        extraSearches++;
+        const sub = await this.search(cni, {}, 1, 50, null, 'linked', {
+          depth: depth + 1
+        });
+        results.push(...sub.hits);
+        tablesSearched.push(...sub.tables_searched);
+      }
+    }
+
+    // Déduplication des résultats combinés
+    const uniqueMap = new Map();
+    for (const r of results) {
+      const key = `${r.database}:${r.table}:${Object.values(r.primary_keys || {}).join(':')}`;
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, r);
+      }
+    }
+    const uniqueResults = Array.from(uniqueMap.values());
+
     // Tri, fusion et pagination des résultats
-    const sortedResults = this.sortResults(results);
+    const sortedResults = this.sortResults(uniqueResults);
     const totalResults = sortedResults.length;
     const paginatedResults = sortedResults.slice(offset, offset + limit);
 
