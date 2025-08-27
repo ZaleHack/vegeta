@@ -412,7 +412,15 @@ const App: React.FC = () => {
           const chunk = JSON.parse(line);
           if (chunk.done) {
             setSearchResults(prev =>
-              prev ? { ...prev, total: chunk.total, tables_searched: chunk.tables_searched, elapsed_ms: chunk.elapsed_ms } : prev
+              prev
+                ? {
+                    ...prev,
+                    total: chunk.total,
+                    tables_searched: chunk.tables_searched,
+                    elapsed_ms: chunk.elapsed_ms,
+                    pages: Math.ceil(chunk.total / prev.limit)
+                  }
+                : prev
             );
           } else {
             setSearchResults(prev =>
@@ -421,7 +429,9 @@ const App: React.FC = () => {
                     ...prev,
                     total: prev.total + (chunk.results?.length || 0),
                     hits: [...prev.hits, ...(chunk.results || [])],
-                    tables_searched: [...prev.tables_searched, chunk.table]
+                    tables_searched: Array.from(
+                      new Set([...(prev.tables_searched || []), chunk.table])
+                    )
                   }
                 : prev
             );
