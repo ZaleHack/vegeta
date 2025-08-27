@@ -11,12 +11,14 @@
   }
   input,
   textarea,
-  select {
+  select,
+  button {
     @apply bg-white text-gray-900;
   }
   .dark input,
   .dark textarea,
-  .dark select {
+  .dark select,
+  .dark button {
     @apply bg-gray-800 text-gray-100 border-gray-600 placeholder-gray-400;
   }
 }
