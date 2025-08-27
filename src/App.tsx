@@ -46,7 +46,6 @@ import {
 } from 'chart.js';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import jsPDF from 'jspdf';
 import PageHeader from './components/PageHeader';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
@@ -446,70 +445,6 @@ const App: React.FC = () => {
     }
   };
 
-  const exportToPDF = () => {
-    if (!searchResults || searchResults.hits.length === 0) {
-      alert('Aucun résultat à exporter');
-      return;
-    }
-
-    try {
-      const allFields = new Set<string>();
-      searchResults.hits.forEach(hit => {
-        Object.keys(hit.preview).forEach(field => allFields.add(field));
-      });
-
-      const fields = ['Source', 'Base', 'Score', ...Array.from(allFields)];
-      const body = searchResults.hits.map(hit => [
-        hit.table || '',
-        hit.database || '',
-        String(hit.score || 0),
-        ...Array.from(allFields).map(field => String(hit.preview[field] ?? ''))
-      ]);
-
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth() - 20;
-      const colWidth = pageWidth / fields.length;
-      let y = 20;
-
-      const drawHeader = () => {
-        doc.setFillColor(41, 128, 185);
-        doc.setTextColor(255);
-        fields.forEach((h, i) => {
-          const x = 10 + i * colWidth;
-          doc.rect(x, y, colWidth, 8, 'FD');
-          doc.text(h, x + 2, y + 5);
-        });
-        y += 8;
-        doc.setTextColor(0);
-      };
-      drawHeader();
-
-      body.forEach((row, idx) => {
-        doc.setFillColor(idx % 2 === 0 ? 255 : 245);
-        row.forEach((cell, i) => {
-          const x = 10 + i * colWidth;
-          doc.rect(x, y, colWidth, 8, 'FD');
-          doc.text(cell.slice(0, 30), x + 2, y + 5);
-        });
-        y += 8;
-        if (y > doc.internal.pageSize.getHeight() - 20) {
-          doc.addPage();
-          y = 20;
-          drawHeader();
-        }
-      });
-
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-      const searchTerm = searchQuery.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_');
-      doc.save('vegeta-export-' + searchTerm + '-' + timestamp + '.pdf');
-
-      alert('Export PDF réussi ! ' + searchResults.hits.length + ' résultats exportés.');
-    } catch (error) {
-      console.error('Erreur export PDF:', error);
-      alert('Erreur lors de l\'export PDF');
-    }
-  };
-
   // Gestion des utilisateurs
   const loadUsers = async () => {
     try {
@@ -577,94 +512,6 @@ const App: React.FC = () => {
     }
   };
 
-  const exportStats = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text('Statistiques VEGETA', 14, 15);
-    let y = 25;
-
-    const drawTable = (headers: string[], rows: string[][]) => {
-      const pageWidth = doc.internal.pageSize.getWidth() - 20;
-      const colWidth = pageWidth / headers.length;
-
-      const drawHeaderRow = () => {
-        doc.setFillColor(41, 128, 185);
-        doc.setTextColor(255);
-        headers.forEach((h, i) => {
-          const x = 10 + i * colWidth;
-          doc.rect(x, y, colWidth, 8, 'FD');
-          doc.text(h, x + 2, y + 5);
-        });
-        y += 8;
-        doc.setTextColor(0);
-      };
-
-      drawHeaderRow();
-
-      rows.forEach((row, idx) => {
-        doc.setFillColor(idx % 2 === 0 ? 255 : 245);
-        row.forEach((cell, i) => {
-          const x = 10 + i * colWidth;
-          doc.rect(x, y, colWidth, 8, 'FD');
-          doc.text(String(cell).slice(0, 30), x + 2, y + 5);
-        });
-        y += 8;
-        if (y > doc.internal.pageSize.getHeight() - 20) {
-          doc.addPage();
-          y = 20;
-          drawHeaderRow();
-        }
-      });
-      y += 10;
-    };
-
-    const addSection = (title: string) => {
-      doc.setFontSize(12);
-      doc.setTextColor(40);
-      doc.text(title, 14, y);
-      y += 8;
-    };
-
-    if (statsData) {
-      addSection('Aperçu');
-      const overview = Object.entries(statsData)
-        .filter(([key, value]) => !Array.isArray(value))
-        .map(([key, value]) => [key, String(value)]);
-      drawTable(['Indicateur', 'Valeur'], overview);
-
-      if ((statsData as any).top_search_terms?.length) {
-        addSection('Top termes recherchés');
-        const rows = (statsData as any).top_search_terms.map((t: any) => [t.search_term, String(t.search_count)]);
-        drawTable(['Terme', 'Nombre'], rows);
-      }
-
-      if ((statsData as any).searches_by_type?.length) {
-        addSection('Recherches par type');
-        const rows = (statsData as any).searches_by_type.map((t: any) => [t.search_type, String(t.search_count)]);
-        drawTable(['Type', 'Nombre'], rows);
-      }
-    }
-
-    if (timeSeries.length) {
-      addSection('Séries temporelles');
-      const rows = timeSeries.map((item: any) => [item.date, String(item.searches), String(item.unique_users), String(item.avg_time)]);
-      drawTable(['Date', 'Recherches', 'Utilisateurs uniques', 'Temps moyen (ms)'], rows);
-    }
-
-    if (tableDistribution.length) {
-      addSection('Distribution des tables');
-      const rows = tableDistribution.map((item: any) => [item.table, String(item.count)]);
-      drawTable(['Table', 'Enregistrements'], rows);
-    }
-
-    if (searchLogs.length) {
-      addSection('Journaux de recherche');
-      const rows = searchLogs.map((log: any) => [log.username || '', log.search_term || '', log.search_date || '', String(log.results_count ?? '')]);
-      drawTable(['Utilisateur', 'Terme', 'Date', 'Résultats'], rows);
-    }
-
-    doc.save('statistics.pdf');
-  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1514,17 +1361,10 @@ const App: React.FC = () => {
                         <div className="flex space-x-2">
                           <button
                             onClick={exportToCSV}
-                            className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
+                            className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
                           >
                             <Download className="w-4 h-4 mr-2" />
                             Export CSV
-                          </button>
-                          <button
-                            onClick={exportToPDF}
-                            className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
-                          >
-                            <FileText className="w-4 h-4 mr-2" />
-                            Export PDF
                           </button>
                         </div>
                       )}
@@ -2268,15 +2108,6 @@ const App: React.FC = () => {
             <div className="space-y-8">
               {/* Header */}
               <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme VEGETA" />
-
-              <div className="flex justify-end">
-                <button
-                  onClick={exportStats}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Download className="h-4 w-4 mr-2" /> Exporter PDF
-                </button>
-              </div>
 
               {loadingStats ? (
                 <div className="flex items-center justify-center py-16">
