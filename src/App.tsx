@@ -33,7 +33,7 @@ import {
   Car,
   Link as LinkIcon,
   ExternalLink,
-  GitBranch,
+  UserCircle,
   List
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
@@ -51,7 +51,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import PageHeader from './components/PageHeader';
-import SearchResultGraph from './components/SearchResultGraph';
+import SearchResultProfiles from './components/SearchResultProfiles';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -225,7 +225,7 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [searchError, setSearchError] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'profile'>('list');
 
   // États d'authentification
   const [loginData, setLoginData] = useState({ login: '', password: '' });
@@ -1357,13 +1357,13 @@ const App: React.FC = () => {
                       </div>
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => setViewMode(viewMode === 'list' ? 'graph' : 'list')}
+                          onClick={() => setViewMode(viewMode === 'list' ? 'profile' : 'list')}
                           className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
                         >
                           {viewMode === 'list' ? (
                             <>
-                              <GitBranch className="w-4 h-4 mr-2" />
-                              Vue graphe
+                              <UserCircle className="w-4 h-4 mr-2" />
+                              Vue profils
                             </>
                           ) : (
                             <>
@@ -1477,7 +1477,7 @@ const App: React.FC = () => {
                       </div>
                     ) : (
                       <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
-                        <SearchResultGraph hits={searchResults.hits} query={searchQuery} />
+                        <SearchResultProfiles hits={searchResults.hits} query={searchQuery} />
                       </div>
                     )}
                 </div>
