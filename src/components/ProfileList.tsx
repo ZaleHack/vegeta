@@ -185,6 +185,9 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
               {(() => {
                 const extra = selected.extra_fields ? JSON.parse(selected.extra_fields) : {};
                 const all: Record<string, string | null> = {
+                  'First Name': selected.first_name,
+                  'Last Name': selected.last_name,
+                  Phone: selected.phone,
                   Commentaire: selected.comment,
                   Email: selected.email,
                   ...extra
