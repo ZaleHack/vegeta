@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -26,13 +26,13 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
   const [selected, setSelected] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const token = localStorage.getItem('token');
   const limit = 6;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
+      const token = localStorage.getItem('token');
       const res = await fetch(`/api/profiles?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`, {
         headers: {
           Authorization: token ? `Bearer ${token}` : ''
@@ -54,13 +54,14 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [query, page]);
 
   useEffect(() => {
     load();
-  }, [page]);
+  }, [load]);
 
   const remove = async (id: number) => {
+    const token = localStorage.getItem('token');
     await fetch(`/api/profiles/${id}`, {
       method: 'DELETE',
       headers: {
