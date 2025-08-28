@@ -16,6 +16,7 @@ interface ProfilesProps {
     last_name: string;
     phone: string;
     email: string;
+    extra_fields?: Record<string, string>;
   }) => void;
 }
 
@@ -63,16 +64,20 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
           className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
           onClick={() => {
             const firstHit = hits[0];
+            const { first_name, last_name, phone, email, ...extra } = firstHit.preview || {};
             const data = {
-              first_name: String(firstHit.preview.first_name || ''),
-              last_name: String(firstHit.preview.last_name || ''),
-              phone: String(firstHit.preview.phone || ''),
-              email: String(firstHit.preview.email || '')
+              first_name: String(first_name || ''),
+              last_name: String(last_name || ''),
+              phone: String(phone || ''),
+              email: String(email || ''),
+              extra_fields: Object.fromEntries(
+                Object.entries(extra).map(([k, v]) => [k, String(v ?? '')])
+              )
             };
             if (onCreateProfile) {
               onCreateProfile(data);
             } else {
-              const params = new URLSearchParams(data);
+              const params = new URLSearchParams(data as any);
               window.location.href = `/profiles/new?${params.toString()}`;
             }
           }}

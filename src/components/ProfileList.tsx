@@ -44,8 +44,8 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex space-x-2">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row gap-2">
         <input
           className="border p-2 rounded flex-1"
           placeholder="Recherche"
@@ -62,38 +62,42 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
           </button>
         )}
       </div>
-      <ul className="divide-y">
-        {profiles.map(p => (
-          <li key={p.id} className="py-2 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              {p.photo_path && (
-                <img
-                  src={`/${p.photo_path}`}
-                  alt="profil"
-                  className="w-12 h-12 rounded-full object-cover"
-                />
-              )}
-              <div className="flex flex-col">
-                <span className="font-medium">{p.first_name} {p.last_name}</span>
-                <span className="text-sm text-gray-600">{p.phone}</span>
-                <span className="text-sm text-gray-600">{p.email}</span>
+      {profiles.length === 0 ? (
+        <div className="text-center text-gray-500">Aucun profil trouvé</div>
+      ) : (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {profiles.map(p => (
+            <div key={p.id} className="bg-white shadow rounded-xl p-4 flex flex-col">
+              <div className="flex items-center space-x-4">
+                {p.photo_path && (
+                  <img
+                    src={`/${p.photo_path}`}
+                    alt="profil"
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                )}
+                <div>
+                  <h3 className="text-lg font-semibold">{p.first_name} {p.last_name}</h3>
+                  <p className="text-sm text-gray-500">{p.phone}</p>
+                  <p className="text-sm text-gray-500">{p.email}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end space-x-4 text-sm">
+                {onEdit && (
+                  <button className="text-indigo-600 hover:underline" onClick={() => onEdit(p.id)}>Modifier</button>
+                )}
+                <a
+                  className="text-blue-600 hover:underline"
+                  href={`/api/profiles/${p.id}/pdf`}
+                  target="_blank"
+                  rel="noopener"
+                >PDF</a>
+                <button className="text-red-600 hover:underline" onClick={() => remove(p.id)}>Supprimer</button>
               </div>
             </div>
-            <div className="space-x-2 flex items-center">
-              {onEdit && (
-                <button className="text-indigo-600" onClick={() => onEdit(p.id)}>Modifier</button>
-              )}
-              <a
-                className="text-blue-600"
-                href={`/api/profiles/${p.id}/pdf`}
-                target="_blank"
-                rel="noopener"
-              >PDF</a>
-              <button className="text-red-600" onClick={() => remove(p.id)}>Supprimer</button>
-            </div>
-          </li>
-        ))}
-      </ul>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
