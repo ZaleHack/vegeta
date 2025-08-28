@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import LoadingSpinner from './LoadingSpinner';
 
 interface Profile {
   id: number;
@@ -23,18 +24,36 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const token = localStorage.getItem('token');
   const limit = 6;
 
   const load = async () => {
-    const res = await fetch(`/api/profiles?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : ''
+    try {
+      setLoading(true);
+      setError('');
+      const res = await fetch(`/api/profiles?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || 'Erreur lors du chargement des profils');
+        setProfiles([]);
+        setTotal(0);
+        return;
       }
-    });
-    const data = await res.json();
-    setProfiles(data.profiles || []);
-    setTotal(data.total || 0);
+      setProfiles(data.profiles || []);
+      setTotal(data.total || 0);
+    } catch (err) {
+      setError('Erreur de réseau');
+      setProfiles([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -78,7 +97,11 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
           </button>
         )}
       </div>
-      {profiles.length === 0 ? (
+      {loading ? (
+        <LoadingSpinner />
+      ) : error ? (
+        <div className="text-center text-red-500">{error}</div>
+      ) : profiles.length === 0 ? (
         <div className="text-center text-gray-500">Aucun profil trouvé</div>
       ) : (
         <>
