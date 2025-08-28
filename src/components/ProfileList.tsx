@@ -184,18 +184,17 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
               {(() => {
                 const extra = selected.extra_fields ? JSON.parse(selected.extra_fields) : {};
                 const all: Record<string, string | null> = {
-                  'First Name': selected.first_name,
-                  'Last Name': selected.last_name,
-                  Phone: selected.phone,
                   Email: selected.email,
                   ...extra
                 };
-                return Object.entries(all).map(([k, v]) => (
-                  <div key={k} className="flex justify-between">
-                    <span className="font-medium mr-2">{k}:</span>
-                    <span>{v}</span>
-                  </div>
-                ));
+                return Object.entries(all)
+                  .filter(([, v]) => v && v !== '')
+                  .map(([k, v]) => (
+                    <div key={k} className="flex justify-between">
+                      <span className="font-medium mr-2">{k}:</span>
+                      <span>{v}</span>
+                    </div>
+                  ));
               })()}
             </div>
           </div>

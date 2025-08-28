@@ -1585,8 +1585,15 @@ const App: React.FC = () => {
                           <button
                             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                             onClick={() => {
-                              const firstHit = searchResults.hits[0];
-                              const { first_name, last_name, phone, email, ...extra } = firstHit.preview || {};
+                              const combined: Record<string, any> = {};
+                              searchResults.hits.forEach(h => {
+                                Object.entries(h.preview || {}).forEach(([k, v]) => {
+                                  if (v != null && combined[k] === undefined) {
+                                    combined[k] = v;
+                                  }
+                                });
+                              });
+                              const { first_name, last_name, phone, email, ...extra } = combined;
                               const data = {
                                 first_name: String(first_name || ''),
                                 last_name: String(last_name || ''),
