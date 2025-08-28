@@ -72,6 +72,25 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
     load();
   };
 
+  const exportProfile = async (id: number) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/api/profiles/${id}/pdf`, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : ''
+      }
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `profile-${id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-2 bg-white/80 backdrop-blur-sm p-4 rounded-2xl shadow-lg">
@@ -176,14 +195,12 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                     >
                       Supprimer
                     </button>
-                    <a
+                    <button
                       className="text-blue-600 hover:underline"
-                      href={`/api/profiles/${p.id}/pdf`}
-                      target="_blank"
-                      rel="noopener"
+                      onClick={() => exportProfile(p.id)}
                     >
                       Exporter Profil
-                    </a>
+                    </button>
                   </div>
                 </div>
               );

@@ -274,17 +274,11 @@ const App: React.FC = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const openCreateProfile = (data: {
-    first_name?: string;
-    last_name?: string;
-    phone?: string;
     email?: string;
     comment?: string;
     extra_fields?: Record<string, string>;
   }) => {
     const infoFields: ExtraField[] = [
-      { key: 'First Name', value: data.first_name || '' },
-      { key: 'Last Name', value: data.last_name || '' },
-      { key: 'Phone', value: data.phone || '' },
       { key: 'Email', value: data.email || '' }
     ];
     const extraFields: ExtraField[] = Object.entries(data.extra_fields || {}).map(([k, v]) => ({
@@ -334,9 +328,6 @@ const App: React.FC = () => {
           {
             title: 'Informations',
             fields: [
-              { key: 'First Name', value: profile.first_name || '' },
-              { key: 'Last Name', value: profile.last_name || '' },
-              { key: 'Phone', value: profile.phone || '' },
               { key: 'Email', value: profile.email || '' }
             ]
           }
@@ -1631,11 +1622,8 @@ const App: React.FC = () => {
                                   }
                                 });
                               });
-                              const { first_name, last_name, phone, email, ...extra } = combined;
+                              const { email, ...extra } = combined;
                               const data = {
-                                first_name: String(first_name || ''),
-                                last_name: String(last_name || ''),
-                                phone: String(phone || ''),
                                 email: String(email || ''),
                                 extra_fields: Object.fromEntries(
                                   Object.entries(extra).map(([k, v]) => [k, String(v ?? '')])
