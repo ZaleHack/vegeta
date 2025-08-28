@@ -181,7 +181,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
               />
             )}
             <h2 className="text-2xl font-semibold text-center mb-4">Détails du profil</h2>
-            <div className="space-y-2 text-sm max-h-60 overflow-y-auto">
+            <div className="space-y-2 text-sm max-h-60 overflow-y-auto p-2 preview-scroll">
               {(() => {
                 const extra = selected.extra_fields ? JSON.parse(selected.extra_fields) : {};
                 const all: Record<string, string | null> = {

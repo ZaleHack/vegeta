@@ -5,6 +5,11 @@ interface ExtraField {
   value: string;
 }
 
+interface FieldCategory {
+  title: string;
+  fields: ExtraField[];
+}
+
 interface InitialValues {
   first_name?: string;
   last_name?: string;
@@ -23,7 +28,7 @@ interface ProfileFormProps {
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
 const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId, onSaved }) => {
-  const [fields, setFields] = useState<ExtraField[]>(() => {
+  const buildInitialFields = (): FieldCategory[] => {
     const arr: ExtraField[] = [];
     if (initialValues.first_name) arr.push({ key: 'First Name', value: initialValues.first_name });
     if (initialValues.last_name) arr.push({ key: 'Last Name', value: initialValues.last_name });
@@ -31,34 +36,76 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     if (initialValues.email) arr.push({ key: 'Email', value: initialValues.email });
     const extras = initialValues.extra_fields || {};
     Object.entries(extras).forEach(([k, v]) => arr.push({ key: capitalize(k), value: v }));
-    return arr;
-  });
+    return [
+      {
+        title: 'Informations',
+        fields: arr.length ? arr : [{ key: '', value: '' }]
+      }
+    ];
+  };
+
+  const [categories, setCategories] = useState<FieldCategory[]>(buildInitialFields);
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [comment, setComment] = useState(initialValues.comment || '');
+  const [dragging, setDragging] = useState<{ catIdx: number; fieldIdx: number } | null>(null);
 
   useEffect(() => {
-    const arr: ExtraField[] = [];
-    if (initialValues.first_name) arr.push({ key: 'First Name', value: initialValues.first_name });
-    if (initialValues.last_name) arr.push({ key: 'Last Name', value: initialValues.last_name });
-    if (initialValues.phone) arr.push({ key: 'Phone', value: initialValues.phone });
-    if (initialValues.email) arr.push({ key: 'Email', value: initialValues.email });
-    const extras = initialValues.extra_fields || {};
-    Object.entries(extras).forEach(([k, v]) => arr.push({ key: capitalize(k), value: v }));
-    setFields(arr);
+    setCategories(buildInitialFields());
     setComment(initialValues.comment || '');
   }, [initialValues, profileId]);
 
-  const addField = () => setFields([...fields, { key: '', value: '' }]);
-  const removeField = (idx: number) => {
-    setFields(fields.filter((_, i) => i !== idx));
+  const addCategory = () =>
+    setCategories([...categories, { title: '', fields: [{ key: '', value: '' }] }]);
+  const removeCategory = (idx: number) =>
+    setCategories(categories.filter((_, i) => i !== idx));
+  const updateCategoryTitle = (idx: number, title: string) => {
+    const updated = [...categories];
+    updated[idx].title = title;
+    setCategories(updated);
   };
-  const updateField = (idx: number, key: keyof ExtraField, value: string) => {
-    const updated = [...fields];
+
+  const addField = (catIdx: number) => {
+    const updated = [...categories];
+    updated[catIdx].fields.push({ key: '', value: '' });
+    setCategories(updated);
+  };
+  const removeField = (catIdx: number, fieldIdx: number) => {
+    const updated = [...categories];
+    updated[catIdx].fields = updated[catIdx].fields.filter((_, i) => i !== fieldIdx);
+    setCategories(updated);
+  };
+  const updateField = (catIdx: number, fieldIdx: number, key: keyof ExtraField, value: string) => {
+    const updated = [...categories];
     if (key === 'key') value = capitalize(value);
-    updated[idx] = { ...updated[idx], [key]: value };
-    setFields(updated);
+    updated[catIdx].fields[fieldIdx] = {
+      ...updated[catIdx].fields[fieldIdx],
+      [key]: value
+    };
+    setCategories(updated);
+  };
+
+  const handleDragStart = (catIdx: number, fieldIdx: number) => {
+    setDragging({ catIdx, fieldIdx });
+  };
+  const handleDrop = (catIdx: number, fieldIdx: number) => {
+    if (!dragging) return;
+    const updated = categories.map(cat => ({ ...cat, fields: [...cat.fields] }));
+    const item = updated[dragging.catIdx].fields.splice(dragging.fieldIdx, 1)[0];
+    if (!item) return;
+    updated[catIdx].fields.splice(fieldIdx, 0, item);
+    setCategories(updated);
+    setDragging(null);
+  };
+  const handleDropOnCategory = (catIdx: number) => {
+    if (!dragging) return;
+    const updated = categories.map(cat => ({ ...cat, fields: [...cat.fields] }));
+    const item = updated[dragging.catIdx].fields.splice(dragging.fieldIdx, 1)[0];
+    if (!item) return;
+    updated[catIdx].fields.push(item);
+    setCategories(updated);
+    setDragging(null);
   };
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,14 +122,16 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     let phone = '';
     let email = '';
     const extras: Record<string, string> = {};
-    fields.forEach(f => {
-      const key = f.key.trim();
-      const lower = key.toLowerCase();
-      if (lower === 'first name') firstName = f.value;
-      else if (lower === 'last name') lastName = f.value;
-      else if (lower === 'phone') phone = f.value;
-      else if (lower === 'email') email = f.value;
-      else if (key) extras[key] = f.value;
+    categories.forEach(cat => {
+      cat.fields.forEach(f => {
+        const key = f.key.trim();
+        const lower = key.toLowerCase();
+        if (lower === 'first name') firstName = f.value;
+        else if (lower === 'last name') lastName = f.value;
+        else if (lower === 'phone') phone = f.value;
+        else if (lower === 'email') email = f.value;
+        else if (key) extras[key] = f.value;
+      });
     });
     form.append('first_name', firstName);
     form.append('last_name', lastName);
@@ -116,36 +165,74 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       onSubmit={submit}
     >
       {message && <div className="text-sm text-green-600">{message}</div>}
-      <div className="space-y-2">
-        {fields.map((field, idx) => (
-          <div key={idx} className="flex space-x-2">
-            <input
-              className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Nom du champ"
-              value={field.key}
-              onChange={e => updateField(idx, 'key', e.target.value)}
-            />
-            <input
-              className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Valeur"
-              value={field.value}
-              onChange={e => updateField(idx, 'value', e.target.value)}
-            />
+      <div className="space-y-4">
+        {categories.map((cat, cIdx) => (
+          <div
+            key={cIdx}
+            className="space-y-2 border rounded p-4"
+            onDragOver={e => e.preventDefault()}
+            onDrop={() => handleDropOnCategory(cIdx)}
+          >
+            <div className="flex items-center space-x-2">
+              <input
+                className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Titre de la catégorie"
+                value={cat.title}
+                onChange={e => updateCategoryTitle(cIdx, e.target.value)}
+              />
+              <button
+                type="button"
+                className="text-red-600"
+                onClick={() => removeCategory(cIdx)}
+              >
+                Supprimer
+              </button>
+            </div>
+            {cat.fields.map((field, fIdx) => (
+              <div
+                key={fIdx}
+                className="flex space-x-2"
+                draggable
+                onDragStart={() => handleDragStart(cIdx, fIdx)}
+                onDragOver={e => e.preventDefault()}
+                onDrop={() => handleDrop(cIdx, fIdx)}
+              >
+                <input
+                  className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Nom du champ"
+                  value={field.key}
+                  onChange={e => updateField(cIdx, fIdx, 'key', e.target.value)}
+                />
+                <input
+                  className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Valeur"
+                  value={field.value}
+                  onChange={e => updateField(cIdx, fIdx, 'value', e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="text-red-600"
+                  onClick={() => removeField(cIdx, fIdx)}
+                >
+                  Supprimer
+                </button>
+              </div>
+            ))}
             <button
               type="button"
-              className="text-red-600"
-              onClick={() => removeField(idx)}
+              className="px-3 py-1 bg-gray-200 rounded"
+              onClick={() => addField(cIdx)}
             >
-              Supprimer
+              Ajouter un champ
             </button>
           </div>
         ))}
         <button
           type="button"
-          className="px-3 py-1 bg-gray-200 rounded"
-          onClick={addField}
+          className="px-3 py-1 bg-gray-300 rounded"
+          onClick={addCategory}
         >
-          Ajouter un champ
+          Ajouter une catégorie
         </button>
       </div>
       <div>
