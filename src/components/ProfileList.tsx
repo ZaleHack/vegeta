@@ -45,7 +45,8 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
         setTotal(0);
         return;
       }
-      setProfiles(data.profiles || []);
+      // Ensure the profiles field from the API is always an array
+      setProfiles(Array.isArray(data.profiles) ? data.profiles : []);
       setTotal(data.total || 0);
     } catch (err) {
       setError('Erreur de réseau');
@@ -111,6 +112,8 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
               let parsed: any[] = [];
               try {
                 parsed = p.extra_fields ? JSON.parse(p.extra_fields) : [];
+                // Some records might store extra_fields as an object instead of an array
+                parsed = Array.isArray(parsed) ? parsed : [];
               } catch {
                 parsed = [];
               }
