@@ -479,11 +479,12 @@ const App: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        setSearchResults(prev =>
+        setSearchResults((prev) =>
           prev
             ? {
+                ...prev,
                 ...data,
-                hits: [...prev.hits, ...data.hits],
+                hits: [...prev.hits, ...(data.hits || [])],
                 tables_searched: Array.from(
                   new Set([...(prev.tables_searched || []), ...(data.tables_searched || [])])
                 )
