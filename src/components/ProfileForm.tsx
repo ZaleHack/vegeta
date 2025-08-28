@@ -161,28 +161,28 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
 
   return (
     <form
-      className="max-w-lg mx-auto bg-white p-6 rounded-xl shadow-md space-y-4"
+      className="max-w-2xl mx-auto bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-xl space-y-6"
       onSubmit={submit}
     >
-      {message && <div className="text-sm text-green-600">{message}</div>}
-      <div className="space-y-4">
+      {message && <div className="text-center text-sm text-green-600">{message}</div>}
+      <div className="space-y-6">
         {categories.map((cat, cIdx) => (
           <div
             key={cIdx}
-            className="space-y-2 border rounded p-4"
+            className="space-y-4 bg-gray-50 border border-gray-200 rounded-xl p-6 shadow-sm"
             onDragOver={e => e.preventDefault()}
             onDrop={() => handleDropOnCategory(cIdx)}
           >
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
               <input
-                className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex-1 rounded-lg border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 placeholder="Titre de la catégorie"
                 value={cat.title}
                 onChange={e => updateCategoryTitle(cIdx, e.target.value)}
               />
               <button
                 type="button"
-                className="text-red-600"
+                className="text-red-500 hover:text-red-700"
                 onClick={() => removeCategory(cIdx)}
               >
                 Supprimer
@@ -191,27 +191,27 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
             {cat.fields.map((field, fIdx) => (
               <div
                 key={fIdx}
-                className="flex space-x-2"
+                className="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0"
                 draggable
                 onDragStart={() => handleDragStart(cIdx, fIdx)}
                 onDragOver={e => e.preventDefault()}
                 onDrop={() => handleDrop(cIdx, fIdx)}
               >
                 <input
-                  className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 rounded-lg border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   placeholder="Nom du champ"
                   value={field.key}
                   onChange={e => updateField(cIdx, fIdx, 'key', e.target.value)}
                 />
                 <input
-                  className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 rounded-lg border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   placeholder="Valeur"
                   value={field.value}
                   onChange={e => updateField(cIdx, fIdx, 'value', e.target.value)}
                 />
                 <button
                   type="button"
-                  className="text-red-600"
+                  className="text-red-500 hover:text-red-700 mt-1 sm:mt-0"
                   onClick={() => removeField(cIdx, fIdx)}
                 >
                   Supprimer
@@ -220,7 +220,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
             ))}
             <button
               type="button"
-              className="px-3 py-1 bg-gray-200 rounded"
+              className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200"
               onClick={() => addField(cIdx)}
             >
               Ajouter un champ
@@ -229,22 +229,26 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
         ))}
         <button
           type="button"
-          className="px-3 py-1 bg-gray-300 rounded"
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           onClick={addCategory}
         >
           Ajouter une catégorie
         </button>
       </div>
       <div>
-        <label className="block mb-1">Commentaire</label>
+        <label className="block mb-2 font-medium text-gray-700">Commentaire</label>
         <textarea
-          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full rounded-lg border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           value={comment}
           onChange={e => setComment(e.target.value)}
         />
       </div>
       <div>
-        <input type="file" onChange={handlePhoto} />
+        <input
+          type="file"
+          onChange={handlePhoto}
+          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+        />
         {preview && (
           <img
             src={preview}
@@ -255,7 +259,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       </div>
       <button
         type="submit"
-        className="px-4 py-2 bg-indigo-600 text-white rounded"
+        className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
       >
         Enregistrer
       </button>
