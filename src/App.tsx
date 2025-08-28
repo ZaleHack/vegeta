@@ -315,7 +315,7 @@ const App: React.FC = () => {
         console.log('🔍 Admin status:', data.user.admin, 'Type:', typeof data.user.admin);
         setCurrentUser(data.user);
         setIsAuthenticated(true);
-        setCurrentPage('statistics');
+        setCurrentPage('dashboard');
       } else {
         localStorage.removeItem('token');
       }
@@ -345,7 +345,7 @@ const App: React.FC = () => {
         console.log('🔍 Admin status:', data.user.admin, 'Type:', typeof data.user.admin);
         setCurrentUser(data.user);
         setIsAuthenticated(true);
-        setCurrentPage('statistics');
+        setCurrentPage('dashboard');
         setLoginData({ login: '', password: '' });
       } else {
         setLoginError(data.error || 'Erreur de connexion');
@@ -895,7 +895,7 @@ const App: React.FC = () => {
     if (currentPage === 'users' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
       loadUsers();
     }
-    if (currentPage === 'statistics' && currentUser) {
+    if (currentPage === 'dashboard' && currentUser) {
       loadStatistics();
     }
     if (currentPage === 'upload' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
@@ -1157,6 +1157,18 @@ const App: React.FC = () => {
         <nav className="flex-1 p-4">
           <div className="space-y-2">
             <button
+              onClick={() => setCurrentPage('dashboard')}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'dashboard'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <Activity className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">Dashboard</span>}
+            </button>
+
+            <button
               onClick={() => setCurrentPage('search')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'search'
@@ -1242,18 +1254,6 @@ const App: React.FC = () => {
               </button>
             )}
 
-            <button
-              onClick={() => setCurrentPage('statistics')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                currentPage === 'statistics'
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              } ${!sidebarOpen && 'justify-center'}`}
-            >
-              <Activity className="h-5 w-5" />
-              {sidebarOpen && <span className="ml-3">Statistiques</span>}
-            </button>
-
             {isAdmin && (
               <button
                 onClick={() => setCurrentPage('upload')}
@@ -1261,7 +1261,7 @@ const App: React.FC = () => {
                   currentPage === 'upload'
                     ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                } ${!sidebarOpen && 'justify-center'}`}
+              } ${!sidebarOpen && 'justify-center'}`}
               >
                 <Upload className="h-5 w-5" />
                 {sidebarOpen && <span className="ml-3">Charger des données</span>}
@@ -2164,7 +2164,7 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {currentPage === 'statistics' && (
+          {currentPage === 'dashboard' && (
             <div className="space-y-8">
               {/* Header */}
               <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme VEGETA" />

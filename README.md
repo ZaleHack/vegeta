@@ -8,7 +8,7 @@ VEGETA est une plateforme Web professionnelle permettant des recherches ultra-ra
 
 - 🔍 **Recherche unifiée** : Recherche simultanée sur toutes les tables configurées
 - 🎯 **Filtres avancés** : Filtres dynamiques par thématique (identité, contact, pro, transport, etc.)
-- 📊 **Statistiques interactives** : Graphiques et tableaux de bord avec Chart.js
+- 📊 **Dashboard interactif** : Graphiques et tableaux de bord avec Chart.js
 - 👥 **Gestion RBAC** : Système de rôles (ADMIN, ANALYSTE, LECTEUR)
 - 📤 **Upload de données** : Interface d'import CSV/Excel avec validation
 - 📝 **Journalisation** : Audit complet des recherches et actions
@@ -149,7 +149,7 @@ La plateforme supporte plusieurs opérateurs :
 - `POST /api/search` : Recherche principale
 - `GET /api/search/details/:table/:id` : Détails d'un enregistrement
 
-### Statistiques
+### Dashboard
 - `GET /api/stats/overview` : Vue d'ensemble
 - `GET /api/stats/tables-distribution` : Répartition par table
 - `GET /api/stats/time-series` : Évolution temporelle
@@ -241,7 +241,7 @@ Les logs sont disponibles dans :
 ### Monitoring
 
 - Endpoint de santé : `GET /api/health`
-- Statistiques temps réel via l'interface admin
+- Dashboard temps réel via l'interface admin
 - Métriques de performance dans les logs
 
 ### Sauvegarde
