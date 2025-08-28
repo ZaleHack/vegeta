@@ -6,9 +6,15 @@ interface Profile {
   last_name: string | null;
   phone: string | null;
   email: string | null;
+  photo_path: string | null;
 }
 
-const ProfileList: React.FC = () => {
+interface ProfileListProps {
+  onCreate?: () => void;
+  onEdit?: (id: number) => void;
+}
+
+const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [query, setQuery] = useState('');
   const token = localStorage.getItem('token');
@@ -47,12 +53,36 @@ const ProfileList: React.FC = () => {
           onChange={e => setQuery(e.target.value)}
         />
         <button className="px-4 py-2 bg-indigo-600 text-white rounded" onClick={load}>Rechercher</button>
+        {onCreate && (
+          <button
+            className="px-4 py-2 bg-green-600 text-white rounded"
+            onClick={onCreate}
+          >
+            Créer profil
+          </button>
+        )}
       </div>
       <ul className="divide-y">
         {profiles.map(p => (
           <li key={p.id} className="py-2 flex items-center justify-between">
-            <span>{p.first_name} {p.last_name} - {p.phone}</span>
-            <div className="space-x-2">
+            <div className="flex items-center space-x-3">
+              {p.photo_path && (
+                <img
+                  src={`/${p.photo_path}`}
+                  alt="profil"
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+              )}
+              <div className="flex flex-col">
+                <span className="font-medium">{p.first_name} {p.last_name}</span>
+                <span className="text-sm text-gray-600">{p.phone}</span>
+                <span className="text-sm text-gray-600">{p.email}</span>
+              </div>
+            </div>
+            <div className="space-x-2 flex items-center">
+              {onEdit && (
+                <button className="text-indigo-600" onClick={() => onEdit(p.id)}>Modifier</button>
+              )}
               <a
                 className="text-blue-600"
                 href={`/api/profiles/${p.id}/pdf`}

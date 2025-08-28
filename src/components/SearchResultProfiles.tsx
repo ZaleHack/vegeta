@@ -11,9 +11,15 @@ interface SearchResult {
 interface ProfilesProps {
   hits: SearchResult[];
   query: string;
+  onCreateProfile?: (data: {
+    first_name: string;
+    last_name: string;
+    phone: string;
+    email: string;
+  }) => void;
 }
 
-const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query }) => {
+const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreateProfile }) => {
   if (hits.length === 0) {
     return (
       <div className="text-center text-gray-500">Aucun résultat pour {query}</div>
@@ -57,13 +63,18 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query }) => {
           className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
           onClick={() => {
             const firstHit = hits[0];
-            const params = new URLSearchParams({
+            const data = {
               first_name: String(firstHit.preview.first_name || ''),
               last_name: String(firstHit.preview.last_name || ''),
               phone: String(firstHit.preview.phone || ''),
               email: String(firstHit.preview.email || '')
-            });
-            window.location.href = `/profiles/new?${params.toString()}`;
+            };
+            if (onCreateProfile) {
+              onCreateProfile(data);
+            } else {
+              const params = new URLSearchParams(data);
+              window.location.href = `/profiles/new?${params.toString()}`;
+            }
           }}
         >
           Créer profil

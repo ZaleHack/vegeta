@@ -230,6 +230,14 @@ const App: React.FC = () => {
   const [searchError, setSearchError] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'profile'>('list');
   const [showProfileForm, setShowProfileForm] = useState(false);
+  const [profileDefaults, setProfileDefaults] = useState<{
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    email?: string;
+    extra_fields?: Record<string, string>;
+  }>({});
+  const [editingProfileId, setEditingProfileId] = useState<number | null>(null);
 
   // États d'authentification
   const [loginData, setLoginData] = useState({ login: '', password: '' });
@@ -258,6 +266,47 @@ const App: React.FC = () => {
   const [passwordTargetUser, setPasswordTargetUser] = useState<User | null>(null);
   const [uploadTable, setUploadTable] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+
+  const openCreateProfile = (data: {
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    email?: string;
+  }) => {
+    setProfileDefaults({ ...data });
+    setEditingProfileId(null);
+    setShowProfileForm(true);
+    setCurrentPage('profiles');
+  };
+
+  const openEditProfile = async (id: number) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/api/profiles/${id}`, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : ''
+      }
+    });
+    const data = await res.json();
+    if (res.ok && data.profile) {
+      const profile = data.profile;
+      let extra: Record<string, string> = {};
+      try {
+        extra = profile.extra_fields ? JSON.parse(profile.extra_fields) : {};
+      } catch {
+        extra = {};
+      }
+      setProfileDefaults({
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        phone: profile.phone || '',
+        email: profile.email || '',
+        extra_fields: extra
+      });
+      setEditingProfileId(id);
+      setShowProfileForm(true);
+      setCurrentPage('profiles');
+    }
+  };
   const [uploadHistory, setUploadHistory] = useState<any[]>([]);
 
   // États annuaire gendarmerie
@@ -1527,7 +1576,11 @@ const App: React.FC = () => {
                       </div>
                     ) : (
                       <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
-                        <SearchResultProfiles hits={searchResults.hits} query={searchQuery} />
+                        <SearchResultProfiles
+                          hits={searchResults.hits}
+                          query={searchQuery}
+                          onCreateProfile={openCreateProfile}
+                        />
                       </div>
                     )}
                     {searchResults.page < searchResults.pages && (
@@ -2041,7 +2094,11 @@ const App: React.FC = () => {
             <PageHeader icon={<FileText className="h-6 w-6" />} title="Fiches de profil" />
             {showProfileForm ? (
               <div className="bg-white shadow rounded-lg p-6">
-                <ProfileForm />
+                <ProfileForm
+                  initialValues={profileDefaults}
+                  profileId={editingProfileId || undefined}
+                  onSaved={() => setShowProfileForm(false)}
+                />
                 <div className="mt-4">
                   <button
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
@@ -2052,19 +2109,9 @@ const App: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <>
-                <div className="flex justify-end">
-                  <button
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-                    onClick={() => setShowProfileForm(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Créer profil
-                  </button>
-                </div>
-                <div className="bg-white shadow rounded-lg p-6">
-                  <ProfileList />
-                </div>
-              </>
+              <div className="bg-white shadow rounded-lg p-6">
+                <ProfileList onCreate={() => openCreateProfile({})} onEdit={openEditProfile} />
+              </div>
             )}
           </div>
         )}

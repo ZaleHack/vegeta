@@ -1,19 +1,45 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface ExtraField {
   key: string;
   value: string;
 }
 
-const ProfileForm: React.FC = () => {
+interface InitialValues {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  email?: string;
+  extra_fields?: Record<string, string>;
+}
+
+interface ProfileFormProps {
+  initialValues?: InitialValues;
+  profileId?: number | null;
+  onSaved?: () => void;
+}
+
+const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId, onSaved }) => {
   const params = new URLSearchParams(window.location.search);
-  const [firstName, setFirstName] = useState(params.get('first_name') || '');
-  const [lastName, setLastName] = useState(params.get('last_name') || '');
-  const [phone, setPhone] = useState(params.get('phone') || '');
-  const [email, setEmail] = useState(params.get('email') || '');
-  const [extraFields, setExtraFields] = useState<ExtraField[]>([]);
+  const [firstName, setFirstName] = useState(initialValues.first_name || params.get('first_name') || '');
+  const [lastName, setLastName] = useState(initialValues.last_name || params.get('last_name') || '');
+  const [phone, setPhone] = useState(initialValues.phone || params.get('phone') || '');
+  const [email, setEmail] = useState(initialValues.email || params.get('email') || '');
+  const [extraFields, setExtraFields] = useState<ExtraField[]>(() => {
+    const extras = initialValues.extra_fields || {};
+    return Object.entries(extras).map(([key, value]) => ({ key, value }));
+  });
   const [photo, setPhoto] = useState<File | null>(null);
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    setFirstName(initialValues.first_name || '');
+    setLastName(initialValues.last_name || '');
+    setPhone(initialValues.phone || '');
+    setEmail(initialValues.email || '');
+    const extras = initialValues.extra_fields || {};
+    setExtraFields(Object.entries(extras).map(([key, value]) => ({ key, value })));
+  }, [initialValues, profileId]);
 
   const addField = () => setExtraFields([...extraFields, { key: '', value: '' }]);
   const removeField = (idx: number) => {
@@ -39,8 +65,10 @@ const ProfileForm: React.FC = () => {
     form.append('extra_fields', JSON.stringify(extras));
     if (photo) form.append('photo', photo);
     const token = localStorage.getItem('token');
-    const res = await fetch('/api/profiles', {
-      method: 'POST',
+    const url = profileId ? `/api/profiles/${profileId}` : '/api/profiles';
+    const method = profileId ? 'PATCH' : 'POST';
+    const res = await fetch(url, {
+      method,
       headers: {
         Authorization: token ? `Bearer ${token}` : ''
       },
@@ -48,9 +76,10 @@ const ProfileForm: React.FC = () => {
     });
     const data = await res.json();
     if (res.ok) {
-      setMessage('Profil créé avec succès');
+      setMessage('Profil enregistré avec succès');
+      if (onSaved) onSaved();
     } else {
-      setMessage(data.error || 'Erreur lors de la création');
+      setMessage(data.error || 'Erreur lors de la sauvegarde');
     }
   };
 
