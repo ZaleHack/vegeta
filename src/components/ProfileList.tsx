@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 
 interface Profile {
   id: number;
@@ -164,8 +165,21 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
       )}
       {selected && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white p-6 rounded-lg max-w-md w-full">
-            <h2 className="text-xl font-semibold mb-4">Détails du profil</h2>
+          <div className="relative bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full">
+            <button
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+              onClick={() => setSelected(null)}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {selected.photo_path && (
+              <img
+                src={`/${selected.photo_path}`}
+                alt="profil"
+                className="mx-auto w-32 h-32 rounded-full object-cover mb-4"
+              />
+            )}
+            <h2 className="text-2xl font-semibold text-center mb-4">Détails du profil</h2>
             <div className="space-y-2 text-sm">
               {(() => {
                 const extra = selected.extra_fields ? JSON.parse(selected.extra_fields) : {};
@@ -184,12 +198,6 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                 ));
               })()}
             </div>
-            <button
-              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded"
-              onClick={() => setSelected(null)}
-            >
-              Fermer
-            </button>
           </div>
         </div>
       )}
