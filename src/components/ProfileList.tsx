@@ -7,6 +7,7 @@ interface Profile {
   phone: string | null;
   email: string | null;
   photo_path: string | null;
+  extra_fields?: string | null;
 }
 
 interface ProfileListProps {
@@ -17,21 +18,26 @@ interface ProfileListProps {
 const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [selected, setSelected] = useState<Profile | null>(null);
   const token = localStorage.getItem('token');
+  const limit = 6;
 
   const load = async () => {
-    const res = await fetch(`/api/profiles?q=${encodeURIComponent(query)}`, {
+    const res = await fetch(`/api/profiles?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`, {
       headers: {
         Authorization: token ? `Bearer ${token}` : ''
       }
     });
     const data = await res.json();
     setProfiles(data.profiles || []);
+    setTotal(data.total || 0);
   };
 
   useEffect(() => {
     load();
-  }, []);
+  }, [page]);
 
   const remove = async (id: number) => {
     await fetch(`/api/profiles/${id}`, {
@@ -52,7 +58,15 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
           value={query}
           onChange={e => setQuery(e.target.value)}
         />
-        <button className="px-4 py-2 bg-indigo-600 text-white rounded" onClick={load}>Rechercher</button>
+        <button
+          className="px-4 py-2 bg-indigo-600 text-white rounded"
+          onClick={() => {
+            setPage(1);
+            load();
+          }}
+        >
+          Rechercher
+        </button>
         {onCreate && (
           <button
             className="px-4 py-2 bg-green-600 text-white rounded"
@@ -65,37 +79,118 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
       {profiles.length === 0 ? (
         <div className="text-center text-gray-500">Aucun profil trouvé</div>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {profiles.map(p => (
-            <div key={p.id} className="bg-white shadow rounded-xl p-4 flex flex-col">
-              <div className="flex items-center space-x-4">
-                {p.photo_path && (
-                  <img
-                    src={`/${p.photo_path}`}
-                    alt="profil"
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                )}
-                <div>
-                  <h3 className="text-lg font-semibold">{p.first_name} {p.last_name}</h3>
-                  <p className="text-sm text-gray-500">{p.phone}</p>
-                  <p className="text-sm text-gray-500">{p.email}</p>
+        <>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {profiles.map(p => {
+              const extra = p.extra_fields ? JSON.parse(p.extra_fields) : {};
+              const display: { label: string; value: string | null }[] = [
+                { label: 'First Name', value: p.first_name },
+                { label: 'Last Name', value: p.last_name },
+                { label: 'Phone', value: p.phone },
+                { label: 'Email', value: p.email },
+                ...Object.entries(extra).map(([k, v]) => ({ label: k, value: v as string }))
+              ].filter(f => f.value).slice(0, 4);
+              return (
+                <div key={p.id} className="bg-white shadow rounded-xl p-4 flex flex-col">
+                  <div className="flex items-center space-x-4">
+                    {p.photo_path && (
+                      <img
+                        src={`/${p.photo_path}`}
+                        alt="profil"
+                        className="w-16 h-16 rounded-full object-cover"
+                      />
+                    )}
+                    <div className="text-sm">
+                      {display.map(f => (
+                        <div key={f.label} className="text-gray-700">
+                          <span className="font-semibold">{f.label}: </span>
+                          {f.value}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-4 flex justify-end space-x-4 text-sm">
+                    <button
+                      className="text-blue-600 hover:underline"
+                      onClick={() => setSelected(p)}
+                    >
+                      Aperçu
+                    </button>
+                    {onEdit && (
+                      <button
+                        className="text-indigo-600 hover:underline"
+                        onClick={() => onEdit(p.id)}
+                      >
+                        Modifier
+                      </button>
+                    )}
+                    <a
+                      className="text-blue-600 hover:underline"
+                      href={`/api/profiles/${p.id}/pdf`}
+                      target="_blank"
+                      rel="noopener"
+                    >PDF</a>
+                    <button
+                      className="text-red-600 hover:underline"
+                      onClick={() => remove(p.id)}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-4 flex justify-end space-x-4 text-sm">
-                {onEdit && (
-                  <button className="text-indigo-600 hover:underline" onClick={() => onEdit(p.id)}>Modifier</button>
-                )}
-                <a
-                  className="text-blue-600 hover:underline"
-                  href={`/api/profiles/${p.id}/pdf`}
-                  target="_blank"
-                  rel="noopener"
-                >PDF</a>
-                <button className="text-red-600 hover:underline" onClick={() => remove(p.id)}>Supprimer</button>
-              </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-center items-center space-x-2 mt-4">
+            <button
+              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Précédent
+            </button>
+            <span>
+              Page {page} / {Math.max(1, Math.ceil(total / limit))}
+            </span>
+            <button
+              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+              onClick={() => setPage(p => p + 1)}
+              disabled={page >= Math.ceil(total / limit)}
+            >
+              Suivant
+            </button>
+          </div>
+        </>
+      )}
+      {selected && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Détails du profil</h2>
+            <div className="space-y-2 text-sm">
+              {(() => {
+                const extra = selected.extra_fields ? JSON.parse(selected.extra_fields) : {};
+                const all: Record<string, string | null> = {
+                  'First Name': selected.first_name,
+                  'Last Name': selected.last_name,
+                  Phone: selected.phone,
+                  Email: selected.email,
+                  ...extra
+                };
+                return Object.entries(all).map(([k, v]) => (
+                  <div key={k} className="flex justify-between">
+                    <span className="font-medium mr-2">{k}:</span>
+                    <span>{v}</span>
+                  </div>
+                ));
+              })()}
             </div>
-          ))}
+            <button
+              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded"
+              onClick={() => setSelected(null)}
+            >
+              Fermer
+            </button>
+          </div>
         </div>
       )}
     </div>
