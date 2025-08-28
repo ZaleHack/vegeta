@@ -230,13 +230,17 @@ const App: React.FC = () => {
   const [searchError, setSearchError] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'profile'>('list');
   const [showProfileForm, setShowProfileForm] = useState(false);
+  interface ExtraField {
+    key: string;
+    value: string;
+  }
+  interface FieldCategory {
+    title: string;
+    fields: ExtraField[];
+  }
   const [profileDefaults, setProfileDefaults] = useState<{
-    first_name?: string;
-    last_name?: string;
-    phone?: string;
-    email?: string;
     comment?: string;
-    extra_fields?: Record<string, string>;
+    extra_fields?: FieldCategory[];
   }>({});
   const [editingProfileId, setEditingProfileId] = useState<number | null>(null);
 
@@ -276,14 +280,20 @@ const App: React.FC = () => {
     comment?: string;
     extra_fields?: Record<string, string>;
   }) => {
-    setProfileDefaults({
-      first_name: data.first_name || '',
-      last_name: data.last_name || '',
-      phone: data.phone || '',
-      email: data.email || '',
-      comment: data.comment || '',
-      extra_fields: data.extra_fields || {}
-    });
+    const infoFields: ExtraField[] = [
+      { key: 'First Name', value: data.first_name || '' },
+      { key: 'Last Name', value: data.last_name || '' },
+      { key: 'Phone', value: data.phone || '' },
+      { key: 'Email', value: data.email || '' }
+    ];
+    const extraFields: ExtraField[] = Object.entries(data.extra_fields || {}).map(([k, v]) => ({
+      key: k,
+      value: v
+    }));
+    const categories: FieldCategory[] = [
+      { title: 'Informations', fields: [...infoFields, ...extraFields] }
+    ];
+    setProfileDefaults({ comment: data.comment || '', extra_fields: categories });
     setEditingProfileId(null);
     setShowProfileForm(true);
     setCurrentPage('profiles');
@@ -299,19 +309,41 @@ const App: React.FC = () => {
     const data = await res.json();
     if (res.ok && data.profile) {
       const profile = data.profile;
-      let extra: Record<string, string> = {};
+      let extras: FieldCategory[] = [];
       try {
-        extra = profile.extra_fields ? JSON.parse(profile.extra_fields) : {};
+        extras = profile.extra_fields ? JSON.parse(profile.extra_fields) : [];
       } catch {
-        extra = {};
+        try {
+          const obj = profile.extra_fields ? JSON.parse(profile.extra_fields) : {};
+          extras = [
+            {
+              title: 'Informations',
+              fields: Object.entries(obj).map(([k, v]) => ({
+                key: k,
+                value: v as string
+              }))
+            }
+          ];
+        } catch {
+          extras = [];
+        }
+      }
+      if (extras.length === 0) {
+        extras = [
+          {
+            title: 'Informations',
+            fields: [
+              { key: 'First Name', value: profile.first_name || '' },
+              { key: 'Last Name', value: profile.last_name || '' },
+              { key: 'Phone', value: profile.phone || '' },
+              { key: 'Email', value: profile.email || '' }
+            ]
+          }
+        ];
       }
       setProfileDefaults({
-        first_name: profile.first_name || '',
-        last_name: profile.last_name || '',
-        phone: profile.phone || '',
-        email: profile.email || '',
         comment: profile.comment || '',
-        extra_fields: extra
+        extra_fields: extras
       });
       setEditingProfileId(id);
       setShowProfileForm(true);

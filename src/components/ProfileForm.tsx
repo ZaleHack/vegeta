@@ -11,12 +11,8 @@ interface FieldCategory {
 }
 
 interface InitialValues {
-  first_name?: string;
-  last_name?: string;
-  phone?: string;
-  email?: string;
   comment?: string;
-  extra_fields?: Record<string, string>;
+  extra_fields?: FieldCategory[];
 }
 
 interface ProfileFormProps {
@@ -29,17 +25,13 @@ const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : 
 
 const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId, onSaved }) => {
   const buildInitialFields = (): FieldCategory[] => {
-    const arr: ExtraField[] = [];
-    if (initialValues.first_name) arr.push({ key: 'First Name', value: initialValues.first_name });
-    if (initialValues.last_name) arr.push({ key: 'Last Name', value: initialValues.last_name });
-    if (initialValues.phone) arr.push({ key: 'Phone', value: initialValues.phone });
-    if (initialValues.email) arr.push({ key: 'Email', value: initialValues.email });
-    const extras = initialValues.extra_fields || {};
-    Object.entries(extras).forEach(([k, v]) => arr.push({ key: capitalize(k), value: v }));
+    if (initialValues.extra_fields && initialValues.extra_fields.length) {
+      return initialValues.extra_fields;
+    }
     return [
       {
         title: 'Informations',
-        fields: arr.length ? arr : [{ key: '', value: '' }]
+        fields: [{ key: '', value: '' }]
       }
     ];
   };
@@ -121,16 +113,17 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     let lastName = '';
     let phone = '';
     let email = '';
-    const extras: Record<string, string> = {};
-    categories.forEach(cat => {
+    const formatted = categories.map(cat => ({
+      title: cat.title,
+      fields: cat.fields.map(f => ({ key: f.key, value: f.value }))
+    }));
+    formatted.forEach(cat => {
       cat.fields.forEach(f => {
-        const key = f.key.trim();
-        const lower = key.toLowerCase();
+        const lower = f.key.trim().toLowerCase();
         if (lower === 'first name') firstName = f.value;
         else if (lower === 'last name') lastName = f.value;
         else if (lower === 'phone') phone = f.value;
         else if (lower === 'email') email = f.value;
-        else if (key) extras[key] = f.value;
       });
     });
     form.append('first_name', firstName);
@@ -138,7 +131,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     form.append('phone', phone);
     form.append('email', email);
     form.append('comment', comment);
-    form.append('extra_fields', JSON.stringify(extras));
+    form.append('extra_fields', JSON.stringify(formatted));
     if (photo) form.append('photo', photo);
     const token = localStorage.getItem('token');
     const url = profileId ? `/api/profiles/${profileId}` : '/api/profiles';
@@ -175,7 +168,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
           >
             <div className="flex items-center space-x-3">
               <input
-                className="flex-1 rounded-lg border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="Titre de la catégorie"
                 value={cat.title}
                 onChange={e => updateCategoryTitle(cIdx, e.target.value)}
@@ -198,13 +191,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
                 onDrop={() => handleDrop(cIdx, fIdx)}
               >
                 <input
-                  className="flex-1 rounded-lg border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Nom du champ"
                   value={field.key}
                   onChange={e => updateField(cIdx, fIdx, 'key', e.target.value)}
                 />
                 <input
-                  className="flex-1 rounded-lg border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Valeur"
                   value={field.value}
                   onChange={e => updateField(cIdx, fIdx, 'value', e.target.value)}
@@ -238,7 +231,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       <div>
         <label className="block mb-2 font-medium text-gray-700">Commentaire</label>
         <textarea
-          className="w-full rounded-lg border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="w-full rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           value={comment}
           onChange={e => setComment(e.target.value)}
         />

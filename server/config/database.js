@@ -126,7 +126,7 @@ class DatabaseManager {
           last_name VARCHAR(255) DEFAULT NULL,
           phone VARCHAR(50) DEFAULT NULL,
           email VARCHAR(255) DEFAULT NULL,
-          comment TEXT DEFAULT NULL,
+          comment TEXT NOT NULL DEFAULT '',
           extra_fields TEXT,
           photo_path VARCHAR(255) DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

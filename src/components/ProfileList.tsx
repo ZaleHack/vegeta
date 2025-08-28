@@ -55,7 +55,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-2">
         <input
-          className="border p-2 rounded flex-1"
+          className="border-2 border-gray-300 p-2 rounded flex-1"
           placeholder="Recherche"
           value={query}
           onChange={e => setQuery(e.target.value)}
@@ -84,14 +84,26 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
         <>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {profiles.map(p => {
-              const extra = p.extra_fields ? JSON.parse(p.extra_fields) : {};
-              const display: { label: string; value: string | null }[] = [
-                { label: 'First Name', value: p.first_name },
-                { label: 'Last Name', value: p.last_name },
-                { label: 'Phone', value: p.phone },
-                { label: 'Email', value: p.email },
-                ...Object.entries(extra).map(([k, v]) => ({ label: k, value: v as string }))
-              ].filter(f => f.value).slice(0, 4);
+              let parsed: any[] = [];
+              try {
+                parsed = p.extra_fields ? JSON.parse(p.extra_fields) : [];
+              } catch {
+                parsed = [];
+              }
+              const extraFields: { label: string; value: string | null }[] = [];
+              parsed.forEach((cat: any) => {
+                (cat.fields || []).forEach((f: any) => {
+                  extraFields.push({ label: f.key, value: f.value });
+                });
+              });
+              const display = extraFields.length
+                ? extraFields.filter(f => f.value).slice(0, 4)
+                : [
+                    { label: 'First Name', value: p.first_name },
+                    { label: 'Last Name', value: p.last_name },
+                    { label: 'Phone', value: p.phone },
+                    { label: 'Email', value: p.email }
+                  ].filter(f => f.value).slice(0, 4);
               return (
                 <div key={p.id} className="bg-white shadow rounded-xl p-4 flex flex-col">
                   <div className="flex items-center space-x-4">
@@ -183,23 +195,50 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
             <h2 className="text-2xl font-semibold text-center mb-4">Détails du profil</h2>
             <div className="space-y-2 text-sm max-h-60 overflow-y-auto p-2 preview-scroll">
               {(() => {
-                const extra = selected.extra_fields ? JSON.parse(selected.extra_fields) : {};
-                const all: Record<string, string | null> = {
-                  'First Name': selected.first_name,
-                  'Last Name': selected.last_name,
-                  Phone: selected.phone,
-                  Commentaire: selected.comment,
-                  Email: selected.email,
-                  ...extra
-                };
-                return Object.entries(all)
-                  .filter(([, v]) => v && v !== '')
-                  .map(([k, v]) => (
-                    <div key={k} className="flex justify-between">
-                      <span className="font-medium mr-2">{k}:</span>
-                      <span>{v}</span>
-                    </div>
-                  ));
+                let parsed: any[] = [];
+                try {
+                  parsed = selected.extra_fields ? JSON.parse(selected.extra_fields) : [];
+                } catch {
+                  parsed = [];
+                }
+                if (parsed.length === 0) {
+                  parsed = [
+                    {
+                      title: 'Informations',
+                      fields: [
+                        { key: 'First Name', value: selected.first_name },
+                        { key: 'Last Name', value: selected.last_name },
+                        { key: 'Phone', value: selected.phone },
+                        { key: 'Email', value: selected.email }
+                      ]
+                    }
+                  ];
+                }
+                return (
+                  <>
+                    {parsed.map((cat, idx) => (
+                      <div key={idx} className="mb-2">
+                        {cat.title && (
+                          <div className="font-semibold mb-1">{cat.title}</div>
+                        )}
+                        {(cat.fields || [])
+                          .filter((f: any) => f.value)
+                          .map((f: any, i: number) => (
+                            <div key={i} className="flex justify-between">
+                              <span className="font-medium mr-2">{f.key}:</span>
+                              <span>{f.value}</span>
+                            </div>
+                          ))}
+                      </div>
+                    ))}
+                    {selected.comment && (
+                      <div className="flex justify-between">
+                        <span className="font-medium mr-2">Commentaire:</span>
+                        <span>{selected.comment}</span>
+                      </div>
+                    )}
+                  </>
+                );
               })()}
             </div>
           </div>
