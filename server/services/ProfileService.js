@@ -31,7 +31,8 @@ class ProfileService {
   async update(id, data, user, file) {
     const existing = await Profile.findById(id);
     if (!existing) throw new Error('Profil non trouvé');
-    if (user.admin !== 1 && existing.user_id !== user.id) {
+    const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
+    if (!isAdmin && existing.user_id !== user.id) {
       throw new Error('Accès refusé');
     }
     const updateData = {
@@ -49,7 +50,8 @@ class ProfileService {
   async delete(id, user) {
     const existing = await Profile.findById(id);
     if (!existing) throw new Error('Profil non trouvé');
-    if (user.admin !== 1 && existing.user_id !== user.id) {
+    const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
+    if (!isAdmin && existing.user_id !== user.id) {
       throw new Error('Accès refusé');
     }
     return Profile.delete(id);
@@ -58,16 +60,18 @@ class ProfileService {
   async get(id, user) {
     const profile = await Profile.findById(id);
     if (!profile) return null;
-    if (user.admin !== 1 && profile.user_id !== user.id) return null;
+    const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
+    if (!isAdmin && profile.user_id !== user.id) return null;
     return profile;
   }
 
   async list(user, search, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
+    const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
     if (search) {
-      return Profile.searchByNameOrPhone(search, user.id, user.admin === 1, limit, offset);
+      return Profile.searchByNameOrPhone(search, user.id, isAdmin, limit, offset);
     }
-    return Profile.findAll(user.admin === 1 ? null : user.id, limit, offset);
+    return Profile.findAll(isAdmin ? null : user.id, limit, offset);
   }
 
   async generatePDF(profile) {
