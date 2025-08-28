@@ -12,9 +12,6 @@ interface ProfilesProps {
   hits: SearchResult[];
   query: string;
   onCreateProfile?: (data: {
-    first_name: string;
-    last_name: string;
-    phone: string;
     email: string;
     comment?: string;
     extra_fields?: Record<string, string>;
@@ -72,11 +69,8 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
                 }
               });
             });
-            const { first_name, last_name, phone, email, ...extra } = combined;
+            const { email, ...extra } = combined;
             const data = {
-              first_name: String(first_name || ''),
-              last_name: String(last_name || ''),
-              phone: String(phone || ''),
               email: String(email || ''),
               extra_fields: Object.fromEntries(
                 Object.entries(extra).map(([k, v]) => [k, String(v ?? '')])
@@ -85,7 +79,10 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
             if (onCreateProfile) {
               onCreateProfile(data);
             } else {
-              const params = new URLSearchParams(data as any);
+              const params = new URLSearchParams({
+                email: data.email,
+                extra_fields: JSON.stringify(data.extra_fields || {})
+              });
               window.location.href = `/profiles/new?${params.toString()}`;
             }
           }}

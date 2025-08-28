@@ -116,9 +116,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const form = new FormData();
-    let firstName = '';
-    let lastName = '';
-    let phone = '';
     let email = '';
     const formatted = categories.map(cat => ({
       title: cat.title,
@@ -127,15 +124,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     formatted.forEach(cat => {
       cat.fields.forEach(f => {
         const lower = f.key.trim().toLowerCase();
-        if (lower === 'first name') firstName = f.value;
-        else if (lower === 'last name') lastName = f.value;
-        else if (lower === 'phone') phone = f.value;
-        else if (lower === 'email') email = f.value;
+        if (lower === 'email') email = f.value;
       });
     });
-    form.append('first_name', firstName);
-    form.append('last_name', lastName);
-    form.append('phone', phone);
     form.append('email', email);
     form.append('comment', comment);
     form.append('extra_fields', JSON.stringify(formatted));
