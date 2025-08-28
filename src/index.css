@@ -35,6 +35,7 @@
   .dark .bg-white\/60 { @apply bg-gray-800/60; }
   .dark .bg-white\/70 { @apply bg-gray-800/70; }
   .dark .bg-white\/80 { @apply bg-gray-800/80; }
+  .dark .bg-white\/90 { @apply bg-gray-800/90; }
   .dark .border-gray-100 { @apply border-gray-700; }
   .dark .border-gray-200 { @apply border-gray-700; }
   .dark .border-gray-300 { @apply border-gray-600; }
