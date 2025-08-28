@@ -235,6 +235,7 @@ const App: React.FC = () => {
     last_name?: string;
     phone?: string;
     email?: string;
+    comment?: string;
     extra_fields?: Record<string, string>;
   }>({});
   const [editingProfileId, setEditingProfileId] = useState<number | null>(null);
@@ -272,6 +273,7 @@ const App: React.FC = () => {
     last_name?: string;
     phone?: string;
     email?: string;
+    comment?: string;
     extra_fields?: Record<string, string>;
   }) => {
     setProfileDefaults({
@@ -279,6 +281,7 @@ const App: React.FC = () => {
       last_name: data.last_name || '',
       phone: data.phone || '',
       email: data.email || '',
+      comment: data.comment || '',
       extra_fields: data.extra_fields || {}
     });
     setEditingProfileId(null);
@@ -307,6 +310,7 @@ const App: React.FC = () => {
         last_name: profile.last_name || '',
         phone: profile.phone || '',
         email: profile.email || '',
+        comment: profile.comment || '',
         extra_fields: extra
       });
       setEditingProfileId(id);

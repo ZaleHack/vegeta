@@ -2,10 +2,10 @@ import database from '../config/database.js';
 
 class Profile {
   static async create(data) {
-    const { user_id, first_name, last_name, phone, email, extra_fields = {}, photo_path } = data;
+    const { user_id, first_name, last_name, phone, email, comment, extra_fields = {}, photo_path } = data;
     const result = await database.query(
-      `INSERT INTO autres.profiles (user_id, first_name, last_name, phone, email, extra_fields, photo_path) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [user_id, first_name, last_name, phone, email, JSON.stringify(extra_fields), photo_path]
+      `INSERT INTO autres.profiles (user_id, first_name, last_name, phone, email, comment, extra_fields, photo_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [user_id, first_name, last_name, phone, email, comment, JSON.stringify(extra_fields), photo_path]
     );
     return { id: result.insertId, ...data };
   }

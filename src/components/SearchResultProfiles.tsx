@@ -16,6 +16,7 @@ interface ProfilesProps {
     last_name: string;
     phone: string;
     email: string;
+    comment?: string;
     extra_fields?: Record<string, string>;
   }) => void;
 }

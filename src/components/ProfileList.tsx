@@ -7,6 +7,7 @@ interface Profile {
   last_name: string | null;
   phone: string | null;
   email: string | null;
+  comment: string | null;
   photo_path: string | null;
   extra_fields?: string | null;
 }
@@ -125,18 +126,18 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                         Modifier
                       </button>
                     )}
-                    <a
-                      className="text-blue-600 hover:underline"
-                      href={`/api/profiles/${p.id}/pdf`}
-                      target="_blank"
-                      rel="noopener"
-                    >PDF</a>
                     <button
                       className="text-red-600 hover:underline"
                       onClick={() => remove(p.id)}
                     >
                       Supprimer
                     </button>
+                    <a
+                      className="text-blue-600 hover:underline"
+                      href={`/api/profiles/${p.id}/pdf`}
+                      target="_blank"
+                      rel="noopener"
+                    >Exporter Profil</a>
                   </div>
                 </div>
               );
@@ -180,10 +181,11 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
               />
             )}
             <h2 className="text-2xl font-semibold text-center mb-4">Détails du profil</h2>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-2 text-sm max-h-60 overflow-y-auto">
               {(() => {
                 const extra = selected.extra_fields ? JSON.parse(selected.extra_fields) : {};
                 const all: Record<string, string | null> = {
+                  Commentaire: selected.comment,
                   Email: selected.email,
                   ...extra
                 };
