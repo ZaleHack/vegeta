@@ -3,12 +3,14 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
+import InMemoryCache from '../utils/cache.js';
 
 class SearchService {
   constructor() {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
+    this.cache = new InMemoryCache();
   }
 
   extractLinkedIdentifiers(results) {
@@ -58,6 +60,15 @@ class SearchService {
       depth = 0,
       seen = new Set()
     } = options;
+
+    let cacheKey;
+    if (depth === 0) {
+      cacheKey = JSON.stringify({ query, filters, page, limit, searchType });
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
 
     const startTime = Date.now();
     const results = [];
@@ -199,7 +210,7 @@ class SearchService {
       });
     }
 
-    return {
+    const response = {
       total: totalResults,
       page: page,
       limit: limit,
@@ -208,6 +219,12 @@ class SearchService {
       hits: paginatedResults,
       tables_searched: [...new Set(tablesSearched)]
     };
+
+    if (depth === 0) {
+      this.cache.set(cacheKey, response);
+    }
+
+    return response;
   }
 
   parseSearchQuery(query) {
