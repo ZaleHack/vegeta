@@ -272,8 +272,15 @@ const App: React.FC = () => {
     last_name?: string;
     phone?: string;
     email?: string;
+    extra_fields?: Record<string, string>;
   }) => {
-    setProfileDefaults({ ...data });
+    setProfileDefaults({
+      first_name: data.first_name || '',
+      last_name: data.last_name || '',
+      phone: data.phone || '',
+      email: data.email || '',
+      extra_fields: data.extra_fields || {}
+    });
     setEditingProfileId(null);
     setShowProfileForm(true);
     setCurrentPage('profiles');
@@ -1572,6 +1579,27 @@ const App: React.FC = () => {
                               </div>
                             </div>
                           ))}
+                        </div>
+                        <div className="mt-8 text-center">
+                          <button
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                            onClick={() => {
+                              const firstHit = searchResults.hits[0];
+                              const { first_name, last_name, phone, email, ...extra } = firstHit.preview || {};
+                              const data = {
+                                first_name: String(first_name || ''),
+                                last_name: String(last_name || ''),
+                                phone: String(phone || ''),
+                                email: String(email || ''),
+                                extra_fields: Object.fromEntries(
+                                  Object.entries(extra).map(([k, v]) => [k, String(v ?? '')])
+                                )
+                              };
+                              openCreateProfile(data);
+                            }}
+                          >
+                            Créer profil
+                          </button>
                         </div>
                       </div>
                     ) : (
