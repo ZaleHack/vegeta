@@ -53,6 +53,8 @@ import { fr } from 'date-fns/locale';
 import PageHeader from './components/PageHeader';
 import SearchResultProfiles from './components/SearchResultProfiles';
 import LoadingSpinner from './components/LoadingSpinner';
+import ProfileList from './components/ProfileList';
+import ProfileForm from './components/ProfileForm';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -227,6 +229,7 @@ const App: React.FC = () => {
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [searchError, setSearchError] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'profile'>('list');
+  const [showProfileForm, setShowProfileForm] = useState(false);
 
   // États d'authentification
   const [loginData, setLoginData] = useState({ login: '', password: '' });
@@ -1229,6 +1232,21 @@ const App: React.FC = () => {
             </button>
 
             <button
+              onClick={() => {
+                setCurrentPage('profiles');
+                setShowProfileForm(false);
+              }}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'profiles'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <FileText className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">Fiches de profil</span>}
+            </button>
+
+            <button
               onClick={() => setCurrentPage('links')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'links'
@@ -2014,15 +2032,48 @@ const App: React.FC = () => {
                     </div>
                   </>
                 )}
-              </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {currentPage === 'links' && (
-            <div className="space-y-6">
-              <PageHeader icon={<LinkIcon className="h-6 w-6" />} title="Liens Utiles" />
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {usefulLinks.map((link) => (
+        {currentPage === 'profiles' && (
+          <div className="space-y-6">
+            <PageHeader icon={<FileText className="h-6 w-6" />} title="Fiches de profil" />
+            {showProfileForm ? (
+              <div className="bg-white shadow rounded-lg p-6">
+                <ProfileForm />
+                <div className="mt-4">
+                  <button
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                    onClick={() => setShowProfileForm(false)}
+                  >
+                    Retour à la liste
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-end">
+                  <button
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                    onClick={() => setShowProfileForm(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Créer profil
+                  </button>
+                </div>
+                <div className="bg-white shadow rounded-lg p-6">
+                  <ProfileList />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {currentPage === 'links' && (
+          <div className="space-y-6">
+            <PageHeader icon={<LinkIcon className="h-6 w-6" />} title="Liens Utiles" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {usefulLinks.map((link) => (
                   <a
                     key={link.url}
                     href={link.url}
