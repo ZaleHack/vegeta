@@ -14,15 +14,19 @@ class Profile {
     return database.queryOne('SELECT * FROM autres.profiles WHERE id = ?', [id]);
   }
 
-  static async findAll(userId = null) {
-    let sql = 'SELECT * FROM autres.profiles';
+  static async findAll(userId = null, limit = 10, offset = 0) {
+    let base = 'FROM autres.profiles';
     const params = [];
     if (userId) {
-      sql += ' WHERE user_id = ?';
+      base += ' WHERE user_id = ?';
       params.push(userId);
     }
-    sql += ' ORDER BY created_at DESC';
-    return database.query(sql, params);
+    const rows = await database.query(
+      `SELECT * ${base} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+    const totalRes = await database.queryOne(`SELECT COUNT(*) as count ${base}`, params);
+    return { rows, total: totalRes.count };
   }
 
   static async update(id, data) {
@@ -43,15 +47,19 @@ class Profile {
     return true;
   }
 
-  static async searchByNameOrPhone(term, userId, isAdmin) {
-    let sql = 'SELECT * FROM autres.profiles WHERE (first_name LIKE ? OR last_name LIKE ? OR phone LIKE ?)';
+  static async searchByNameOrPhone(term, userId, isAdmin, limit = 10, offset = 0) {
+    let base = 'FROM autres.profiles WHERE (first_name LIKE ? OR last_name LIKE ? OR phone LIKE ?)';
     const params = [`%${term}%`, `%${term}%`, `%${term}%`];
     if (!isAdmin) {
-      sql += ' AND user_id = ?';
+      base += ' AND user_id = ?';
       params.push(userId);
     }
-    sql += ' ORDER BY created_at DESC';
-    return database.query(sql, params);
+    const rows = await database.query(
+      `SELECT * ${base} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+    const totalRes = await database.queryOne(`SELECT COUNT(*) as count ${base}`, params);
+    return { rows, total: totalRes.count };
   }
 }
 

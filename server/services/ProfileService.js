@@ -60,11 +60,12 @@ class ProfileService {
     return profile;
   }
 
-  async list(user, search) {
+  async list(user, search, page = 1, limit = 10) {
+    const offset = (page - 1) * limit;
     if (search) {
-      return Profile.searchByNameOrPhone(search, user.id, user.admin === 1);
+      return Profile.searchByNameOrPhone(search, user.id, user.admin === 1, limit, offset);
     }
-    return Profile.findAll(user.admin === 1 ? null : user.id);
+    return Profile.findAll(user.admin === 1 ? null : user.id, limit, offset);
   }
 
   async generatePDF(profile) {

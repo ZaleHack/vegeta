@@ -45,8 +45,10 @@ router.post('/', upload.single('photo'), async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const profiles = await service.list(req.user, req.query.q);
-    res.json({ profiles });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const { rows, total } = await service.list(req.user, req.query.q, page, limit);
+    res.json({ profiles: rows, total });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
