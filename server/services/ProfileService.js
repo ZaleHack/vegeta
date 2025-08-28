@@ -21,6 +21,7 @@ class ProfileService {
       last_name: data.last_name || null,
       phone: data.phone || null,
       email: data.email || null,
+      comment: data.comment || null,
       extra_fields: data.extra_fields || {},
       photo_path: file ? path.join('uploads/profiles', file.filename) : null
     };
@@ -38,6 +39,7 @@ class ProfileService {
       last_name: data.last_name ?? existing.last_name,
       phone: data.phone ?? existing.phone,
       email: data.email ?? existing.email,
+      comment: data.comment ?? existing.comment,
       extra_fields: data.extra_fields || JSON.parse(existing.extra_fields || '{}'),
       photo_path: file ? path.join('uploads/profiles', file.filename) : existing.photo_path
     };
@@ -81,6 +83,9 @@ class ProfileService {
       doc.fontSize(12).text(`Nom: ${profile.first_name || ''} ${profile.last_name || ''}`);
       doc.text(`Téléphone: ${profile.phone || ''}`);
       doc.text(`Email: ${profile.email || ''}`);
+      if (profile.comment) {
+        doc.text(`Commentaire: ${profile.comment}`);
+      }
       if (profile.extra_fields) {
         try {
           const extra = JSON.parse(profile.extra_fields);

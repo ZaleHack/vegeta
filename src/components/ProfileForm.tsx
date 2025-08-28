@@ -10,6 +10,7 @@ interface InitialValues {
   last_name?: string;
   phone?: string;
   email?: string;
+  comment?: string;
   extra_fields?: Record<string, string>;
 }
 
@@ -35,6 +36,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [comment, setComment] = useState(initialValues.comment || '');
 
   useEffect(() => {
     const arr: ExtraField[] = [];
@@ -45,6 +47,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     const extras = initialValues.extra_fields || {};
     Object.entries(extras).forEach(([k, v]) => arr.push({ key: capitalize(k), value: v }));
     setFields(arr);
+    setComment(initialValues.comment || '');
   }, [initialValues, profileId]);
 
   const addField = () => setFields([...fields, { key: '', value: '' }]);
@@ -85,6 +88,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     form.append('last_name', lastName);
     form.append('phone', phone);
     form.append('email', email);
+    form.append('comment', comment);
     form.append('extra_fields', JSON.stringify(extras));
     if (photo) form.append('photo', photo);
     const token = localStorage.getItem('token');
@@ -143,6 +147,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
         >
           Ajouter un champ
         </button>
+      </div>
+      <div>
+        <label className="block mb-1">Commentaire</label>
+        <textarea
+          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          value={comment}
+          onChange={e => setComment(e.target.value)}
+        />
       </div>
       <div>
         <input type="file" onChange={handlePhoto} />
