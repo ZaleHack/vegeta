@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
+import InMemoryCache from '../utils/cache.js';
 
 /**
  * Service de génération de statistiques basées sur les journaux de recherche
@@ -13,6 +14,7 @@ class StatsService {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
+    this.cache = new InMemoryCache();
   }
 
   loadCatalog() {
@@ -37,6 +39,12 @@ class StatsService {
    * Récupère les statistiques globales d'utilisation de la plateforme.
    */
   async getOverviewStats(userId = null) {
+    const cacheKey = `overview:${userId || 'all'}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     try {
       const [
         totalSearches,
@@ -71,7 +79,7 @@ class StatsService {
         )
       ]);
 
-      return {
+      const stats = {
         total_searches: totalSearches?.count || 0,
         avg_execution_time: Math.round(avgExecutionTime?.avg_time || 0),
         today_searches: todaySearches?.count || 0,
@@ -79,6 +87,9 @@ class StatsService {
         top_search_terms: topSearchTerms || [],
         searches_by_type: searchesByType || []
       };
+
+      this.cache.set(cacheKey, stats);
+      return stats;
     } catch (error) {
       console.error('Erreur statistiques overview:', error);
       throw error;
@@ -89,6 +100,12 @@ class StatsService {
    * Compte le nombre d'enregistrements pour chaque table de données.
    */
   async getDataStatistics() {
+    const cacheKey = 'dataStats';
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const catalog = this.loadCatalog();
     const entries = Object.entries(catalog);
     const results = await Promise.all(
@@ -112,13 +129,21 @@ class StatsService {
       })
     );
 
-    return Object.fromEntries(results);
+    const distribution = Object.fromEntries(results);
+    this.cache.set(cacheKey, distribution);
+    return distribution;
   }
 
   /**
    * Retourne l'évolution des recherches sur une période donnée.
    */
   async getTimeSeriesData(days = 30, userId = null) {
+    const cacheKey = `timeSeries:${days}:${userId || 'all'}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     try {
       let sql = `
         SELECT
@@ -138,12 +163,15 @@ class StatsService {
 
       const rows = await database.query(sql, params);
 
-      return rows.map(row => ({
+      const data = rows.map(row => ({
         date: row.date,
         searches: row.searches,
         unique_users: row.unique_users,
         avg_time: Math.round(row.avg_time || 0)
       }));
+
+      this.cache.set(cacheKey, data);
+      return data;
     } catch (error) {
       console.error('Erreur données temporelles:', error);
       throw error;
@@ -154,6 +182,12 @@ class StatsService {
    * Statistiques d'activité par utilisateur.
    */
   async getUserActivity() {
+    const cacheKey = 'userActivity';
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     try {
       const userActivity = await database.query(`
         SELECT
@@ -168,6 +202,7 @@ class StatsService {
         ORDER BY total_searches DESC
       `);
 
+      this.cache.set(cacheKey, userActivity || []);
       return userActivity || [];
     } catch (error) {
       console.error('Erreur statistiques utilisateurs:', error);
@@ -179,6 +214,12 @@ class StatsService {
    * Répartition géographique basée sur les entreprises.
    */
   async getRegionDistribution() {
+    const cacheKey = 'regionDistribution';
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     try {
       const regions = await database.query(`
         SELECT region, COUNT(*) as count
@@ -189,6 +230,7 @@ class StatsService {
         LIMIT 10
       `);
 
+      this.cache.set(cacheKey, regions || []);
       return regions || [];
     } catch (error) {
       console.warn('Erreur stats régions:', error);
@@ -201,6 +243,12 @@ class StatsService {
    * Permet de filtrer par nom d'utilisateur.
    */
   async getSearchLogs(limit = 20, username = '', userId = null) {
+    const cacheKey = `searchLogs:${limit}:${username}:${userId || 'all'}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     try {
       let sql = `
         SELECT
@@ -227,6 +275,7 @@ class StatsService {
       params.push(limit);
 
       const logs = await database.query(sql, params);
+      this.cache.set(cacheKey, logs || []);
       return logs || [];
     } catch (error) {
       console.error('Erreur logs de recherche:', error);
