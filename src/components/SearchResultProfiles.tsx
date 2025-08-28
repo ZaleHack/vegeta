@@ -50,24 +50,25 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query }) => {
               );
             })}
           </div>
-          <div className="px-6 pb-6">
-            <button
-              className="mt-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-              onClick={() => {
-                const params = new URLSearchParams({
-                  first_name: String(hit.preview.first_name || ''),
-                  last_name: String(hit.preview.last_name || ''),
-                  phone: String(hit.preview.phone || ''),
-                  email: String(hit.preview.email || '')
-                });
-                window.location.href = `/profiles/new?${params.toString()}`;
-              }}
-            >
-              Créer profil
-            </button>
-          </div>
         </div>
       ))}
+      <div className="text-center">
+        <button
+          className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          onClick={() => {
+            const firstHit = hits[0];
+            const params = new URLSearchParams({
+              first_name: String(firstHit.preview.first_name || ''),
+              last_name: String(firstHit.preview.last_name || ''),
+              phone: String(firstHit.preview.phone || ''),
+              email: String(firstHit.preview.email || '')
+            });
+            window.location.href = `/profiles/new?${params.toString()}`;
+          }}
+        >
+          Créer profil
+        </button>
+      </div>
     </div>
   );
 };
