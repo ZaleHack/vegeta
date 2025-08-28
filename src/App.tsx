@@ -241,6 +241,7 @@ const App: React.FC = () => {
   const [profileDefaults, setProfileDefaults] = useState<{
     comment?: string;
     extra_fields?: FieldCategory[];
+    photo_path?: string | null;
   }>({});
   const [editingProfileId, setEditingProfileId] = useState<number | null>(null);
 
@@ -293,7 +294,7 @@ const App: React.FC = () => {
     const categories: FieldCategory[] = [
       { title: 'Informations', fields: [...infoFields, ...extraFields] }
     ];
-    setProfileDefaults({ comment: data.comment || '', extra_fields: categories });
+    setProfileDefaults({ comment: data.comment || '', extra_fields: categories, photo_path: null });
     setEditingProfileId(null);
     setShowProfileForm(true);
     setCurrentPage('profiles');
@@ -343,7 +344,8 @@ const App: React.FC = () => {
       }
       setProfileDefaults({
         comment: profile.comment || '',
-        extra_fields: extras
+        extra_fields: extras,
+        photo_path: profile.photo_path || null
       });
       setEditingProfileId(id);
       setShowProfileForm(true);
@@ -2166,6 +2168,9 @@ const App: React.FC = () => {
             <PageHeader icon={<FileText className="h-6 w-6" />} title="Fiches de profil" />
             {showProfileForm ? (
               <div className="bg-white shadow rounded-lg p-6">
+                <h2 className="text-2xl font-bold mb-6 text-gray-800">
+                  {editingProfileId ? 'Modifier la fiche de profil' : 'Créer une fiche de profil'}
+                </h2>
                 <ProfileForm
                   initialValues={profileDefaults}
                   profileId={editingProfileId || undefined}

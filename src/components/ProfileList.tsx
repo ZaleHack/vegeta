@@ -74,15 +74,15 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex flex-col sm:flex-row gap-2 bg-white/80 backdrop-blur-sm p-4 rounded-2xl shadow-lg">
         <input
-          className="border-2 border-gray-300 p-2 rounded flex-1"
+          className="border border-gray-300 p-2 rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           placeholder="Recherche"
           value={query}
           onChange={e => setQuery(e.target.value)}
         />
         <button
-          className="px-4 py-2 bg-indigo-600 text-white rounded"
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           onClick={() => {
             setPage(1);
             load();
@@ -92,7 +92,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
         </button>
         {onCreate && (
           <button
-            className="px-4 py-2 bg-green-600 text-white rounded"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             onClick={onCreate}
           >
             Créer profil
@@ -107,7 +107,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
         <div className="text-center text-gray-500">Aucun profil trouvé</div>
       ) : (
         <>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {profiles.map(p => {
               let parsed: any[] = [];
               try {
@@ -132,20 +132,25 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                     { label: 'Email', value: p.email }
                   ].filter(f => f.value).slice(0, 4);
               return (
-                <div key={p.id} className="bg-white shadow rounded-xl p-4 flex flex-col">
+                <div
+                  key={p.id}
+                  className="bg-white/80 backdrop-blur-sm shadow-md rounded-2xl p-6 flex flex-col hover:shadow-xl transition-shadow"
+                >
                   <div className="flex items-center space-x-4">
-                    {p.photo_path && (
+                    {p.photo_path ? (
                       <img
                         src={`/${p.photo_path}`}
                         alt="profil"
-                        className="w-16 h-16 rounded-full object-cover"
+                        className="w-16 h-16 rounded-full object-cover ring-2 ring-indigo-500"
                       />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gray-200" />
                     )}
-                    <div className="text-sm">
+                    <div className="text-sm text-gray-700 space-y-1">
                       {display.map(f => (
-                        <div key={f.label} className="text-gray-700">
-                          <span className="font-semibold">{f.label}: </span>
-                          {f.value}
+                        <div key={f.label} className="flex items-center">
+                          <span className="font-semibold mr-1">{f.label}:</span>
+                          <span>{f.value}</span>
                         </div>
                       ))}
                     </div>
@@ -176,7 +181,9 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                       href={`/api/profiles/${p.id}/pdf`}
                       target="_blank"
                       rel="noopener"
-                    >Exporter Profil</a>
+                    >
+                      Exporter Profil
+                    </a>
                   </div>
                 </div>
               );
@@ -184,7 +191,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
           </div>
           <div className="flex justify-center items-center space-x-2 mt-4">
             <button
-              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+              className="px-3 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
             >
@@ -194,7 +201,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
               Page {page} / {Math.max(1, Math.ceil(total / limit))}
             </span>
             <button
-              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+              className="px-3 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               onClick={() => setPage(p => p + 1)}
               disabled={page >= Math.ceil(total / limit)}
             >
@@ -204,8 +211,8 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
         </>
       )}
       {selected && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
-          <div className="relative bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-2xl max-w-md w-full">
             <button
               className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
               onClick={() => setSelected(null)}
@@ -216,7 +223,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
               <img
                 src={`/${selected.photo_path}`}
                 alt="profil"
-                className="mx-auto w-32 h-32 rounded-full object-cover mb-4"
+                className="mx-auto w-32 h-32 rounded-full object-cover mb-4 ring-2 ring-indigo-500"
               />
             )}
             <h2 className="text-2xl font-semibold text-center mb-4">Détails du profil</h2>

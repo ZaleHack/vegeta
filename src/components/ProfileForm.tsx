@@ -13,6 +13,7 @@ interface FieldCategory {
 interface InitialValues {
   comment?: string;
   extra_fields?: FieldCategory[];
+  photo_path?: string | null;
 }
 
 interface ProfileFormProps {
@@ -46,6 +47,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   useEffect(() => {
     setCategories(buildInitialFields());
     setComment(initialValues.comment || '');
+    if (initialValues.photo_path) {
+      setPreview(`/${initialValues.photo_path}`);
+    } else {
+      setPreview(null);
+    }
+    setPhoto(null);
   }, [initialValues, profileId]);
 
   const addCategory = () =>
