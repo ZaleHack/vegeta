@@ -42,8 +42,8 @@ router.get('/search', authenticate, async (req, res) => {
     }
     const { start, end } = req.query;
     const result = await cdrService.search(identifier, {
-      startDateTime: start || null,
-      endDateTime: end || null
+      startDateTime: start ? `${start} 00:00:00` : null,
+      endDateTime: end ? `${end} 23:59:59` : null
     });
     res.json(result);
   } catch (error) {
