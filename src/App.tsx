@@ -2300,13 +2300,13 @@ const App: React.FC = () => {
                 />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <input
-                    type="datetime-local"
+                    type="date"
                     value={cdrStart}
                     onChange={(e) => setCdrStart(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <input
-                    type="datetime-local"
+                    type="date"
                     value={cdrEnd}
                     onChange={(e) => setCdrEnd(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"

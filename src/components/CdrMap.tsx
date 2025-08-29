@@ -46,6 +46,19 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
   const first = points[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const positions = points.map((p) => [parseFloat(p.latitude), parseFloat(p.longitude)] as [number, number]);
+  const arrows = positions.slice(1).map((pos, idx) => {
+    const prev = positions[idx];
+    const mid: [number, number] = [
+      (prev[0] + pos[0]) / 2,
+      (prev[1] + pos[1]) / 2
+    ];
+    const angle = (Math.atan2(pos[0] - prev[0], pos[1] - prev[1]) * 180) / Math.PI;
+    const icon = L.divIcon({
+      html: `<div style="transform: rotate(${angle}deg);font-size:16px;color:#2563eb;">➤</div>`,
+      className: ''
+    });
+    return { mid, icon };
+  });
   const [fullScreen, setFullScreen] = useState(false);
 
   return (
@@ -61,6 +74,9 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <Polyline positions={positions} color="#2563eb" />
+        {arrows.map((a, idx) => (
+          <Marker key={`arrow-${idx}`} position={a.mid} icon={a.icon} interactive={false} />
+        ))}
         {points.map((loc, idx) => (
           <Marker
             key={idx}
@@ -93,9 +109,12 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
           <div className="mb-2">
             <p className="font-semibold">Top contacts</p>
             <ul>
-              {topContacts.map((c) => (
-                <li key={c.number}>
-                  {c.number}: {c.total}
+              {topContacts.map((c, i) => (
+                <li
+                  key={c.number}
+                  className={i === 0 ? 'font-bold text-blue-600' : ''}
+                >
+                  {i === 0 && '★ '} {c.number}: {c.total}
                 </li>
               ))}
             </ul>
