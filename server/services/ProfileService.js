@@ -79,90 +79,93 @@ class ProfileService {
       const { default: PDFDocument } = await import('pdfkit');
       const doc = new PDFDocument({ margin: 50 });
       const chunks = [];
-      doc.on('data', chunk => chunks.push(chunk));
-      doc.on('end', () => {});
 
-      // Header
-      doc.fontSize(20).font('Helvetica-Bold').text('FICHE PROFIL', {
-        align: 'center'
-      });
-      doc.moveDown();
+      return await new Promise(async (resolve, reject) => {
+        doc.on('data', chunk => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
 
-      const startY = doc.y;
-      const imageWidth = 120;
-      const textStartX = doc.page.margins.left;
-      let textWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        // Header
+        doc.fontSize(20).font('Helvetica-Bold').text('FICHE PROFIL', {
+          align: 'center'
+        });
+        doc.moveDown();
 
-      // Add photo if available
-      if (profile.photo_path) {
-        try {
-          let imageBuffer;
-          if (/^https?:\/\//.test(profile.photo_path)) {
-            const res = await fetch(profile.photo_path);
-            const arr = await res.arrayBuffer();
-            imageBuffer = Buffer.from(arr);
-          } else {
-            const imgPath = path.join(__dirname, '../../', profile.photo_path);
-            if (fs.existsSync(imgPath)) {
-              imageBuffer = fs.readFileSync(imgPath);
+        const startY = doc.y;
+        const imageWidth = 120;
+        const textStartX = doc.page.margins.left;
+        let textWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+        // Add photo if available
+        if (profile.photo_path) {
+          try {
+            let imageBuffer;
+            if (/^https?:\/\//.test(profile.photo_path)) {
+              const res = await fetch(profile.photo_path);
+              const arr = await res.arrayBuffer();
+              imageBuffer = Buffer.from(arr);
+            } else {
+              const imgPath = path.join(__dirname, '../../', profile.photo_path);
+              if (fs.existsSync(imgPath)) {
+                imageBuffer = fs.readFileSync(imgPath);
+              }
             }
+            if (imageBuffer) {
+              const x = doc.page.width - doc.page.margins.right - imageWidth;
+              doc.image(imageBuffer, x, startY, { width: imageWidth, height: imageWidth, fit: [imageWidth, imageWidth] });
+              textWidth -= imageWidth + 20; // leave space for image
+            }
+          } catch (_) {
+            // ignore image errors
           }
-          if (imageBuffer) {
-            const x = doc.page.width - doc.page.margins.right - imageWidth;
-            doc.image(imageBuffer, x, startY, { width: imageWidth, height: imageWidth, fit: [imageWidth, imageWidth] });
-            textWidth -= imageWidth + 20; // leave space for image
-          }
-        } catch (_) {
-          // ignore image errors
         }
-      }
 
-      let y = startY;
-      const addField = (label, value) => {
-        if (value === undefined || value === null || value === '') return;
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(12)
-          .text(`${label}: `, textStartX, y, {
-            continued: true,
-            width: textWidth
-          })
-          .font('Helvetica')
-          .text(String(value), { width: textWidth });
-        y = doc.y;
-      };
+        let y = startY;
+        const addField = (label, value) => {
+          if (value === undefined || value === null || value === '') return;
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(12)
+            .text(`${label}: `, textStartX, y, {
+              continued: true,
+              width: textWidth
+            })
+            .font('Helvetica')
+            .text(String(value), { width: textWidth });
+          y = doc.y;
+        };
 
-      addField('Nom', profile.last_name);
-      addField('Prénom', profile.first_name);
-      addField('Téléphone', profile.phone);
-      addField('Email', profile.email);
+        addField('Nom', profile.last_name);
+        addField('Prénom', profile.first_name);
+        addField('Téléphone', profile.phone);
+        addField('Email', profile.email);
 
-      if (profile.extra_fields) {
-        try {
-          const extras = Array.isArray(profile.extra_fields)
-            ? profile.extra_fields
-            : JSON.parse(profile.extra_fields);
-          extras.forEach(cat => {
-            if (cat.title) {
-              doc.moveDown(0.5);
-              doc.font('Helvetica-Bold').text(cat.title, textStartX, y, { width: textWidth });
-              y = doc.y;
-            }
-            (cat.fields || []).forEach(f => {
-              addField(f.key, f.value);
+        if (profile.extra_fields) {
+          try {
+            const extras = Array.isArray(profile.extra_fields)
+              ? profile.extra_fields
+              : JSON.parse(profile.extra_fields);
+            extras.forEach(cat => {
+              if (cat.title) {
+                doc.moveDown(0.5);
+                doc.font('Helvetica-Bold').text(cat.title, textStartX, y, { width: textWidth });
+                y = doc.y;
+              }
+              (cat.fields || []).forEach(f => {
+                addField(f.key, f.value);
+              });
             });
-          });
-        } catch (_) {
-          // ignore parsing errors
+          } catch (_) {
+            // ignore parsing errors
+          }
         }
-      }
 
-      if (profile.comment) {
-        addField('Commentaire', profile.comment);
-      }
+        if (profile.comment) {
+          addField('Commentaire', profile.comment);
+        }
 
-      doc.end();
-      return Buffer.concat(chunks);
+        doc.end();
+      });
     } catch (error) {
       return Buffer.from('PDF generation not available');
     }
