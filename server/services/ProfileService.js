@@ -127,7 +127,7 @@ class ProfileService {
                 .split(/[/\\]+/)
                 .join(path.sep)
                 .replace(/^[/\\]+/, '');
-              const imgPath = path.join(process.cwd(), normalizedPath);
+              const imgPath = path.resolve(__dirname, '../../', normalizedPath);
               if (fs.existsSync(imgPath)) {
                 imageBuffer = fs.readFileSync(imgPath);
               }
