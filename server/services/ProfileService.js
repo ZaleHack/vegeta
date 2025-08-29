@@ -23,7 +23,8 @@ class ProfileService {
       email: data.email || null,
       comment: data.comment ?? '',
       extra_fields: data.extra_fields || [],
-      photo_path: file ? path.join('uploads/profiles', file.filename) : null
+      // Use POSIX-style paths for storage so that paths work across OSes
+      photo_path: file ? path.posix.join('uploads/profiles', file.filename) : null
     };
     return Profile.create(profileData);
   }
@@ -42,7 +43,12 @@ class ProfileService {
       email: data.email ?? existing.email,
       comment: data.comment ?? existing.comment ?? '',
       extra_fields: data.extra_fields || JSON.parse(existing.extra_fields || '[]'),
-      photo_path: file ? path.join('uploads/profiles', file.filename) : existing.photo_path
+      // Normalize existing paths to use forward slashes to avoid issues on different OSes
+      photo_path: file
+        ? path.posix.join('uploads/profiles', file.filename)
+        : existing.photo_path
+            ? existing.photo_path.replace(/\\/g, '/')
+            : existing.photo_path
     };
     return Profile.update(id, updateData);
   }
@@ -105,7 +111,9 @@ class ProfileService {
               const arr = await res.arrayBuffer();
               imageBuffer = Buffer.from(arr);
             } else {
-              const imgPath = path.join(__dirname, '../../', profile.photo_path);
+              // Normalize any backslashes in stored paths to ensure compatibility on POSIX systems
+              const normalizedPath = profile.photo_path.split(/[/\\]+/).join(path.sep);
+              const imgPath = path.join(__dirname, '../../', normalizedPath);
               if (fs.existsSync(imgPath)) {
                 imageBuffer = fs.readFileSync(imgPath);
               }
