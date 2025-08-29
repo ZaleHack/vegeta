@@ -49,11 +49,11 @@ class Cdr {
     const params = [identifier, identifier, identifier, identifier];
 
     if (startDateTime) {
-      query += ` AND CONCAT(date_debut, ' ', heure_debut) >= ?`;
+      query += ` AND TIMESTAMP(date_debut, heure_debut) >= ?`;
       params.push(startDateTime);
     }
     if (endDateTime) {
-      query += ` AND CONCAT(date_debut, ' ', heure_debut) <= ?`;
+      query += ` AND TIMESTAMP(date_debut, heure_debut) <= ?`;
       params.push(endDateTime);
     }
 

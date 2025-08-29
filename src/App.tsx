@@ -203,8 +203,10 @@ interface CdrPoint {
   type: string;
   direction: string;
   number?: string;
+  callDate: string;
+  startTime: string;
+  endTime: string;
   duration?: string;
-  timestamp: string;
 }
 
 interface CdrSearchResult {
