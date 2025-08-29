@@ -45,22 +45,26 @@ class CdrService {
     });
   }
 
-  async search(identifier) {
-    const records = await Cdr.findByIdentifier(identifier);
+  async search(identifier, { startDateTime = null, endDateTime = null } = {}) {
+    const records = await Cdr.findByIdentifier(identifier, startDateTime, endDateTime);
     const contactsMap = {};
     const locationsMap = {};
+    const path = [];
 
     for (const r of records) {
       const caller = r.numero_intl_appelant;
       const callee = r.numero_intl_appele;
       const other = caller === identifier ? callee : caller;
+      const direction = caller === identifier ? 'outgoing' : 'incoming';
+
+      const type = (r.type_cdr || '').toLowerCase();
+      const isSms = type.includes('sms');
 
       if (other) {
         if (!contactsMap[other]) {
           contactsMap[other] = { number: other, callCount: 0, smsCount: 0 };
         }
-        const type = (r.type_cdr || '').toLowerCase();
-        if (type.includes('sms')) {
+        if (isSms) {
           contactsMap[other].smsCount++;
         } else {
           contactsMap[other].callCount++;
@@ -78,6 +82,17 @@ class CdrService {
           };
         }
         locationsMap[key].count++;
+
+        path.push({
+          latitude: r.latitude,
+          longitude: r.longitude,
+          nom: r.nom_localisation,
+          type: isSms ? 'sms' : 'call',
+          direction,
+          number: other,
+          duration: r.duree,
+          timestamp: `${r.date_debut} ${r.heure_debut}`
+        });
       }
     }
 
@@ -90,13 +105,15 @@ class CdrService {
       }))
       .sort((a, b) => b.total - a.total);
 
-    const locations = Object.values(locationsMap);
+    const locations = Object.values(locationsMap).sort((a, b) => b.count - a.count);
 
     return {
       total: records.length,
       contacts,
       topContacts: contacts.slice(0, 5),
-      locations
+      locations,
+      topLocations: locations.slice(0, 5),
+      path
     };
   }
 }

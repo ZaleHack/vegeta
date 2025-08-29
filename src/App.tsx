@@ -196,11 +196,24 @@ interface CdrLocation {
   count: number;
 }
 
+interface CdrPoint {
+  latitude: string;
+  longitude: string;
+  nom: string;
+  type: string;
+  direction: string;
+  number?: string;
+  duration?: string;
+  timestamp: string;
+}
+
 interface CdrSearchResult {
   total: number;
   contacts: CdrContact[];
   topContacts: CdrContact[];
   locations: CdrLocation[];
+  topLocations: CdrLocation[];
+  path: CdrPoint[];
 }
 
 const usefulLinks = [
@@ -398,6 +411,8 @@ const App: React.FC = () => {
 
   // États CDR
   const [cdrIdentifier, setCdrIdentifier] = useState('');
+  const [cdrStart, setCdrStart] = useState('');
+  const [cdrEnd, setCdrEnd] = useState('');
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
   const [cdrError, setCdrError] = useState('');
@@ -1019,12 +1034,13 @@ const App: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const param = cdrIdentifier.trim().length === 15 ? 'imei' : 'phone';
-      const res = await fetch(
-        `/api/cdr/search?${param}=${encodeURIComponent(cdrIdentifier.trim())}`,
-        {
-          headers: { Authorization: token ? `Bearer ${token}` : '' }
-        }
-      );
+      const params = new URLSearchParams();
+      params.append(param, cdrIdentifier.trim());
+      if (cdrStart) params.append('start', cdrStart);
+      if (cdrEnd) params.append('end', cdrEnd);
+      const res = await fetch(`/api/cdr/search?${params.toString()}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
       const data = await res.json();
       if (res.ok) {
         setCdrResult(data);
@@ -2275,13 +2291,27 @@ const App: React.FC = () => {
                 {cdrUploadError && <p className="text-red-600">{cdrUploadError}</p>}
               </form>
               <form onSubmit={handleCdrSearch} className="space-y-4">
-                <input
+              <input
                   type="text"
                   placeholder="Numéro ou IMEI"
                   value={cdrIdentifier}
                   onChange={(e) => setCdrIdentifier(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input
+                    type="datetime-local"
+                    value={cdrStart}
+                    onChange={(e) => setCdrStart(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    type="datetime-local"
+                    value={cdrEnd}
+                    onChange={(e) => setCdrEnd(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={cdrLoading}
@@ -2297,30 +2327,12 @@ const App: React.FC = () => {
               )}
               {cdrError && <p className="text-red-600">{cdrError}</p>}
               {cdrResult && !cdrLoading && (
-                <div className="bg-white shadow rounded-lg p-6 space-y-4">
-                  <p className="text-sm">Total enregistrements: {cdrResult.total}</p>
-                  {cdrResult.topContacts && cdrResult.topContacts.length > 0 && (
-                    <div>
-                      <h3 className="font-semibold mb-2">Top contacts</h3>
-                      <ul className="divide-y divide-gray-200">
-                        {cdrResult.topContacts.map((c) => (
-                          <li key={c.number} className="py-2 flex justify-between">
-                            <span>{c.number}</span>
-                            <span className="text-gray-500">
-                              {c.total} (Appels: {c.callCount}, SMS: {c.smsCount})
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {cdrResult.locations && cdrResult.locations.length > 0 && (
-                    <div>
-                      <h3 className="font-semibold mb-2">Localisations</h3>
-                      <CdrMap locations={cdrResult.locations} />
-                    </div>
-                  )}
-                </div>
+                <CdrMap
+                  points={cdrResult.path}
+                  topContacts={cdrResult.topContacts}
+                  topLocations={cdrResult.topLocations}
+                  total={cdrResult.total}
+                />
               )}
             </div>
           )}

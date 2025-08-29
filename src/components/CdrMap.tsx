@@ -1,7 +1,26 @@
-import React from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import L from 'leaflet';
 
-interface Location {
+interface Point {
+  latitude: string;
+  longitude: string;
+  nom: string;
+  type: string;
+  direction: string;
+  number?: string;
+  duration?: string;
+  timestamp: string;
+}
+
+interface Contact {
+  number: string;
+  callCount: number;
+  smsCount: number;
+  total: number;
+}
+
+interface LocationStat {
   latitude: string;
   longitude: string;
   nom: string;
@@ -9,32 +28,95 @@ interface Location {
 }
 
 interface Props {
-  locations: Location[];
+  points: Point[];
+  topContacts: Contact[];
+  topLocations: LocationStat[];
+  total: number;
 }
 
-const CdrMap: React.FC<Props> = ({ locations }) => {
-  if (!locations || locations.length === 0) return null;
-  const first = locations[0];
+const getIcon = (type: string) =>
+  L.divIcon({
+    html: `<div style="background-color:${type === 'sms' ? '#16a34a' : '#2563eb'};width:12px;height:12px;border-radius:50%;"></div>`,
+    className: ''
+  });
+
+const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) => {
+  if (!points || points.length === 0) return null;
+
+  const first = points[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
+  const positions = points.map((p) => [parseFloat(p.latitude), parseFloat(p.longitude)] as [number, number]);
+  const [fullScreen, setFullScreen] = useState(false);
 
   return (
-    <MapContainer center={center} zoom={13} className="h-96 w-full z-0">
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      {locations.map((loc, idx) => (
-        <Marker key={idx} position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}>
-          <Popup>
-            <div>
-              <p className="font-semibold">{loc.nom || 'Localisation'}</p>
-              <p>Occurrences: {loc.count}</p>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-    </MapContainer>
+    <div className={`relative ${fullScreen ? 'fixed inset-0 z-50' : ''}`}>
+      <MapContainer
+        center={center}
+        zoom={13}
+        className="w-full"
+        style={{ height: fullScreen ? '100vh' : '70vh' }}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <Polyline positions={positions} color="#2563eb" />
+        {points.map((loc, idx) => (
+          <Marker
+            key={idx}
+            position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
+            icon={getIcon(loc.type)}
+          >
+            <Popup>
+              <div className="space-y-1">
+                <p className="font-semibold">{loc.nom || 'Localisation'}</p>
+                {loc.number && <p>Numéro: {loc.number}</p>}
+                <p>Type: {loc.type}</p>
+                <p>Durée: {loc.duration || 'N/A'}</p>
+                <p>Heure: {loc.timestamp}</p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+
+      <button
+        className="absolute top-2 right-2 bg-white px-2 py-1 rounded shadow z-[1000]"
+        onClick={() => setFullScreen(!fullScreen)}
+      >
+        {fullScreen ? 'Fermer' : 'Plein écran'}
+      </button>
+
+      <div className="absolute top-2 left-2 bg-white bg-opacity-90 rounded shadow p-2 text-xs max-h-60 overflow-y-auto z-[1000]">
+        <p className="font-semibold mb-1">Total: {total}</p>
+        {topContacts && topContacts.length > 0 && (
+          <div className="mb-2">
+            <p className="font-semibold">Top contacts</p>
+            <ul>
+              {topContacts.map((c) => (
+                <li key={c.number}>
+                  {c.number}: {c.total}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {topLocations && topLocations.length > 0 && (
+          <div>
+            <p className="font-semibold">Top lieux</p>
+            <ul>
+              {topLocations.map((l, i) => (
+                <li key={i}>
+                  {l.nom || `${l.latitude},${l.longitude}`}: {l.count}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
 export default CdrMap;
+
