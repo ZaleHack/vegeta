@@ -39,7 +39,7 @@ class Cdr {
     }
   }
 
-  static async findByIdentifier(identifier, startDateTime = null, endDateTime = null) {
+  static async findByIdentifier(identifier, startDate = null, endDate = null) {
     let query = `SELECT * FROM autres.cdr_records WHERE (
       numero_intl_appelant = ? OR
       numero_intl_appele = ? OR
@@ -48,13 +48,13 @@ class Cdr {
     )`;
     const params = [identifier, identifier, identifier, identifier];
 
-    if (startDateTime) {
-      query += ` AND TIMESTAMP(date_debut, heure_debut) >= ?`;
-      params.push(startDateTime);
+    if (startDate) {
+      query += ` AND date_debut >= ?`;
+      params.push(startDate);
     }
-    if (endDateTime) {
-      query += ` AND TIMESTAMP(date_debut, heure_debut) <= ?`;
-      params.push(endDateTime);
+    if (endDate) {
+      query += ` AND date_debut <= ?`;
+      params.push(endDate);
     }
 
     query += ' ORDER BY date_debut, heure_debut';

@@ -45,8 +45,8 @@ class CdrService {
     });
   }
 
-  async search(identifier, { startDateTime = null, endDateTime = null } = {}) {
-    const records = await Cdr.findByIdentifier(identifier, startDateTime, endDateTime);
+  async search(identifier, { startDate = null, endDate = null } = {}) {
+    const records = await Cdr.findByIdentifier(identifier, startDate, endDate);
     const contactsMap = {};
     const locationsMap = {};
     const path = [];
