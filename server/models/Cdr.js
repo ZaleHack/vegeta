@@ -53,7 +53,7 @@ class Cdr {
       params.push(startDateTime);
     }
     if (endDateTime) {
-      query += ` AND TIMESTAMP(date_debut, heure_debut) <= ?`;
+      query += ` AND TIMESTAMP(date_fin, heure_fin) <= ?`;
       params.push(endDateTime);
     }
 
