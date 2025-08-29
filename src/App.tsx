@@ -181,6 +181,24 @@ interface VehiculeEntry {
   Date_PrecImmat: string;
 }
 
+interface CdrContact {
+  number: string;
+  count: number;
+}
+
+interface CdrLocation {
+  latitude: string;
+  longitude: string;
+  nom: string;
+  count: number;
+}
+
+interface CdrSearchResult {
+  total: number;
+  topContacts: CdrContact[];
+  locations: CdrLocation[];
+}
+
 const usefulLinks = [
   {
     title: 'INTERPOL',
@@ -373,6 +391,12 @@ const App: React.FC = () => {
   const [vehiculesLoading, setVehiculesLoading] = useState(false);
   const vehiculesPerPage = 12;
   const [vehiculesTotal, setVehiculesTotal] = useState(0);
+
+  // États CDR
+  const [cdrIdentifier, setCdrIdentifier] = useState('');
+  const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
+  const [cdrLoading, setCdrLoading] = useState(false);
+  const [cdrError, setCdrError] = useState('');
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -979,6 +1003,36 @@ const App: React.FC = () => {
     }
   };
 
+  const handleCdrSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cdrIdentifier.trim()) return;
+    setCdrLoading(true);
+    setCdrError('');
+    try {
+      const token = localStorage.getItem('token');
+      const param = cdrIdentifier.trim().length === 15 ? 'imei' : 'phone';
+      const res = await fetch(
+        `/api/cdr/search?${param}=${encodeURIComponent(cdrIdentifier.trim())}`,
+        {
+          headers: { Authorization: token ? `Bearer ${token}` : '' }
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setCdrResult(data);
+      } else {
+        setCdrError(data.error || 'Erreur lors de la recherche');
+        setCdrResult(null);
+      }
+    } catch (error) {
+      console.error('Erreur recherche CDR:', error);
+      setCdrError('Erreur lors de la recherche');
+      setCdrResult(null);
+    } finally {
+      setCdrLoading(false);
+    }
+  };
+
   // Charger les utilisateurs quand on accède à la page
   useEffect(() => {
     if (currentPage === 'users' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
@@ -1315,6 +1369,18 @@ const App: React.FC = () => {
             >
               <Car className="h-5 w-5" />
               {sidebarOpen && <span className="ml-3">Véhicules</span>}
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('cdr')}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'cdr'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <Clock className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">CDR</span>}
             </button>
 
             <button
@@ -2148,12 +2214,58 @@ const App: React.FC = () => {
                   </>
                 )}
             </div>
-          </div>
-        )}
+            </div>
+          )}
 
-        {currentPage === 'profiles' && (
-          <div className="space-y-6">
-            <PageHeader icon={<FileText className="h-6 w-6" />} title="Fiches de profil" />
+          {currentPage === 'cdr' && (
+            <div className="space-y-6">
+              <PageHeader icon={<Clock className="h-6 w-6" />} title="CDR" />
+              <form onSubmit={handleCdrSearch} className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Numéro ou IMEI"
+                  value={cdrIdentifier}
+                  onChange={(e) => setCdrIdentifier(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="submit"
+                  disabled={cdrLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+                >
+                  Rechercher
+                </button>
+              </form>
+              {cdrLoading && (
+                <div className="loading-bar-container my-4">
+                  <div className="loading-bar"></div>
+                </div>
+              )}
+              {cdrError && <p className="text-red-600">{cdrError}</p>}
+              {cdrResult && !cdrLoading && (
+                <div className="bg-white shadow rounded-lg p-6 space-y-4">
+                  <p className="text-sm">Total enregistrements: {cdrResult.total}</p>
+                  {cdrResult.topContacts && cdrResult.topContacts.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold mb-2">Top contacts</h3>
+                      <ul className="divide-y divide-gray-200">
+                        {cdrResult.topContacts.map((c) => (
+                          <li key={c.number} className="py-2 flex justify-between">
+                            <span>{c.number}</span>
+                            <span className="text-gray-500">{c.count}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {currentPage === 'profiles' && (
+            <div className="space-y-6">
+              <PageHeader icon={<FileText className="h-6 w-6" />} title="Fiches de profil" />
             {showProfileForm ? (
               <div className="bg-white shadow rounded-lg p-6">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">
