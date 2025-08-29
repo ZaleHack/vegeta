@@ -104,9 +104,13 @@ class CdrService {
           }
         }
 
-        const callDate = r.date_debut
-          ? new Date(r.date_debut).toISOString().split('T')[0]
-          : 'N/A';
+        const callDate = (() => {
+          if (!r.date_debut) return 'N/A';
+          const parsed = new Date(r.date_debut);
+          return isNaN(parsed.getTime())
+            ? r.date_debut
+            : parsed.toISOString().split('T')[0];
+        })();
         const startTime = r.heure_debut
           ? r.heure_debut.toString().slice(0, 8)
           : 'N/A';
