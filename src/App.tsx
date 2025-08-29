@@ -418,6 +418,7 @@ const App: React.FC = () => {
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
   const [cdrError, setCdrError] = useState('');
+  const [cdrInfoMessage, setCdrInfoMessage] = useState('');
   const [cdrFile, setCdrFile] = useState<File | null>(null);
   const [cdrUploadMessage, setCdrUploadMessage] = useState('');
   const [cdrUploadError, setCdrUploadError] = useState('');
@@ -1033,6 +1034,7 @@ const App: React.FC = () => {
     if (!cdrIdentifier.trim()) return;
     setCdrLoading(true);
     setCdrError('');
+    setCdrInfoMessage('');
     try {
       const token = localStorage.getItem('token');
       const param = cdrIdentifier.trim().length === 15 ? 'imei' : 'phone';
@@ -1046,6 +1048,9 @@ const App: React.FC = () => {
       const data = await res.json();
       if (res.ok) {
         setCdrResult(data);
+        setCdrInfoMessage(
+          data.total === 0 ? 'Aucun CDR trouvé pour l\u2019intervalle sélectionné' : ''
+        );
       } else {
         setCdrError(data.error || 'Erreur lors de la recherche');
         setCdrResult(null);
@@ -1054,6 +1059,7 @@ const App: React.FC = () => {
       console.error('Erreur recherche CDR:', error);
       setCdrError('Erreur lors de la recherche');
       setCdrResult(null);
+      setCdrInfoMessage('');
     } finally {
       setCdrLoading(false);
     }
@@ -2328,7 +2334,8 @@ const App: React.FC = () => {
                 </div>
               )}
               {cdrError && <p className="text-red-600">{cdrError}</p>}
-              {cdrResult && !cdrLoading && (
+              {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
+              {cdrResult && !cdrLoading && cdrResult.total > 0 && (
                 <CdrMap
                   points={cdrResult.path}
                   topContacts={cdrResult.topContacts}
