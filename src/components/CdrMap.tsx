@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-leaflet';
 import L from 'leaflet';
 
 interface Point {
@@ -62,6 +62,15 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
     return { mid, icon };
   });
   const [fullScreen, setFullScreen] = useState(false);
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+
+  useEffect(() => {
+    if (mapInstance) {
+      setTimeout(() => {
+        mapInstance.invalidateSize();
+      }, 0);
+    }
+  }, [fullScreen, mapInstance]);
 
   return (
     <div className={`relative ${fullScreen ? 'fixed inset-0 z-50' : ''}`}>
@@ -70,12 +79,23 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
         zoom={13}
         className="w-full"
         style={{ height: fullScreen ? '100vh' : '70vh' }}
+        whenCreated={setMapInstance}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <Polyline positions={positions} color="#2563eb" />
+        {topLocations && topLocations.length > 0 && (
+          <Circle
+            center={[
+              parseFloat(topLocations[0].latitude),
+              parseFloat(topLocations[0].longitude)
+            ]}
+            radius={200}
+            pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.2 }}
+          />
+        )}
         {arrows.map((a, idx) => (
           <Marker key={`arrow-${idx}`} position={a.mid} icon={a.icon} interactive={false} />
         ))}
