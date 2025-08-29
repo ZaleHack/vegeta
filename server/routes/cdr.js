@@ -12,7 +12,12 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 const cdrService = new CdrService();
 
-const upload = multer({ dest: path.join(__dirname, '../../uploads') });
+// Ensure upload directory exists before initializing multer
+const uploadDir = path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+const upload = multer({ dest: uploadDir });
 
 router.post('/upload', authenticate, requireAdmin, upload.single('file'), async (req, res) => {
   try {
