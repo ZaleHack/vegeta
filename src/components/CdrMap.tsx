@@ -9,8 +9,10 @@ interface Point {
   type: string;
   direction: string;
   number?: string;
+  callDate: string;
+  startTime: string;
+  endTime: string;
   duration?: string;
-  timestamp: string;
 }
 
 interface Contact {
@@ -88,8 +90,10 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
                 <p className="font-semibold">{loc.nom || 'Localisation'}</p>
                 {loc.number && <p>Numéro: {loc.number}</p>}
                 <p>Type: {loc.type}</p>
+                <p>Date: {loc.callDate}</p>
+                <p>Début: {loc.startTime}</p>
+                <p>Fin: {loc.endTime}</p>
                 <p>Durée: {loc.duration || 'N/A'}</p>
-                <p>Heure: {loc.timestamp}</p>
               </div>
             </Popup>
           </Marker>

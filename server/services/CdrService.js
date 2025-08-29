@@ -83,18 +83,7 @@ class CdrService {
         }
         locationsMap[key].count++;
 
-        // Format timestamp and duration for frontend display
-        let timestamp = 'N/A';
-        const rawTs = `${r.date_debut || ''} ${r.heure_debut || ''}`.trim();
-        if (rawTs) {
-          const parsed = new Date(rawTs.replace(' ', 'T'));
-          if (!isNaN(parsed.getTime())) {
-            timestamp = parsed.toLocaleString();
-          } else {
-            timestamp = rawTs;
-          }
-        }
-
+        // Format duration for frontend display
         let duration = 'N/A';
         if (r.duree) {
           let totalSeconds = 0;
@@ -115,6 +104,16 @@ class CdrService {
           }
         }
 
+        const callDate = r.date_debut
+          ? new Date(r.date_debut).toISOString().split('T')[0]
+          : 'N/A';
+        const startTime = r.heure_debut
+          ? r.heure_debut.toString().slice(0, 8)
+          : 'N/A';
+        const endTime = r.heure_fin
+          ? r.heure_fin.toString().slice(0, 8)
+          : 'N/A';
+
         path.push({
           latitude: r.latitude,
           longitude: r.longitude,
@@ -122,8 +121,10 @@ class CdrService {
           type: isSms ? 'sms' : 'call',
           direction,
           number: other,
-          duration,
-          timestamp
+          callDate,
+          startTime,
+          endTime,
+          duration
         });
       }
     }
