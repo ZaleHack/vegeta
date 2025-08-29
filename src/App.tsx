@@ -415,8 +415,6 @@ const App: React.FC = () => {
   const [cdrIdentifier, setCdrIdentifier] = useState('');
   const [cdrStart, setCdrStart] = useState('');
   const [cdrEnd, setCdrEnd] = useState('');
-  const [cdrStartTime, setCdrStartTime] = useState('');
-  const [cdrEndTime, setCdrEndTime] = useState('');
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
   const [cdrError, setCdrError] = useState('');
@@ -1041,9 +1039,7 @@ const App: React.FC = () => {
       const params = new URLSearchParams();
       params.append(param, cdrIdentifier.trim());
       if (cdrStart) params.append('start', cdrStart);
-      if (cdrStartTime) params.append('startTime', cdrStartTime);
       if (cdrEnd) params.append('end', cdrEnd);
-      if (cdrEndTime) params.append('endTime', cdrEndTime);
       const res = await fetch(`/api/cdr/search?${params.toString()}`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
@@ -2305,34 +2301,18 @@ const App: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <div className="flex gap-2">
-                    <input
-                      type="date"
-                      value={cdrStart}
-                      onChange={(e) => setCdrStart(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <input
-                      type="time"
-                      value={cdrStartTime}
-                      onChange={(e) => setCdrStartTime(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="date"
-                      value={cdrEnd}
-                      onChange={(e) => setCdrEnd(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <input
-                      type="time"
-                      value={cdrEndTime}
-                      onChange={(e) => setCdrEndTime(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+                  <input
+                    type="date"
+                    value={cdrStart}
+                    onChange={(e) => setCdrStart(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    type="date"
+                    value={cdrEnd}
+                    onChange={(e) => setCdrEnd(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
                 <button
                   type="submit"
