@@ -61,7 +61,20 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
     console.log('🔍 Lancement de la recherche...');
     let results;
     if (useElastic) {
-      results = await elasticService.search(query.trim(), parseInt(limit));
+      const es = await elasticService.search(
+        query.trim(),
+        parseInt(page),
+        parseInt(limit)
+      );
+      results = {
+        total: es.total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(es.total / parseInt(limit)),
+        elapsed_ms: es.elapsed_ms,
+        hits: es.hits,
+        tables_searched: ['profiles']
+      };
     } else {
       results = await searchService.search(
         query.trim(),

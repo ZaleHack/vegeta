@@ -10,9 +10,11 @@ class ElasticSearchService {
     });
   }
 
-  async search(query, limit = 20) {
-    const { hits } = await client.search({
+  async search(query, page = 1, limit = 20) {
+    const from = (page - 1) * limit;
+    const { hits, took } = await client.search({
       index: 'profiles',
+      from,
       size: limit,
       query: {
         multi_match: {
@@ -21,7 +23,13 @@ class ElasticSearchService {
         }
       }
     });
-    return hits.hits.map(h => h._source);
+
+    const total = typeof hits.total === 'number' ? hits.total : hits.total?.value ?? 0;
+    return {
+      total,
+      hits: hits.hits.map(h => h._source),
+      elapsed_ms: took
+    };
   }
 }
 
