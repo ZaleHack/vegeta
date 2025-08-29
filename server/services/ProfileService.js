@@ -91,16 +91,21 @@ class ProfileService {
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
-        // Header
-        doc.fontSize(20).font('Helvetica-Bold').text('FICHE PROFIL', {
-          align: 'center'
-        });
-        doc.moveDown();
+        // Modern header
+        const headerHeight = 60;
+        const margin = doc.page.margins.left;
+        doc.rect(0, 0, doc.page.width, headerHeight).fill('#4F46E5');
+        doc
+          .fillColor('white')
+          .fontSize(24)
+          .font('Helvetica-Bold')
+          .text('FICHE PROFIL', margin, 20);
+        doc.fillColor('black');
 
-        const startY = doc.y;
-        const imageWidth = 120;
-        const textStartX = doc.page.margins.left;
-        let textWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        let y = headerHeight + 20;
+        let textX = margin;
+        let textWidth = doc.page.width - margin * 2;
+        const photoSize = 120;
 
         // Add photo if available
         if (profile.photo_path) {
@@ -111,36 +116,37 @@ class ProfileService {
               const arr = await res.arrayBuffer();
               imageBuffer = Buffer.from(arr);
             } else {
-              // Normalize any backslashes in stored paths to ensure compatibility on POSIX systems
               const normalizedPath = profile.photo_path.split(/[/\\]+/).join(path.sep);
-              const imgPath = path.join(__dirname, '../../', normalizedPath);
+              const imgPath = path.resolve(__dirname, '../../', normalizedPath);
               if (fs.existsSync(imgPath)) {
                 imageBuffer = fs.readFileSync(imgPath);
               }
             }
             if (imageBuffer) {
-              const x = doc.page.width - doc.page.margins.right - imageWidth;
-              doc.image(imageBuffer, x, startY, { width: imageWidth, height: imageWidth, fit: [imageWidth, imageWidth] });
-              textWidth -= imageWidth + 20; // leave space for image
+              doc.save();
+              doc.circle(textX + photoSize / 2, y + photoSize / 2, photoSize / 2).clip();
+              doc.image(imageBuffer, textX, y, { width: photoSize, height: photoSize });
+              doc.restore();
+              textX += photoSize + 20;
+              textWidth -= photoSize + 20;
             }
           } catch (_) {
             // ignore image errors
           }
         }
 
-        let y = startY;
         const addField = (label, value) => {
-          if (value === undefined || value === null || value === '') return;
+          if (!value) return;
           doc
+            .fillColor('#374151')
             .font('Helvetica-Bold')
             .fontSize(12)
-            .text(`${label}: `, textStartX, y, {
-              continued: true,
-              width: textWidth
-            })
+            .text(`${label}:`, textX, y, { continued: true });
+          doc
+            .fillColor('#1F2937')
             .font('Helvetica')
             .text(String(value), { width: textWidth });
-          y = doc.y;
+          y = doc.y + 6;
         };
 
         addField('Nom', profile.last_name);
@@ -155,9 +161,12 @@ class ProfileService {
               : JSON.parse(profile.extra_fields);
             extras.forEach(cat => {
               if (cat.title) {
-                doc.moveDown(0.5);
-                doc.font('Helvetica-Bold').text(cat.title, textStartX, y, { width: textWidth });
-                y = doc.y;
+                doc
+                  .moveDown(0.5)
+                  .fillColor('#4F46E5')
+                  .font('Helvetica-Bold')
+                  .text(cat.title, textX, y);
+                y = doc.y + 4;
               }
               (cat.fields || []).forEach(f => {
                 addField(f.key, f.value);
