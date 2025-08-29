@@ -40,10 +40,10 @@ router.get('/search', authenticate, async (req, res) => {
     if (!identifier) {
       return res.status(400).json({ error: 'Paramètre phone ou imei requis' });
     }
-    const { start, end } = req.query;
+    const { start, end, startTime, endTime } = req.query;
     const result = await cdrService.search(identifier, {
-      startDateTime: start ? `${start} 00:00:00` : null,
-      endDateTime: end ? `${end} 23:59:59` : null
+      startDateTime: start ? `${start} ${startTime || '00:00:00'}` : null,
+      endDateTime: end ? `${end} ${endTime || '23:59:59'}` : null
     });
     res.json(result);
   } catch (error) {
