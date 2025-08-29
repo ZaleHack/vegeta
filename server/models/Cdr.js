@@ -39,15 +39,27 @@ class Cdr {
     }
   }
 
-  static async findByIdentifier(identifier) {
-    return await database.query(
-      `SELECT * FROM autres.cdr_records WHERE
-        numero_intl_appelant = ? OR
-        numero_intl_appele = ? OR
-        imei_appelant = ? OR
-        imei_appele = ?`,
-      [identifier, identifier, identifier, identifier]
-    );
+  static async findByIdentifier(identifier, startDateTime = null, endDateTime = null) {
+    let query = `SELECT * FROM autres.cdr_records WHERE (
+      numero_intl_appelant = ? OR
+      numero_intl_appele = ? OR
+      imei_appelant = ? OR
+      imei_appele = ?
+    )`;
+    const params = [identifier, identifier, identifier, identifier];
+
+    if (startDateTime) {
+      query += ` AND CONCAT(date_debut, ' ', heure_debut) >= ?`;
+      params.push(startDateTime);
+    }
+    if (endDateTime) {
+      query += ` AND CONCAT(date_debut, ' ', heure_debut) <= ?`;
+      params.push(endDateTime);
+    }
+
+    query += ' ORDER BY date_debut, heure_debut';
+
+    return await database.query(query, params);
   }
 }
 
