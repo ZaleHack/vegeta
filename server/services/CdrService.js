@@ -54,9 +54,19 @@ class CdrService {
       const caller = r.numero_intl_appelant;
       const callee = r.numero_intl_appele;
       const other = caller === identifier ? callee : caller;
+
       if (other) {
-        contactsMap[other] = (contactsMap[other] || 0) + 1;
+        if (!contactsMap[other]) {
+          contactsMap[other] = { number: other, callCount: 0, smsCount: 0 };
+        }
+        const type = (r.type_cdr || '').toLowerCase();
+        if (type.includes('sms')) {
+          contactsMap[other].smsCount++;
+        } else {
+          contactsMap[other].callCount++;
+        }
       }
+
       if (r.latitude && r.longitude) {
         const key = `${r.latitude},${r.longitude}`;
         if (!locationsMap[key]) {
@@ -71,9 +81,14 @@ class CdrService {
       }
     }
 
-    const contacts = Object.entries(contactsMap)
-      .map(([number, count]) => ({ number, count }))
-      .sort((a, b) => b.count - a.count);
+    const contacts = Object.values(contactsMap)
+      .map((c) => ({
+        number: c.number,
+        callCount: c.callCount,
+        smsCount: c.smsCount,
+        total: c.callCount + c.smsCount
+      }))
+      .sort((a, b) => b.total - a.total);
 
     const locations = Object.values(locationsMap);
 

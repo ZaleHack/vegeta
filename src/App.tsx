@@ -55,6 +55,7 @@ import SearchResultProfiles from './components/SearchResultProfiles';
 import LoadingSpinner from './components/LoadingSpinner';
 import ProfileList from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
+import CdrMap from './components/CdrMap';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -183,7 +184,9 @@ interface VehiculeEntry {
 
 interface CdrContact {
   number: string;
-  count: number;
+  callCount: number;
+  smsCount: number;
+  total: number;
 }
 
 interface CdrLocation {
@@ -195,6 +198,7 @@ interface CdrLocation {
 
 interface CdrSearchResult {
   total: number;
+  contacts: CdrContact[];
   topContacts: CdrContact[];
   locations: CdrLocation[];
 }
@@ -397,6 +401,10 @@ const App: React.FC = () => {
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
   const [cdrError, setCdrError] = useState('');
+  const [cdrFile, setCdrFile] = useState<File | null>(null);
+  const [cdrUploadMessage, setCdrUploadMessage] = useState('');
+  const [cdrUploadError, setCdrUploadError] = useState('');
+  const [cdrUploading, setCdrUploading] = useState(false);
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -1030,6 +1038,35 @@ const App: React.FC = () => {
       setCdrResult(null);
     } finally {
       setCdrLoading(false);
+    }
+  };
+
+  const handleCdrUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cdrFile) return;
+    setCdrUploading(true);
+    setCdrUploadMessage('');
+    setCdrUploadError('');
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', cdrFile);
+      const res = await fetch('/api/cdr/upload', {
+        method: 'POST',
+        headers: { Authorization: token ? `Bearer ${token}` : '' },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCdrUploadMessage('Fichier importé avec succès');
+      } else {
+        setCdrUploadError(data.error || "Erreur lors de l'import");
+      }
+    } catch (error) {
+      console.error('Erreur upload CDR:', error);
+      setCdrUploadError("Erreur lors de l'import");
+    } finally {
+      setCdrUploading(false);
     }
   };
 
@@ -2220,6 +2257,23 @@ const App: React.FC = () => {
           {currentPage === 'cdr' && (
             <div className="space-y-6">
               <PageHeader icon={<Clock className="h-6 w-6" />} title="CDR" />
+              <form onSubmit={handleCdrUpload} className="space-y-4">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                <button
+                  type="submit"
+                  disabled={cdrUploading || !cdrFile}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50"
+                >
+                  Importer CSV
+                </button>
+                {cdrUploadMessage && <p className="text-green-600">{cdrUploadMessage}</p>}
+                {cdrUploadError && <p className="text-red-600">{cdrUploadError}</p>}
+              </form>
               <form onSubmit={handleCdrSearch} className="space-y-4">
                 <input
                   type="text"
@@ -2252,10 +2306,18 @@ const App: React.FC = () => {
                         {cdrResult.topContacts.map((c) => (
                           <li key={c.number} className="py-2 flex justify-between">
                             <span>{c.number}</span>
-                            <span className="text-gray-500">{c.count}</span>
+                            <span className="text-gray-500">
+                              {c.total} (Appels: {c.callCount}, SMS: {c.smsCount})
+                            </span>
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+                  {cdrResult.locations && cdrResult.locations.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold mb-2">Localisations</h3>
+                      <CdrMap locations={cdrResult.locations} />
                     </div>
                   )}
                 </div>
