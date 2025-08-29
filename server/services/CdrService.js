@@ -1,5 +1,6 @@
 import fs from 'fs';
 import csv from 'csv-parser';
+import { parse, format } from 'date-fns';
 import Cdr from '../models/Cdr.js';
 
 class CdrService {
@@ -9,13 +10,30 @@ class CdrService {
       fs.createReadStream(filePath)
         .pipe(csv())
         .on('data', row => {
+          const normalizeDate = (str) => {
+            if (!str) return null;
+            try {
+              const parsed = parse(str, 'dd/MM/yyyy', new Date());
+              if (isNaN(parsed)) return null;
+              return format(parsed, 'yyyy-MM-dd');
+            } catch {
+              return null;
+            }
+          };
+          const normalizeTime = (str) => {
+            if (!str) return null;
+            const parsed = new Date(`1970-01-01T${str}`);
+            if (isNaN(parsed.getTime())) return null;
+            return parsed.toISOString().slice(11, 19);
+          };
+
           records.push({
             oce: row['OCE'] || null,
             type_cdr: row['Type CDR'] || null,
-            date_debut: row['Date debut'] || null,
-            heure_debut: row['Heure debut'] || null,
-            date_fin: row['Date fin'] || null,
-            heure_fin: row['Heure fin'] || null,
+            date_debut: normalizeDate(row['Date debut']),
+            heure_debut: normalizeTime(row['Heure debut']),
+            date_fin: normalizeDate(row['Date fin']),
+            heure_fin: normalizeTime(row['Heure fin']),
             duree: row['Duree'] || null,
             numero_intl_appelant: row['Numero intl appelant'] || null,
             numero_intl_appele: row['Numero intl appele'] || null,

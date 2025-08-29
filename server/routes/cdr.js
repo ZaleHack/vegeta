@@ -41,6 +41,18 @@ router.get('/search', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Paramètre phone ou imei requis' });
     }
     const { start, end } = req.query;
+    const isValidDate = (str) => {
+      if (!str) return false;
+      const regex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!regex.test(str)) return false;
+      return !isNaN(new Date(str).getTime());
+    };
+    if ((start && !isValidDate(start)) || (end && !isValidDate(end))) {
+      return res.status(400).json({ error: 'Format de date invalide (YYYY-MM-DD)' });
+    }
+    if (start && end && new Date(start) > new Date(end)) {
+      return res.status(400).json({ error: 'La date de début doit précéder la date de fin' });
+    }
     const result = await cdrService.search(identifier, {
       startDate: start || null,
       endDate: end || null
