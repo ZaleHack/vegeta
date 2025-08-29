@@ -55,6 +55,7 @@ import SearchResultProfiles from './components/SearchResultProfiles';
 import LoadingSpinner from './components/LoadingSpinner';
 import ProfileList from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
+import CdrMap from './components/CdrMap';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -195,12 +196,26 @@ interface CdrLocation {
   count: number;
 }
 
+interface CdrPoint {
+  latitude: string;
+  longitude: string;
+  nom: string;
+  type: string;
+  direction: string;
+  number?: string;
+  callDate: string;
+  startTime: string;
+  endTime: string;
+  duration?: string;
+}
+
 interface CdrSearchResult {
   total: number;
   contacts: CdrContact[];
   topContacts: CdrContact[];
   locations: CdrLocation[];
   topLocations: CdrLocation[];
+  path: CdrPoint[];
 }
 
 const usefulLinks = [
@@ -2334,29 +2349,12 @@ const App: React.FC = () => {
               )}
               {cdrError && <p className="text-red-600">{cdrError}</p>}
               {cdrResult && !cdrLoading && (
-                <div className="space-y-4 mt-4">
-                  <p>Total: {cdrResult.total}</p>
-                  {cdrResult.topContacts.length > 0 && (
-                    <div>
-                      <p className="font-semibold">Top contacts</p>
-                      <ul>
-                        {cdrResult.topContacts.map((c) => (
-                          <li key={c.number}>{c.number}: {c.total}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {cdrResult.topLocations.length > 0 && (
-                    <div>
-                      <p className="font-semibold">Top lieux</p>
-                      <ul>
-                        {cdrResult.topLocations.map((l, i) => (
-                          <li key={i}>{l.nom || `${l.latitude},${l.longitude}`}: {l.count}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
+                <CdrMap
+                  points={cdrResult.path}
+                  topContacts={cdrResult.topContacts}
+                  topLocations={cdrResult.topLocations}
+                  total={cdrResult.total}
+                />
               )}
             </div>
           )}
