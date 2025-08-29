@@ -122,8 +122,12 @@ class ProfileService {
               const arr = await res.arrayBuffer();
               imageBuffer = Buffer.from(arr);
             } else {
-              const normalizedPath = profile.photo_path.split(/[/\\]+/).join(path.sep);
-              const imgPath = path.resolve(__dirname, '../../', normalizedPath);
+              // Always resolve the photo path relative to the project root
+              const normalizedPath = profile.photo_path
+                .split(/[/\\]+/)
+                .join(path.sep)
+                .replace(/^[/\\]+/, '');
+              const imgPath = path.join(process.cwd(), normalizedPath);
               if (fs.existsSync(imgPath)) {
                 imageBuffer = fs.readFileSync(imgPath);
               }
