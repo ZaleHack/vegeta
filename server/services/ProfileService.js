@@ -108,12 +108,10 @@ class ProfileService {
         doc.fillColor('black');
 
         // Body positioning
-        let y = headerHeight + 20;
-        let textX = margin;
-        let textWidth = innerWidth;
+        let y = headerHeight + 30;
         const photoSize = 140;
 
-        // Add photo if available
+        // Add photo centered below the header
         if (profile.photo_path) {
           try {
             let imageBuffer;
@@ -133,19 +131,29 @@ class ProfileService {
               }
             }
             if (imageBuffer) {
-              doc.image(imageBuffer, textX, y, {
+              const photoX = (pageWidth - photoSize) / 2;
+              doc.image(imageBuffer, photoX, y, {
                 fit: [photoSize, photoSize],
                 align: 'center',
                 valign: 'center'
               });
-              doc.rect(textX, y, photoSize, photoSize).stroke('#4F46E5');
-              textX += photoSize + 20;
-              textWidth -= photoSize + 20;
+              doc.rect(photoX, y, photoSize, photoSize).stroke('#4F46E5');
+              y += photoSize + 30;
             }
           } catch (_) {
             // ignore image errors
           }
         }
+
+        // Separator line for a cleaner layout
+        doc
+          .moveTo(margin, y)
+          .lineTo(pageWidth - margin, y)
+          .stroke('#E5E7EB');
+        y += 20;
+
+        let textX = margin;
+        let textWidth = innerWidth;
 
         const addField = (label, value) => {
           if (!value) return;
