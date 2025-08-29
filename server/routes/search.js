@@ -1,10 +1,13 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import SearchService from '../services/SearchService.js';
+import ElasticSearchService from '../services/ElasticSearchService.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 const searchService = new SearchService();
+const useElastic = process.env.USE_ELASTICSEARCH === 'true';
+const elasticService = useElastic ? new ElasticSearchService() : null;
 
 // Rate limiting pour les recherches
 const searchLimiter = rateLimit({
@@ -56,15 +59,20 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
     req.user.user_agent = req.headers['user-agent'];
 
     console.log('🔍 Lancement de la recherche...');
-    const results = await searchService.search(
-      query.trim(),
-      filters,
-      parseInt(page),
-      parseInt(limit),
-      req.user,
-      search_type,
-      { followLinks, maxDepth: parseInt(depth) }
-    );
+    let results;
+    if (useElastic) {
+      results = await elasticService.search(query.trim(), parseInt(limit));
+    } else {
+      results = await searchService.search(
+        query.trim(),
+        filters,
+        parseInt(page),
+        parseInt(limit),
+        req.user,
+        search_type,
+        { followLinks, maxDepth: parseInt(depth) }
+      );
+    }
 
     console.log('✅ Recherche terminée, envoi des résultats');
     res.json(results);
