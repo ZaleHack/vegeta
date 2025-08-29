@@ -181,7 +181,12 @@ class ProfileService {
               : JSON.parse(profile.extra_fields);
             extras.forEach(cat => {
               if (cat.title) {
-                doc.moveDown(0.5).fillColor('#4F46E5').font('Helvetica-Bold').text(cat.title, textX, y);
+                doc
+                  .moveDown(0.5)
+                  .fillColor('#4F46E5')
+                  .font('Helvetica-Bold')
+                  .fontSize(14)
+                  .text(cat.title, textX, y);
                 y = doc.y + 6;
               }
               (cat.fields || []).forEach(f => {
