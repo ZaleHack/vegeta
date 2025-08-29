@@ -136,6 +136,37 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.cdr_records (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          oce VARCHAR(50) DEFAULT NULL,
+          type_cdr VARCHAR(50) DEFAULT NULL,
+          date_debut DATE DEFAULT NULL,
+          heure_debut TIME DEFAULT NULL,
+          date_fin DATE DEFAULT NULL,
+          heure_fin TIME DEFAULT NULL,
+          duree INT DEFAULT NULL,
+          numero_intl_appelant VARCHAR(50) DEFAULT NULL,
+          numero_intl_appele VARCHAR(50) DEFAULT NULL,
+          numero_intl_appele_original VARCHAR(50) DEFAULT NULL,
+          imei_appelant VARCHAR(50) DEFAULT NULL,
+          imei_appele VARCHAR(50) DEFAULT NULL,
+          imei_appele_original VARCHAR(50) DEFAULT NULL,
+          imsi_appelant VARCHAR(50) DEFAULT NULL,
+          imsi_appele VARCHAR(50) DEFAULT NULL,
+          cgi_appelant VARCHAR(50) DEFAULT NULL,
+          cgi_appele VARCHAR(50) DEFAULT NULL,
+          cgi_appele_original VARCHAR(50) DEFAULT NULL,
+          latitude DECIMAL(10,6) DEFAULT NULL,
+          longitude DECIMAL(10,6) DEFAULT NULL,
+          nom_localisation VARCHAR(255) DEFAULT NULL,
+          INDEX idx_numero_appelant (numero_intl_appelant),
+          INDEX idx_numero_appele (numero_intl_appele),
+          INDEX idx_imei_appelant (imei_appelant),
+          INDEX idx_imei_appele (imei_appele)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
       console.log('✅ Tables système créées avec succès');
     } catch (error) {
       console.error('❌ Erreur création tables système:', error);
