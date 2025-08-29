@@ -91,21 +91,27 @@ class ProfileService {
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
-        // Modern header
-        const headerHeight = 60;
+        // Header block
+        const pageWidth = doc.page.width;
+        const headerHeight = 80;
         const margin = doc.page.margins.left;
-        doc.rect(0, 0, doc.page.width, headerHeight).fill('#4F46E5');
+        const innerWidth = pageWidth - margin * 2;
+        doc.rect(0, 0, pageWidth, headerHeight).fill('#4F46E5');
         doc
           .fillColor('white')
-          .fontSize(24)
+          .fontSize(26)
           .font('Helvetica-Bold')
-          .text('FICHE PROFIL', margin, 20);
+          .text('FICHE PROFIL', 0, headerHeight / 2 - 13, {
+            width: pageWidth,
+            align: 'center'
+          });
         doc.fillColor('black');
 
+        // Body positioning
         let y = headerHeight + 20;
         let textX = margin;
-        let textWidth = doc.page.width - margin * 2;
-        const photoSize = 120;
+        let textWidth = innerWidth;
+        const photoSize = 140;
 
         // Add photo if available
         if (profile.photo_path) {
@@ -123,10 +129,12 @@ class ProfileService {
               }
             }
             if (imageBuffer) {
-              doc.save();
-              doc.circle(textX + photoSize / 2, y + photoSize / 2, photoSize / 2).clip();
-              doc.image(imageBuffer, textX, y, { width: photoSize, height: photoSize });
-              doc.restore();
+              doc.image(imageBuffer, textX, y, {
+                fit: [photoSize, photoSize],
+                align: 'center',
+                valign: 'center'
+              });
+              doc.rect(textX, y, photoSize, photoSize).stroke('#4F46E5');
               textX += photoSize + 20;
               textWidth -= photoSize + 20;
             }
@@ -138,15 +146,15 @@ class ProfileService {
         const addField = (label, value) => {
           if (!value) return;
           doc
-            .fillColor('#374151')
+            .fillColor('#111827')
             .font('Helvetica-Bold')
             .fontSize(12)
             .text(`${label}:`, textX, y, { continued: true });
           doc
-            .fillColor('#1F2937')
+            .fillColor('#374151')
             .font('Helvetica')
             .text(String(value), { width: textWidth });
-          y = doc.y + 6;
+          y = doc.y + 8;
         };
 
         addField('Nom', profile.last_name);
@@ -161,12 +169,8 @@ class ProfileService {
               : JSON.parse(profile.extra_fields);
             extras.forEach(cat => {
               if (cat.title) {
-                doc
-                  .moveDown(0.5)
-                  .fillColor('#4F46E5')
-                  .font('Helvetica-Bold')
-                  .text(cat.title, textX, y);
-                y = doc.y + 4;
+                doc.moveDown(0.5).fillColor('#4F46E5').font('Helvetica-Bold').text(cat.title, textX, y);
+                y = doc.y + 6;
               }
               (cat.fields || []).forEach(f => {
                 addField(f.key, f.value);
@@ -178,7 +182,18 @@ class ProfileService {
         }
 
         if (profile.comment) {
-          addField('Commentaire', profile.comment);
+          doc.moveDown(0.5);
+          doc
+            .fillColor('#111827')
+            .font('Helvetica-Bold')
+            .fontSize(12)
+            .text('Commentaire', textX, y);
+          y = doc.y + 4;
+          doc
+            .fillColor('#374151')
+            .font('Helvetica')
+            .fontSize(12)
+            .text(String(profile.comment), textX, y, { width: textWidth });
         }
 
         doc.end();
