@@ -49,11 +49,13 @@ class CdrService {
     const records = await Cdr.findByIdentifier(identifier, startDateTime, endDateTime);
     const contactsMap = {};
     const locationsMap = {};
+    const path = [];
 
     for (const r of records) {
       const caller = r.numero_intl_appelant;
       const callee = r.numero_intl_appele;
       const other = caller === identifier ? callee : caller;
+      const direction = caller === identifier ? 'outgoing' : 'incoming';
       const type = (r.type_cdr || '').toLowerCase();
       const isSms = type.includes('sms');
 
@@ -79,6 +81,54 @@ class CdrService {
           };
         }
         locationsMap[key].count++;
+
+        // Format duration for frontend display
+        let duration = 'N/A';
+        if (r.duree) {
+          let totalSeconds = 0;
+          if (typeof r.duree === 'string' && r.duree.includes(':')) {
+            const parts = r.duree.split(':').map((p) => parseInt(p, 10));
+            while (parts.length < 3) parts.unshift(0);
+            if (parts.every((n) => !isNaN(n))) {
+              totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            }
+          } else {
+            const parsedDur = parseInt(r.duree, 10);
+            if (!isNaN(parsedDur)) totalSeconds = parsedDur;
+          }
+          if (totalSeconds > 0) {
+            duration = totalSeconds >= 60
+              ? `${Math.round(totalSeconds / 60)} min`
+              : `${totalSeconds} s`;
+          }
+        }
+
+        const callDate = (() => {
+          if (!r.date_debut) return 'N/A';
+          const parsed = new Date(r.date_debut);
+          return isNaN(parsed.getTime())
+            ? r.date_debut
+            : parsed.toISOString().split('T')[0];
+        })();
+        const startTime = r.heure_debut
+          ? r.heure_debut.toString().slice(0, 8)
+          : 'N/A';
+        const endTime = r.heure_fin
+          ? r.heure_fin.toString().slice(0, 8)
+          : 'N/A';
+
+        path.push({
+          latitude: r.latitude,
+          longitude: r.longitude,
+          nom: r.nom_localisation,
+          type: isSms ? 'sms' : 'call',
+          direction,
+          number: other,
+          callDate,
+          startTime,
+          endTime,
+          duration
+        });
       }
     }
 
@@ -98,7 +148,8 @@ class CdrService {
       contacts,
       topContacts: contacts.slice(0, 5),
       locations,
-      topLocations: locations.slice(0, 5)
+      topLocations: locations.slice(0, 5),
+      path
     };
   }
 }
