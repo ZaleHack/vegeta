@@ -1050,18 +1050,30 @@ const App: React.FC = () => {
 
   const handleCdrSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cdrIdentifier.trim() || !selectedCase) return;
+    if (!selectedCase) return;
+
+    if (cdrStart && cdrEnd && new Date(cdrStart) > new Date(cdrEnd)) {
+      setCdrError('La date de début doit précéder la date de fin');
+      return;
+    }
+
+    if (!cdrIdentifier.trim()) {
+      setCdrError('Numéro ou IMEI requis');
+      return;
+    }
+
     setCdrLoading(true);
     setCdrError('');
     setCdrInfoMessage('');
     setShowCdrMap(false);
+
     try {
       const token = localStorage.getItem('token');
       const param = cdrIdentifier.trim().length === 15 ? 'imei' : 'phone';
       const params = new URLSearchParams();
       params.append(param, cdrIdentifier.trim());
-      if (cdrStart) params.append('start', cdrStart);
-      if (cdrEnd) params.append('end', cdrEnd);
+      if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
+      if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
       const res = await fetch(`/api/cases/${selectedCase.id}/search?${params.toString()}`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
@@ -2448,7 +2460,7 @@ const App: React.FC = () => {
                           toggleCaseSelection(c.id);
                         }}
                       />
-                      <h4 className="font-semibold text-gray-800">{c.name}</h4>
+                      <h4 className="font-semibold text-white">{c.name}</h4>
                     </div>
                   ))}
                 </div>
