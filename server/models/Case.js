@@ -1,12 +1,12 @@
 import database from '../config/database.js';
 
 class Case {
-  static async create(name) {
+  static async create(name, userId) {
     const result = await database.query(
-      'INSERT INTO autres.cdr_cases (name, created_at) VALUES (?, NOW())',
-      [name]
+      'INSERT INTO autres.cdr_cases (name, user_id, created_at) VALUES (?, ?, NOW())',
+      [name, userId]
     );
-    return { id: result.insertId, name };
+    return { id: result.insertId, name, user_id: userId };
   }
 
   static async findById(id) {
@@ -15,6 +15,13 @@ class Case {
       [id]
     );
     return rows[0] || null;
+  }
+
+  static async findAllByUser(userId) {
+    return await database.query(
+      'SELECT * FROM autres.cdr_cases WHERE user_id = ? ORDER BY created_at DESC',
+      [userId]
+    );
   }
 
   static async findAll() {
