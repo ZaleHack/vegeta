@@ -153,30 +153,55 @@ const CdrMap: React.FC<Props> = ({ points }) => {
         {fullScreen ? 'Fermer' : 'Plein écran'}
       </button>
 
-      <div className="absolute top-2 left-2 bg-white bg-opacity-90 rounded shadow p-2 text-xs max-h-60 overflow-y-auto z-[1000]">
-        <p className="font-semibold mb-1">Total: {total}</p>
+      <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
+        <p className="font-semibold">Total : {total}</p>
         {topContacts && topContacts.length > 0 && (
-          <div className="mb-2">
-            <p className="font-semibold">Top contacts</p>
-            <ul>
-              {topContacts.map((c, i) => (
-                <li key={c.number} className={i === 0 ? 'font-bold text-blue-600' : ''}>
-                  {i === 0 && '★ '} {c.number}: {c.total}
-                </li>
-              ))}
-            </ul>
+          <div>
+            <p className="font-semibold mb-2">Top contacts</p>
+            <table className="min-w-full border-collapse">
+              <thead>
+                <tr className="text-left">
+                  <th className="pr-4">Numéro</th>
+                  <th className="pr-4">Appels</th>
+                  <th className="pr-4">SMS</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topContacts.map((c, i) => (
+                  <tr
+                    key={c.number}
+                    className={`${i === 0 ? 'font-bold text-blue-600' : ''} border-t`}
+                  >
+                    <td className="pr-4">{c.number}</td>
+                    <td className="pr-4">{c.callCount}</td>
+                    <td className="pr-4">{c.smsCount}</td>
+                    <td>{c.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
         {topLocations && topLocations.length > 0 && (
           <div>
-            <p className="font-semibold">Top lieux</p>
-            <ul>
-              {topLocations.map((l, i) => (
-                <li key={i}>
-                  {l.nom || `${l.latitude},${l.longitude}`}: {l.count}
-                </li>
-              ))}
-            </ul>
+            <p className="font-semibold mb-2">Top lieux</p>
+            <table className="min-w-full border-collapse">
+              <thead>
+                <tr className="text-left">
+                  <th className="pr-4">Lieu</th>
+                  <th>Occurrences</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topLocations.map((l, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
+                    <td>{l.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
