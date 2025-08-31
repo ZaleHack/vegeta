@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
+import { PhoneIncoming, PhoneOutgoing, MessageSquare } from 'lucide-react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
   latitude: string;
@@ -36,11 +38,28 @@ interface Props {
   total: number;
 }
 
-const getIcon = (type: string) =>
-  L.divIcon({
-    html: `<div style="background-color:${type === 'sms' ? '#16a34a' : '#2563eb'};width:12px;height:12px;border-radius:50%;"></div>`,
-    className: ''
+const getIcon = (type: string, direction: string) => {
+  const size = 32;
+  let icon: React.ReactElement;
+
+  if (type === 'sms') {
+    icon = <MessageSquare size={size} className="text-green-600" />;
+  } else {
+    icon =
+      direction === 'outgoing' ? (
+        <PhoneOutgoing size={size} className="text-blue-600" />
+      ) : (
+        <PhoneIncoming size={size} className="text-blue-600" />
+      );
+  }
+
+  return L.divIcon({
+    html: renderToStaticMarkup(icon),
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
   });
+};
 
 const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) => {
   if (!points || points.length === 0) return null;
@@ -90,13 +109,14 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
           <Marker
             key={idx}
             position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-            icon={getIcon(loc.type)}
+            icon={getIcon(loc.type, loc.direction)}
           >
             <Popup>
               <div className="space-y-1">
                 <p className="font-semibold">{loc.nom || 'Localisation'}</p>
                 {loc.number && <p>Numéro: {loc.number}</p>}
                 <p>Type: {loc.type}</p>
+                <p>Direction: {loc.direction}</p>
                 <p>Date: {loc.callDate}</p>
                 <p>Début: {loc.startTime}</p>
                 <p>Fin: {loc.endTime}</p>
