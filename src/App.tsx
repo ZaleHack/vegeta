@@ -34,7 +34,8 @@ import {
   Link as LinkIcon,
   ExternalLink,
   UserCircle,
-  List
+  List,
+  Loader2
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -427,6 +428,8 @@ const App: React.FC = () => {
   const [cdrIdentifier, setCdrIdentifier] = useState('');
   const [cdrStart, setCdrStart] = useState('');
   const [cdrEnd, setCdrEnd] = useState('');
+  const [cdrStartTime, setCdrStartTime] = useState('');
+  const [cdrEndTime, setCdrEndTime] = useState('');
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
   const [cdrError, setCdrError] = useState('');
@@ -1074,6 +1077,8 @@ const App: React.FC = () => {
       params.append(param, cdrIdentifier.trim());
       if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
       if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
+      if (cdrStartTime) params.append('startTime', cdrStartTime);
+      if (cdrEndTime) params.append('endTime', cdrEndTime);
       const res = await fetch(`/api/cases/${selectedCase.id}/search?${params.toString()}`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
@@ -2493,7 +2498,11 @@ const App: React.FC = () => {
                   disabled={cdrUploading || !cdrFile}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50"
                 >
-                  Importer CDR
+                  {cdrUploading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    'Importer CDR'
+                  )}
                 </button>
                 {cdrUploadMessage && <p className="text-green-600">{cdrUploadMessage}</p>}
                 {cdrUploadError && <p className="text-red-600">{cdrUploadError}</p>}
@@ -2529,6 +2538,20 @@ const App: React.FC = () => {
                     type="date"
                     value={cdrEnd}
                     onChange={(e) => setCdrEnd(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input
+                    type="time"
+                    value={cdrStartTime}
+                    onChange={(e) => setCdrStartTime(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    type="time"
+                    value={cdrEndTime}
+                    onChange={(e) => setCdrEndTime(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -3088,7 +3111,11 @@ const App: React.FC = () => {
                       disabled={loading}
                       className="w-full px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
                     >
-                      {loading ? 'Chargement...' : 'Importer'}
+                      {loading ? (
+                        <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                      ) : (
+                        'Importer'
+                      )}
                     </button>
                   </form>
                 </div>
