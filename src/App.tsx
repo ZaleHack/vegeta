@@ -423,6 +423,9 @@ const App: React.FC = () => {
   const [cdrUploadMessage, setCdrUploadMessage] = useState('');
   const [cdrUploadError, setCdrUploadError] = useState('');
   const [cdrUploading, setCdrUploading] = useState(false);
+  const [cdrCaseName, setCdrCaseName] = useState('');
+  const [cdrCaseId, setCdrCaseId] = useState<number | null>(null);
+  const [cdrCaseMessage, setCdrCaseMessage] = useState('');
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -1031,7 +1034,7 @@ const App: React.FC = () => {
 
   const handleCdrSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cdrIdentifier.trim()) return;
+    if (!cdrIdentifier.trim() || !cdrCaseId) return;
     setCdrLoading(true);
     setCdrError('');
     setCdrInfoMessage('');
@@ -1042,7 +1045,7 @@ const App: React.FC = () => {
       params.append(param, cdrIdentifier.trim());
       if (cdrStart) params.append('start', cdrStart);
       if (cdrEnd) params.append('end', cdrEnd);
-      const res = await fetch(`/api/cdr/search?${params.toString()}`, {
+      const res = await fetch(`/api/cases/${cdrCaseId}/search?${params.toString()}`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
       const data = await res.json();
@@ -1065,9 +1068,36 @@ const App: React.FC = () => {
     }
   };
 
+  const handleCreateCase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cdrCaseName.trim()) return;
+    setCdrCaseMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/cases', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ name: cdrCaseName.trim() })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCdrCaseId(data.id);
+        setCdrCaseMessage('CASE créé');
+      } else {
+        setCdrCaseMessage(data.error || 'Erreur création CASE');
+      }
+    } catch (err) {
+      console.error('Erreur création CASE:', err);
+      setCdrCaseMessage('Erreur création CASE');
+    }
+  };
+
   const handleCdrUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cdrFile) return;
+    if (!cdrFile || !cdrCaseId) return;
     setCdrUploading(true);
     setCdrUploadMessage('');
     setCdrUploadError('');
@@ -1075,7 +1105,7 @@ const App: React.FC = () => {
       const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', cdrFile);
-      const res = await fetch('/api/cdr/upload', {
+      const res = await fetch(`/api/cases/${cdrCaseId}/upload`, {
         method: 'POST',
         headers: { Authorization: token ? `Bearer ${token}` : '' },
         body: formData
@@ -2281,25 +2311,44 @@ const App: React.FC = () => {
           {currentPage === 'cdr' && (
             <div className="space-y-6">
               <PageHeader icon={<Clock className="h-6 w-6" />} title="CDR" />
+
+              <form onSubmit={handleCreateCase} className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Nom du CASE"
+                  value={cdrCaseName}
+                  onChange={(e) => setCdrCaseName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg"
+                >
+                  Créer CASE
+                </button>
+                {cdrCaseMessage && <p className="text-green-600">{cdrCaseMessage}</p>}
+              </form>
+
               <form onSubmit={handleCdrUpload} className="space-y-4">
                 <input
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx"
                   onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
                   className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
                 <button
                   type="submit"
-                  disabled={cdrUploading || !cdrFile}
+                  disabled={cdrUploading || !cdrFile || !cdrCaseId}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50"
                 >
-                  Importer CSV
+                  Importer CDR
                 </button>
                 {cdrUploadMessage && <p className="text-green-600">{cdrUploadMessage}</p>}
                 {cdrUploadError && <p className="text-red-600">{cdrUploadError}</p>}
               </form>
+
               <form onSubmit={handleCdrSearch} className="space-y-4">
-              <input
+                <input
                   type="text"
                   placeholder="Numéro ou IMEI"
                   value={cdrIdentifier}
@@ -2322,7 +2371,7 @@ const App: React.FC = () => {
                 </div>
                 <button
                   type="submit"
-                  disabled={cdrLoading}
+                  disabled={cdrLoading || !cdrCaseId}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
                 >
                   Rechercher
