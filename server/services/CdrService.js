@@ -1,6 +1,6 @@
 import fs from 'fs';
 import csv from 'csv-parser';
-import xlsx from 'xlsx';
+import { readFile, utils } from 'xlsx';
 import { parse, format } from 'date-fns';
 import Cdr from '../models/Cdr.js';
 
@@ -65,9 +65,9 @@ class CdrService {
   }
 
   async importExcel(filePath, caseId = null) {
-    const workbook = xlsx.readFile(filePath);
+    const workbook = readFile(filePath);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = xlsx.utils.sheet_to_json(sheet);
+    const rows = utils.sheet_to_json(sheet);
     const normalizeDate = (str) => {
       if (!str) return null;
       try {
