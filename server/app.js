@@ -17,7 +17,6 @@ import entreprisesRoutes from './routes/entreprises.js';
 import ongRoutes from './routes/ong.js';
 import vehiculesRoutes from './routes/vehicules.js';
 import profilesRoutes from './routes/profiles.js';
-import cdrRoutes from './routes/cdr.js';
 import casesRoutes from './routes/cases.js';
 
 // Initialisation de la base de données
@@ -61,7 +60,6 @@ app.use('/api/entreprises', entreprisesRoutes);
 app.use('/api/ong', ongRoutes);
 app.use('/api/vehicules', vehiculesRoutes);
 app.use('/api/profiles', profilesRoutes);
-app.use('/api/cdr', cdrRoutes);
 app.use('/api/cases', casesRoutes);
 
 // Route de santé
