@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { PhoneIncoming, PhoneOutgoing, MessageSquare } from 'lucide-react';
@@ -33,9 +33,6 @@ interface LocationStat {
 
 interface Props {
   points: Point[];
-  topContacts: Contact[];
-  topLocations: LocationStat[];
-  total: number;
 }
 
 const getIcon = (type: string, direction: string) => {
@@ -61,7 +58,7 @@ const getIcon = (type: string, direction: string) => {
   });
 };
 
-const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) => {
+const CdrMap: React.FC<Props> = ({ points }) => {
   if (!points || points.length === 0) return null;
 
   const first = points[0];
@@ -69,6 +66,37 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
 
   const [fullScreen, setFullScreen] = useState(false);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+
+  const { topContacts, topLocations, total } = useMemo(() => {
+    const contactMap = new Map<string, { callCount: number; smsCount: number }>();
+    const locationMap = new Map<string, LocationStat>();
+
+    points.forEach((p) => {
+      if (p.number) {
+        const entry = contactMap.get(p.number) || { callCount: 0, smsCount: 0 };
+        if (p.type === 'sms') entry.smsCount += 1; else entry.callCount += 1;
+        contactMap.set(p.number, entry);
+      }
+
+      const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
+      const loc = locationMap.get(key) || { latitude: p.latitude, longitude: p.longitude, nom: p.nom, count: 0 };
+      loc.count += 1;
+      locationMap.set(key, loc);
+    });
+
+    const contacts: Contact[] = Array.from(contactMap.entries()).map(([number, c]) => ({
+      number,
+      callCount: c.callCount,
+      smsCount: c.smsCount,
+      total: c.callCount + c.smsCount
+    })).sort((a, b) => b.total - a.total).slice(0, 10);
+
+    const locations: LocationStat[] = Array.from(locationMap.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    return { topContacts: contacts, topLocations: locations, total: points.length };
+  }, [points]);
 
   useEffect(() => {
     if (mapInstance) {
