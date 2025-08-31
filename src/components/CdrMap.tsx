@@ -108,14 +108,15 @@ const CdrMap: React.FC<Props> = ({ points }) => {
   return (
     <div
       className={`relative ${
-        fullScreen ? 'fixed inset-0 z-50' : 'rounded-lg overflow-hidden shadow-lg'
+        fullScreen
+          ? 'fixed inset-0 z-50 w-screen h-screen'
+          : 'rounded-lg overflow-hidden shadow-lg'
       }`}
     >
       <MapContainer
         center={center}
         zoom={13}
-        className="w-full h-[70vh]"
-        style={{ height: fullScreen ? '100vh' : undefined }}
+        className={`w-full ${fullScreen ? 'h-full' : 'h-[70vh]'}`}
         whenCreated={(map) => {
           setMapInstance(map);
         }}
