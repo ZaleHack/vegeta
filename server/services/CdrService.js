@@ -5,7 +5,7 @@ import { parse, format } from 'date-fns';
 import Cdr from '../models/Cdr.js';
 
 class CdrService {
-  async importCsv(filePath, caseId = null) {
+  async importCsv(filePath, caseName) {
     return new Promise((resolve, reject) => {
       const records = [];
       fs.createReadStream(filePath)
@@ -54,7 +54,7 @@ class CdrService {
         })
         .on('end', async () => {
           try {
-            await Cdr.bulkInsert(records, caseId);
+            await Cdr.bulkInsert(records, caseName);
             resolve({ inserted: records.length });
           } catch (err) {
             reject(err);
@@ -64,7 +64,7 @@ class CdrService {
     });
   }
 
-  async importExcel(filePath, caseId = null) {
+  async importExcel(filePath, caseName) {
     const workbook = XLSX.readFile(filePath);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
@@ -107,12 +107,12 @@ class CdrService {
       longitude: row['Longitude'] || null,
       nom_localisation: row['Nom localisation'] || null,
     }));
-    await Cdr.bulkInsert(records, caseId);
+    await Cdr.bulkInsert(records, caseName);
     return { inserted: records.length };
   }
 
-  async search(identifier, { startDate = null, endDate = null, caseId = null } = {}) {
-    const records = await Cdr.findByIdentifier(identifier, startDate, endDate, caseId);
+  async search(identifier, { startDate = null, endDate = null, caseName } = {}) {
+    const records = await Cdr.findByIdentifier(identifier, startDate, endDate, caseName);
     const contactsMap = {};
     const locationsMap = {};
     const path = [];

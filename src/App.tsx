@@ -430,10 +430,10 @@ const App: React.FC = () => {
   const [cdrUploadError, setCdrUploadError] = useState('');
   const [cdrUploading, setCdrUploading] = useState(false);
   const [cdrCaseName, setCdrCaseName] = useState('');
-  const [cdrCaseId, setCdrCaseId] = useState<number | null>(null);
   const [cdrCaseMessage, setCdrCaseMessage] = useState('');
   const [cases, setCases] = useState<CdrCase[]>([]);
   const [showCdrMap, setShowCdrMap] = useState(false);
+  const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -1042,7 +1042,7 @@ const App: React.FC = () => {
 
   const handleCdrSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cdrIdentifier.trim() || !cdrCaseId) return;
+    if (!cdrIdentifier.trim() || !selectedCase) return;
     setCdrLoading(true);
     setCdrError('');
     setCdrInfoMessage('');
@@ -1054,7 +1054,7 @@ const App: React.FC = () => {
       params.append(param, cdrIdentifier.trim());
       if (cdrStart) params.append('start', cdrStart);
       if (cdrEnd) params.append('end', cdrEnd);
-      const res = await fetch(`/api/cases/${cdrCaseId}/search?${params.toString()}`, {
+      const res = await fetch(`/api/cases/${selectedCase.id}/search?${params.toString()}`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
       const data = await res.json();
@@ -1108,7 +1108,6 @@ const App: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
-        setCdrCaseId(data.id);
         setCdrCaseMessage('CASE créé');
         setCdrCaseName('');
         fetchCases();
@@ -1123,7 +1122,7 @@ const App: React.FC = () => {
 
   const handleCdrUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cdrFile || !cdrCaseId) return;
+    if (!cdrFile || !selectedCase) return;
     setCdrUploading(true);
     setCdrUploadMessage('');
     setCdrUploadError('');
@@ -1131,7 +1130,7 @@ const App: React.FC = () => {
       const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', cdrFile);
-      const res = await fetch(`/api/cases/${cdrCaseId}/upload`, {
+      const res = await fetch(`/api/cases/${selectedCase.id}/upload`, {
         method: 'POST',
         headers: { Authorization: token ? `Bearer ${token}` : '' },
         body: formData
@@ -2360,22 +2359,41 @@ const App: React.FC = () => {
 
               <div>
                 <h3 className="font-semibold">Liste des CASES</h3>
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                   {cases.map((c) => (
-                    <button
+                    <div
                       key={c.id}
                       onClick={() => {
-                        setCdrCaseId(c.id);
+                        setSelectedCase(c);
                         setCdrResult(null);
                         setShowCdrMap(false);
+                        setCdrUploadMessage('');
+                        setCdrUploadError('');
+                        setCurrentPage('cdr-case');
                       }}
-                      className={`px-3 py-1 rounded ${cdrCaseId === c.id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
+                      className="p-4 bg-white rounded-lg shadow cursor-pointer hover:shadow-md"
                     >
-                      {c.name}
-                    </button>
+                      <h4 className="font-semibold text-gray-800">{c.name}</h4>
+                      <p className="text-sm text-gray-500">{new Date(c.created_at).toLocaleDateString()}</p>
+                    </div>
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {currentPage === 'cdr-case' && selectedCase && (
+            <div className="space-y-6">
+              <PageHeader icon={<Clock className="h-6 w-6" />} title={`CDR - ${selectedCase.name}`} />
+              <button
+                onClick={() => {
+                  setCurrentPage('cdr');
+                  setSelectedCase(null);
+                }}
+                className="text-blue-600"
+              >
+                &larr; Retour
+              </button>
 
               <form onSubmit={handleCdrUpload} className="space-y-4">
                 <input
@@ -2386,7 +2404,7 @@ const App: React.FC = () => {
                 />
                 <button
                   type="submit"
-                  disabled={cdrUploading || !cdrFile || !cdrCaseId}
+                  disabled={cdrUploading || !cdrFile}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50"
                 >
                   Importer CDR
@@ -2419,7 +2437,7 @@ const App: React.FC = () => {
                 </div>
                 <button
                   type="submit"
-                  disabled={cdrLoading || !cdrCaseId}
+                  disabled={cdrLoading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
                 >
                   Rechercher
