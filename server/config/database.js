@@ -136,9 +136,20 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      // Table des dossiers CDR
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.cdr_cases (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      // Table des enregistrements CDR reliés à un dossier optionnel
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_records (
           id INT AUTO_INCREMENT PRIMARY KEY,
+          case_id INT DEFAULT NULL,
           oce VARCHAR(50) DEFAULT NULL,
           type_cdr VARCHAR(50) DEFAULT NULL,
           date_debut DATE DEFAULT NULL,
@@ -160,10 +171,12 @@ class DatabaseManager {
           latitude DECIMAL(10,6) DEFAULT NULL,
           longitude DECIMAL(10,6) DEFAULT NULL,
           nom_localisation VARCHAR(255) DEFAULT NULL,
+          INDEX idx_case_id (case_id),
           INDEX idx_numero_appelant (numero_intl_appelant),
           INDEX idx_numero_appele (numero_intl_appele),
           INDEX idx_imei_appelant (imei_appelant),
-          INDEX idx_imei_appele (imei_appele)
+          INDEX idx_imei_appele (imei_appele),
+          FOREIGN KEY (case_id) REFERENCES autres.cdr_cases(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
