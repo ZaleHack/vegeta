@@ -21,16 +21,24 @@ class CaseService {
   }
 
   async importFile(caseId, filePath, originalName) {
+    const existingCase = await Case.findById(caseId);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
     const ext = path.extname(originalName).toLowerCase();
     if (ext === '.xlsx' || ext === '.xls') {
-      return await this.cdrService.importExcel(filePath, caseId);
+      return await this.cdrService.importExcel(filePath, existingCase.name);
     }
     // default to CSV
-    return await this.cdrService.importCsv(filePath, caseId);
+    return await this.cdrService.importCsv(filePath, existingCase.name);
   }
 
   async search(caseId, identifier, options = {}) {
-    return await this.cdrService.search(identifier, { ...options, caseId });
+    const existingCase = await Case.findById(caseId);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
+    return await this.cdrService.search(identifier, { ...options, caseName: existingCase.name });
   }
 }
 
