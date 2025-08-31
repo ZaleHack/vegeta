@@ -140,8 +140,11 @@ class DatabaseManager {
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_cases (
           id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
           name VARCHAR(255) NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_user_id (user_id),
+          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 

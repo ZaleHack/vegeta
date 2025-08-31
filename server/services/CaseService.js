@@ -8,20 +8,26 @@ class CaseService {
     this.cdrService = new CdrService();
   }
 
-  async createCase(name) {
-    return await Case.create(name);
+  async createCase(name, userId) {
+    return await Case.create(name, userId);
   }
 
-  async getCaseById(id) {
-    return await Case.findById(id);
+  async getCaseById(id, user) {
+    const c = await Case.findById(id);
+    if (!c) return null;
+    if (!user.admin && c.user_id !== user.id) return null;
+    return c;
   }
 
-  async listCases() {
-    return await Case.findAll();
+  async listCases(user) {
+    if (user.admin) {
+      return await Case.findAll();
+    }
+    return await Case.findAllByUser(user.id);
   }
 
-  async importFile(caseId, filePath, originalName) {
-    const existingCase = await Case.findById(caseId);
+  async importFile(caseId, filePath, originalName, user) {
+    const existingCase = await this.getCaseById(caseId, user);
     if (!existingCase) {
       throw new Error('Case not found');
     }
@@ -36,24 +42,32 @@ class CaseService {
     return result;
   }
 
-  async search(caseId, identifier, options = {}) {
-    const existingCase = await Case.findById(caseId);
+  async search(caseId, identifier, options = {}, user) {
+    const existingCase = await this.getCaseById(caseId, user);
     if (!existingCase) {
       throw new Error('Case not found');
     }
     return await this.cdrService.search(identifier, { ...options, caseName: existingCase.name });
   }
 
-  async deleteCase(id) {
+  async deleteCase(id, user) {
+    const existingCase = await this.getCaseById(id, user);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
     await Case.delete(id);
   }
 
-  async listFiles(caseId) {
+  async listFiles(caseId, user) {
+    const existingCase = await this.getCaseById(caseId, user);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
     return await Case.listFiles(caseId);
   }
 
-  async deleteFile(caseId, fileId) {
-    const existingCase = await Case.findById(caseId);
+  async deleteFile(caseId, fileId, user) {
+    const existingCase = await this.getCaseById(caseId, user);
     if (!existingCase) {
       throw new Error('Case not found');
     }

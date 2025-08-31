@@ -3,7 +3,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import CaseService from '../services/CaseService.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -20,7 +20,7 @@ const upload = multer({ dest: uploadDir });
 
 router.get('/', authenticate, async (req, res) => {
   try {
-    const cases = await caseService.listCases();
+    const cases = await caseService.listCases(req.user);
     res.json(cases);
   } catch (err) {
     console.error('Erreur liste cases:', err);
@@ -28,13 +28,13 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-router.post('/', authenticate, requireAdmin, async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
     const { name } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Nom requis' });
     }
-    const newCase = await caseService.createCase(name);
+    const newCase = await caseService.createCase(name, req.user.id);
     res.json(newCase);
   } catch (err) {
     console.error('Erreur création case:', err);
@@ -42,13 +42,13 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-router.post('/:id/upload', authenticate, requireAdmin, upload.single('file'), async (req, res) => {
+router.post('/:id/upload', authenticate, upload.single('file'), async (req, res) => {
   try {
     const caseId = parseInt(req.params.id, 10);
     if (!req.file) {
       return res.status(400).json({ error: 'Aucun fichier fourni' });
     }
-    const result = await caseService.importFile(caseId, req.file.path, req.file.originalname);
+    const result = await caseService.importFile(caseId, req.file.path, req.file.originalname, req.user);
     fs.unlinkSync(req.file.path);
     res.json({ message: 'CDR importés', ...result });
   } catch (err) {
@@ -63,7 +63,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
     if (!Number.isInteger(caseId) || caseId <= 0) {
       return res.status(400).json({ error: 'ID de dossier invalide' });
     }
-    const existingCase = await caseService.getCaseById(caseId);
+    const existingCase = await caseService.getCaseById(caseId, req.user);
     if (!existingCase) {
       return res.status(404).json({ error: 'Dossier introuvable' });
     }
@@ -102,7 +102,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
       endTime: endTime || null,
       direction: dirParam,
       type: typeParam,
-    });
+    }, req.user);
     res.json(result);
   } catch (err) {
     console.error('Erreur recherche case:', err);
@@ -113,7 +113,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
 router.get('/:id/files', authenticate, async (req, res) => {
   try {
     const caseId = parseInt(req.params.id, 10);
-    const files = await caseService.listFiles(caseId);
+    const files = await caseService.listFiles(caseId, req.user);
     res.json(files);
   } catch (err) {
     console.error('Erreur liste fichiers case:', err);
@@ -121,11 +121,11 @@ router.get('/:id/files', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/:id/files/:fileId', authenticate, requireAdmin, async (req, res) => {
+router.delete('/:id/files/:fileId', authenticate, async (req, res) => {
   try {
     const caseId = parseInt(req.params.id, 10);
     const fileId = parseInt(req.params.fileId, 10);
-    await caseService.deleteFile(caseId, fileId);
+    await caseService.deleteFile(caseId, fileId, req.user);
     res.json({ message: 'Fichier supprimé' });
   } catch (err) {
     console.error('Erreur suppression fichier case:', err);
@@ -133,10 +133,10 @@ router.delete('/:id/files/:fileId', authenticate, requireAdmin, async (req, res)
   }
 });
 
-router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
   try {
     const caseId = parseInt(req.params.id, 10);
-    await caseService.deleteCase(caseId);
+    await caseService.deleteCase(caseId, req.user);
     res.json({ message: 'Case supprimé' });
   } catch (err) {
     console.error('Erreur suppression case:', err);

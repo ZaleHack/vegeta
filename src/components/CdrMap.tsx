@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { PhoneIncoming, PhoneOutgoing, MessageSquare } from 'lucide-react';
@@ -64,9 +64,6 @@ const CdrMap: React.FC<Props> = ({ points }) => {
   const first = points[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
 
-  const [fullScreen, setFullScreen] = useState(false);
-  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
-
   const { topContacts, topLocations, total } = useMemo(() => {
     const contactMap = new Map<string, { callCount: number; smsCount: number }>();
     const locationMap = new Map<string, LocationStat>();
@@ -98,28 +95,12 @@ const CdrMap: React.FC<Props> = ({ points }) => {
     return { topContacts: contacts, topLocations: locations, total: points.length };
   }, [points]);
 
-  useEffect(() => {
-    if (mapInstance) {
-      setTimeout(() => {
-        mapInstance.invalidateSize();
-      }, 0);
-    }
-  }, [fullScreen, mapInstance]);
   return (
-    <div
-      className={`relative ${
-        fullScreen
-          ? 'fixed inset-0 z-50 w-screen h-screen'
-          : 'rounded-lg overflow-hidden shadow-lg'
-      }`}
-    >
+    <div className="relative rounded-lg overflow-hidden shadow-lg">
       <MapContainer
         center={center}
         zoom={13}
-        className={`w-full ${fullScreen ? 'h-full' : 'h-[70vh]'}`}
-        whenCreated={(map) => {
-          setMapInstance(map);
-        }}
+        className="w-full h-[70vh]"
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -146,13 +127,6 @@ const CdrMap: React.FC<Props> = ({ points }) => {
           </Marker>
         ))}
       </MapContainer>
-
-      <button
-        className="absolute top-2 right-2 bg-white px-2 py-1 rounded shadow z-[1000]"
-        onClick={() => setFullScreen(!fullScreen)}
-      >
-        {fullScreen ? 'Fermer' : 'Plein écran'}
-      </button>
 
       <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
         <p className="font-semibold">Total : {total}</p>
