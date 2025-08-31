@@ -148,6 +148,27 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      // Migration: ensure user ownership column exists on legacy installations
+      const userIdColumn = await this.query(
+        `SELECT COUNT(*) AS count FROM information_schema.columns
+         WHERE table_schema = 'autres' AND table_name = 'cdr_cases' AND column_name = 'user_id'`
+      );
+
+      if (userIdColumn[0]?.count === 0) {
+        console.log('🔧 Ajout de la colonne user_id à autres.cdr_cases...');
+        // Add the column nullable
+        await this.query('ALTER TABLE autres.cdr_cases ADD COLUMN user_id INT');
+        // Backfill existing rows with the admin user (id 1)
+        await this.query('UPDATE autres.cdr_cases SET user_id = 1');
+        // Enforce NOT NULL and relational constraints
+        await this.query(`
+          ALTER TABLE autres.cdr_cases
+            MODIFY COLUMN user_id INT NOT NULL,
+            ADD INDEX idx_user_id (user_id),
+            ADD CONSTRAINT fk_cdr_cases_user_id FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
+        `);
+      }
+
       // Table des fichiers importés par dossier
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_case_files (
