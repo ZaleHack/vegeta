@@ -26,11 +26,14 @@ class CaseService {
       throw new Error('Case not found');
     }
     const ext = path.extname(originalName).toLowerCase();
+    let result;
     if (ext === '.xlsx' || ext === '.xls') {
-      return await this.cdrService.importExcel(filePath, existingCase.name);
+      result = await this.cdrService.importExcel(filePath, existingCase.name);
+    } else {
+      result = await this.cdrService.importCsv(filePath, existingCase.name);
     }
-    // default to CSV
-    return await this.cdrService.importCsv(filePath, existingCase.name);
+    await Case.addFile(caseId, originalName);
+    return result;
   }
 
   async search(caseId, identifier, options = {}) {
@@ -39,6 +42,14 @@ class CaseService {
       throw new Error('Case not found');
     }
     return await this.cdrService.search(identifier, { ...options, caseName: existingCase.name });
+  }
+
+  async deleteCase(id) {
+    await Case.delete(id);
+  }
+
+  async listFiles(caseId) {
+    return await Case.listFiles(caseId);
   }
 }
 
