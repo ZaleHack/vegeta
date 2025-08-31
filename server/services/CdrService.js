@@ -111,8 +111,18 @@ class CdrService {
     return { inserted: records.length };
   }
 
-  async search(identifier, { startDate = null, endDate = null, caseName } = {}) {
-    const records = await Cdr.findByIdentifier(identifier, startDate, endDate, caseName);
+  async search(
+    identifier,
+    { startDate = null, endDate = null, startTime = null, endTime = null, caseName } = {}
+  ) {
+    const records = await Cdr.findByIdentifier(
+      identifier,
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      caseName
+    );
     const contactsMap = {};
     const locationsMap = {};
     const path = [];

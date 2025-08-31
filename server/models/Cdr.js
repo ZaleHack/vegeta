@@ -71,7 +71,14 @@ class Cdr {
     }
   }
 
-  static async findByIdentifier(identifier, startDate = null, endDate = null, tableName) {
+  static async findByIdentifier(
+    identifier,
+    startDate = null,
+    endDate = null,
+    startTime = null,
+    endTime = null,
+    tableName
+  ) {
     const table = this.escapeIdentifier(tableName);
     let query = `SELECT * FROM ${table} WHERE (
       numero_intl_appelant = ? OR
@@ -88,6 +95,14 @@ class Cdr {
     if (endDate) {
       query += ` AND date_debut <= ?`;
       params.push(endDate);
+    }
+    if (startTime) {
+      query += ` AND heure_debut >= ?`;
+      params.push(startTime);
+    }
+    if (endTime) {
+      query += ` AND heure_debut <= ?`;
+      params.push(endTime);
     }
 
     query += ' ORDER BY date_debut, heure_debut';
