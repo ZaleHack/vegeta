@@ -224,6 +224,12 @@ interface CdrCase {
   created_at?: string;
 }
 
+interface CaseFile {
+  id: number;
+  filename: string;
+  uploaded_at: string;
+}
+
 const usefulLinks = [
   {
     title: 'INTERPOL',
@@ -434,6 +440,8 @@ const App: React.FC = () => {
   const [cases, setCases] = useState<CdrCase[]>([]);
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
+  const [selectedCaseIds, setSelectedCaseIds] = useState<number[]>([]);
+  const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -1060,6 +1068,7 @@ const App: React.FC = () => {
       const data = await res.json();
       if (res.ok) {
         setCdrResult(data);
+        setShowCdrMap(data.total > 0);
         setCdrInfoMessage(
           data.total === 0 ? 'Aucun CDR trouvé pour l\u2019intervalle sélectionné' : ''
         );
@@ -1092,6 +1101,29 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchCaseFiles = async (caseId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/cases/${caseId}/files`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCaseFiles(data);
+      }
+    } catch (err) {
+      console.error('Erreur chargement fichiers:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedCase) {
+      setCaseFiles([]);
+    } else {
+      fetchCaseFiles(selectedCase.id);
+    }
+  }, [selectedCase]);
+
   const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cdrCaseName.trim()) return;
@@ -1120,6 +1152,30 @@ const App: React.FC = () => {
     }
   };
 
+  const toggleCaseSelection = (id: number) => {
+    setSelectedCaseIds((prev) =>
+      prev.includes(id) ? prev.filter((cid) => cid !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteCases = async () => {
+    if (selectedCaseIds.length === 0) return;
+    if (!window.confirm('Supprimer les CASES sélectionnés ?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      for (const id of selectedCaseIds) {
+        await fetch(`/api/cases/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: token ? `Bearer ${token}` : '' }
+        });
+      }
+      setSelectedCaseIds([]);
+      fetchCases();
+    } catch (err) {
+      console.error('Erreur suppression CASE:', err);
+    }
+  };
+
   const handleCdrUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cdrFile || !selectedCase) return;
@@ -1138,6 +1194,8 @@ const App: React.FC = () => {
       const data = await res.json();
       if (res.ok) {
         setCdrUploadMessage('Fichier importé avec succès');
+        setCdrFile(null);
+        await fetchCaseFiles(selectedCase.id);
       } else {
         setCdrUploadError(data.error || "Erreur lors de l'import");
       }
@@ -2359,6 +2417,14 @@ const App: React.FC = () => {
 
               <div>
                 <h3 className="font-semibold">Liste des CASES</h3>
+                {selectedCaseIds.length > 0 && (
+                  <button
+                    onClick={handleDeleteCases}
+                    className="mb-2 px-4 py-2 bg-red-600 text-white rounded-lg"
+                  >
+                    Supprimer la sélection
+                  </button>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                   {cases.map((c) => (
                     <div
@@ -2371,10 +2437,18 @@ const App: React.FC = () => {
                         setCdrUploadError('');
                         setCurrentPage('cdr-case');
                       }}
-                      className="p-4 bg-white rounded-lg shadow cursor-pointer hover:shadow-md"
+                      className="relative p-4 bg-white rounded-lg shadow cursor-pointer hover:shadow-md"
                     >
+                      <input
+                        type="checkbox"
+                        className="absolute top-2 right-2"
+                        checked={selectedCaseIds.includes(c.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleCaseSelection(c.id);
+                        }}
+                      />
                       <h4 className="font-semibold text-gray-800">{c.name}</h4>
-                      <p className="text-sm text-gray-500">{new Date(c.created_at).toLocaleDateString()}</p>
                     </div>
                   ))}
                 </div>
@@ -2413,6 +2487,17 @@ const App: React.FC = () => {
                 {cdrUploadError && <p className="text-red-600">{cdrUploadError}</p>}
               </form>
 
+              {caseFiles.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="font-semibold">Fichiers importés</h4>
+                  <ul className="list-disc list-inside text-sm text-gray-700">
+                    {caseFiles.map((f) => (
+                      <li key={f.id}>{f.filename}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <form onSubmit={handleCdrSearch} className="space-y-4">
                 <input
                   type="text"
@@ -2450,14 +2535,6 @@ const App: React.FC = () => {
               )}
               {cdrError && <p className="text-red-600">{cdrError}</p>}
               {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
-              {cdrResult && !cdrLoading && cdrResult.total > 0 && !showCdrMap && (
-                <button
-                  onClick={() => setShowCdrMap(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-                >
-                  Afficher la carte
-                </button>
-              )}
               {showCdrMap && cdrResult && !cdrLoading && cdrResult.total > 0 && (
                 <CdrMap
                   points={cdrResult.path}

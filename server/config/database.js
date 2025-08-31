@@ -145,6 +145,18 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      // Table des fichiers importés par dossier
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.cdr_case_files (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          case_id INT NOT NULL,
+          filename VARCHAR(255) NOT NULL,
+          uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_case_id (case_id),
+          FOREIGN KEY (case_id) REFERENCES autres.cdr_cases(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
       // Table des enregistrements CDR reliés à un dossier optionnel
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_records (

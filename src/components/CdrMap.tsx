@@ -60,12 +60,16 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
   }, [fullScreen, mapInstance]);
 
   return (
-    <div className={`relative ${fullScreen ? 'fixed inset-0 z-50' : ''}`}>
+    <div
+      className={`relative ${
+        fullScreen ? 'fixed inset-0 z-50' : 'rounded-lg overflow-hidden shadow-lg'
+      }`}
+    >
       <MapContainer
         center={center}
         zoom={13}
-        className="w-full"
-        style={{ height: fullScreen ? '100vh' : '70vh' }}
+        className="w-full h-[70vh]"
+        style={{ height: fullScreen ? '100vh' : undefined }}
         whenCreated={setMapInstance}
       >
         <TileLayer

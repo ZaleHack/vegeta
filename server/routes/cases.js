@@ -95,4 +95,26 @@ router.get('/:id/search', authenticate, async (req, res) => {
   }
 });
 
+router.get('/:id/files', authenticate, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    const files = await caseService.listFiles(caseId);
+    res.json(files);
+  } catch (err) {
+    console.error('Erreur liste fichiers case:', err);
+    res.status(500).json({ error: 'Erreur récupération fichiers' });
+  }
+});
+
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    await caseService.deleteCase(caseId);
+    res.json({ message: 'Case supprimé' });
+  } catch (err) {
+    console.error('Erreur suppression case:', err);
+    res.status(500).json({ error: 'Erreur suppression case' });
+  }
+});
+
 export default router;

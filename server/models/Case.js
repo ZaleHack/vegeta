@@ -20,6 +20,24 @@ class Case {
   static async findAll() {
     return await database.query('SELECT * FROM autres.cdr_cases ORDER BY created_at DESC');
   }
+
+  static async delete(id) {
+    await database.query('DELETE FROM autres.cdr_cases WHERE id = ?', [id]);
+  }
+
+  static async addFile(caseId, filename) {
+    await database.query(
+      'INSERT INTO autres.cdr_case_files (case_id, filename, uploaded_at) VALUES (?, ?, NOW())',
+      [caseId, filename]
+    );
+  }
+
+  static async listFiles(caseId) {
+    return await database.query(
+      'SELECT id, filename, uploaded_at FROM autres.cdr_case_files WHERE case_id = ? ORDER BY uploaded_at DESC',
+      [caseId]
+    );
+  }
 }
 
 export default Case;
