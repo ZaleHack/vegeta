@@ -50,6 +50,13 @@ router.post('/:id/upload', authenticate, requireAdmin, upload.single('file'), as
 router.get('/:id/search', authenticate, async (req, res) => {
   try {
     const caseId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(caseId) || caseId <= 0) {
+      return res.status(400).json({ error: 'ID de dossier invalide' });
+    }
+    const existingCase = await caseService.getCaseById(caseId);
+    if (!existingCase) {
+      return res.status(404).json({ error: 'Dossier introuvable' });
+    }
     const identifier = req.query.phone || req.query.imei;
     if (!identifier) {
       return res.status(400).json({ error: 'Paramètre phone ou imei requis' });
