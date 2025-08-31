@@ -430,6 +430,8 @@ const App: React.FC = () => {
   const [cdrEnd, setCdrEnd] = useState('');
   const [cdrStartTime, setCdrStartTime] = useState('');
   const [cdrEndTime, setCdrEndTime] = useState('');
+  const [cdrDirection, setCdrDirection] = useState('both');
+  const [cdrType, setCdrType] = useState('both');
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
   const [cdrError, setCdrError] = useState('');
@@ -443,7 +445,6 @@ const App: React.FC = () => {
   const [cases, setCases] = useState<CdrCase[]>([]);
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
-  const [selectedCaseIds, setSelectedCaseIds] = useState<number[]>([]);
   const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
 
   // États des statistiques
@@ -1079,6 +1080,8 @@ const App: React.FC = () => {
       if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
       if (cdrStartTime) params.append('startTime', cdrStartTime);
       if (cdrEndTime) params.append('endTime', cdrEndTime);
+      if (cdrDirection !== 'both') params.append('direction', cdrDirection);
+      if (cdrType !== 'both') params.append('type', cdrType);
       const res = await fetch(`/api/cases/${selectedCase.id}/search?${params.toString()}`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
@@ -1140,6 +1143,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteFile = async (fileId: number) => {
+    if (!selectedCase) return;
+    if (!window.confirm('Supprimer ce fichier ?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`/api/cases/${selectedCase.id}/files/${fileId}`, {
+        method: 'DELETE',
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      fetchCaseFiles(selectedCase.id);
+    } catch (err) {
+      console.error('Erreur suppression fichier:', err);
+    }
+  };
+
   useEffect(() => {
     if (!selectedCase) {
       setCaseFiles([]);
@@ -1176,24 +1194,14 @@ const App: React.FC = () => {
     }
   };
 
-  const toggleCaseSelection = (id: number) => {
-    setSelectedCaseIds((prev) =>
-      prev.includes(id) ? prev.filter((cid) => cid !== id) : [...prev, id]
-    );
-  };
-
-  const handleDeleteCases = async () => {
-    if (selectedCaseIds.length === 0) return;
-    if (!window.confirm('Supprimer les CASES sélectionnés ?')) return;
+  const handleDeleteCase = async (id: number) => {
+    if (!window.confirm('Supprimer ce CASE ?')) return;
     try {
       const token = localStorage.getItem('token');
-      for (const id of selectedCaseIds) {
-        await fetch(`/api/cases/${id}`, {
-          method: 'DELETE',
-          headers: { Authorization: token ? `Bearer ${token}` : '' }
-        });
-      }
-      setSelectedCaseIds([]);
+      await fetch(`/api/cases/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
       fetchCases();
     } catch (err) {
       console.error('Erreur suppression CASE:', err);
@@ -2441,38 +2449,31 @@ const App: React.FC = () => {
 
               <div>
                 <h3 className="font-semibold">Liste des CASES</h3>
-                {selectedCaseIds.length > 0 && (
-                  <button
-                    onClick={handleDeleteCases}
-                    className="mb-2 px-4 py-2 bg-red-600 text-white rounded-lg"
-                  >
-                    Supprimer la sélection
-                  </button>
-                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                   {cases.map((c) => (
-                    <div
-                      key={c.id}
-                      onClick={() => {
-                        setSelectedCase(c);
-                        setCdrResult(null);
-                        setShowCdrMap(false);
-                        setCdrUploadMessage('');
-                        setCdrUploadError('');
-                        setCurrentPage('cdr-case');
-                      }}
-                      className="relative p-4 bg-white rounded-lg shadow cursor-pointer hover:shadow-md"
-                    >
-                      <input
-                        type="checkbox"
-                        className="absolute top-2 right-2"
-                        checked={selectedCaseIds.includes(c.id)}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          toggleCaseSelection(c.id);
-                        }}
-                      />
-                      <h4 className="font-semibold text-white">{c.name}</h4>
+                    <div key={c.id} className="p-4 bg-white rounded-lg shadow hover:shadow-md">
+                      <h4 className="font-semibold mb-2">{c.name}</h4>
+                      <div className="flex space-x-2">
+                        <button
+                          className="px-2 py-1 bg-blue-600 text-white rounded"
+                          onClick={() => {
+                            setSelectedCase(c);
+                            setCdrResult(null);
+                            setShowCdrMap(false);
+                            setCdrUploadMessage('');
+                            setCdrUploadError('');
+                            setCurrentPage('cdr-case');
+                          }}
+                        >
+                          Traiter
+                        </button>
+                        <button
+                          className="px-2 py-1 bg-red-600 text-white rounded"
+                          onClick={() => handleDeleteCase(c.id)}
+                        >
+                          Supprimer
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2520,7 +2521,15 @@ const App: React.FC = () => {
                   <h4 className="font-semibold">Fichiers importés</h4>
                   <ul className="list-disc list-inside text-sm text-gray-700">
                     {caseFiles.map((f) => (
-                      <li key={f.id}>{f.filename}</li>
+                      <li key={f.id} className="flex items-center">
+                        <span>{f.filename}</span>
+                        <button
+                          className="ml-2 text-red-600 hover:underline"
+                          onClick={() => handleDeleteFile(f.id)}
+                        >
+                          Supprimer
+                        </button>
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -2561,6 +2570,26 @@ const App: React.FC = () => {
                     onChange={(e) => setCdrEndTime(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <select
+                    value={cdrDirection}
+                    onChange={(e) => setCdrDirection(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="both">Appels entrants et sortants</option>
+                    <option value="incoming">Uniquement entrants</option>
+                    <option value="outgoing">Uniquement sortants</option>
+                  </select>
+                  <select
+                    value={cdrType}
+                    onChange={(e) => setCdrType(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="both">Appels et SMS</option>
+                    <option value="call">Seulement appels</option>
+                    <option value="sms">Seulement SMS</option>
+                  </select>
                 </div>
                 <button
                   type="submit"

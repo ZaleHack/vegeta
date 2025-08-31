@@ -113,7 +113,15 @@ class CdrService {
 
   async search(
     identifier,
-    { startDate = null, endDate = null, startTime = null, endTime = null, caseName } = {}
+    {
+      startDate = null,
+      endDate = null,
+      startTime = null,
+      endTime = null,
+      caseName,
+      direction = 'both',
+      type = 'both',
+    } = {}
   ) {
     const records = await Cdr.findByIdentifier(
       identifier,
@@ -131,9 +139,17 @@ class CdrService {
       const caller = r.numero_intl_appelant;
       const callee = r.numero_intl_appele;
       const other = caller === identifier ? callee : caller;
-      const direction = caller === identifier ? 'outgoing' : 'incoming';
-      const type = (r.type_cdr || '').toLowerCase();
-      const isSms = type.includes('sms');
+      const directionRecord = caller === identifier ? 'outgoing' : 'incoming';
+      const typeStr = (r.type_cdr || '').toLowerCase();
+      const isSms = typeStr.includes('sms');
+
+      if (direction !== 'both' && directionRecord !== direction) {
+        continue;
+      }
+      if (type !== 'both') {
+        if (type === 'sms' && !isSms) continue;
+        if (type === 'call' && isSms) continue;
+      }
 
       if (other) {
         if (!contactsMap[other]) {
@@ -198,7 +214,7 @@ class CdrService {
           longitude: r.longitude,
           nom: r.nom_localisation,
           type: isSms ? 'sms' : 'call',
-          direction,
+          direction: directionRecord,
           number: other,
           callDate,
           startTime,
@@ -227,6 +243,10 @@ class CdrService {
       topLocations: locations.slice(0, 5),
       path
     };
+  }
+
+  async deleteTable(caseName) {
+    await Cdr.deleteTable(caseName);
   }
 }
 
