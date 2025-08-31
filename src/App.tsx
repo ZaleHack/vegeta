@@ -1085,9 +1085,16 @@ const App: React.FC = () => {
       const data = await res.json();
       if (res.ok) {
         setCdrResult(data);
-        setShowCdrMap(data.total > 0);
+
+        const hasPath = Array.isArray(data.path) && data.path.length > 0;
+        setShowCdrMap(hasPath);
+
         setCdrInfoMessage(
-          data.total === 0 ? 'Aucun CDR trouvé pour l\u2019intervalle sélectionné' : ''
+          data.total === 0
+            ? 'Aucun CDR trouvé pour l\u2019intervalle sélectionné'
+            : !hasPath
+              ? 'Aucune donnée de localisation disponible pour cet intervalle'
+              : ''
         );
       } else {
         setCdrError(data.error || 'Erreur lors de la recherche');
