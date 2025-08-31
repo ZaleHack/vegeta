@@ -2494,111 +2494,119 @@ const App: React.FC = () => {
                 &larr; Retour
               </button>
 
-              <form onSubmit={handleCdrUpload} className="space-y-4">
-                <input
-                  type="file"
-                  accept=".csv,.xlsx"
-                  onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-                <button
-                  type="submit"
-                  disabled={cdrUploading || !cdrFile}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50"
-                >
-                  {cdrUploading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    'Importer CDR'
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-lg shadow p-6 space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-700">Importation CDR</h3>
+                  <form onSubmit={handleCdrUpload} className="space-y-4">
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx"
+                      onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    <button
+                      type="submit"
+                      disabled={cdrUploading || !cdrFile}
+                      className="flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md disabled:opacity-50"
+                    >
+                      {cdrUploading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        'Importer CDR'
+                      )}
+                    </button>
+                    {cdrUploadMessage && <p className="text-green-600">{cdrUploadMessage}</p>}
+                    {cdrUploadError && <p className="text-red-600">{cdrUploadError}</p>}
+                  </form>
+                  {caseFiles.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-2">Fichiers importés</h4>
+                      <ul className="divide-y divide-gray-200 text-sm text-gray-700">
+                        {caseFiles.map((f) => (
+                          <li key={f.id} className="py-2 flex items-center justify-between">
+                            <span className="truncate">{f.filename}</span>
+                            <button
+                              className="text-red-600 hover:underline ml-2"
+                              onClick={() => handleDeleteFile(f.id)}
+                            >
+                              Supprimer
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
-                </button>
-                {cdrUploadMessage && <p className="text-green-600">{cdrUploadMessage}</p>}
-                {cdrUploadError && <p className="text-red-600">{cdrUploadError}</p>}
-              </form>
+                </div>
 
-              {caseFiles.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="font-semibold">Fichiers importés</h4>
-                  <ul className="list-disc list-inside text-sm text-gray-700">
-                    {caseFiles.map((f) => (
-                      <li key={f.id} className="flex items-center">
-                        <span>{f.filename}</span>
-                        <button
-                          className="ml-2 text-red-600 hover:underline"
-                          onClick={() => handleDeleteFile(f.id)}
-                        >
-                          Supprimer
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="bg-white rounded-lg shadow p-6 space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-700">Recherche</h3>
+                  <form onSubmit={handleCdrSearch} className="space-y-4">
+                    <input
+                      type="text"
+                      placeholder="Numéro ou IMEI"
+                      value={cdrIdentifier}
+                      onChange={(e) => setCdrIdentifier(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        value={cdrStart}
+                        onChange={(e) => setCdrStart(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <input
+                        type="date"
+                        value={cdrEnd}
+                        onChange={(e) => setCdrEnd(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <input
+                        type="time"
+                        value={cdrStartTime}
+                        onChange={(e) => setCdrStartTime(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <input
+                        type="time"
+                        value={cdrEndTime}
+                        onChange={(e) => setCdrEndTime(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <select
+                        value={cdrDirection}
+                        onChange={(e) => setCdrDirection(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="both">Appels entrants et sortants</option>
+                        <option value="incoming">Uniquement entrants</option>
+                        <option value="outgoing">Uniquement sortants</option>
+                      </select>
+                      <select
+                        value={cdrType}
+                        onChange={(e) => setCdrType(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="both">Appels et SMS</option>
+                        <option value="call">Seulement appels</option>
+                        <option value="sms">Seulement SMS</option>
+                      </select>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={cdrLoading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:opacity-50"
+                    >
+                      Rechercher
+                    </button>
+                  </form>
                 </div>
-              )}
+              </div>
 
-              <form onSubmit={handleCdrSearch} className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Numéro ou IMEI"
-                  value={cdrIdentifier}
-                  onChange={(e) => setCdrIdentifier(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <input
-                    type="date"
-                    value={cdrStart}
-                    onChange={(e) => setCdrStart(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="date"
-                    value={cdrEnd}
-                    onChange={(e) => setCdrEnd(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <input
-                    type="time"
-                    value={cdrStartTime}
-                    onChange={(e) => setCdrStartTime(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="time"
-                    value={cdrEndTime}
-                    onChange={(e) => setCdrEndTime(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <select
-                    value={cdrDirection}
-                    onChange={(e) => setCdrDirection(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="both">Appels entrants et sortants</option>
-                    <option value="incoming">Uniquement entrants</option>
-                    <option value="outgoing">Uniquement sortants</option>
-                  </select>
-                  <select
-                    value={cdrType}
-                    onChange={(e) => setCdrType(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="both">Appels et SMS</option>
-                    <option value="call">Seulement appels</option>
-                    <option value="sms">Seulement SMS</option>
-                  </select>
-                </div>
-                <button
-                  type="submit"
-                  disabled={cdrLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
-                >
-                  Rechercher
-                </button>
-              </form>
               {cdrLoading && (
                 <div className="loading-bar-container my-4">
                   <div className="loading-bar"></div>
@@ -2607,12 +2615,7 @@ const App: React.FC = () => {
               {cdrError && <p className="text-red-600">{cdrError}</p>}
               {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
               {showCdrMap && cdrResult && !cdrLoading && cdrResult.total > 0 && (
-                <CdrMap
-                  points={cdrResult.path}
-                  topContacts={cdrResult.topContacts}
-                  topLocations={cdrResult.topLocations}
-                  total={cdrResult.total}
-                />
+                <CdrMap points={cdrResult.path} />
               )}
             </div>
           )}
