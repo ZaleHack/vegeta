@@ -16,6 +16,10 @@ class CaseService {
     return await Case.findById(id);
   }
 
+  async listCases() {
+    return await Case.findAll();
+  }
+
   async importFile(caseId, filePath, originalName) {
     const ext = path.extname(originalName).toLowerCase();
     if (ext === '.xlsx' || ext === '.xls') {

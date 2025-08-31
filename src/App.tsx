@@ -218,6 +218,12 @@ interface CdrSearchResult {
   path: CdrPoint[];
 }
 
+interface CdrCase {
+  id: number;
+  name: string;
+  created_at?: string;
+}
+
 const usefulLinks = [
   {
     title: 'INTERPOL',
@@ -426,6 +432,8 @@ const App: React.FC = () => {
   const [cdrCaseName, setCdrCaseName] = useState('');
   const [cdrCaseId, setCdrCaseId] = useState<number | null>(null);
   const [cdrCaseMessage, setCdrCaseMessage] = useState('');
+  const [cases, setCases] = useState<CdrCase[]>([]);
+  const [showCdrMap, setShowCdrMap] = useState(false);
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -1038,6 +1046,7 @@ const App: React.FC = () => {
     setCdrLoading(true);
     setCdrError('');
     setCdrInfoMessage('');
+    setShowCdrMap(false);
     try {
       const token = localStorage.getItem('token');
       const param = cdrIdentifier.trim().length === 15 ? 'imei' : 'phone';
@@ -1068,6 +1077,21 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchCases = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/cases', {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCases(data);
+      }
+    } catch (error) {
+      console.error('Erreur chargement cases:', error);
+    }
+  };
+
   const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cdrCaseName.trim()) return;
@@ -1086,6 +1110,8 @@ const App: React.FC = () => {
       if (res.ok) {
         setCdrCaseId(data.id);
         setCdrCaseMessage('CASE créé');
+        setCdrCaseName('');
+        fetchCases();
       } else {
         setCdrCaseMessage(data.error || 'Erreur création CASE');
       }
@@ -1146,6 +1172,9 @@ const App: React.FC = () => {
     }
     if (currentPage === 'vehicules' && currentUser) {
       fetchVehicules();
+    }
+    if (currentPage === 'cdr' && currentUser) {
+      fetchCases();
     }
   }, [currentPage, currentUser, entreprisesPage, entreprisesSearch, vehiculesPage, vehiculesSearch]);
 
@@ -2324,10 +2353,29 @@ const App: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg"
                 >
-                  Créer CASE
+                  CASE
                 </button>
                 {cdrCaseMessage && <p className="text-green-600">{cdrCaseMessage}</p>}
               </form>
+
+              <div>
+                <h3 className="font-semibold">Liste des CASES</h3>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {cases.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setCdrCaseId(c.id);
+                        setCdrResult(null);
+                        setShowCdrMap(false);
+                      }}
+                      className={`px-3 py-1 rounded ${cdrCaseId === c.id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <form onSubmit={handleCdrUpload} className="space-y-4">
                 <input
@@ -2384,7 +2432,15 @@ const App: React.FC = () => {
               )}
               {cdrError && <p className="text-red-600">{cdrError}</p>}
               {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
-              {cdrResult && !cdrLoading && cdrResult.total > 0 && (
+              {cdrResult && !cdrLoading && cdrResult.total > 0 && !showCdrMap && (
+                <button
+                  onClick={() => setShowCdrMap(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                >
+                  Afficher la carte
+                </button>
+              )}
+              {showCdrMap && cdrResult && !cdrLoading && cdrResult.total > 0 && (
                 <CdrMap
                   points={cdrResult.path}
                   topContacts={cdrResult.topContacts}
