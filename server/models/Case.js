@@ -38,6 +38,13 @@ class Case {
       [caseId]
     );
   }
+
+  static async deleteFile(caseId, fileId) {
+    await database.query(
+      'DELETE FROM autres.cdr_case_files WHERE case_id = ? AND id = ?',
+      [caseId, fileId]
+    );
+  }
 }
 
 export default Case;

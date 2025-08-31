@@ -71,7 +71,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
     if (!identifier) {
       return res.status(400).json({ error: 'Paramètre phone ou imei requis' });
     }
-    const { start, end, startTime, endTime } = req.query;
+    const { start, end, startTime, endTime, direction = 'both', type = 'both' } = req.query;
     const isValidDate = (str) => {
       if (!str) return false;
       const regex = /^\d{4}-\d{2}-\d{2}$/;
@@ -91,11 +91,17 @@ router.get('/:id/search', authenticate, async (req, res) => {
     if (start && end && new Date(start) > new Date(end)) {
       return res.status(400).json({ error: 'La date de début doit précéder la date de fin' });
     }
+    const validDirections = ['incoming', 'outgoing', 'both'];
+    const validTypes = ['call', 'sms', 'both'];
+    const dirParam = typeof direction === 'string' && validDirections.includes(direction) ? direction : 'both';
+    const typeParam = typeof type === 'string' && validTypes.includes(type) ? type : 'both';
     const result = await caseService.search(caseId, identifier, {
       startDate: start || null,
       endDate: end || null,
       startTime: startTime || null,
       endTime: endTime || null,
+      direction: dirParam,
+      type: typeParam,
     });
     res.json(result);
   } catch (err) {
@@ -112,6 +118,18 @@ router.get('/:id/files', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Erreur liste fichiers case:', err);
     res.status(500).json({ error: 'Erreur récupération fichiers' });
+  }
+});
+
+router.delete('/:id/files/:fileId', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    const fileId = parseInt(req.params.fileId, 10);
+    await caseService.deleteFile(caseId, fileId);
+    res.json({ message: 'Fichier supprimé' });
+  } catch (err) {
+    console.error('Erreur suppression fichier case:', err);
+    res.status(500).json({ error: 'Erreur suppression fichier' });
   }
 });
 

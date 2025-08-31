@@ -51,6 +51,15 @@ class CaseService {
   async listFiles(caseId) {
     return await Case.listFiles(caseId);
   }
+
+  async deleteFile(caseId, fileId) {
+    const existingCase = await Case.findById(caseId);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
+    await Case.deleteFile(caseId, fileId);
+    await this.cdrService.deleteTable(existingCase.name);
+  }
 }
 
 export default CaseService;

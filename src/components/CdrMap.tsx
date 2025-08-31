@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { PhoneIncoming, PhoneOutgoing, MessageSquare } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -96,16 +96,6 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {topLocations && topLocations.length > 0 && (
-          <Circle
-            center={[
-              parseFloat(topLocations[0].latitude),
-              parseFloat(topLocations[0].longitude)
-            ]}
-            radius={200}
-            pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.2 }}
-          />
-        )}
         {points.map((loc, idx) => (
           <Marker
             key={idx}

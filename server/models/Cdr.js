@@ -109,6 +109,11 @@ class Cdr {
 
     return await database.query(query, params);
   }
+
+  static async deleteTable(tableName) {
+    const table = this.escapeIdentifier(tableName);
+    await database.query(`DROP TABLE IF EXISTS ${table}`);
+  }
 }
 
 export default Cdr;
