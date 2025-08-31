@@ -18,6 +18,16 @@ if (!fs.existsSync(uploadDir)) {
 }
 const upload = multer({ dest: uploadDir });
 
+router.get('/', authenticate, async (req, res) => {
+  try {
+    const cases = await caseService.listCases();
+    res.json(cases);
+  } catch (err) {
+    console.error('Erreur liste cases:', err);
+    res.status(500).json({ error: 'Erreur récupération cases' });
+  }
+});
+
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { name } = req.body;

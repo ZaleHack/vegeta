@@ -2,7 +2,7 @@ import database from '../config/database.js';
 
 class Case {
   static async create(name) {
-    const [result] = await database.query(
+    const result = await database.query(
       'INSERT INTO autres.cdr_cases (name, created_at) VALUES (?, NOW())',
       [name]
     );
@@ -10,11 +10,15 @@ class Case {
   }
 
   static async findById(id) {
-    const [rows] = await database.query(
+    const rows = await database.query(
       'SELECT * FROM autres.cdr_cases WHERE id = ?',
       [id]
     );
     return rows[0] || null;
+  }
+
+  static async findAll() {
+    return await database.query('SELECT * FROM autres.cdr_cases ORDER BY created_at DESC');
   }
 }
 
