@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
-import { PhoneIncoming, PhoneOutgoing, MessageSquare, Loader2 } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, MessageSquare } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -69,7 +69,6 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
 
   const [fullScreen, setFullScreen] = useState(false);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
-  const [mapLoading, setMapLoading] = useState(true);
 
   useEffect(() => {
     if (mapInstance) {
@@ -78,11 +77,6 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
       }, 0);
     }
   }, [fullScreen, mapInstance]);
-
-  useEffect(() => {
-    setMapLoading(true);
-  }, [points]);
-
   return (
     <div
       className={`relative ${
@@ -96,7 +90,6 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
         style={{ height: fullScreen ? '100vh' : undefined }}
         whenCreated={(map) => {
           setMapInstance(map);
-          map.on('load', () => setMapLoading(false));
         }}
       >
         <TileLayer
@@ -169,11 +162,6 @@ const CdrMap: React.FC<Props> = ({ points, topContacts, topLocations, total }) =
           </div>
         )}
       </div>
-      {mapLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-[1000]">
-          <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-        </div>
-      )}
     </div>
   );
 };
