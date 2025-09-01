@@ -2430,22 +2430,22 @@ const App: React.FC = () => {
             <div className="space-y-6">
               <PageHeader icon={<Clock className="h-6 w-6" />} title="CDR" />
 
-              <form onSubmit={handleCreateCase} className="space-y-4">
+              <form onSubmit={handleCreateCase} className="flex items-center space-x-2">
                 <input
                   type="text"
                   placeholder="Nom du CASE"
                   value={cdrCaseName}
                   onChange={(e) => setCdrCaseName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-transform"
                 >
-                  CASE
+                  Créer
                 </button>
-                {cdrCaseMessage && <p className="text-green-600">{cdrCaseMessage}</p>}
               </form>
+              {cdrCaseMessage && <p className="text-green-600">{cdrCaseMessage}</p>}
 
               <div>
                 <h3 className="font-semibold">Liste des CASES</h3>
@@ -2599,7 +2599,7 @@ const App: React.FC = () => {
                     <button
                       type="submit"
                       disabled={cdrLoading}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:opacity-50"
+                      className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-transform transform hover:scale-105 active:scale-95"
                     >
                       Rechercher
                     </button>

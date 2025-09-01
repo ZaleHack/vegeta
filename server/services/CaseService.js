@@ -60,6 +60,8 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
+    // Remove any CDR table associated with this case
+    await this.cdrService.deleteTable(existingCase.name);
     await Case.delete(id);
   }
 
