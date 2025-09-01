@@ -21,7 +21,7 @@
     @apply bg-gray-800 text-gray-100 border-gray-600 placeholder-gray-400;
   }
   .dark button {
-    @apply text-gray-100 border-gray-600;
+    @apply bg-blue-600 text-white border-blue-600 hover:bg-blue-700;
   }
 }
 
