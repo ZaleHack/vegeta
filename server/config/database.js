@@ -168,6 +168,7 @@ class DatabaseManager {
         CREATE TABLE IF NOT EXISTS autres.cdr_records (
           id INT AUTO_INCREMENT PRIMARY KEY,
           case_id INT DEFAULT NULL,
+          file_id INT DEFAULT NULL,
           oce VARCHAR(50) DEFAULT NULL,
           type_cdr VARCHAR(50) DEFAULT NULL,
           date_debut DATE DEFAULT NULL,
@@ -190,11 +191,13 @@ class DatabaseManager {
           longitude DECIMAL(10,6) DEFAULT NULL,
           nom_localisation VARCHAR(255) DEFAULT NULL,
           INDEX idx_case_id (case_id),
+          INDEX idx_file_id (file_id),
           INDEX idx_numero_appelant (numero_intl_appelant),
           INDEX idx_numero_appele (numero_intl_appele),
           INDEX idx_imei_appelant (imei_appelant),
           INDEX idx_imei_appele (imei_appele),
-          FOREIGN KEY (case_id) REFERENCES autres.cdr_cases(id) ON DELETE CASCADE
+          FOREIGN KEY (case_id) REFERENCES autres.cdr_cases(id) ON DELETE CASCADE,
+          FOREIGN KEY (file_id) REFERENCES autres.cdr_case_files(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
