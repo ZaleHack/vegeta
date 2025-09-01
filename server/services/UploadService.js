@@ -270,7 +270,12 @@ class UploadService {
       if (rows[0].upload_mode === 'new_table' || rows[0].upload_mode === 'sql') {
         await database.query(`DROP TABLE IF EXISTS \`${db}\`.\`${table}\``);
       } else {
-        await database.query(`DELETE FROM \`${db}\`.\`${table}\` WHERE upload_id = ?`, [id]);
+        const columns = await database.query(`SHOW COLUMNS FROM \`${db}\`.\`${table}\` LIKE 'upload_id'`);
+        if (columns.length === 0) {
+          await database.query(`DROP TABLE IF EXISTS \`${db}\`.\`${table}\``);
+        } else {
+          await database.query(`DELETE FROM \`${db}\`.\`${table}\` WHERE upload_id = ?`, [id]);
+        }
       }
       await database.query('DELETE FROM upload_history WHERE id = ?', [id]);
     } catch (error) {
