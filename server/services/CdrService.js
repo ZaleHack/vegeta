@@ -5,7 +5,7 @@ import { parse, format } from 'date-fns';
 import Cdr from '../models/Cdr.js';
 
 class CdrService {
-  async importCsv(filePath, caseName) {
+  async importCsv(filePath, caseName, fileId) {
     return new Promise((resolve, reject) => {
       const records = [];
       fs.createReadStream(filePath)
@@ -53,18 +53,18 @@ class CdrService {
           });
         })
         .on('end', async () => {
-          try {
-            await Cdr.bulkInsert(records, caseName);
-            resolve({ inserted: records.length });
-          } catch (err) {
-            reject(err);
-          }
+            try {
+              await Cdr.bulkInsert(records, caseName, fileId);
+              resolve({ inserted: records.length });
+              } catch (err) {
+                reject(err);
+              }
         })
         .on('error', err => reject(err));
     });
   }
 
-  async importExcel(filePath, caseName) {
+  async importExcel(filePath, caseName, fileId) {
     const workbook = XLSX.readFile(filePath);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
@@ -107,7 +107,7 @@ class CdrService {
       longitude: row['Longitude'] || null,
       nom_localisation: row['Nom localisation'] || null,
     }));
-    await Cdr.bulkInsert(records, caseName);
+    await Cdr.bulkInsert(records, caseName, fileId);
     return { inserted: records.length };
   }
 
@@ -251,6 +251,10 @@ class CdrService {
 
   async clearTable(caseName) {
     await Cdr.truncateTable(caseName);
+  }
+
+  async deleteByFile(fileId, caseName) {
+    await Cdr.deleteByFileId(fileId, caseName);
   }
 }
 

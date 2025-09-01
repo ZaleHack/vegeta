@@ -32,10 +32,18 @@ class Case {
     await database.query('DELETE FROM autres.cdr_cases WHERE id = ?', [id]);
   }
 
-  static async addFile(caseId, filename, lineCount) {
-    await database.query(
+  static async addFile(caseId, filename, lineCount = 0) {
+    const result = await database.query(
       'INSERT INTO autres.cdr_case_files (case_id, filename, line_count, uploaded_at) VALUES (?, ?, ?, NOW())',
       [caseId, filename, lineCount]
+    );
+    return { id: result.insertId };
+  }
+
+  static async updateFileLineCount(fileId, lineCount) {
+    await database.query(
+      'UPDATE autres.cdr_case_files SET line_count = ? WHERE id = ?',
+      [lineCount, fileId]
     );
   }
 

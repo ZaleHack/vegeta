@@ -1741,19 +1741,19 @@ const App: React.FC = () => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all flex items-center"
-                    >
-                      {loading ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      ) : (
-                        <>
-                          Rechercher
-                        </>
-                      )}
-                    </button>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all flex items-center"
+                      >
+                        {loading ? (
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        ) : (
+                          <>
+                            Rechercher
+                          </>
+                        )}
+                      </button>
                   </div>
                 </form>
               </div>
@@ -2529,17 +2529,17 @@ const App: React.FC = () => {
                       onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
                       className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
-                    <button
-                      type="submit"
-                      disabled={cdrUploading || !cdrFile}
-                      className="flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md disabled:opacity-50"
-                    >
-                      {cdrUploading ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        'Importer CDR'
-                      )}
-                    </button>
+                      <button
+                        type="submit"
+                        disabled={cdrUploading || !cdrFile}
+                        className="flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50"
+                      >
+                        {cdrUploading ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          'Importer CDR'
+                        )}
+                      </button>
                     {cdrUploadMessage && <p className="text-green-600">{cdrUploadMessage}</p>}
                     {cdrUploadError && <p className="text-red-600">{cdrUploadError}</p>}
                   </form>
@@ -2643,13 +2643,13 @@ const App: React.FC = () => {
                       >
                         Rechercher
                       </button>
-                      <button
-                        type="button"
-                        className="px-6 py-2 bg-gray-600 text-white rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
-                        onClick={handleLinkDiagram}
-                      >
-                        Diagram des liens
-                      </button>
+                        <button
+                          type="button"
+                          className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
+                          onClick={handleLinkDiagram}
+                        >
+                          Diagram des liens
+                        </button>
                     </div>
                   </form>
                 </div>
