@@ -1,6 +1,7 @@
 import React from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
-import { X } from 'lucide-react';
+import { X, Link2 } from 'lucide-react';
+import LinkDiagramLegend from './LinkDiagramLegend';
 
 interface GraphNode {
   id: string;
@@ -20,50 +21,98 @@ interface LinkDiagramProps {
 }
 
 const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
+  const nodeTypes = Array.from(new Set(data.nodes.map((n) => n.type)));
+  const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+  const typeColorMap = Object.fromEntries(
+    nodeTypes.map((type, i) => [type, palette[i % palette.length]])
+  );
+
+  const nodeAggregates: Record<string, { callCount: number; smsCount: number }> = {};
+  data.links.forEach((l) => {
+    const add = (id: string) => {
+      if (!nodeAggregates[id]) nodeAggregates[id] = { callCount: 0, smsCount: 0 };
+      nodeAggregates[id].callCount += l.callCount;
+      nodeAggregates[id].smsCount += l.smsCount;
+    };
+    add(typeof l.source === 'object' ? l.source.id : l.source);
+    add(typeof l.target === 'object' ? l.target.id : l.target);
+  });
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 relative flex flex-col pt-10">
-        <h2 className="absolute top-3 left-1/2 -translate-x-1/2 text-xl font-semibold">Diagramme des liens</h2>
-        <button
-          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 z-10"
-          onClick={onClose}
-        >
-          <X className="w-6 h-6" />
-        </button>
-        <div className="flex-1">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-white/30 backdrop-blur-md rounded-2xl shadow-xl w-11/12 h-5/6 flex flex-col">
+        <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-t-2xl shadow">
+          <div className="flex items-center gap-2">
+            <Link2 className="w-5 h-5" />
+            <h2 className="text-lg font-semibold">Diagramme des liens</h2>
+          </div>
+          <button
+            className="text-white/80 hover:text-white"
+            onClick={onClose}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex-1 relative">
           <ForceGraph2D
             graphData={data}
-            nodeAutoColorBy="type"
             enableNodeDrag={true}
             onNodeDragEnd={(node: any) => {
               node.fx = node.x;
               node.fy = node.y;
             }}
+            nodeLabel={(node: any) => {
+              const agg = nodeAggregates[node.id] || { callCount: 0, smsCount: 0 };
+              return `${node.id}\nType: ${node.type}\nAppels: ${agg.callCount}\nSMS: ${agg.smsCount}`;
+            }}
             nodeCanvasObject={(node: any, ctx, globalScale) => {
-              const label = node.id;
-              const fontSize = 12 / globalScale;
-              const radius = 8;
-              const isDarkMode = document.documentElement.classList.contains('dark');
+              const radius = 10;
+              const color = typeColorMap[node.type] || '#888';
+              const gradient = ctx.createRadialGradient(
+                node.x,
+                node.y,
+                0,
+                node.x,
+                node.y,
+                radius
+              );
+              gradient.addColorStop(0, '#ffffff');
+              gradient.addColorStop(1, color);
+              ctx.fillStyle = gradient;
               ctx.beginPath();
               ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
-              ctx.fillStyle = node.color || (isDarkMode ? '#60a5fa' : '#3b82f6');
               ctx.fill();
-              ctx.strokeStyle = isDarkMode ? '#fff' : '#000';
+              ctx.shadowColor = color;
+              ctx.shadowBlur = 10;
+              ctx.strokeStyle = '#fff';
               ctx.lineWidth = 1;
               ctx.stroke();
-              ctx.font = `${fontSize}px sans-serif`;
+              ctx.shadowBlur = 0;
+              const icon =
+                node.type === 'sms'
+                  ? '💬'
+                  : node.type === 'call'
+                  ? '📞'
+                  : '👤';
+              ctx.font = `${10 / globalScale}px sans-serif`;
               ctx.textAlign = 'center';
-              ctx.textBaseline = 'top';
-              ctx.fillStyle = isDarkMode ? '#fff' : '#000';
-              ctx.fillText(label, node.x, node.y + radius + 4);
+              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#000';
+              ctx.fillText(icon, node.x, node.y);
             }}
             nodePointerAreaPaint={(node: any, color, ctx) => {
-              const radius = 8;
+              const radius = 10;
               ctx.beginPath();
               ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
               ctx.fillStyle = color;
               ctx.fill();
             }}
+            linkColor={(link: any) =>
+              link.callCount >= link.smsCount ? '#3b82f6' : '#10b981'
+            }
+            linkDirectionalParticleColor={(link: any) =>
+              link.callCount >= link.smsCount ? '#3b82f6' : '#10b981'
+            }
             linkWidth={(link: any) => 1 + Math.log(link.callCount + link.smsCount)}
             linkDirectionalParticles={2}
             linkDirectionalParticleSpeed={0.005}
@@ -78,13 +127,16 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               const fontSize = 10 / globalScale;
               const textX = (start.x + end.x) / 2;
               const textY = (start.y + end.y) / 2;
-              const isDarkMode = document.documentElement.classList.contains('dark');
               ctx.font = `${fontSize}px sans-serif`;
-              ctx.fillStyle = isDarkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
+              ctx.fillStyle = 'rgba(0,0,0,0.6)';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.fillText(label, textX, textY);
             }}
+          />
+          <LinkDiagramLegend
+            className="absolute bottom-4 left-4"
+            typeColorMap={typeColorMap}
           />
         </div>
       </div>
