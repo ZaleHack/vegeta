@@ -5,6 +5,8 @@ import { parse, format } from 'date-fns';
 import Cdr from '../models/Cdr.js';
 import database from '../config/database.js';
 
+const ALLOWED_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
+
 class CdrService {
   async importCsv(filePath, caseName, fileId, cdrNumber) {
     const cdrNum = cdrNumber.startsWith('221') ? cdrNumber : `221${cdrNumber}`;
@@ -251,14 +253,16 @@ class CdrService {
   }
 
   async findCommonContacts(numbers, caseName) {
-    if (!Array.isArray(numbers) || numbers.length === 0) {
+    const isAllowed = (n) => ALLOWED_PREFIXES.some((p) => String(n).startsWith(p));
+    const filteredNumbers = Array.isArray(numbers) ? numbers.filter(isAllowed) : [];
+    if (filteredNumbers.length === 0) {
       return { nodes: [], links: [] };
     }
 
-    const placeholders = numbers.map(() => '?').join(',');
+    const placeholders = filteredNumbers.map(() => '?').join(',');
     const table = Cdr.escapeIdentifier(caseName);
     const query = `SELECT numero_intl_appelant, numero_intl_appele, type_cdr FROM ${table} WHERE numero_intl_appelant IN (${placeholders}) OR numero_intl_appele IN (${placeholders})`;
-    const params = [...numbers, ...numbers];
+    const params = [...filteredNumbers, ...filteredNumbers];
     const rows = await database.query(query, params);
 
     const contactSources = {};
@@ -270,15 +274,15 @@ class CdrService {
       let source = null;
       let contact = null;
 
-      if (numbers.includes(caller)) {
+      if (filteredNumbers.includes(caller)) {
         source = caller;
         contact = callee;
-      } else if (numbers.includes(callee)) {
+      } else if (filteredNumbers.includes(callee)) {
         source = callee;
         contact = caller;
       }
 
-      if (!contact) continue;
+      if (!contact || !isAllowed(contact)) continue;
 
       if (!contactSources[contact]) {
         contactSources[contact] = new Set();
@@ -297,7 +301,7 @@ class CdrService {
       }
     }
 
-    const nodes = numbers.map((n) => ({ id: n, type: 'source' }));
+    const nodes = filteredNumbers.map((n) => ({ id: n, type: 'source' }));
     const links = [];
 
     for (const contact in contactSources) {
