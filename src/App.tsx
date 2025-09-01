@@ -231,6 +231,7 @@ interface CaseFile {
   filename: string;
   uploaded_at: string;
   line_count: number;
+  cdr_number: string | null;
 }
 
 interface GraphNode {
@@ -1157,12 +1158,9 @@ const App: React.FC = () => {
 
   const handleLinkDiagram = async () => {
     if (!selectedCase) return;
-    const numbers = cdrIdentifier
-      .split(/[\s,;]+/)
-      .map((n) => n.trim())
-      .filter((n) => n);
+    const numbers = Array.from(new Set(caseFiles.map((f) => f.cdr_number).filter((n): n is string => !!n)));
     if (numbers.length < 2) {
-      setCdrError('Veuillez saisir au moins deux numéros séparés par des virgules');
+      setCdrError('Au moins deux fichiers avec un numéro sont requis');
       return;
     }
     try {
@@ -2615,6 +2613,7 @@ const App: React.FC = () => {
                           <thead>
                             <tr>
                               <th className="px-4 py-2 text-left">Nom du fichier</th>
+                              <th className="px-4 py-2 text-left">Numéro</th>
                               <th className="px-4 py-2 text-left">Lignes</th>
                               <th className="px-4 py-2" />
                             </tr>
@@ -2623,6 +2622,7 @@ const App: React.FC = () => {
                             {caseFiles.map((f) => (
                               <tr key={f.id}>
                                 <td className="px-4 py-2 truncate">{f.filename}</td>
+                                <td className="px-4 py-2">{f.cdr_number || '-'}</td>
                                 <td className="px-4 py-2">{f.line_count}</td>
                                 <td className="px-4 py-2 text-right">
                                   <button
@@ -2707,7 +2707,7 @@ const App: React.FC = () => {
                       >
                         Rechercher
                       </button>
-                        {caseFiles.length >= 2 && (
+                        {caseFiles.filter(f => f.cdr_number).length >= 2 && (
                           <button
                             type="button"
                             className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"

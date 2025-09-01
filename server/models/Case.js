@@ -32,10 +32,10 @@ class Case {
     await database.query('DELETE FROM autres.cdr_cases WHERE id = ?', [id]);
   }
 
-  static async addFile(caseId, filename, lineCount = 0) {
+  static async addFile(caseId, filename, cdrNumber, lineCount = 0) {
     const result = await database.query(
-      'INSERT INTO autres.cdr_case_files (case_id, filename, line_count, uploaded_at) VALUES (?, ?, ?, NOW())',
-      [caseId, filename, lineCount]
+      'INSERT INTO autres.cdr_case_files (case_id, filename, cdr_number, line_count, uploaded_at) VALUES (?, ?, ?, ?, NOW())',
+      [caseId, filename, cdrNumber, lineCount]
     );
     return { id: result.insertId };
   }
@@ -49,7 +49,7 @@ class Case {
 
   static async listFiles(caseId) {
     return await database.query(
-      'SELECT id, filename, uploaded_at, line_count FROM autres.cdr_case_files WHERE case_id = ? ORDER BY uploaded_at DESC',
+      'SELECT id, filename, uploaded_at, line_count, cdr_number FROM autres.cdr_case_files WHERE case_id = ? ORDER BY uploaded_at DESC',
       [caseId]
     );
   }

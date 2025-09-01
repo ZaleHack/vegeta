@@ -157,6 +157,8 @@ class DatabaseManager {
           id INT AUTO_INCREMENT PRIMARY KEY,
           case_id INT NOT NULL,
           filename VARCHAR(255) NOT NULL,
+          cdr_number VARCHAR(50) DEFAULT NULL,
+          line_count INT DEFAULT 0,
           uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX idx_case_id (case_id),
           FOREIGN KEY (case_id) REFERENCES autres.cdr_cases(id) ON DELETE CASCADE
