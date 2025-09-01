@@ -1163,7 +1163,7 @@ const App: React.FC = () => {
     const numbers = Array.from(
       new Set(
         caseFiles
-          .map((f) => f.cdr_number)
+          .map((f) => (f.cdr_number ? String(f.cdr_number) : null))
           .filter((n): n is string => !!n)
           .filter((n) => LINK_DIAGRAM_PREFIXES.some((p) => n.startsWith(p)))
       )
