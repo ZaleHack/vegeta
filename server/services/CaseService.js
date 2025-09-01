@@ -60,9 +60,15 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
-    // Remove any CDR table associated with this case
-    await this.cdrService.deleteTable(existingCase.name);
+    // Delete the case first to avoid dropping the CDR table if the delete fails
     await Case.delete(id);
+    // Remove any CDR table associated with this case, but don't fail the whole
+    // operation if the drop encounters an error
+    try {
+      await this.cdrService.deleteTable(existingCase.name);
+    } catch (err) {
+      console.error(`Failed to remove CDR table for case ${existingCase.name}`, err);
+    }
   }
 
   async listFiles(caseId, user) {
