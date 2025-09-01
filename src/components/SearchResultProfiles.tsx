@@ -29,11 +29,11 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
     <div className="space-y-8">
       {hits.map((hit, idx) => (
         <div key={idx} className="bg-white shadow-lg rounded-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-indigo-500 to-blue-500 p-4 flex items-center">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-4 flex items-center">
             <User className="w-8 h-8 text-white mr-3" />
             <div>
               <h3 className="text-xl font-semibold text-white">{hit.table}</h3>
-              <p className="text-indigo-100 text-sm">{hit.database}</p>
+              <p className="text-blue-100 text-sm">{hit.database}</p>
             </div>
             <span className="ml-auto inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white">
               <Activity className="w-3 h-3 mr-1" />
@@ -59,7 +59,7 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
       ))}
       <div className="text-center">
         <button
-          className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           onClick={() => {
             const combined: Record<string, any> = {};
             hits.forEach(h => {
