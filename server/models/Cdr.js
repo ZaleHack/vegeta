@@ -12,6 +12,7 @@ class Cdr {
           id INT AUTO_INCREMENT PRIMARY KEY,
           oce VARCHAR(50) DEFAULT NULL,
           type_cdr VARCHAR(50) DEFAULT NULL,
+          cdr_numb VARCHAR(50) DEFAULT NULL,
           date_debut VARCHAR(50) DEFAULT NULL,
           heure_debut TIME DEFAULT NULL,
           date_fin VARCHAR(50) DEFAULT NULL,
@@ -38,16 +39,17 @@ class Cdr {
     for (const rec of records) {
       await database.query(
           `INSERT INTO ${table} (
-            oce, type_cdr, date_debut, heure_debut, date_fin, heure_fin, duree,
+            oce, type_cdr, cdr_numb, date_debut, heure_debut, date_fin, heure_fin, duree,
             numero_intl_appelant, numero_intl_appele, numero_intl_appele_original,
             imei_appelant, imei_appele, imei_appele_original,
             imsi_appelant, imsi_appele,
             cgi_appelant, cgi_appele, cgi_appele_original,
             latitude, longitude, nom_localisation, file_id
-          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [
             rec.oce,
             rec.type_cdr,
+            rec.cdr_numb,
             rec.date_debut,
             rec.heure_debut,
             rec.date_fin,
@@ -86,9 +88,10 @@ class Cdr {
       numero_intl_appelant = ? OR
       numero_intl_appele = ? OR
       imei_appelant = ? OR
-      imei_appele = ?
+      imei_appele = ? OR
+      cdr_numb = ?
     )`;
-    const params = [identifier, identifier, identifier, identifier];
+    const params = [identifier, identifier, identifier, identifier, identifier];
 
     if (startDate) {
       query += ` AND date_debut >= ?`;

@@ -456,6 +456,7 @@ const App: React.FC = () => {
   const [cdrError, setCdrError] = useState('');
   const [cdrInfoMessage, setCdrInfoMessage] = useState('');
   const [cdrFile, setCdrFile] = useState<File | null>(null);
+  const [cdrNumber, setCdrNumber] = useState('');
   const [cdrUploadMessage, setCdrUploadMessage] = useState('');
   const [cdrUploadError, setCdrUploadError] = useState('');
   const [cdrUploading, setCdrUploading] = useState(false);
@@ -1289,7 +1290,7 @@ const App: React.FC = () => {
 
   const handleCdrUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cdrFile || !selectedCase) return;
+    if (!cdrFile || !selectedCase || !cdrNumber.trim()) return;
     setCdrUploading(true);
     setCdrUploadMessage('');
     setCdrUploadError('');
@@ -1297,6 +1298,7 @@ const App: React.FC = () => {
       const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', cdrFile);
+      formData.append('cdrNumber', cdrNumber.trim());
       const res = await fetch(`/api/cases/${selectedCase.id}/upload`, {
         method: 'POST',
         headers: { Authorization: token ? `Bearer ${token}` : '' },
@@ -1306,6 +1308,7 @@ const App: React.FC = () => {
       if (res.ok) {
         setCdrUploadMessage('Fichier importé avec succès');
         setCdrFile(null);
+        setCdrNumber('');
         await fetchCaseFiles(selectedCase.id);
       } else {
         setCdrUploadError(data.error || "Erreur lors de l'import");
@@ -2578,6 +2581,13 @@ const App: React.FC = () => {
                   <h3 className="text-lg font-semibold text-gray-700">Importation CDR</h3>
                   <form onSubmit={handleCdrUpload} className="space-y-4">
                     <input
+                      type="text"
+                      value={cdrNumber}
+                      onChange={(e) => setCdrNumber(e.target.value)}
+                      placeholder="Numéro associé"
+                      className="block w-full border rounded-md p-2"
+                    />
+                    <input
                       type="file"
                       accept=".csv"
                       onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
@@ -2585,7 +2595,7 @@ const App: React.FC = () => {
                     />
                       <button
                         type="submit"
-                        disabled={cdrUploading || !cdrFile}
+                        disabled={cdrUploading || !cdrFile || !cdrNumber}
                         className="flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50"
                       >
                         {cdrUploading ? (

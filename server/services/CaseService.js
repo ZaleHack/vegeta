@@ -31,7 +31,7 @@ class CaseService {
     return await Case.findAllByUser(user.id);
   }
 
-  async importFile(caseId, filePath, originalName, user) {
+  async importFile(caseId, filePath, originalName, user, cdrNumber) {
     const existingCase = await this.getCaseById(caseId, user);
     if (!existingCase) {
       throw new Error('Case not found');
@@ -40,9 +40,9 @@ class CaseService {
     const ext = path.extname(originalName).toLowerCase();
     let result;
     if (ext === '.xlsx' || ext === '.xls') {
-      result = await this.cdrService.importExcel(filePath, existingCase.name, fileRecord.id);
+      result = await this.cdrService.importExcel(filePath, existingCase.name, fileRecord.id, cdrNumber);
     } else {
-      result = await this.cdrService.importCsv(filePath, existingCase.name, fileRecord.id);
+      result = await this.cdrService.importCsv(filePath, existingCase.name, fileRecord.id, cdrNumber);
     }
     await Case.updateFileLineCount(fileRecord.id, result.inserted);
     return result;

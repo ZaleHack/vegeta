@@ -48,10 +48,15 @@ router.post('/', authenticate, async (req, res) => {
 router.post('/:id/upload', authenticate, upload.single('file'), async (req, res) => {
   try {
     const caseId = parseInt(req.params.id, 10);
+    const number = (req.body.cdrNumber || '').toString().trim();
     if (!req.file) {
       return res.status(400).json({ error: 'Aucun fichier fourni' });
     }
-    const result = await caseService.importFile(caseId, req.file.path, req.file.originalname, req.user);
+    if (!number) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'Numéro CDR requis' });
+    }
+    const result = await caseService.importFile(caseId, req.file.path, req.file.originalname, req.user, number);
     fs.unlinkSync(req.file.path);
     res.json({ message: 'CDR importés', ...result });
   } catch (err) {
