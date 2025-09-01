@@ -12,18 +12,24 @@ class DatabaseManager {
   async init() {
     try {
       console.log('🔌 Initializing MySQL connection...');
-      
-      this.pool = mysql.createPool({
+      const baseConfig = {
         host: process.env.DB_HOST || 'localhost',
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASSWORD || '',
-        database: 'autres',
         multipleStatements: true,
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
         charset: 'utf8mb4'
-      });
+      };
+
+      // Create database if it doesn't exist
+      const tmp = await mysql.createConnection(baseConfig);
+      await tmp.query('CREATE DATABASE IF NOT EXISTS autres CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+      await tmp.end();
+
+      // Create pool using the "autres" database
+      this.pool = mysql.createPool({ ...baseConfig, database: 'autres' });
 
       // Test de connexion
       const connection = await this.pool.getConnection();
@@ -40,9 +46,6 @@ class DatabaseManager {
 
   async createSystemTables() {
     try {
-      // Créer la base 'autres' si elle n'existe pas
-      await this.query('CREATE DATABASE IF NOT EXISTS autres');
-      
       // Créer la table users
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.users (
