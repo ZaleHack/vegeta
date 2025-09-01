@@ -34,10 +34,10 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    if (ext === '.csv' || ext === '.sql') {
+    if (ext === '.csv') {
       cb(null, true);
     } else {
-      cb(new Error('Seuls les fichiers CSV ou SQL sont autorisés'));
+      cb(new Error('Seuls les fichiers CSV sont autorisés'));
     }
   }
 });
@@ -87,7 +87,7 @@ router.post('/csv', authenticate, requireAdmin, upload.single('csvFile'), async 
   }
 });
 
-// Upload d'un fichier CSV ou SQL vers une nouvelle table
+// Upload d'un fichier CSV vers une nouvelle table
 router.post('/file', authenticate, requireAdmin, upload.single('dataFile'), async (req, res) => {
   try {
     if (!req.file) {
@@ -100,16 +100,7 @@ router.post('/file', authenticate, requireAdmin, upload.single('dataFile'), asyn
     }
 
     const filePath = req.file.path;
-    const ext = path.extname(req.file.originalname).toLowerCase();
-
-    let result;
-    if (ext === '.csv') {
-      result = await uploadService.uploadCSV(filePath, tableName, 'new_table', req.user.id);
-    } else if (ext === '.sql') {
-      result = await uploadService.uploadSQL(filePath, tableName, req.user.id);
-    } else {
-      return res.status(400).json({ error: 'Format de fichier non supporté' });
-    }
+    const result = await uploadService.uploadCSV(filePath, tableName, 'new_table', req.user.id);
 
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -133,6 +124,21 @@ router.get('/history', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Erreur historique upload:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération de l\'historique' });
+  }
+});
+
+// Supprimer les données d'un upload
+router.delete('/history/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'ID invalide' });
+    }
+    await uploadService.deleteUpload(id);
+    res.json({ message: 'Données supprimées' });
+  } catch (error) {
+    console.error('Erreur suppression upload:', error);
+    res.status(500).json({ error: error.message || 'Erreur lors de la suppression' });
   }
 });
 

@@ -961,6 +961,25 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteUpload = async (id: number) => {
+    if (!confirm('Supprimer les données importées ?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/upload/history/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        fetchUploadHistory();
+      } else {
+        alert(data.error || 'Erreur lors de la suppression');
+      }
+    } catch (error) {
+      alert('Erreur de connexion au serveur');
+    }
+  };
+
   const fetchAnnuaire = async () => {
     setGendarmerieLoading(true);
     try {
@@ -2506,7 +2525,7 @@ const App: React.FC = () => {
                   <form onSubmit={handleCdrUpload} className="space-y-4">
                     <input
                       type="file"
-                      accept=".csv,.xlsx"
+                      accept=".csv"
                       onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
                       className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
@@ -3151,7 +3170,7 @@ const App: React.FC = () => {
                   <div className="text-center mb-8">
                     <UploadCloud className="h-12 w-12 mx-auto text-blue-600" />
                     <PageHeader icon={<UploadCloud className="h-6 w-6" />} title="Charger des données" />
-                    <p className="mt-2 text-gray-600">Importez un fichier CSV ou SQL dans la table de votre choix.</p>
+                    <p className="mt-2 text-gray-600">Importez un fichier CSV dans la table de votre choix.</p>
                   </div>
                   <form onSubmit={handleUploadData} className="space-y-6">
                     <div>
@@ -3168,7 +3187,7 @@ const App: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Fichier à importer</label>
                       <input
                         type="file"
-                        accept=".csv,.sql"
+                        accept=".csv"
                         required
                         onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                         className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
@@ -3203,9 +3222,17 @@ const App: React.FC = () => {
                             <p className="font-medium text-gray-900">{item.table_name}</p>
                             <p className="text-sm text-gray-500">{item.file_name}</p>
                           </div>
-                          {item.created_at && (
-                            <span className="text-xs text-gray-400">{format(parseISO(item.created_at), 'dd/MM/yyyy HH:mm')}</span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {item.created_at && (
+                              <span className="text-xs text-gray-400">{format(parseISO(item.created_at), 'dd/MM/yyyy HH:mm')}</span>
+                            )}
+                            <button
+                              onClick={() => handleDeleteUpload(item.id)}
+                              className="text-xs text-red-600 hover:underline"
+                            >
+                              Supprimer
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
