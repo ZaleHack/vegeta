@@ -33,7 +33,9 @@
     "pdfkit": "^0.13.0",
     "leaflet": "^1.9.4",
     "react-leaflet": "^4.2.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "force-graph": "^1.45.0",
+    "react-force-graph-2d": "^1.25.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.2",

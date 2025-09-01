@@ -113,6 +113,21 @@ router.get('/:id/search', authenticate, async (req, res) => {
   }
 });
 
+router.post('/:id/link-diagram', authenticate, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    const { numbers } = req.body;
+    if (!Array.isArray(numbers) || numbers.length === 0) {
+      return res.status(400).json({ error: 'Liste de numéros requise' });
+    }
+    const result = await caseService.linkDiagram(caseId, numbers, req.user);
+    res.json(result);
+  } catch (err) {
+    console.error('Erreur diagramme des liens:', err);
+    res.status(500).json({ error: 'Erreur diagramme des liens' });
+  }
+});
+
 router.get('/:id/files', authenticate, async (req, res) => {
   try {
     const caseId = parseInt(req.params.id, 10);
