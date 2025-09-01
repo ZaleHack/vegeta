@@ -38,18 +38,18 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
             const label = node.id;
             const fontSize = 12 / globalScale;
             const radius = 8;
-            const headRadius = radius * 0.6;
-            ctx.fillStyle = node.color || '#3b82f6';
+            const isDarkMode = document.documentElement.classList.contains('dark');
             ctx.beginPath();
-            ctx.arc(node.x, node.y - headRadius, headRadius, 0, 2 * Math.PI);
+            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = node.color || (isDarkMode ? '#60a5fa' : '#3b82f6');
             ctx.fill();
-            ctx.beginPath();
-            ctx.arc(node.x, node.y + headRadius * 0.5, radius, Math.PI, 0);
-            ctx.fill();
+            ctx.strokeStyle = isDarkMode ? '#fff' : '#000';
+            ctx.lineWidth = 1;
+            ctx.stroke();
             ctx.font = `${fontSize}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = '#000';
+            ctx.fillStyle = isDarkMode ? '#fff' : '#000';
             ctx.fillText(label, node.x, node.y + radius + 4);
           }}
           nodePointerAreaPaint={(node: any, color, ctx) => {
@@ -73,8 +73,9 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
             const fontSize = 10 / globalScale;
             const textX = (start.x + end.x) / 2;
             const textY = (start.y + end.y) / 2;
+            const isDarkMode = document.documentElement.classList.contains('dark');
             ctx.font = `${fontSize}px sans-serif`;
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillStyle = isDarkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(label, textX, textY);
