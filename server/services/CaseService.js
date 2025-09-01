@@ -36,13 +36,14 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
-    const fileRecord = await Case.addFile(caseId, originalName);
+    const cdrNum = cdrNumber.startsWith('221') ? cdrNumber : `221${cdrNumber}`;
+    const fileRecord = await Case.addFile(caseId, originalName, cdrNum);
     const ext = path.extname(originalName).toLowerCase();
     let result;
     if (ext === '.xlsx' || ext === '.xls') {
-      result = await this.cdrService.importExcel(filePath, existingCase.name, fileRecord.id, cdrNumber);
+      result = await this.cdrService.importExcel(filePath, existingCase.name, fileRecord.id, cdrNum);
     } else {
-      result = await this.cdrService.importCsv(filePath, existingCase.name, fileRecord.id, cdrNumber);
+      result = await this.cdrService.importCsv(filePath, existingCase.name, fileRecord.id, cdrNum);
     }
     await Case.updateFileLineCount(fileRecord.id, result.inserted);
     return result;
