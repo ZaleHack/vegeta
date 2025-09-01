@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Case from '../models/Case.js';
 import CdrService from './CdrService.js';
+import User from '../models/User.js';
 
 class CaseService {
   constructor() {
@@ -9,6 +10,10 @@ class CaseService {
   }
 
   async createCase(name, userId) {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
     return await Case.create(name, userId);
   }
 
