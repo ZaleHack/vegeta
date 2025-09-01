@@ -248,6 +248,10 @@ class CdrService {
   async deleteTable(caseName) {
     await Cdr.deleteTable(caseName);
   }
+
+  async clearTable(caseName) {
+    await Cdr.truncateTable(caseName);
+  }
 }
 
 export default CdrService;

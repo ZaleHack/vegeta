@@ -72,7 +72,7 @@ class CaseService {
       throw new Error('Case not found');
     }
     await Case.deleteFile(caseId, fileId);
-    await this.cdrService.deleteTable(existingCase.name);
+    await this.cdrService.clearTable(existingCase.name);
   }
 }
 
