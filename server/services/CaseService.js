@@ -43,7 +43,7 @@ class CaseService {
     } else {
       result = await this.cdrService.importCsv(filePath, existingCase.name);
     }
-    await Case.addFile(caseId, originalName);
+    await Case.addFile(caseId, originalName, result.inserted);
     return result;
   }
 

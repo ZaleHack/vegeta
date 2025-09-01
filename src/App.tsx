@@ -229,6 +229,7 @@ interface CaseFile {
   id: number;
   filename: string;
   uploaded_at: string;
+  line_count: number;
 }
 
 const usefulLinks = [
@@ -1111,6 +1112,11 @@ const App: React.FC = () => {
     } finally {
       setCdrLoading(false);
     }
+  };
+
+  const handleLinkDiagram = () => {
+    // Placeholder action for link diagram
+    setShowCdrMap(false);
   };
 
   const fetchCases = async () => {
@@ -2521,19 +2527,33 @@ const App: React.FC = () => {
                   {caseFiles.length > 0 && (
                     <div>
                       <h4 className="font-semibold mb-2">Fichiers importés</h4>
-                      <ul className="divide-y divide-gray-200 text-sm text-gray-700">
-                        {caseFiles.map((f) => (
-                          <li key={f.id} className="py-2 flex items-center justify-between">
-                            <span className="truncate">{f.filename}</span>
-                            <button
-                              className="text-red-600 hover:underline ml-2"
-                              onClick={() => handleDeleteFile(f.id)}
-                            >
-                              Supprimer
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm text-gray-700">
+                          <thead>
+                            <tr>
+                              <th className="px-4 py-2 text-left">Nom du fichier</th>
+                              <th className="px-4 py-2 text-left">Lignes</th>
+                              <th className="px-4 py-2" />
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {caseFiles.map((f) => (
+                              <tr key={f.id}>
+                                <td className="px-4 py-2 truncate">{f.filename}</td>
+                                <td className="px-4 py-2">{f.line_count}</td>
+                                <td className="px-4 py-2 text-right">
+                                  <button
+                                    className="text-red-600 hover:underline"
+                                    onClick={() => handleDeleteFile(f.id)}
+                                  >
+                                    Supprimer
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2596,13 +2616,22 @@ const App: React.FC = () => {
                         <option value="sms">Seulement SMS</option>
                       </select>
                     </div>
-                    <button
-                      type="submit"
-                      disabled={cdrLoading}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-transform transform hover:scale-105 active:scale-95"
-                    >
-                      Rechercher
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={cdrLoading}
+                        className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-transform transform hover:scale-105 active:scale-95"
+                      >
+                        Rechercher
+                      </button>
+                      <button
+                        type="button"
+                        className="px-6 py-2 bg-gray-600 text-white rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
+                        onClick={handleLinkDiagram}
+                      >
+                        Diagram des liens
+                      </button>
+                    </div>
                   </form>
                 </div>
               </div>
