@@ -35,6 +35,10 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
             graphData={data}
             nodeAutoColorBy="type"
             enableNodeDrag={true}
+            onNodeDragEnd={(node: any) => {
+              node.fx = node.x;
+              node.fy = node.y;
+            }}
             nodeCanvasObject={(node: any, ctx, globalScale) => {
               const label = node.id;
               const fontSize = 12 / globalScale;
@@ -82,32 +86,6 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               ctx.fillText(label, textX, textY);
             }}
           />
-        </div>
-        <div className="h-1/3 overflow-y-auto p-4">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Source</th>
-                <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Cible</th>
-                <th className="px-4 py-2 text-sm font-semibold text-gray-700">Appels</th>
-                <th className="px-4 py-2 text-sm font-semibold text-gray-700">SMS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {data.links.map((link, idx) => (
-                <tr key={idx} className="hover:bg-gray-100">
-                  <td className="px-4 py-2">
-                    {typeof link.source === 'object' ? link.source.id : link.source}
-                  </td>
-                  <td className="px-4 py-2">
-                    {typeof link.target === 'object' ? link.target.id : link.target}
-                  </td>
-                  <td className="px-4 py-2 text-center">{link.callCount}</td>
-                  <td className="px-4 py-2 text-center">{link.smsCount}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
