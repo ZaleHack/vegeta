@@ -36,14 +36,15 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
+    const fileRecord = await Case.addFile(caseId, originalName);
     const ext = path.extname(originalName).toLowerCase();
     let result;
     if (ext === '.xlsx' || ext === '.xls') {
-      result = await this.cdrService.importExcel(filePath, existingCase.name);
+      result = await this.cdrService.importExcel(filePath, existingCase.name, fileRecord.id);
     } else {
-      result = await this.cdrService.importCsv(filePath, existingCase.name);
+      result = await this.cdrService.importCsv(filePath, existingCase.name, fileRecord.id);
     }
-    await Case.addFile(caseId, originalName, result.inserted);
+    await Case.updateFileLineCount(fileRecord.id, result.inserted);
     return result;
   }
 
@@ -85,7 +86,7 @@ class CaseService {
       throw new Error('Case not found');
     }
     await Case.deleteFile(caseId, fileId);
-    await this.cdrService.clearTable(existingCase.name);
+    await this.cdrService.deleteByFile(fileId, existingCase.name);
   }
 }
 
