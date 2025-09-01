@@ -61,6 +61,8 @@ import LinkDiagram from './components/LinkDiagram';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
+const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
+
 interface User {
   id: number;
   login: string;
@@ -1158,7 +1160,14 @@ const App: React.FC = () => {
 
   const handleLinkDiagram = async () => {
     if (!selectedCase) return;
-    const numbers = Array.from(new Set(caseFiles.map((f) => f.cdr_number).filter((n): n is string => !!n)));
+    const numbers = Array.from(
+      new Set(
+        caseFiles
+          .map((f) => f.cdr_number)
+          .filter((n): n is string => !!n)
+          .filter((n) => LINK_DIAGRAM_PREFIXES.some((p) => n.startsWith(p)))
+      )
+    );
     if (numbers.length < 2) {
       setCdrError('Au moins deux fichiers avec un numéro sont requis');
       return;

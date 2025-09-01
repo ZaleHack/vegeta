@@ -4,6 +4,8 @@ import Case from '../models/Case.js';
 import CdrService from './CdrService.js';
 import User from '../models/User.js';
 
+const ALLOWED_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
+
 class CaseService {
   constructor() {
     this.cdrService = new CdrService();
@@ -62,7 +64,10 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
-    return await this.cdrService.findCommonContacts(numbers, existingCase.name);
+    const filteredNumbers = Array.isArray(numbers)
+      ? numbers.filter(n => ALLOWED_PREFIXES.some(p => String(n).startsWith(p)))
+      : [];
+    return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.name);
   }
 
   async deleteCase(id, user) {
