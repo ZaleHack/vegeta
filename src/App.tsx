@@ -2722,7 +2722,7 @@ const App: React.FC = () => {
                             className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
                             onClick={handleLinkDiagram}
                           >
-                            Diagram des liens
+                            Diagramme des liens
                           </button>
                         )}
                     </div>

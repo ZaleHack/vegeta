@@ -23,6 +23,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 relative">
+        <h2 className="absolute top-3 left-1/2 -translate-x-1/2 text-xl font-semibold">Diagramme des liens</h2>
         <button
           className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 z-10"
           onClick={onClose}
@@ -32,19 +33,24 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
         <ForceGraph2D
           graphData={data}
           nodeAutoColorBy="type"
+          enableNodeDrag={true}
           nodeCanvasObject={(node: any, ctx, globalScale) => {
             const label = node.id;
             const fontSize = 12 / globalScale;
             const radius = 8;
-            ctx.beginPath();
+            const headRadius = radius * 0.6;
             ctx.fillStyle = node.color || '#3b82f6';
-            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
+            ctx.beginPath();
+            ctx.arc(node.x, node.y - headRadius, headRadius, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(node.x, node.y + headRadius * 0.5, radius, Math.PI, 0);
             ctx.fill();
             ctx.font = `${fontSize}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#000';
-            ctx.fillText(label, node.x, node.y + radius + 2);
+            ctx.fillText(label, node.x, node.y + radius + 4);
           }}
           nodePointerAreaPaint={(node: any, color, ctx) => {
             const radius = 8;
