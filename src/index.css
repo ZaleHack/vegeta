@@ -17,9 +17,11 @@
   }
   .dark input,
   .dark textarea,
-  .dark select,
-  .dark button {
+  .dark select {
     @apply bg-gray-800 text-gray-100 border-gray-600 placeholder-gray-400;
+  }
+  .dark button {
+    @apply text-gray-100 border-gray-600;
   }
 }
 
