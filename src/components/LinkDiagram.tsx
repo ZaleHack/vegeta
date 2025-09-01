@@ -8,8 +8,8 @@ interface GraphNode {
 }
 
 interface GraphLink {
-  source: string;
-  target: string;
+  source: string | GraphNode;
+  target: string | GraphNode;
   callCount: number;
   smsCount: number;
 }
