@@ -19,6 +19,7 @@ class UploadService {
     let successRows = 0;
     let errorRows = 0;
     const errors = [];
+    let uploadId = null;
 
     try {
       // Lire et analyser le CSV
@@ -46,10 +47,26 @@ class UploadService {
         await this.addTableToCatalog(targetTable);
       }
 
+      // Créer une entrée d'historique avant l'insertion pour récupérer l'ID
+      if (userId) {
+        const { database, table } = this.parseTableName(targetTable);
+        await this.ensureUploadColumn(targetTable);
+        uploadId = await this.logUpload({
+          user_id: userId,
+          table_name: `${database}.${table}`,
+          file_name: path.basename(filePath),
+          total_rows: totalRows,
+          success_rows: 0,
+          error_rows: 0,
+          upload_mode: mode,
+          errors: ''
+        });
+      }
+
       // Insérer les données
       for (const [index, row] of rows.entries()) {
         try {
-          await this.insertRow(targetTable, row, mode);
+          await this.insertRow(targetTable, row, mode, uploadId);
           successRows++;
         } catch (error) {
           errorRows++;
@@ -57,19 +74,17 @@ class UploadService {
         }
       }
 
-      // Enregistrer l'historique
-      if (userId) {
-        const { database, table } = this.parseTableName(targetTable);
-        await this.logUpload({
-          user_id: userId,
-          table_name: `${database}.${table}`,
-          file_name: filePath.split('/').pop(),
-          total_rows: totalRows,
-          success_rows: successRows,
-          error_rows: errorRows,
-          upload_mode: mode,
-          errors: errors.slice(0, 10).join('\n') // Limiter les erreurs stockées
-        });
+      // Mettre à jour l'historique après l'insertion
+      if (uploadId) {
+        await database.query(
+          'UPDATE upload_history SET success_rows = ?, error_rows = ?, errors = ? WHERE id = ?',
+          [
+            successRows,
+            errorRows,
+            errors.slice(0, 10).join('\n'),
+            uploadId
+          ]
+        );
       }
 
       return {
@@ -97,6 +112,7 @@ class UploadService {
     const sql = `
       CREATE TABLE IF NOT EXISTS \`${db}\`.\`${table}\` (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        upload_id INT,
         ${columnDefinitions},
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -105,10 +121,23 @@ class UploadService {
     await database.query(sql);
   }
 
-  async insertRow(tableName, row, mode) {
+  async ensureUploadColumn(tableName) {
+    const { database: db, table } = this.parseTableName(tableName);
+    const columns = await database.query(`SHOW COLUMNS FROM \`${db}\`.\`${table}\` LIKE 'upload_id'`);
+    if (columns.length === 0) {
+      await database.query(`ALTER TABLE \`${db}\`.\`${table}\` ADD COLUMN upload_id INT`);
+    }
+  }
+
+  async insertRow(tableName, row, mode, uploadId = null) {
     const { database: db, table } = this.parseTableName(tableName);
     const columns = Object.keys(row);
     const values = Object.values(row);
+
+    if (uploadId !== null) {
+      columns.push('upload_id');
+      values.push(uploadId);
+    }
 
     const columnNames = columns.map(col => `\`${col}\``).join(', ');
     const placeholders = columns.map(() => '?').join(', ');
@@ -186,9 +215,9 @@ class UploadService {
 
   async logUpload(logData) {
     try {
-      await database.query(`
+      const result = await database.query(`
         INSERT INTO upload_history (
-          user_id, table_name, file_name, total_rows, success_rows, 
+          user_id, table_name, file_name, total_rows, success_rows,
           error_rows, upload_mode, errors
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `, [
@@ -201,6 +230,7 @@ class UploadService {
         logData.upload_mode,
         logData.errors
       ]);
+      return result.insertId;
     } catch (error) {
       console.error('Erreur log upload:', error);
     }
@@ -232,12 +262,16 @@ class UploadService {
 
   async deleteUpload(id) {
     try {
-      const rows = await database.query('SELECT table_name FROM upload_history WHERE id = ?', [id]);
+      const rows = await database.query('SELECT table_name, upload_mode FROM upload_history WHERE id = ?', [id]);
       if (rows.length === 0) {
         throw new Error('Upload introuvable');
       }
       const { database: db, table } = this.parseTableName(rows[0].table_name);
-      await database.query(`DROP TABLE IF EXISTS \`${db}\`.\`${table}\``);
+      if (rows[0].upload_mode === 'new_table' || rows[0].upload_mode === 'sql') {
+        await database.query(`DROP TABLE IF EXISTS \`${db}\`.\`${table}\``);
+      } else {
+        await database.query(`DELETE FROM \`${db}\`.\`${table}\` WHERE upload_id = ?`, [id]);
+      }
       await database.query('DELETE FROM upload_history WHERE id = ?', [id]);
     } catch (error) {
       console.error('Erreur suppression upload:', error);
