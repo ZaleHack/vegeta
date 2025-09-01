@@ -31,11 +31,48 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
         </button>
         <ForceGraph2D
           graphData={data}
-          nodeLabel={(node: any) => node.id}
           nodeAutoColorBy="type"
+          nodeCanvasObject={(node: any, ctx, globalScale) => {
+            const label = node.id;
+            const fontSize = 12 / globalScale;
+            const radius = 8;
+            ctx.beginPath();
+            ctx.fillStyle = node.color || '#3b82f6';
+            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
+            ctx.fill();
+            ctx.font = `${fontSize}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#000';
+            ctx.fillText(label, node.x, node.y + radius + 2);
+          }}
+          nodePointerAreaPaint={(node: any, color, ctx) => {
+            const radius = 8;
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
+            ctx.fillStyle = color;
+            ctx.fill();
+          }}
           linkWidth={(link: any) => 1 + Math.log(link.callCount + link.smsCount)}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
+          linkDirectionalArrowLength={6}
+          linkDirectionalArrowRelPos={0.5}
+          linkCanvasObjectMode={() => 'after'}
+          linkCanvasObject={(link: any, ctx, globalScale) => {
+            const start = link.source;
+            const end = link.target;
+            if (typeof start !== 'object' || typeof end !== 'object') return;
+            const label = `${link.callCount} appels / ${link.smsCount} SMS`;
+            const fontSize = 10 / globalScale;
+            const textX = (start.x + end.x) / 2;
+            const textY = (start.y + end.y) / 2;
+            ctx.font = `${fontSize}px sans-serif`;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, textX, textY);
+          }}
         />
       </div>
     </div>
