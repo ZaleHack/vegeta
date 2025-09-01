@@ -114,6 +114,11 @@ class Cdr {
     const table = this.escapeIdentifier(tableName);
     await database.query(`DROP TABLE IF EXISTS ${table}`);
   }
+
+  static async truncateTable(tableName) {
+    const table = this.escapeIdentifier(tableName);
+    await database.query(`TRUNCATE TABLE ${table}`);
+  }
 }
 
 export default Cdr;
