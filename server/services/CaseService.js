@@ -56,6 +56,14 @@ class CaseService {
     return await this.cdrService.search(identifier, { ...options, caseName: existingCase.name });
   }
 
+  async linkDiagram(caseId, numbers, user) {
+    const existingCase = await this.getCaseById(caseId, user);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
+    return await this.cdrService.findCommonContacts(numbers, existingCase.name);
+  }
+
   async deleteCase(id, user) {
     const existingCase = await this.getCaseById(id, user);
     if (!existingCase) {

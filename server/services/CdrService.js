@@ -3,6 +3,7 @@ import csv from 'csv-parser';
 import XLSX from 'xlsx';
 import { parse, format } from 'date-fns';
 import Cdr from '../models/Cdr.js';
+import database from '../config/database.js';
 
 class CdrService {
   async importCsv(filePath, caseName, fileId) {
@@ -243,6 +244,72 @@ class CdrService {
       topLocations: locations.slice(0, 5),
       path
     };
+  }
+
+  async findCommonContacts(numbers, caseName) {
+    if (!Array.isArray(numbers) || numbers.length === 0) {
+      return { nodes: [], links: [] };
+    }
+
+    const placeholders = numbers.map(() => '?').join(',');
+    const table = Cdr.escapeIdentifier(caseName);
+    const query = `SELECT numero_intl_appelant, numero_intl_appele, type_cdr FROM ${table} WHERE numero_intl_appelant IN (${placeholders}) OR numero_intl_appele IN (${placeholders})`;
+    const params = [...numbers, ...numbers];
+    const rows = await database.query(query, params);
+
+    const contactSources = {};
+    const edgeMap = {};
+
+    for (const r of rows) {
+      const caller = r.numero_intl_appelant;
+      const callee = r.numero_intl_appele;
+      let source = null;
+      let contact = null;
+
+      if (numbers.includes(caller)) {
+        source = caller;
+        contact = callee;
+      } else if (numbers.includes(callee)) {
+        source = callee;
+        contact = caller;
+      }
+
+      if (!contact) continue;
+
+      if (!contactSources[contact]) {
+        contactSources[contact] = new Set();
+      }
+      contactSources[contact].add(source);
+
+      const key = `${source}-${contact}`;
+      if (!edgeMap[key]) {
+        edgeMap[key] = { source, target: contact, callCount: 0, smsCount: 0 };
+      }
+      const isSms = (r.type_cdr || '').toLowerCase().includes('sms');
+      if (isSms) {
+        edgeMap[key].smsCount++;
+      } else {
+        edgeMap[key].callCount++;
+      }
+    }
+
+    const nodes = numbers.map((n) => ({ id: n, type: 'source' }));
+    const links = [];
+
+    for (const contact in contactSources) {
+      const sourcesSet = contactSources[contact];
+      if (sourcesSet.size >= 2) {
+        nodes.push({ id: contact, type: 'contact' });
+        for (const source of sourcesSet) {
+          const edgeKey = `${source}-${contact}`;
+          if (edgeMap[edgeKey]) {
+            links.push(edgeMap[edgeKey]);
+          }
+        }
+      }
+    }
+
+    return { nodes, links };
   }
 
   async deleteTable(caseName) {

@@ -57,6 +57,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import ProfileList from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
 import CdrMap from './components/CdrMap';
+import LinkDiagram from './components/LinkDiagram';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -230,6 +231,23 @@ interface CaseFile {
   filename: string;
   uploaded_at: string;
   line_count: number;
+}
+
+interface GraphNode {
+  id: string;
+  type: string;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+  callCount: number;
+  smsCount: number;
+}
+
+interface LinkDiagramData {
+  nodes: GraphNode[];
+  links: GraphLink[];
 }
 
 const usefulLinks = [
@@ -447,6 +465,7 @@ const App: React.FC = () => {
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
   const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
+  const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -1076,6 +1095,8 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!selectedCase) return;
 
+    setLinkDiagram(null);
+
     if (cdrStart && cdrEnd && new Date(cdrStart) > new Date(cdrEnd)) {
       setCdrError('La date de début doit précéder la date de fin');
       return;
@@ -1133,9 +1154,42 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLinkDiagram = () => {
-    // Placeholder action for link diagram
-    setShowCdrMap(false);
+  const handleLinkDiagram = async () => {
+    if (!selectedCase) return;
+    const numbers = cdrIdentifier
+      .split(/[\s,;]+/)
+      .map((n) => n.trim())
+      .filter((n) => n);
+    if (numbers.length < 2) {
+      setCdrError('Veuillez saisir au moins deux numéros séparés par des virgules');
+      return;
+    }
+    try {
+      setCdrLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/cases/${selectedCase.id}/link-diagram`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ numbers })
+      });
+      const data = await res.json();
+      if (res.ok && data.links && data.links.length > 0) {
+        setLinkDiagram(data);
+        setShowCdrMap(false);
+        setCdrInfoMessage('');
+      } else {
+        setLinkDiagram(null);
+        setCdrInfoMessage(data.error || 'Aucune liaison trouvée');
+      }
+    } catch (error) {
+      console.error('Erreur diagramme des liens:', error);
+      setCdrError('Erreur lors de la génération du diagramme');
+    } finally {
+      setCdrLoading(false);
+    }
   };
 
   const fetchCases = async () => {
@@ -2582,7 +2636,7 @@ const App: React.FC = () => {
                   <form onSubmit={handleCdrSearch} className="space-y-4">
                     <input
                       type="text"
-                      placeholder="Numéro ou IMEI"
+                      placeholder="Numéro(s) ou IMEI (séparés par des virgules)"
                       value={cdrIdentifier}
                       onChange={(e) => setCdrIdentifier(e.target.value)}
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2666,6 +2720,9 @@ const App: React.FC = () => {
               {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
               {showCdrMap && cdrResult && !cdrLoading && cdrResult.total > 0 && (
                 <CdrMap points={cdrResult.path} />
+              )}
+              {linkDiagram && (
+                <LinkDiagram data={linkDiagram} onClose={() => setLinkDiagram(null)} />
               )}
             </div>
           )}
