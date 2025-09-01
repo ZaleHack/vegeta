@@ -6,7 +6,8 @@ import Cdr from '../models/Cdr.js';
 import database from '../config/database.js';
 
 class CdrService {
-  async importCsv(filePath, caseName, fileId) {
+  async importCsv(filePath, caseName, fileId, cdrNumber) {
+    const cdrNum = cdrNumber.startsWith('221') ? cdrNumber : `221${cdrNumber}`;
     return new Promise((resolve, reject) => {
       const records = [];
       fs.createReadStream(filePath)
@@ -32,6 +33,7 @@ class CdrService {
           records.push({
             oce: row['OCE'] || null,
             type_cdr: row['Type CDR'] || null,
+            cdr_numb: cdrNum,
             date_debut: normalizeDate(row['Date debut']),
             heure_debut: normalizeTime(row['Heure debut']),
             date_fin: normalizeDate(row['Date fin']),
@@ -65,7 +67,7 @@ class CdrService {
     });
   }
 
-  async importExcel(filePath, caseName, fileId) {
+  async importExcel(filePath, caseName, fileId, cdrNumber) {
     const workbook = XLSX.readFile(filePath);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
@@ -85,9 +87,11 @@ class CdrService {
       if (isNaN(parsed.getTime())) return null;
       return parsed.toISOString().slice(11, 19);
     };
+    const cdrNum = cdrNumber.startsWith('221') ? cdrNumber : `221${cdrNumber}`;
     const records = rows.map((row) => ({
       oce: row['OCE'] || null,
       type_cdr: row['Type CDR'] || null,
+      cdr_numb: cdrNum,
       date_debut: normalizeDate(row['Date debut']),
       heure_debut: normalizeTime(row['Heure debut']),
       date_fin: normalizeDate(row['Date fin']),
