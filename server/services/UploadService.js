@@ -229,6 +229,21 @@ class UploadService {
       return [];
     }
   }
+
+  async deleteUpload(id) {
+    try {
+      const rows = await database.query('SELECT table_name FROM upload_history WHERE id = ?', [id]);
+      if (rows.length === 0) {
+        throw new Error('Upload introuvable');
+      }
+      const { database: db, table } = this.parseTableName(rows[0].table_name);
+      await database.query(`DROP TABLE IF EXISTS \`${db}\`.\`${table}\``);
+      await database.query('DELETE FROM upload_history WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Erreur suppression upload:', error);
+      throw error;
+    }
+  }
 }
 
 export default UploadService;
