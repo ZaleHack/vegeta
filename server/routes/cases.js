@@ -31,13 +31,16 @@ router.get('/', authenticate, async (req, res) => {
 router.post('/', authenticate, async (req, res) => {
   try {
     const { name } = req.body;
-    if (!name) {
+    if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'Nom requis' });
     }
-    const newCase = await caseService.createCase(name, req.user.id);
+    const newCase = await caseService.createCase(name.trim(), req.user.id);
     res.json(newCase);
   } catch (err) {
     console.error('Erreur création case:', err);
+    if (err.message === 'User not found') {
+      return res.status(400).json({ error: 'Utilisateur inexistant' });
+    }
     res.status(500).json({ error: 'Erreur création case' });
   }
 });
