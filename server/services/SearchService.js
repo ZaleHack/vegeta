@@ -187,22 +187,26 @@ class SearchService {
     if (depth === 0) {
       const extraValues = new Set();
       const phoneRegex = /^tel(ephone)?\d*$/i;
+      const queryNormalized = String(query).trim().toLowerCase();
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
           const keyLower = key.toLowerCase();
+          const valueStr = String(value).trim();
           if (
             (keyLower === 'cni' ||
               keyLower === 'tet' ||
               phoneRegex.test(keyLower)) &&
-            value
+            valueStr &&
+            valueStr.toLowerCase() !== queryNormalized
           ) {
-            extraValues.add(value);
+            extraValues.add(valueStr);
           }
         }
       }
 
       for (const val of extraValues) {
+        if (val.toLowerCase() === queryNormalized) continue;
         extraSearches++;
         const sub = await this.search(val, {}, 1, 50, null, 'linked', {
           depth: depth + 1
