@@ -1,6 +1,4 @@
 @tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 @layer base {
   body {
@@ -24,6 +22,9 @@
     @apply bg-blue-600 text-white border-blue-600 hover:bg-blue-700;
   }
 }
+
+@tailwind components;
+@tailwind utilities;
 
 @layer utilities {
   .dark .text-gray-900 { @apply text-gray-100; }
