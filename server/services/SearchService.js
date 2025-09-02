@@ -62,7 +62,6 @@ class SearchService {
     if (this.primaryKeyCache.has(tableName)) {
       return this.primaryKeyCache.get(tableName);
     }
-
     try {
       const rows = await database.query(
         `SHOW KEYS FROM ${tableName} WHERE Key_name = 'PRIMARY'`
@@ -79,8 +78,28 @@ class SearchService {
       );
     }
 
-    this.primaryKeyCache.set(tableName, 'id');
-    return 'id';
+    try {
+      const columns = await database.query(
+        `SHOW COLUMNS FROM ${tableName}`
+      );
+      const hasId = columns.some((col) => col.Field === 'id');
+      const fallback =
+        hasId
+          ? 'id'
+          : config.searchable?.[0] ||
+            config.preview?.[0] ||
+            (columns[0] ? columns[0].Field : 'id');
+      this.primaryKeyCache.set(tableName, fallback);
+      return fallback;
+    } catch (error) {
+      console.warn(
+        `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
+        error.message
+      );
+      const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
+      this.primaryKeyCache.set(tableName, fallback);
+      return fallback;
+    }
   }
 
   async search(
