@@ -12,6 +12,7 @@ class SearchService {
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.cache = new InMemoryCache();
     this.catalog = this.loadCatalog();
+    this.primaryKeyCache = new Map();
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
     }
@@ -51,6 +52,35 @@ class SearchService {
 
   refreshCatalog() {
     this.catalog = this.loadCatalog();
+  }
+
+  async getPrimaryKey(tableName, config = {}) {
+    if (config.primaryKey) {
+      return config.primaryKey;
+    }
+
+    if (this.primaryKeyCache.has(tableName)) {
+      return this.primaryKeyCache.get(tableName);
+    }
+
+    try {
+      const rows = await database.query(
+        `SHOW KEYS FROM ${tableName} WHERE Key_name = 'PRIMARY'`
+      );
+      if (rows.length > 0 && rows[0].Column_name) {
+        const pk = rows[0].Column_name;
+        this.primaryKeyCache.set(tableName, pk);
+        return pk;
+      }
+    } catch (error) {
+      console.warn(
+        `⚠️ Impossible de déterminer la clé primaire pour ${tableName}:`,
+        error.message
+      );
+    }
+
+    this.primaryKeyCache.set(tableName, 'id');
+    return 'id';
   }
 
   async search(
@@ -282,6 +312,7 @@ class SearchService {
 
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
+    const primaryKey = await this.getPrimaryKey(tableName, config);
     
     // Vérifier si la table existe
     try {
@@ -295,7 +326,7 @@ class SearchService {
       ...(config.searchable || []),
       ...(config.linkedFields || []),
       ...(config.preview || []),
-      'id'
+      primaryKey
     ]);
     const selectFields = Array.from(fields).join(', ');
     let sql = `SELECT ${selectFields} FROM ${tableName} WHERE `;
@@ -405,7 +436,7 @@ class SearchService {
           table: config.display,
           database: config.database,
           preview: preview,
-          primary_keys: { id: row.id },
+          primary_keys: { [primaryKey]: row[primaryKey] },
           score: this.calculateRelevanceScore(row, searchTerms, config),
           linkedFields: config.linkedFields || []
         });
@@ -546,7 +577,8 @@ class SearchService {
       throw new Error('Table non autorisée');
     }
 
-    const sql = `SELECT * FROM ${tableName} WHERE id = ?`;
+    const primaryKey = await this.getPrimaryKey(tableName, catalog[tableName]);
+    const sql = `SELECT * FROM ${tableName} WHERE ${primaryKey} = ?`;
     const record = await database.queryOne(sql, [id]);
     
     if (!record) {
