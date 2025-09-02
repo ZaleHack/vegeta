@@ -9,6 +9,7 @@
     "server": "node server/app.js",
     "init-db": "node server/scripts/init-database.js",
     "sync": "node server/scripts/sync-all.js",
+    "create-indexes": "node server/scripts/create-search-indexes.js",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"

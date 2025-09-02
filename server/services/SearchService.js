@@ -11,6 +11,10 @@ class SearchService {
     const __dirname = path.dirname(__filename);
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.cache = new InMemoryCache();
+    this.catalog = this.loadCatalog();
+    if (fs.existsSync(this.catalogPath)) {
+      fs.watch(this.catalogPath, () => this.refreshCatalog());
+    }
   }
 
   extractLinkedIdentifiers(results) {
@@ -45,6 +49,10 @@ class SearchService {
     return catalog;
   }
 
+  refreshCatalog() {
+    this.catalog = this.loadCatalog();
+  }
+
   async search(
     query,
     filters = {},
@@ -73,7 +81,7 @@ class SearchService {
     const startTime = Date.now();
     const results = [];
     const tablesSearched = [];
-    const catalog = this.loadCatalog();
+    const catalog = this.catalog;
 
     if (!query || query.trim().length === 0) {
       throw new Error('Le terme de recherche ne peut pas être vide');
@@ -84,39 +92,26 @@ class SearchService {
 
     console.log('🔍 Recherche:', { query, searchTerms, filters });
 
-    // Recherche dans toutes les tables configurées en parallèle
-    const searchTasks = Object.entries(catalog).map(
-      ([tableName, config]) =>
-        (async () => {
-          try {
-            console.log(`🔍 Recherche dans ${tableName}...`);
-            const tableResults = await this.searchInTable(
-              tableName,
-              config,
-              searchTerms,
-              filters
-            );
-            if (tableResults.length > 0) {
-              console.log(
-                `✅ ${tableResults.length} résultats trouvés dans ${tableName}`
-              );
-            }
-            return { tableName, tableResults };
-          } catch (error) {
-            console.error(
-              `❌ Erreur recherche table ${tableName}:`,
-              error.message
-            );
-            return { tableName, tableResults: [] };
+    const needed = offset + limit;
+    for (const [tableName, config] of Object.entries(catalog)) {
+      try {
+        console.log(`🔍 Recherche dans ${tableName}...`);
+        const tableResults = await this.searchInTable(
+          tableName,
+          config,
+          searchTerms,
+          filters
+        );
+        if (tableResults.length > 0) {
+          console.log(`✅ ${tableResults.length} résultats trouvés dans ${tableName}`);
+          results.push(...tableResults);
+          tablesSearched.push(tableName);
+          if (results.length >= needed) {
+            break;
           }
-        })()
-    );
-
-    const searchResults = await Promise.all(searchTasks);
-    for (const { tableName, tableResults } of searchResults) {
-      if (tableResults.length > 0) {
-        results.push(...tableResults);
-        tablesSearched.push(tableName);
+        }
+      } catch (error) {
+        console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
       }
     }
 
@@ -296,7 +291,14 @@ class SearchService {
       return results;
     }
 
-    let sql = `SELECT * FROM ${tableName} WHERE `;
+    const fields = new Set([
+      ...(config.searchable || []),
+      ...(config.linkedFields || []),
+      ...(config.preview || []),
+      'id'
+    ]);
+    const selectFields = Array.from(fields).join(', ');
+    let sql = `SELECT ${selectFields} FROM ${tableName} WHERE `;
     const params = [];
     let conditions = [];
     let currentGroup = [];
@@ -326,7 +328,7 @@ class SearchService {
         // Terme obligatoire (doit être présent)
         for (const field of config.searchable) {
           termConditions.push(`${field} LIKE ?`);
-          params.push(`%${term.value}%`);
+          params.push(`${term.value}%`);
         }
       } else if (term.type === 'field') {
         // Recherche par champ spécifique
@@ -338,17 +340,17 @@ class SearchService {
         if (matchingFields.length > 0) {
           for (const field of matchingFields) {
             termConditions.push(`${field} LIKE ?`);
-            params.push(`%${term.value}%`);
+            params.push(`${term.value}%`);
           }
         } else if (config.searchable.includes(term.field)) {
           termConditions.push(`${term.field} LIKE ?`);
-          params.push(`%${term.value}%`);
+          params.push(`${term.value}%`);
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
         for (const field of config.searchable) {
           termConditions.push(`${field} LIKE ?`);
-          params.push(`%${term.value}%`);
+          params.push(`${term.value}%`);
         }
       }
 
@@ -385,7 +387,7 @@ class SearchService {
       const excludeConditions = [];
       for (const field of config.searchable) {
         excludeConditions.push(`${field} NOT LIKE ?`);
-        params.push(`%${term.value}%`);
+        params.push(`${term.value}%`);
       }
       if (excludeConditions.length > 0) {
         sql += ` AND (${excludeConditions.join(' AND ')})`;
@@ -416,17 +418,17 @@ class SearchService {
   }
 
   buildPreview(record, config) {
-    // Retourner TOUTES les données, pas seulement un aperçu
-    const allData = {};
-    
-    // Inclure tous les champs de l'enregistrement
-    Object.keys(record).forEach(field => {
-      if (record[field] !== null && record[field] !== undefined && record[field] !== '') {
-        allData[field] = record[field];
+    const fields = new Set([...(config.preview || []), ...(config.linkedFields || [])]);
+    const preview = {};
+
+    fields.forEach(field => {
+      const value = record[field];
+      if (value !== null && value !== undefined && value !== '') {
+        preview[field] = value;
       }
     });
 
-    return allData;
+    return preview;
   }
 
   calculateRelevanceScore(record, searchTerms, config) {
@@ -539,7 +541,7 @@ class SearchService {
   }
 
   async getRecordDetails(tableName, id) {
-    const catalog = this.loadCatalog();
+    const catalog = this.catalog;
     if (!catalog[tableName]) {
       throw new Error('Table non autorisée');
     }
