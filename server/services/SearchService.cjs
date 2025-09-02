@@ -105,7 +105,12 @@ class SearchService {
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
     const primaryKey = config.primaryKey || 'id';
-    const selectFields = [primaryKey, ...(config.preview || [])].join(', ');
+    const fields = new Set([
+      primaryKey,
+      ...(config.preview || []),
+      ...(config.searchable || []),
+    ]);
+    const selectFields = Array.from(fields).join(', ');
     let sql = `SELECT ${selectFields} FROM ${tableName} WHERE `;
     const params = [];
     const conditions = [];
