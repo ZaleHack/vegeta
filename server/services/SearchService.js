@@ -141,26 +141,23 @@ class SearchService {
 
     console.log('🔍 Recherche:', { query, searchTerms, filters });
 
-    const needed = offset + limit;
-    for (const [tableName, config] of Object.entries(catalog)) {
-      try {
-        console.log(`🔍 Recherche dans ${tableName}...`);
-        const tableResults = await this.searchInTable(
-          tableName,
-          config,
-          searchTerms,
-          filters
-        );
-        if (tableResults.length > 0) {
-          console.log(`✅ ${tableResults.length} résultats trouvés dans ${tableName}`);
-          results.push(...tableResults);
-          tablesSearched.push(tableName);
-          if (results.length >= needed) {
-            break;
-          }
-        }
-      } catch (error) {
-        console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
+    // Lancer les recherches en parallèle sur toutes les tables du catalogue
+    const searchPromises = Object.entries(catalog).map(
+      ([tableName, config]) =>
+        this.searchInTable(tableName, config, searchTerms, filters)
+          .then((tableResults) => ({ tableName, tableResults }))
+          .catch((error) => {
+            console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
+            return { tableName, tableResults: [] };
+          }),
+    );
+
+    const tableSearches = await Promise.all(searchPromises);
+    for (const { tableName, tableResults } of tableSearches) {
+      if (tableResults.length > 0) {
+        console.log(`✅ ${tableResults.length} résultats trouvés dans ${tableName}`);
+        results.push(...tableResults);
+        tablesSearched.push(tableName);
       }
     }
 
@@ -342,10 +339,9 @@ class SearchService {
     }
 
     const fields = new Set([
-      ...(config.searchable || []),
-      ...(config.linkedFields || []),
       ...(config.preview || []),
-      primaryKey
+      ...(config.linkedFields || []),
+      primaryKey,
     ]);
     const selectFields = Array.from(fields).join(', ');
     let sql = `SELECT ${selectFields} FROM ${tableName} WHERE `;

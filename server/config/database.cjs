@@ -380,20 +380,33 @@ class DatabaseManager {
     ];
   }
 
-  createIndexes() {
+  async createIndexes() {
+    let catalog = {};
+    try {
+      const imported = await import('./tables-catalog.js');
+      catalog = imported.default || imported;
+    } catch (err) {
+      console.warn('⚠️ Impossible de charger le catalogue des tables:', err.message);
+    }
+
     const indexes = [
       'CREATE INDEX IF NOT EXISTS idx_search_logs_date ON search_logs(search_date)',
       'CREATE INDEX IF NOT EXISTS idx_search_logs_user ON search_logs(user_id)',
       'CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)',
-      'CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)',
-      'CREATE INDEX IF NOT EXISTS idx_esolde_cni ON esolde_mytable(cni)',
-      'CREATE INDEX IF NOT EXISTS idx_rhpolice_cni ON rhpolice_personne_concours(cni)',
-      'CREATE INDEX IF NOT EXISTS idx_rhgend_cni ON rhgendarmerie_personne(carteidentite)',
-      'CREATE INDEX IF NOT EXISTS idx_vehicules_immat ON autres_vehicules(Numero_Immatriculation)',
-      'CREATE INDEX IF NOT EXISTS idx_entreprises_ninea ON autres_entreprises(ninea_ninet)'
+      'CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)'
     ];
 
-    indexes.forEach(sql => {
+    for (const [table, config] of Object.entries(catalog)) {
+      const sqliteTable = table.replace(/\./g, '_');
+      for (const field of config.searchable || []) {
+        const indexName = `idx_${sqliteTable}_${field}`;
+        indexes.push(
+          `CREATE INDEX IF NOT EXISTS ${indexName} ON ${sqliteTable}(${field})`
+        );
+      }
+    }
+
+    indexes.forEach((sql) => {
       this.db.run(sql, (err) => {
         if (err) {
           console.warn('⚠️ Avertissement création index:', err.message);

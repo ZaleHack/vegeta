@@ -20,18 +20,23 @@ class SearchService {
     const offset = (page - 1) * limit;
     const searchTerms = this.parseSearchQuery(query);
 
-    // Recherche dans toutes les tables configurées
-    for (const [tableName, config] of Object.entries(this.catalog)) {
-      try {
-        const tableResults = await this.searchInTable(tableName, config, searchTerms, filters);
-        if (tableResults.length > 0) {
-          results.push(...tableResults);
-          tablesSearched.push(tableName);
-        }
-      } catch (error) {
-        console.error(`Erreur recherche table ${tableName}:`, error);
+    // Recherche en parallèle dans toutes les tables configurées
+    const searchPromises = Object.entries(this.catalog).map(([tableName, config]) =>
+      this.searchInTable(tableName, config, searchTerms, filters)
+        .then(tableResults => ({ tableName, tableResults }))
+        .catch(error => {
+          console.error(`Erreur recherche table ${tableName}:`, error);
+          return { tableName, tableResults: [] };
+        })
+    );
+
+    const tableSearches = await Promise.all(searchPromises);
+    tableSearches.forEach(({ tableName, tableResults }) => {
+      if (tableResults.length > 0) {
+        results.push(...tableResults);
+        tablesSearched.push(tableName);
       }
-    }
+    });
 
     // Tri et pagination des résultats
     const sortedResults = this.sortResults(results, searchTerms);
@@ -99,7 +104,9 @@ class SearchService {
 
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
-    let sql = `SELECT * FROM ${tableName} WHERE `;
+    const primaryKey = config.primaryKey || 'id';
+    const selectFields = [primaryKey, ...(config.preview || [])].join(', ');
+    let sql = `SELECT ${selectFields} FROM ${tableName} WHERE `;
     const params = [];
     const conditions = [];
 
@@ -164,7 +171,7 @@ class SearchService {
           table: config.display,
           database: config.database,
           preview: preview,
-          primary_keys: { id: row.id },
+          primary_keys: { [primaryKey]: row[primaryKey] },
           score: this.calculateRelevanceScore(row, searchTerms, config)
         });
       }
