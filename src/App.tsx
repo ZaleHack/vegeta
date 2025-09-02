@@ -552,6 +552,7 @@ const App: React.FC = () => {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     if (!searchQuery.trim()) return;
 
     setLoading(true);
@@ -582,6 +583,7 @@ const App: React.FC = () => {
   };
 
   const loadMoreResults = async () => {
+    if (loading) return;
     if (!searchResults || searchResults.page >= searchResults.pages) return;
 
     setLoading(true);
