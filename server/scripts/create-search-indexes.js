@@ -7,7 +7,9 @@ async function createIndexes() {
     for (const field of fields) {
       const indexName = `idx_${table.replace(/\./g, '_')}_${field}`;
       try {
-        await database.query(`CREATE INDEX ${indexName} ON ${table} (${field})`);
+        await database.query(
+          `CREATE INDEX IF NOT EXISTS ${indexName} ON ${table} (${field})`
+        );
         console.log(`✅ Index ${indexName} créé`);
       } catch (err) {
         console.log(`ℹ️ Index ${indexName} ignoré: ${err.message}`);
