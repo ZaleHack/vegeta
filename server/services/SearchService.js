@@ -341,6 +341,7 @@ class SearchService {
     const fields = new Set([
       ...(config.preview || []),
       ...(config.linkedFields || []),
+      ...(config.searchable || []),
       primaryKey,
     ]);
     const selectFields = Array.from(fields).join(', ');
