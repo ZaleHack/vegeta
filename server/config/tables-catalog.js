@@ -3,6 +3,7 @@ export default {
   'esolde.mytable': {
     display: 'mytable',
     database: 'esolde',
+    primaryKey: 'matricule',
     searchable: ['matricule', 'nomprenom', 'cni', 'telephone'],
     linkedFields: ['cni', 'telephone'],
     preview: ['matricule', 'nomprenom', 'cni', 'telephone'],
@@ -18,6 +19,7 @@ export default {
   'rhpolice.personne_concours': {
     display: 'personne_concours',
     database: 'rhpolice',
+    primaryKey: 'cni',
     searchable: ['prenom', 'nom', 'date_naiss', 'lieu_naiss', 'sexe', 'adresse', 'email', 'telephone', 'cni', 'prenom_pere', 'nom_pere', 'nom_mere'],
     linkedFields: ['cni', 'telephone'],
     preview: ['prenom', 'nom', 'cni', 'telephone', 'email'],

@@ -101,20 +101,20 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
 router.get('/details/:table/:id', authenticate, async (req, res) => {
   try {
     const { table, id } = req.params;
-    
-    if (!id || isNaN(parseInt(id))) {
+
+    if (!id) {
       return res.status(400).json({ error: 'ID invalide' });
     }
 
-    const details = await searchService.getRecordDetails(table, parseInt(id));
+    const details = await searchService.getRecordDetails(table, id);
     res.json(details);
   } catch (error) {
     console.error('❌ Erreur détails:', error);
-    
+
     if (error.message.includes('non trouvé')) {
       return res.status(404).json({ error: error.message });
     }
-    
+
     res.status(500).json({ error: 'Erreur lors de la récupération des détails' });
   }
 });
