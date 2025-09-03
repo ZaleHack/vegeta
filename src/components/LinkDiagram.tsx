@@ -52,7 +52,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-11/12 h-5/6 relative flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white">
+        <div className="flex items-center justify-between p-4 bg-blue-500 text-white">
           <h2 className="text-lg font-semibold">Diagramme des liens</h2>
           <button
             className="text-black hover:text-gray-800 dark:text-white dark:hover:text-gray-200"
@@ -65,6 +65,14 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
           <ForceGraph2D
             graphData={graphData}
             enableNodeDrag={true}
+            onNodeDragStart={(node: any) => {
+              node.fx = node.x;
+              node.fy = node.y;
+            }}
+            onNodeDrag={(node: any) => {
+              node.fx = node.x;
+              node.fy = node.y;
+            }}
             onNodeDragEnd={(node: any) => {
               node.fx = node.x;
               node.fy = node.y;
