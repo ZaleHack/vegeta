@@ -46,7 +46,7 @@ const getIcon = (type: string, direction: string) => {
       direction === 'outgoing' ? (
         <PhoneOutgoing size={size} className="text-blue-600" />
       ) : (
-        <PhoneIncoming size={size} className="text-red-600" />
+        <PhoneIncoming size={size} className="text-green-600" />
       );
   }
 
