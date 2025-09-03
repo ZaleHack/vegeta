@@ -7,16 +7,21 @@
   .dark body {
     @apply bg-darkModern text-gray-100;
   }
+  form {
+    @apply border border-white;
+  }
   input,
   textarea,
-  select,
+  select {
+    @apply bg-white text-gray-900 border border-white;
+  }
   button {
     @apply bg-white text-gray-900;
   }
   .dark input,
   .dark textarea,
   .dark select {
-    @apply bg-darkModern text-gray-100 border-darkModern/60 placeholder-gray-400;
+    @apply bg-darkModern text-gray-100 border-white placeholder-gray-400;
   }
   .dark .btn-primary {
     @apply bg-blue-600 text-white border-blue-600 hover:bg-blue-700;
