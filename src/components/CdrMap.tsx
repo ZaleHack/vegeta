@@ -15,6 +15,8 @@ interface Point {
   startTime: string;
   endTime: string;
   duration?: string;
+  imeiCaller?: string;
+  imeiCalled?: string;
 }
 
 interface Contact {
@@ -118,11 +120,11 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber }) => {
                 <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
                 {loc.number && (
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-700">Numéro: {loc.number}</span>
+                    <span className="text-black">Numéro: {loc.number}</span>
                     <button
                       className="ml-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                       onClick={() => {
-                        const cleaned = loc.number.startsWith('221') ? loc.number.slice(3) : loc.number;
+                        const cleaned = loc.number.replace(/^221/, '');
                         navigator.clipboard.writeText(cleaned);
                         if (onIdentifyNumber) onIdentifyNumber(cleaned);
                       }}
@@ -137,6 +139,8 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber }) => {
                 <p>Début: {loc.startTime}</p>
                 <p>Fin: {loc.endTime}</p>
                 <p>Durée: {loc.duration || 'N/A'}</p>
+                <p>IMEI appelant: {loc.imeiCaller || 'N/A'}</p>
+                <p>IMEI appelé: {loc.imeiCalled || 'N/A'}</p>
               </div>
             </Popup>
           </Marker>

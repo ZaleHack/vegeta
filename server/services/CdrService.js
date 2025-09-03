@@ -226,7 +226,9 @@ class CdrService {
           callDate,
           startTime,
           endTime,
-          duration
+          duration,
+          imeiCaller: r.imei_appelant,
+          imeiCalled: r.imei_appele
         });
       }
     }
