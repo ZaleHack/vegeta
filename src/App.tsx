@@ -2793,7 +2793,10 @@ const App: React.FC = () => {
               {cdrError && <p className="text-red-600">{cdrError}</p>}
               {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
               {showCdrMap && cdrResult && !cdrLoading && cdrResult.total > 0 && (
-                <CdrMap points={cdrResult.path} />
+                <CdrMap
+                  points={cdrResult.path}
+                  onIdentifyNumber={(num) => setSearchQuery(num)}
+                />
               )}
               {linkDiagram && (
                 <LinkDiagram data={linkDiagram} onClose={() => setLinkDiagram(null)} />

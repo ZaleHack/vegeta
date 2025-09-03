@@ -33,6 +33,7 @@ interface LocationStat {
 
 interface Props {
   points: Point[];
+  onIdentifyNumber?: (num: string) => void;
 }
 
 const getIcon = (type: string, direction: string) => {
@@ -58,7 +59,7 @@ const getIcon = (type: string, direction: string) => {
   });
 };
 
-const CdrMap: React.FC<Props> = ({ points }) => {
+const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber }) => {
   if (!points || points.length === 0) return null;
 
   const first = points[0];
@@ -113,11 +114,25 @@ const CdrMap: React.FC<Props> = ({ points }) => {
             icon={getIcon(loc.type, loc.direction)}
           >
             <Popup>
-              <div className="space-y-1">
-                <p className="font-semibold">{loc.nom || 'Localisation'}</p>
-                {loc.number && <p>Numéro: {loc.number}</p>}
-                <p>Type: {loc.type}</p>
-                <p>Direction: {loc.direction}</p>
+              <div className="space-y-2 text-sm">
+                <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
+                {loc.number && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-700">Numéro: {loc.number}</span>
+                    <button
+                      className="ml-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                      onClick={() => {
+                        const cleaned = loc.number.startsWith('221') ? loc.number.slice(3) : loc.number;
+                        navigator.clipboard.writeText(cleaned);
+                        if (onIdentifyNumber) onIdentifyNumber(cleaned);
+                      }}
+                    >
+                      Identifier numéro
+                    </button>
+                  </div>
+                )}
+                <p>Type: {loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
+                <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
                 <p>Date: {loc.callDate}</p>
                 <p>Début: {loc.startTime}</p>
                 <p>Fin: {loc.endTime}</p>
