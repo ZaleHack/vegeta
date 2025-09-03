@@ -1581,7 +1581,7 @@ const App: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all"
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all"
                 >
                   {loading ? (
                     <div className="flex items-center justify-center">
@@ -1655,7 +1655,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('dashboard')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'dashboard'
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1667,7 +1667,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('search')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'search'
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1679,7 +1679,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('annuaire')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'annuaire'
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1691,7 +1691,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('ong')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'ong'
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1703,7 +1703,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('entreprises')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'entreprises'
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1715,7 +1715,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('vehicules')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'vehicules'
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1727,7 +1727,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('cdr')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr'
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1742,7 +1742,7 @@ const App: React.FC = () => {
               }}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'profiles'
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1754,7 +1754,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('links')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'links'
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1767,7 +1767,7 @@ const App: React.FC = () => {
                 onClick={() => setCurrentPage('users')}
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'users'
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                    ? 'bg-blue-600 text-white shadow-lg'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
                 } ${!sidebarOpen && 'justify-center'}`}
               >
@@ -1781,7 +1781,7 @@ const App: React.FC = () => {
                 onClick={() => setCurrentPage('upload')}
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'upload'
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
+                    ? 'bg-blue-600 text-white shadow-lg'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
               >
@@ -2769,14 +2769,14 @@ const App: React.FC = () => {
                       <button
                         type="submit"
                         disabled={cdrLoading}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-transform transform hover:scale-105 active:scale-95"
+                        className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-transform transform hover:scale-105 active:scale-95"
                       >
                         Rechercher
                       </button>
                         {caseFiles.filter(f => f.cdr_number).length >= 2 && (
                           <button
                             type="button"
-                            className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
+                            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
                             onClick={handleLinkDiagram}
                           >
                             Diagramme des liens
@@ -2872,7 +2872,7 @@ const App: React.FC = () => {
                 <PageHeader icon={<User className="h-6 w-6" />} title="Gestion des utilisateurs" subtitle="Créez et gérez les comptes utilisateurs" />
                 <button
                   onClick={openCreateModal}
-                  className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all shadow-lg"
+                  className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all shadow-lg"
                 >
                   <Plus className="w-5 h-5 mr-2" />
                   Nouvel utilisateur
