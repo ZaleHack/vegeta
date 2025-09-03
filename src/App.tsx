@@ -2589,14 +2589,17 @@ const App: React.FC = () => {
               {cdrCaseMessage && <p className="text-green-600">{cdrCaseMessage}</p>}
 
               <div>
-                <h3 className="font-semibold">Liste des CASES</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Liste des CASES</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                   {cases.map((c) => (
-                    <div key={c.id} className="p-4 bg-white rounded-lg shadow hover:shadow-md">
-                      <h4 className="font-semibold mb-2">{c.name}</h4>
+                    <div
+                      key={c.id}
+                      className="p-4 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-transform transform hover:-translate-y-0.5"
+                    >
+                      <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">{c.name}</h4>
                       <div className="flex space-x-2">
                         <button
-                          className="px-2 py-1 bg-blue-600 text-white rounded"
+                          className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                           onClick={() => {
                             setSelectedCase(c);
                             setCdrResult(null);
@@ -2609,7 +2612,7 @@ const App: React.FC = () => {
                           Traiter
                         </button>
                         <button
-                          className="px-2 py-1 bg-red-600 text-white rounded"
+                          className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                           onClick={() => handleDeleteCase(c.id)}
                         >
                           Supprimer
