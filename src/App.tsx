@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Search,
   Database,
@@ -300,6 +300,8 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [searchError, setSearchError] = useState('');
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastQueryRef = useRef<{ query: string; page: number; limit: number } | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'profile'>('list');
   const [showProfileForm, setShowProfileForm] = useState(false);
   interface ExtraField {
@@ -553,7 +555,26 @@ const App: React.FC = () => {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
-    if (!searchQuery.trim()) return;
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return;
+
+    const requestedPage = 1;
+    const requestedLimit = 20;
+
+    if (
+      lastQueryRef.current &&
+      lastQueryRef.current.query === trimmedQuery &&
+      lastQueryRef.current.page === requestedPage &&
+      lastQueryRef.current.limit === requestedLimit
+    ) {
+      return;
+    }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setLoading(true);
     setSearchError('');
@@ -566,25 +587,49 @@ const App: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ query: searchQuery, page: 1, limit: 20 })
+        body: JSON.stringify({ query: trimmedQuery, page: requestedPage, limit: requestedLimit }),
+        signal: controller.signal
       });
 
       const data = await response.json();
       if (response.ok) {
         setSearchResults(data);
+        lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors de la recherche');
       }
-    } catch (error) {
-      setSearchError('Erreur de connexion au serveur');
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        setSearchError('Erreur de connexion au serveur');
+      }
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
   const loadMoreResults = async () => {
     if (loading) return;
     if (!searchResults || searchResults.page >= searchResults.pages) return;
+
+    const requestedPage = searchResults.page + 1;
+    const requestedLimit = 20;
+    const trimmedQuery = searchQuery.trim();
+
+    if (
+      lastQueryRef.current &&
+      lastQueryRef.current.query === trimmedQuery &&
+      lastQueryRef.current.page === requestedPage &&
+      lastQueryRef.current.limit === requestedLimit
+    ) {
+      return;
+    }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setLoading(true);
     setSearchError('');
@@ -598,10 +643,11 @@ const App: React.FC = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          query: searchQuery,
-          page: searchResults.page + 1,
-          limit: 20
-        })
+          query: trimmedQuery,
+          page: requestedPage,
+          limit: requestedLimit
+        }),
+        signal: controller.signal
       });
 
       const data = await response.json();
@@ -619,13 +665,17 @@ const App: React.FC = () => {
               }
             : data
         );
+        lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors du chargement des résultats');
       }
-    } catch (error) {
-      setSearchError('Erreur de connexion au serveur');
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        setSearchError('Erreur de connexion au serveur');
+      }
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
