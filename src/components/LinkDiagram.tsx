@@ -51,7 +51,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-11/12 h-5/6 relative flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-darkModern rounded-xl shadow-2xl w-11/12 h-5/6 relative flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-4 bg-blue-500 text-white">
           <h2 className="text-lg font-semibold">Diagramme des liens</h2>
           <button
@@ -124,7 +124,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               ctx.fillText(label, textX, textY);
             }}
           />
-          <div className="absolute top-4 left-4 bg-white/80 dark:bg-gray-800/80 rounded-md shadow p-2 text-xs space-y-1">
+          <div className="absolute top-4 left-4 bg-white/80 dark:bg-darkModern/80 rounded-md shadow p-2 text-xs space-y-1">
             {nodeTypes.map((type) => (
               <div key={type} className="flex items-center gap-2">
                 <span

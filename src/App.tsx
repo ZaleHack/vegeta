@@ -1602,16 +1602,16 @@ const App: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen flex bg-gray-50 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100"
+      className="min-h-screen flex bg-gray-50 dark:bg-gradient-to-br dark:from-darkModern dark:via-darkModern/80 dark:to-darkModern text-gray-900 dark:text-gray-100"
     >
       {/* Sidebar */}
       <div
         className={`${
           sidebarOpen ? 'w-72' : 'w-20'
-        } bg-white dark:bg-gray-800 shadow-xl transition-all duration-300 flex flex-col`}
+        } bg-white dark:bg-darkModern shadow-xl transition-all duration-300 flex flex-col`}
       >
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-darkModern/80">
           <div className="flex items-center justify-between">
             <div className={`flex items-center ${!sidebarOpen && 'justify-center'}`}>
               <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg">
@@ -1629,7 +1629,7 @@ const App: React.FC = () => {
                 onClick={() =>
                   setTheme(theme === 'dark' ? 'light' : 'dark')
                 }
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-darkModern/80 transition-colors"
                 aria-label="Toggle theme"
               >
                 {theme === 'dark' ? (
@@ -1640,7 +1640,7 @@ const App: React.FC = () => {
               </button>
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-darkModern/80 transition-colors"
               >
                 {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
@@ -1893,8 +1893,8 @@ const App: React.FC = () => {
 
               {/* Résultats */}
               {searchResults && (
-                <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-lg shadow-2xl rounded-3xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                <div className="bg-white/70 dark:bg-darkModern/70 backdrop-blur-lg shadow-2xl rounded-3xl border border-gray-200 dark:border-darkModern overflow-hidden">
+                  <div className="px-8 py-6 border-b border-gray-200 dark:border-darkModern bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                     <div className="flex justify-between items-center">
                       <div>
                         <h2 className="text-xl font-bold">Résultats de recherche</h2>
@@ -1912,7 +1912,7 @@ const App: React.FC = () => {
                       <div className="flex space-x-2">
                         <button
                           onClick={() => setViewMode(viewMode === 'list' ? 'profile' : 'list')}
-                          className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
+                  className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-darkModern/80 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
                         >
                           {viewMode === 'list' ? (
                             <>
@@ -1929,7 +1929,7 @@ const App: React.FC = () => {
                         {searchResults.hits.length > 0 && (
                           <button
                             onClick={exportToCSV}
-                            className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
+                            className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-darkModern/80 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
                           >
                             <Download className="w-4 h-4 mr-2" />
                             Export CSV
@@ -1947,12 +1947,12 @@ const App: React.FC = () => {
                         </p>
                       </div>
                     ) : viewMode === 'list' ? (
-                      <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
+                      <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-darkModern dark:to-darkModern/80">
                         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
                           {searchResults.hits.map((result, index) => (
                             <div
                               key={index}
-                              className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-2xl p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-500 transform transition-all duration-300 hover:-translate-y-1"
+                              className="group relative bg-white/80 dark:bg-darkModern/80 backdrop-blur-sm border border-gray-200 dark:border-darkModern rounded-2xl p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-500 transform transition-all duration-300 hover:-translate-y-1"
                             >
                               {/* Header de la carte */}
                               <div className="flex justify-between items-start mb-4">
@@ -1981,7 +1981,7 @@ const App: React.FC = () => {
                                   return (
                                     <div
                                       key={key}
-                                      className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
+                                      className="bg-white/60 dark:bg-darkModern/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
                                       >
                                       <div className="flex flex-col">
                                         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
@@ -1997,7 +1997,7 @@ const App: React.FC = () => {
                               </div>
 
                               {/* Footer avec actions */}
-                              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-darkModern flex justify-between items-center">
                                 <div className="text-xs text-gray-500">
                                   {Object.keys(result.preview)
                                     .filter(
@@ -2055,7 +2055,7 @@ const App: React.FC = () => {
                         </div>
                       </div>
                     ) : (
-                      <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
+                      <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-darkModern dark:to-darkModern/80">
                         <SearchResultProfiles
                           hits={searchResults.hits}
                           query={searchQuery}
@@ -2089,7 +2089,7 @@ const App: React.FC = () => {
                 onChange={(e) => setGendarmerieSearch(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <div className="overflow-x-auto bg-white shadow rounded-lg dark:bg-gray-800">
+              <div className="overflow-x-auto bg-white shadow rounded-lg dark:bg-darkModern">
                 {gendarmerieLoading ? (
                   <div className="loading-bar-container my-4">
                     <div className="loading-bar"></div>
@@ -2107,11 +2107,11 @@ const App: React.FC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Créé le</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
+                      <tbody className="bg-white divide-y divide-gray-200 dark:bg-darkModern dark:divide-darkModern">
                         {paginatedGendarmerie.map((entry) => {
                           const isTitle = !entry.Telephone || entry.Telephone.trim() === '';
                           return isTitle ? (
-                            <tr key={entry.id} className="bg-gray-100 dark:bg-gray-700">
+                            <tr key={entry.id} className="bg-gray-100 dark:bg-darkModern/80">
                               <td colSpan={6} className="px-6 py-4 font-semibold text-gray-900 dark:text-gray-100">
                                 {entry.Libelle}
                               </td>
@@ -2596,7 +2596,7 @@ const App: React.FC = () => {
                   {cases.map((c) => (
                     <div
                       key={c.id}
-                      className="p-4 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-transform transform hover:-translate-y-0.5"
+                      className="p-4 rounded-xl bg-white dark:bg-darkModern border border-gray-200 dark:border-darkModern shadow-sm hover:shadow-md transition-transform transform hover:-translate-y-0.5"
                     >
                       <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">{c.name}</h4>
                       <div className="flex space-x-2">
@@ -3274,14 +3274,14 @@ const App: React.FC = () => {
                   </div>
 
                   {/* Termes de recherche populaires */}
-                  <div className="bg-white rounded-2xl shadow-xl p-6 dark:bg-gray-800">
+                  <div className="bg-white rounded-2xl shadow-xl p-6 dark:bg-darkModern">
                     <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center dark:text-gray-100">
                       <TrendingUp className="h-6 w-6 mr-2 text-orange-600 dark:text-orange-400" />
                       Termes de recherche populaires
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {statsData?.top_search_terms?.slice(0, 9).map((term, index) => (
-                        <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-blue-100 transition-all dark:from-gray-800 dark:to-gray-700 dark:hover:from-blue-900 dark:hover:to-blue-800">
+                        <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-blue-100 transition-all dark:from-darkModern dark:to-darkModern/80 dark:hover:from-blue-900 dark:hover:to-blue-800">
                           <div className="flex items-center space-x-3">
                             <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full text-blue-600 font-bold text-sm dark:bg-blue-900 dark:text-blue-200">
                               {index + 1}
