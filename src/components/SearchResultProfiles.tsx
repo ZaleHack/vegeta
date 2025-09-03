@@ -48,7 +48,7 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
                   <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                     {key.replace(/_/g, ' ')}
                   </span>
-                  <span className="text-sm text-gray-900 break-words">
+                    <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
                     {String(value)}
                   </span>
                 </div>

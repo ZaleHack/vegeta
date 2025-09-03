@@ -1656,7 +1656,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'dashboard'
                   ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Activity className="h-5 w-5" />
@@ -1668,7 +1668,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'search'
                   ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Search className="h-5 w-5" />
@@ -1680,7 +1680,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'annuaire'
                   ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Phone className="h-5 w-5" />
@@ -1692,7 +1692,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'ong'
                   ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Globe className="h-5 w-5" />
@@ -1704,7 +1704,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'entreprises'
                   ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Building2 className="h-5 w-5" />
@@ -1716,7 +1716,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'vehicules'
                   ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Car className="h-5 w-5" />
@@ -1728,7 +1728,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr'
                   ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Clock className="h-5 w-5" />
@@ -1743,7 +1743,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'profiles'
                   ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <FileText className="h-5 w-5" />
@@ -1755,7 +1755,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'links'
                   ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <LinkIcon className="h-5 w-5" />
@@ -1768,7 +1768,7 @@ const App: React.FC = () => {
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'users'
                     ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
                 } ${!sidebarOpen && 'justify-center'}`}
               >
                 <Users className="h-5 w-5" />
@@ -1782,7 +1782,7 @@ const App: React.FC = () => {
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'upload'
                     ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
               >
                 <Upload className="h-5 w-5" />
@@ -1941,7 +1941,7 @@ const App: React.FC = () => {
                     {searchResults.hits.length === 0 ? (
                       <div className="text-center py-16">
                         <Search className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun résultat trouvé</h3>
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Aucun résultat trouvé</h3>
                         <p className="text-gray-500">
                           Essayez avec d'autres termes de recherche ou vérifiez l'orthographe.
                         </p>
@@ -1961,7 +1961,7 @@ const App: React.FC = () => {
                                     <Database className="w-5 h-5" />
                                   </div>
                                   <div>
-                                    <h3 className="text-lg font-semibold text-gray-900">{result.table}</h3>
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{result.table}</h3>
                                     <p className="text-sm text-gray-500">Base: {result.database}</p>
                                   </div>
                                 </div>
@@ -1987,7 +1987,7 @@ const App: React.FC = () => {
                                         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
                                           {key.replace(/_/g, ' ')}
                                         </span>
-                                        <span className="text-sm font-medium text-gray-900 break-words">
+                                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
                                           {String(value)}
                                         </span>
                                       </div>
@@ -2853,7 +2853,7 @@ const App: React.FC = () => {
                     className="group p-6 bg-white rounded-xl shadow hover:shadow-lg transition-shadow border border-gray-100"
                   >
                     <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600">
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600">
                         {link.title}
                       </h2>
                       <ExternalLink className="h-5 w-5 text-gray-400 group-hover:text-blue-600" />
@@ -2884,7 +2884,7 @@ const App: React.FC = () => {
                 {users.length === 0 ? (
                   <div className="text-center py-16">
                     <Users className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun utilisateur</h3>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Aucun utilisateur</h3>
                     <p className="text-gray-500 mb-6">
                       Commencez par créer un nouvel utilisateur pour votre équipe.
                     </p>
@@ -2924,7 +2924,7 @@ const App: React.FC = () => {
                                   <User className="h-5 w-5 text-white" />
                                 </div>
                                 <div className="ml-4">
-                                  <div className="text-sm font-medium text-gray-900">{user.login}</div>
+                                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.login}</div>
                                   <div className="text-sm text-gray-500">ID: {user.id}</div>
                                 </div>
                               </div>
@@ -3065,7 +3065,7 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Graphique des recherches par jour */}
                     <div className="bg-white rounded-2xl shadow-xl p-6">
-                      <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                         <BarChart3 className="h-6 w-6 mr-2 text-blue-600" />
                         Recherches des 7 derniers jours
                       </h3>
@@ -3112,7 +3112,7 @@ const App: React.FC = () => {
 
                     {/* Graphique des temps de réponse */}
                     <div className="bg-white rounded-2xl shadow-xl p-6">
-                      <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                         <Timer className="h-6 w-6 mr-2 text-purple-600" />
                         Temps de réponse (ms)
                       </h3>
@@ -3162,7 +3162,7 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-1">
                       <div className="bg-white rounded-2xl shadow-xl p-6">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                           <Database className="h-6 w-6 mr-2 text-green-600" />
                           Sources de données
                         </h3>
@@ -3201,7 +3201,7 @@ const App: React.FC = () => {
                           {tableDistribution.map((d, idx) => (
                             <div key={idx} className="flex justify-between text-sm">
                               <span className="text-gray-700">{d.table}</span>
-                              <span className="font-medium text-gray-900">{d.count}</span>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">{d.count}</span>
                             </div>
                           ))}
                         </div>
@@ -3211,7 +3211,7 @@ const App: React.FC = () => {
                     {/* Logs de recherche récents */}
                     <div className="lg:col-span-2">
                       <div className="bg-white rounded-2xl shadow-xl p-6">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                           <FileText className="h-6 w-6 mr-2 text-blue-600" />
                           Logs de recherche
                         </h3>
@@ -3242,7 +3242,7 @@ const App: React.FC = () => {
                                       <User className="h-4 w-4 text-blue-600" />
                                     </div>
                                     <div>
-                                      <p className="font-medium text-gray-900">{log.username || 'Utilisateur inconnu'}</p>
+                                      <p className="font-medium text-gray-900 dark:text-gray-100">{log.username || 'Utilisateur inconnu'}</p>
                                       <p className="text-sm text-gray-500 truncate max-w-xs">"{log.search_term}"</p>
                                     </div>
                                   </div>
@@ -3350,7 +3350,7 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="mt-8">
-                  <h2 className="text-xl font-semibold text-center text-gray-900 mb-4">Bases importées</h2>
+                  <h2 className="text-xl font-semibold text-center text-gray-900 dark:text-gray-100 mb-4">Bases importées</h2>
                   {uploadHistory.length === 0 ? (
                     <p className="text-center text-gray-500">Aucune base importée pour le moment</p>
                   ) : (
@@ -3361,7 +3361,7 @@ const App: React.FC = () => {
                           className="p-4 flex items-center justify-between border-b last:border-b-0 border-gray-200"
                         >
                           <div>
-                            <p className="font-medium text-gray-900">{item.table_name}</p>
+                            <p className="font-medium text-gray-900 dark:text-gray-100">{item.table_name}</p>
                             <p className="text-sm text-gray-500">{item.file_name}</p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -3391,7 +3391,7 @@ const App: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {editingUser ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}
               </h3>
             </div>
@@ -3465,7 +3465,7 @@ const App: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Changer le mot de passe
               </h3>
             </div>
