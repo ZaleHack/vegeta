@@ -55,7 +55,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
         <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white">
           <h2 className="text-lg font-semibold">Diagramme des liens</h2>
           <button
-            className="text-white hover:text-gray-200"
+            className="text-black hover:text-gray-800 dark:text-white dark:hover:text-gray-200"
             onClick={onClose}
           >
             <X className="w-6 h-6" />
