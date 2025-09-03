@@ -10,6 +10,9 @@
   form {
     @apply border border-white;
   }
+  .dark form {
+    @apply border-2 border-gray-700 rounded-xl;
+  }
   input,
   textarea,
   select {
@@ -18,13 +21,16 @@
   button {
     @apply bg-white text-gray-900;
   }
+  .dark button {
+    @apply bg-gradient-to-r from-blue-500 to-white text-gray-900 border-0 rounded-lg hover:from-blue-600 hover:to-gray-100;
+  }
   .dark input,
   .dark textarea,
   .dark select {
-    @apply bg-gray-800 text-gray-100 border-white placeholder-gray-400;
+    @apply bg-gray-800 text-gray-100 border-2 border-gray-700 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-blue-500;
   }
   .dark .btn-primary {
-    @apply bg-blue-600 text-white border-blue-600 hover:bg-blue-700;
+    @apply bg-gradient-to-r from-blue-500 to-white text-gray-900 border-0 rounded-lg hover:from-blue-600 hover:to-gray-100;
   }
 }
 
