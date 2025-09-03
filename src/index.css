@@ -5,7 +5,7 @@
     @apply bg-gray-50 text-gray-900;
   }
   .dark body {
-    @apply bg-darkModern text-gray-100;
+    @apply bg-gray-900 text-gray-100;
   }
   form {
     @apply border border-white;
@@ -21,7 +21,7 @@
   .dark input,
   .dark textarea,
   .dark select {
-    @apply bg-darkModern text-gray-100 border-white placeholder-gray-400;
+    @apply bg-gray-800 text-gray-100 border-white placeholder-gray-400;
   }
   .dark .btn-primary {
     @apply bg-blue-600 text-white border-blue-600 hover:bg-blue-700;
@@ -37,19 +37,19 @@
   .dark .text-gray-700 { @apply text-gray-300; }
   .dark .text-gray-500 { @apply text-gray-400; }
   .dark .hover\:text-gray-900:hover { @apply text-gray-100; }
-  .dark .bg-gray-50 { @apply bg-darkModern; }
-  .dark .bg-white { @apply bg-darkModern; }
-  .dark .bg-white\/20 { @apply bg-darkModern/20; }
-  .dark .bg-white\/60 { @apply bg-darkModern/60; }
-  .dark .bg-white\/70 { @apply bg-darkModern/70; }
-  .dark .bg-white\/80 { @apply bg-darkModern/80; }
-  .dark .bg-white\/90 { @apply bg-darkModern/90; }
-  .dark .border-gray-100 { @apply border-darkModern; }
-  .dark .border-gray-200 { @apply border-darkModern; }
-  .dark .border-gray-300 { @apply border-darkModern/80; }
-  .dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { @apply divide-darkModern; }
-  .dark .hover\:bg-gray-100:hover { @apply bg-darkModern/80; }
-  .dark .hover\:bg-gray-50:hover { @apply bg-darkModern/80; }
+  .dark .bg-gray-50 { @apply bg-gray-800; }
+  .dark .bg-white { @apply bg-gray-800; }
+  .dark .bg-white\/20 { @apply bg-gray-800/20; }
+  .dark .bg-white\/60 { @apply bg-gray-800/60; }
+  .dark .bg-white\/70 { @apply bg-gray-800/70; }
+  .dark .bg-white\/80 { @apply bg-gray-800/80; }
+  .dark .bg-white\/90 { @apply bg-gray-800/90; }
+  .dark .border-gray-100 { @apply border-gray-700; }
+  .dark .border-gray-200 { @apply border-gray-700; }
+  .dark .border-gray-300 { @apply border-gray-600; }
+  .dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { @apply divide-gray-700; }
+  .dark .hover\:bg-gray-100:hover { @apply bg-gray-700; }
+  .dark .hover\:bg-gray-50:hover { @apply bg-gray-700; }
 }
 
 @keyframes loading-bar {
