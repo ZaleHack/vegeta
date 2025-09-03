@@ -554,10 +554,10 @@ const App: React.FC = () => {
     setSearchResults(null);
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearch = async (e?: React.FormEvent, forcedQuery?: string) => {
+    e?.preventDefault();
     if (loading) return;
-    const trimmedQuery = searchQuery.trim();
+    const trimmedQuery = (forcedQuery ?? searchQuery).trim();
     if (!trimmedQuery) return;
 
     const requestedPage = 1;
@@ -2797,7 +2797,11 @@ const App: React.FC = () => {
               {showCdrMap && cdrResult && !cdrLoading && cdrResult.total > 0 && (
                 <CdrMap
                   points={cdrResult.path}
-                  onIdentifyNumber={(num) => setSearchQuery(num)}
+                  onIdentifyNumber={(num) => {
+                    setSearchQuery(num);
+                    setCurrentPage('search');
+                    handleSearch(undefined, num);
+                  }}
                 />
               )}
               {linkDiagram && (
