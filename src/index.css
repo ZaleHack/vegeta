@@ -37,7 +37,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer utilities {
+@layer components {
   .dark .text-gray-900 { @apply text-gray-100; }
   .dark .text-gray-600 { @apply text-gray-300; }
   .dark .text-gray-700 { @apply text-gray-300; }
