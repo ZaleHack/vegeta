@@ -211,6 +211,8 @@ interface CdrPoint {
   startTime: string;
   endTime: string;
   duration?: string;
+  imeiCaller?: string;
+  imeiCalled?: string;
 }
 
 interface CdrSearchResult {
