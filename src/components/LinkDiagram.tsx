@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { X } from 'lucide-react';
 
@@ -19,21 +19,51 @@ interface LinkDiagramProps {
   onClose: () => void;
 }
 
+const typePalette = [
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#6366f1',
+  '#8b5cf6',
+  '#ec4899',
+  '#14b8a6'
+];
+
 const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
+  const nodeTypes = useMemo(() => Array.from(new Set(data.nodes.map((n) => n.type))), [data]);
+
+  const colorByType = useMemo(() => {
+    const map: Record<string, string> = {};
+    nodeTypes.forEach((type, idx) => {
+      map[type] = typePalette[idx % typePalette.length];
+    });
+    return map;
+  }, [nodeTypes]);
+
+  const graphData = useMemo(
+    () => ({
+      nodes: data.nodes.map((n) => ({ ...n, color: colorByType[n.type] })),
+      links: data.links
+    }),
+    [data, colorByType]
+  );
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-11/12 h-5/6 relative flex flex-col pt-10">
-        <h2 className="absolute top-3 left-1/2 -translate-x-1/2 text-xl font-semibold">Diagramme des liens</h2>
-        <button
-          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 z-10"
-          onClick={onClose}
-        >
-          <X className="w-6 h-6" />
-        </button>
-        <div className="flex-1">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-11/12 h-5/6 relative flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white">
+          <h2 className="text-lg font-semibold">Diagramme des liens</h2>
+          <button
+            className="text-white hover:text-gray-200"
+            onClick={onClose}
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="flex-1 relative">
           <ForceGraph2D
-            graphData={data}
-            nodeAutoColorBy="type"
+            graphData={graphData}
             enableNodeDrag={true}
             onNodeDragEnd={(node: any) => {
               node.fx = node.x;
@@ -46,9 +76,9 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               const isDarkMode = document.documentElement.classList.contains('dark');
               ctx.beginPath();
               ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
-              ctx.fillStyle = node.color || (isDarkMode ? '#60a5fa' : '#3b82f6');
+              ctx.fillStyle = node.color;
               ctx.fill();
-              ctx.strokeStyle = isDarkMode ? '#fff' : '#000';
+              ctx.strokeStyle = isDarkMode ? '#374151' : '#e5e7eb';
               ctx.lineWidth = 1;
               ctx.stroke();
               ctx.font = `${fontSize}px sans-serif`;
@@ -86,6 +116,17 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               ctx.fillText(label, textX, textY);
             }}
           />
+          <div className="absolute top-4 left-4 bg-white/80 dark:bg-gray-800/80 rounded-md shadow p-2 text-xs space-y-1">
+            {nodeTypes.map((type) => (
+              <div key={type} className="flex items-center gap-2">
+                <span
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: colorByType[type] }}
+                ></span>
+                <span className="capitalize text-gray-800 dark:text-gray-200">{type}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
