@@ -14,9 +14,13 @@ const OrangeIdentifier: React.FC = () => {
     setError(null);
     setResult(null);
     try {
+      const token = localStorage.getItem('token');
       const resp = await fetch('/api/orange/identify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify({ msisdn })
       });
       if (!resp.ok) {
