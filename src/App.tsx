@@ -1669,7 +1669,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('dashboard')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'dashboard'
-                  ? 'bg-blue-600 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1681,7 +1681,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('search')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'search'
-                  ? 'bg-blue-600 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1693,7 +1693,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('annuaire')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'annuaire'
-                  ? 'bg-blue-600 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1705,7 +1705,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('ong')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'ong'
-                  ? 'bg-blue-600 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1717,7 +1717,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('entreprises')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'entreprises'
-                  ? 'bg-blue-600 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1729,7 +1729,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('vehicules')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'vehicules'
-                  ? 'bg-blue-600 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1741,7 +1741,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('cdr')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr'
-                  ? 'bg-blue-600 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1757,7 +1757,7 @@ const App: React.FC = () => {
               }}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'profiles'
-                  ? 'bg-blue-600 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1769,7 +1769,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('links')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'links'
-                  ? 'bg-blue-600 text-white shadow-lg'
+                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1782,7 +1782,7 @@ const App: React.FC = () => {
                 onClick={() => setCurrentPage('users')}
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'users'
-                    ? 'bg-blue-600 text-white shadow-lg'
+                    ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
                 } ${!sidebarOpen && 'justify-center'}`}
               >
@@ -1796,7 +1796,7 @@ const App: React.FC = () => {
                 onClick={() => setCurrentPage('upload')}
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'upload'
-                    ? 'bg-blue-600 text-white shadow-lg'
+                    ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
               >
