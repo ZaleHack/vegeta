@@ -1,4 +1,5 @@
 import express from 'express';
+import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -8,7 +9,7 @@ const HEADERS = {
   'Content-Type': 'application/x-www-form-urlencoded'
 };
 
-router.post('/identify', async (req, res) => {
+router.post('/identify', authenticate, async (req, res) => {
   const { msisdn } = req.body;
   if (!msisdn) {
     return res.status(400).json({ error: 'msisdn is required' });
