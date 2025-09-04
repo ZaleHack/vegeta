@@ -60,6 +60,7 @@ import ProfileList from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
 import CdrMap from './components/CdrMap';
 import LinkDiagram from './components/LinkDiagram';
+import OrangeIdentifier from './components/OrangeIdentifier';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -1750,6 +1751,18 @@ const App: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setCurrentPage('orange')}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'orange'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <Key className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">Identificateur Orange</span>}
+            </button>
+
+            <button
               onClick={() => {
                 setCurrentPage('profiles');
                 setShowProfileForm(false);
@@ -2845,6 +2858,10 @@ const App: React.FC = () => {
                 <LinkDiagram data={linkDiagram} onClose={() => setLinkDiagram(null)} />
               )}
             </div>
+          )}
+
+          {currentPage === 'orange' && (
+            <OrangeIdentifier />
           )}
 
           {currentPage === 'profiles' && (
