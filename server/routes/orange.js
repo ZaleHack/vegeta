@@ -4,9 +4,16 @@ import { authenticate } from '../middleware/auth.js';
 const router = express.Router();
 
 const URL = 'https://prepaid.orange.sn/recherche.aspx';
-const HEADERS = {
-  'User-Agent': 'Mozilla/5.0',
-  'Content-Type': 'application/x-www-form-urlencoded'
+const BASE_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+  'Content-Type': 'application/x-www-form-urlencoded',
+  'Accept':
+    'text/html,application/xhtml+xml,application/xml;q=0.9,' +
+    'image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+  'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+  Origin: 'https://prepaid.orange.sn',
+  Referer: 'https://prepaid.orange.sn/recherche.aspx'
 };
 
 router.post('/identify', authenticate, async (req, res) => {
@@ -15,8 +22,11 @@ router.post('/identify', authenticate, async (req, res) => {
     return res.status(400).json({ error: 'msisdn is required' });
   }
   try {
-    const getResp = await fetch(URL, { headers: HEADERS });
+    const getResp = await fetch(URL, { headers: BASE_HEADERS });
     const getHtml = await getResp.text();
+    const cookieHeader = (getResp.headers.getSetCookie?.() || [])
+      .map((c) => c.split(';')[0])
+      .join('; ');
 
     const viewstateMatch = getHtml.match(/id="__VIEWSTATE" value="([^"]+)"/);
     const eventvalidationMatch = getHtml.match(/id="__EVENTVALIDATION" value="([^"]+)"/);
@@ -43,7 +53,7 @@ router.post('/identify', authenticate, async (req, res) => {
 
     const postResp = await fetch(URL, {
       method: 'POST',
-      headers: HEADERS,
+      headers: { ...BASE_HEADERS, Cookie: cookieHeader },
       body: params.toString()
     });
     const html = await postResp.text();
