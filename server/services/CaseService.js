@@ -11,6 +11,10 @@ class CaseService {
     this.cdrService = new CdrService();
   }
 
+  _isAdmin(user) {
+    return user.admin === 1 || user.admin === '1' || user.admin === true;
+  }
+
   async createCase(name, userId) {
     const user = await User.findById(userId);
     if (!user) {
@@ -22,12 +26,12 @@ class CaseService {
   async getCaseById(id, user) {
     const c = await Case.findById(id);
     if (!c) return null;
-    if (!user.admin && c.user_id !== user.id) return null;
+    if (!this._isAdmin(user) && c.user_id !== user.id) return null;
     return c;
   }
 
   async listCases(user) {
-    if (user.admin) {
+    if (this._isAdmin(user)) {
       return await Case.findAll();
     }
     return await Case.findAllByUser(user.id);
