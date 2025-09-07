@@ -75,14 +75,14 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Serveur VEGETA démarré sur le port ${PORT}`);
+  console.log(`🚀 Serveur Dvine Intelligence démarré sur le port ${PORT}`);
   console.log(`📊 Base de données: MySQL (${process.env.DB_DATABASE})`);
   console.log(`🔒 Mode: ${process.env.NODE_ENV || 'development'}`);
 });
 
 // Gestion propre de l'arrêt
 process.on('SIGINT', () => {
-  console.log('Arrêt du serveur VEGETA...');
+  console.log('Arrêt du serveur Dvine Intelligence...');
   db.close().then(() => {
     console.log('✅ Connexions fermées');
     process.exit(0);

@@ -47,7 +47,7 @@ const getIcon = (type: string, direction: string) => {
   } else {
     icon =
       direction === 'outgoing' ? (
-        <PhoneOutgoing size={size} className="text-blue-600" />
+        <PhoneOutgoing size={size} className="text-red-600" />
       ) : (
         <PhoneIncoming size={size} className="text-green-600" />
       );
@@ -117,12 +117,12 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber }) => {
           >
             <Popup>
               <div className="space-y-2 text-sm">
-                <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
+                <p className="font-semibold text-red-600">{loc.nom || 'Localisation'}</p>
                 {loc.number && (
                   <div className="flex items-center justify-between">
                     <span className="text-black">Numéro: {loc.number}</span>
                     <button
-                      className="ml-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                      className="ml-2 px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
                       onClick={() => {
                         const cleaned = loc.number.replace(/^221/, '');
                         navigator.clipboard.writeText(cleaned);
@@ -165,7 +165,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber }) => {
                 {topContacts.map((c, i) => (
                   <tr
                     key={c.number}
-                    className={`${i === 0 ? 'font-bold text-blue-600' : ''} border-t`}
+                    className={`${i === 0 ? 'font-bold text-red-600' : ''} border-t`}
                   >
                     <td className="pr-4">{c.number}</td>
                     <td className="pr-4">{c.callCount}</td>
