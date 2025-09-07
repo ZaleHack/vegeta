@@ -230,6 +230,7 @@ interface CdrCase {
   id: number;
   name: string;
   created_at?: string;
+  user_login?: string;
 }
 
 interface CaseFile {
@@ -2614,6 +2615,9 @@ const App: React.FC = () => {
                       className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-md overflow-hidden transition-transform transform hover:scale-105"
                     >
                       <div className="p-6 flex flex-col h-full">
+                        {isAdmin && (
+                          <p className="text-sm text-gray-500 mb-2">Utilisateur : {c.user_login}</p>
+                        )}
                         <h4 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{c.name}</h4>
                         <div className="mt-auto flex space-x-2">
                           <button

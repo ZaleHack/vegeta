@@ -25,7 +25,9 @@ class Case {
   }
 
   static async findAll() {
-    return await database.query('SELECT * FROM autres.cdr_cases ORDER BY created_at DESC');
+    return await database.query(
+      'SELECT c.*, u.login AS user_login FROM autres.cdr_cases c JOIN autres.users u ON c.user_id = u.id ORDER BY c.created_at DESC'
+    );
   }
 
   static async delete(id) {
