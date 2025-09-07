@@ -733,7 +733,7 @@ const App: React.FC = () => {
       
       const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
       const searchTerm = searchQuery.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_');
-      link.setAttribute('download', `vegeta-export-${searchTerm}-${timestamp}.csv`);
+      link.setAttribute('download', `dvine-intelligence-export-${searchTerm}-${timestamp}.csv`);
       
       document.body.appendChild(link);
       link.click();
@@ -1541,18 +1541,18 @@ const App: React.FC = () => {
         className={`min-h-screen flex items-center justify-center p-4 ${
           theme === 'dark'
             ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100'
-            : 'bg-gradient-to-br from-blue-50 via-white to-blue-50'
+            : 'bg-gradient-to-br from-red-50 via-white to-red-50'
         }`}
       >
         <div className="max-w-md w-full">
           <div className="bg-white shadow-2xl rounded-2xl overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6">
+            <div className="bg-gradient-to-r from-red-600 to-red-700 px-8 py-6">
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
                   <Database className="h-8 w-8 text-white" />
                 </div>
-                <h2 className="text-2xl font-bold text-white">VEGETA</h2>
-                <p className="text-blue-100 mt-1">Plateforme de recherche professionnelle</p>
+                <h2 className="text-2xl font-bold text-white">Dvine Intelligence</h2>
+                <p className="text-red-100 mt-1">Plateforme de recherche professionnelle</p>
               </div>
             </div>
             
@@ -1566,7 +1566,7 @@ const App: React.FC = () => {
                     id="login"
                     type="text"
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     placeholder="Entrez votre nom d'utilisateur"
                     value={loginData.login}
                     onChange={(e) => setLoginData({ ...loginData, login: e.target.value })}
@@ -1580,7 +1580,7 @@ const App: React.FC = () => {
                     id="password"
                     type="password"
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     placeholder="Entrez votre mot de passe"
                     value={loginData.password}
                     onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
@@ -1596,7 +1596,7 @@ const App: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all"
+                  className="w-full bg-red-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 transition-all"
                 >
                   {loading ? (
                     <div className="flex items-center justify-center">
@@ -1629,12 +1629,12 @@ const App: React.FC = () => {
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className={`flex items-center ${!sidebarOpen && 'justify-center'}`}>
-              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg">
+              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-red-600 to-red-700 rounded-lg">
                 <Database className="h-6 w-6 text-white" />
               </div>
               {sidebarOpen && (
                 <div className="ml-3">
-                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">VEGETA</h1>
+                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-red-600 to-red-700 bg-clip-text text-transparent">Dvine Intelligence</h1>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Recherche Pro</p>
                 </div>
               )}
@@ -1670,7 +1670,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('dashboard')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'dashboard'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                  ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1682,7 +1682,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('search')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'search'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                  ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1694,7 +1694,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('annuaire')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'annuaire'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                  ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1706,7 +1706,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('ong')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'ong'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                  ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1718,7 +1718,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('entreprises')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'entreprises'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                  ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1730,7 +1730,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('vehicules')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'vehicules'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                  ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1742,7 +1742,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('cdr')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                  ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1758,7 +1758,7 @@ const App: React.FC = () => {
               }}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'profiles'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                  ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1770,7 +1770,7 @@ const App: React.FC = () => {
               onClick={() => setCurrentPage('links')}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'links'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                  ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
             >
@@ -1783,7 +1783,7 @@ const App: React.FC = () => {
                 onClick={() => setCurrentPage('users')}
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'users'
-                    ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                    ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
                 } ${!sidebarOpen && 'justify-center'}`}
               >
@@ -1797,7 +1797,7 @@ const App: React.FC = () => {
                 onClick={() => setCurrentPage('upload')}
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'upload'
-                    ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                    ? 'bg-red-600 text-white shadow-lg dark:bg-red-600 dark:text-white'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
               } ${!sidebarOpen && 'justify-center'}`}
               >
@@ -1824,7 +1824,7 @@ const App: React.FC = () => {
                       Admin
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                       <UserCheck className="w-3 h-3 mr-1" />
                       Utilisateur
                     </span>
@@ -1871,14 +1871,14 @@ const App: React.FC = () => {
                     <input
                       type="text"
                       placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
-                      className="w-full pl-12 pr-40 py-4 text-lg bg-gray-50 border border-gray-200 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      className="w-full pl-12 pr-40 py-4 text-lg bg-gray-50 border border-gray-200 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                       <button
                         type="submit"
                         disabled={loading}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all flex items-center"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 px-6 py-2 bg-red-600 text-white rounded-full hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 transition-all flex items-center"
                       >
                         {loading ? (
                           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
@@ -1910,7 +1910,7 @@ const App: React.FC = () => {
               {/* Résultats */}
               {searchResults && (
                 <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-lg shadow-2xl rounded-3xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                  <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-red-600 to-red-700 text-white">
                     <div className="flex justify-between items-center">
                       <div>
                         <h2 className="text-xl font-bold">Résultats de recherche</h2>
@@ -1968,12 +1968,12 @@ const App: React.FC = () => {
                           {searchResults.hits.map((result, index) => (
                             <div
                               key={index}
-                              className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-2xl p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-500 transform transition-all duration-300 hover:-translate-y-1"
+                              className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-2xl p-6 hover:shadow-xl hover:border-red-300 dark:hover:border-red-500 transform transition-all duration-300 hover:-translate-y-1"
                             >
                               {/* Header de la carte */}
                               <div className="flex justify-between items-start mb-4">
                                 <div className="flex items-center space-x-3">
-                                  <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-700 rounded-xl text-white shadow-md">
+                                  <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-red-500 to-red-700 rounded-xl text-white shadow-md">
                                     <Database className="w-5 h-5" />
                                   </div>
                                   <div>
@@ -1982,7 +1982,7 @@ const App: React.FC = () => {
                                   </div>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700">
                                     <Activity className="w-3 h-3 mr-1" />
                                     Score: {result.score.toFixed(1)}
                                   </span>
@@ -1997,7 +1997,7 @@ const App: React.FC = () => {
                                   return (
                                     <div
                                       key={key}
-                                      className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
+                                      className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-red-200 dark:group-hover:border-red-500 transition-colors"
                                       >
                                       <div className="flex flex-col">
                                         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
@@ -2035,7 +2035,7 @@ const App: React.FC = () => {
                                     navigator.clipboard.writeText(dataText);
                                     alert('Données copiées dans le presse-papier !');
                                   }}
-                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
+                                  className="inline-flex items-center px-3 py-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900 rounded-md hover:bg-red-100 dark:hover:bg-red-800 transition-colors"
                                 >
                                   <User className="w-3 h-3 mr-1" />
                                   Copier
@@ -2046,7 +2046,7 @@ const App: React.FC = () => {
                         </div>
                         <div className="mt-8 text-center">
                           <button
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                             onClick={() => {
                               const combined: Record<string, any> = {};
                               searchResults.hits.forEach(h => {
@@ -2084,7 +2084,7 @@ const App: React.FC = () => {
                         <button
                           onClick={loadMoreResults}
                           disabled={loading}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
                         >
                           Charger plus
                         </button>
@@ -2103,7 +2103,7 @@ const App: React.FC = () => {
                 placeholder="Rechercher..."
                 value={gendarmerieSearch}
                 onChange={(e) => setGendarmerieSearch(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg dark:bg-gray-800">
                 {gendarmerieLoading ? (
@@ -2113,7 +2113,7 @@ const App: React.FC = () => {
                 ) : (
                   <>
                     <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-blue-600">
+                      <thead className="bg-red-600">
                         <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Libellé</th>
@@ -2164,7 +2164,7 @@ const App: React.FC = () => {
                               onClick={() => setGendarmeriePage(page)}
                               className={`px-3 py-1 rounded-md border text-sm font-medium ${
                                 gendarmeriePage === page
-                                  ? 'bg-blue-600 text-white'
+                                  ? 'bg-red-600 text-white'
                                   : 'bg-white text-gray-700 hover:bg-gray-50'
                               }`}
                             >
@@ -2202,7 +2202,7 @@ const App: React.FC = () => {
                   setOngSearch(e.target.value);
                   setOngPage(1);
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
                 {ongLoading ? (
@@ -2212,7 +2212,7 @@ const App: React.FC = () => {
                 ) : (
                   <>
                     <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-blue-600">
+                      <thead className="bg-red-600">
                         <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">OrganizationName</th>
@@ -2262,7 +2262,7 @@ const App: React.FC = () => {
                               onClick={() => setOngPage(page)}
                               className={`px-3 py-1 rounded-md border text-sm font-medium ${
                                 ongPage === page
-                                  ? 'bg-blue-600 text-white'
+                                  ? 'bg-red-600 text-white'
                                   : 'bg-white text-gray-700 hover:bg-gray-50'
                               }`}
                             >
@@ -2300,7 +2300,7 @@ const App: React.FC = () => {
                   setEntreprisesSearch(e.target.value);
                   setEntreprisesPage(1);
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
                 {entreprisesLoading ? (
@@ -2310,7 +2310,7 @@ const App: React.FC = () => {
                 ) : (
                   <>
                     <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-blue-600">
+                      <thead className="bg-red-600">
                         <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ninea_ninet</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">cuci</th>
@@ -2410,7 +2410,7 @@ const App: React.FC = () => {
                               onClick={() => setEntreprisesPage(page)}
                               className={`px-3 py-1 rounded-md border text-sm font-medium ${
                                 entreprisesPage === page
-                                  ? 'bg-blue-600 text-white'
+                                  ? 'bg-red-600 text-white'
                                   : 'bg-white text-gray-700 hover:bg-gray-50'
                               }`}
                             >
@@ -2448,7 +2448,7 @@ const App: React.FC = () => {
                   setVehiculesSearch(e.target.value);
                   setVehiculesPage(1);
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
               />
               <div className="overflow-x-auto bg-white shadow rounded-lg">
                 {vehiculesLoading ? (
@@ -2458,7 +2458,7 @@ const App: React.FC = () => {
                 ) : (
                   <>
                     <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-blue-600">
+                      <thead className="bg-red-600">
                         <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Numero_Immatriculation</th>
@@ -2558,7 +2558,7 @@ const App: React.FC = () => {
                               onClick={() => setVehiculesPage(page)}
                               className={`px-3 py-1 rounded-md border text-sm font-medium ${
                                 vehiculesPage === page
-                                  ? 'bg-blue-600 text-white'
+                                  ? 'bg-red-600 text-white'
                                   : 'bg-white text-gray-700 hover:bg-gray-50'
                               }`}
                             >
@@ -2595,11 +2595,11 @@ const App: React.FC = () => {
                   placeholder="Nom du CASE"
                   value={cdrCaseName}
                   onChange={(e) => setCdrCaseName(e.target.value)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-transform"
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 active:scale-95 transition-transform"
                 >
                   Créer
                 </button>
@@ -2621,7 +2621,7 @@ const App: React.FC = () => {
                         <h4 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{c.name}</h4>
                         <div className="mt-auto flex space-x-2">
                           <button
-                            className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                             onClick={() => {
                               setSelectedCase(c);
                               setCdrResult(null);
@@ -2677,7 +2677,7 @@ const App: React.FC = () => {
                   setCurrentPage('cdr');
                   setSelectedCase(null);
                 }}
-                className="text-blue-600"
+                className="text-red-600"
               >
                 &larr; Retour
               </button>
@@ -2697,12 +2697,12 @@ const App: React.FC = () => {
                       type="file"
                       accept=".csv"
                       onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
                     />
                       <button
                         type="submit"
                         disabled={cdrUploading || !cdrFile || !cdrNumber}
-                        className="flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50"
+                        className="flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md disabled:opacity-50"
                       >
                         {cdrUploading ? (
                           <Loader2 className="h-5 w-5 animate-spin" />
@@ -2757,20 +2757,20 @@ const App: React.FC = () => {
                       placeholder="Numéro(s) ou IMEI (séparés par des virgules)"
                       value={cdrIdentifier}
                       onChange={(e) => setCdrIdentifier(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                     />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <input
                         type="date"
                         value={cdrStart}
                         onChange={(e) => setCdrStart(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                       <input
                         type="date"
                         value={cdrEnd}
                         onChange={(e) => setCdrEnd(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -2778,20 +2778,20 @@ const App: React.FC = () => {
                         type="time"
                         value={cdrStartTime}
                         onChange={(e) => setCdrStartTime(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                       <input
                         type="time"
                         value={cdrEndTime}
                         onChange={(e) => setCdrEndTime(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <select
                         value={cdrDirection}
                         onChange={(e) => setCdrDirection(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                       >
                         <option value="both">Appels entrants et sortants</option>
                         <option value="incoming">Uniquement entrants</option>
@@ -2800,7 +2800,7 @@ const App: React.FC = () => {
                       <select
                         value={cdrType}
                         onChange={(e) => setCdrType(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                       >
                         <option value="both">Appels et SMS</option>
                         <option value="call">Seulement appels</option>
@@ -2811,14 +2811,14 @@ const App: React.FC = () => {
                       <button
                         type="submit"
                         disabled={cdrLoading}
-                        className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-transform transform hover:scale-105 active:scale-95"
+                        className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-full hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 transition-transform transform hover:scale-105 active:scale-95"
                       >
                         Rechercher
                       </button>
                         {caseFiles.filter(f => f.cdr_number).length >= 2 && (
                           <button
                             type="button"
-                            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
+                            className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-full hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
                             onClick={handleLinkDiagram}
                           >
                             Diagramme des liens
@@ -2896,10 +2896,10 @@ const App: React.FC = () => {
                     className="group p-6 bg-white rounded-xl shadow hover:shadow-lg transition-shadow border border-gray-100"
                   >
                     <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600">
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-red-600">
                         {link.title}
                       </h2>
-                      <ExternalLink className="h-5 w-5 text-gray-400 group-hover:text-blue-600" />
+                      <ExternalLink className="h-5 w-5 text-gray-400 group-hover:text-red-600" />
                     </div>
                     <p className="mt-2 text-sm text-gray-500 break-all">{link.url}</p>
                   </a>
@@ -2915,7 +2915,7 @@ const App: React.FC = () => {
                 <PageHeader icon={<User className="h-6 w-6" />} title="Gestion des utilisateurs" subtitle="Créez et gérez les comptes utilisateurs" />
                 <button
                   onClick={openCreateModal}
-                  className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all shadow-lg"
+                  className="flex items-center px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all shadow-lg"
                 >
                   <Plus className="w-5 h-5 mr-2" />
                   Nouvel utilisateur
@@ -2933,7 +2933,7 @@ const App: React.FC = () => {
                     </p>
                     <button
                       onClick={openCreateModal}
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       Créer le premier utilisateur
@@ -2963,7 +2963,7 @@ const App: React.FC = () => {
                           <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
-                                <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-700 rounded-full">
+                                <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-red-500 to-red-700 rounded-full">
                                   <User className="h-5 w-5 text-white" />
                                 </div>
                                 <div className="ml-4">
@@ -2979,7 +2979,7 @@ const App: React.FC = () => {
                                   Administrateur
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                   <UserCheck className="w-3 h-3 mr-1" />
                                   Utilisateur
                                 </span>
@@ -2996,7 +2996,7 @@ const App: React.FC = () => {
                               <div className="flex space-x-3">
                                 <button
                                   onClick={() => openEditModal(user)}
-                                  className="text-blue-600 hover:text-blue-900 transition-colors"
+                                  className="text-red-600 hover:text-red-900 transition-colors"
                                   title="Modifier l'utilisateur"
                                 >
                                   <Edit className="w-4 h-4" />
@@ -3032,21 +3032,21 @@ const App: React.FC = () => {
           {currentPage === 'dashboard' && (
             <div className="space-y-8">
               {/* Header */}
-              <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme VEGETA" />
+              <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme Dvine Intelligence" />
 
               {loadingStats ? (
                 <div className="flex items-center justify-center py-16">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
                   <span className="ml-4 text-lg text-gray-600">Chargement des statistiques...</span>
                 </div>
               ) : (
                 <>
                   {/* Métriques principales */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-xl">
+                    <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-6 text-white shadow-xl">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-blue-100 text-sm font-medium">Recherches totales</p>
+                          <p className="text-red-100 text-sm font-medium">Recherches totales</p>
                           <p className="text-3xl font-bold">{statsData?.total_searches || 0}</p>
                         </div>
                         <div className="bg-white/20 rounded-full p-3">
@@ -3109,7 +3109,7 @@ const App: React.FC = () => {
                     {/* Graphique des recherches par jour */}
                     <div className="bg-white rounded-2xl shadow-xl p-6">
                       <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
-                        <BarChart3 className="h-6 w-6 mr-2 text-blue-600" />
+                        <BarChart3 className="h-6 w-6 mr-2 text-red-600" />
                         Recherches des 7 derniers jours
                       </h3>
                       <div className="h-80">
@@ -3255,7 +3255,7 @@ const App: React.FC = () => {
                     <div className="lg:col-span-2">
                       <div className="bg-white rounded-2xl shadow-xl p-6">
                         <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
-                          <FileText className="h-6 w-6 mr-2 text-blue-600" />
+                          <FileText className="h-6 w-6 mr-2 text-red-600" />
                           Logs de recherche
                         </h3>
                         {isAdmin && (
@@ -3265,11 +3265,11 @@ const App: React.FC = () => {
                               value={logUserFilter}
                               onChange={(e) => setLogUserFilter(e.target.value)}
                               placeholder="Filtrer par utilisateur"
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
                             />
                             <button
                               onClick={loadStatistics}
-                              className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                              className="ml-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                             >
                               Rechercher
                             </button>
@@ -3281,8 +3281,8 @@ const App: React.FC = () => {
                               <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                                 <div className="flex-1">
                                   <div className="flex items-center space-x-3">
-                                    <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-                                      <User className="h-4 w-4 text-blue-600" />
+                                    <div className="flex items-center justify-center w-8 h-8 bg-red-100 rounded-full">
+                                      <User className="h-4 w-4 text-red-600" />
                                     </div>
                                     <div>
                                       <p className="font-medium text-gray-900 dark:text-gray-100">{log.username || 'Utilisateur inconnu'}</p>
@@ -3295,7 +3295,7 @@ const App: React.FC = () => {
                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                       {log.results_count || 0} résultats
                                     </span>
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                       {log.execution_time_ms || 0}ms
                                     </span>
                                   </div>
@@ -3324,14 +3324,14 @@ const App: React.FC = () => {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {statsData?.top_search_terms?.slice(0, 9).map((term, index) => (
-                        <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-blue-100 transition-all dark:from-gray-800 dark:to-gray-700 dark:hover:from-blue-900 dark:hover:to-blue-800">
+                        <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-red-50 hover:to-red-100 transition-all dark:from-gray-800 dark:to-gray-700 dark:hover:from-red-900 dark:hover:to-red-800">
                           <div className="flex items-center space-x-3">
-                            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full text-blue-600 font-bold text-sm dark:bg-blue-900 dark:text-blue-200">
+                            <div className="flex items-center justify-center w-8 h-8 bg-red-100 rounded-full text-red-600 font-bold text-sm dark:bg-red-900 dark:text-red-200">
                               {index + 1}
                             </div>
                             <span className="font-medium text-gray-900 truncate max-w-xs dark:text-gray-100">"{term.search_term}"</span>
                           </div>
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
                             {term.search_count} fois
                           </span>
                         </div>
@@ -3353,7 +3353,7 @@ const App: React.FC = () => {
               <div className="w-full max-w-2xl">
                 <div className="bg-white rounded-2xl shadow-xl p-8">
                   <div className="text-center mb-8">
-                    <UploadCloud className="h-12 w-12 mx-auto text-blue-600" />
+                    <UploadCloud className="h-12 w-12 mx-auto text-red-600" />
                     <PageHeader icon={<UploadCloud className="h-6 w-6" />} title="Charger des données" />
                     <p className="mt-2 text-gray-600">Importez un fichier CSV dans la table de votre choix.</p>
                   </div>
@@ -3363,7 +3363,7 @@ const App: React.FC = () => {
                       <input
                         type="text"
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
                         value={uploadTable}
                         onChange={(e) => setUploadTable(e.target.value)}
                       />
@@ -3375,13 +3375,13 @@ const App: React.FC = () => {
                         accept=".csv"
                         required
                         onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
                       />
                     </div>
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
+                      className="w-full px-4 py-3 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50 transition-colors"
                     >
                       {loading ? (
                         <Loader2 className="mx-auto h-5 w-5 animate-spin" />
@@ -3445,7 +3445,7 @@ const App: React.FC = () => {
                 <input
                   type="text"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                   value={userFormData.login}
                   onChange={(e) => setUserFormData({ ...userFormData, login: e.target.value })}
                 />
@@ -3458,7 +3458,7 @@ const App: React.FC = () => {
                     type="password"
                     required
                     minLength={6}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     value={userFormData.password}
                     onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
                   />
@@ -3469,7 +3469,7 @@ const App: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Rôle</label>
                 <select
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                   value={userFormData.admin}
                   onChange={(e) => setUserFormData({ ...userFormData, admin: parseInt(e.target.value) })}
                 >
@@ -3493,7 +3493,7 @@ const App: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50 transition-colors"
                 >
                   {loading ? 'Enregistrement...' : (editingUser ? 'Modifier' : 'Créer')}
                 </button>
@@ -3521,7 +3521,7 @@ const App: React.FC = () => {
                     <input
                       type={showPasswords.current ? 'text' : 'password'}
                       required
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                       value={passwordFormData.currentPassword}
                       onChange={(e) => setPasswordFormData({ ...passwordFormData, currentPassword: e.target.value })}
                     />
@@ -3543,7 +3543,7 @@ const App: React.FC = () => {
                     type={showPasswords.new ? 'text' : 'password'}
                     required
                     minLength={6}
-                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     value={passwordFormData.newPassword}
                     onChange={(e) => setPasswordFormData({ ...passwordFormData, newPassword: e.target.value })}
                   />
@@ -3565,7 +3565,7 @@ const App: React.FC = () => {
                     type={showPasswords.confirm ? 'text' : 'password'}
                     required
                     minLength={6}
-                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     value={passwordFormData.confirmPassword}
                     onChange={(e) => setPasswordFormData({ ...passwordFormData, confirmPassword: e.target.value })}
                   />
@@ -3595,7 +3595,7 @@ const App: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50 transition-colors"
                 >
                   {loading ? 'Modification...' : 'Changer le mot de passe'}
                 </button>
