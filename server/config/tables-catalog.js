@@ -687,6 +687,18 @@ export default {
       Telephone: 'string',
       Localite: 'string'
     },
+    theme: 'identite',
+  },
+
+  'autres.identified_numbers': {
+    display: 'identified_numbers',
+    database: 'autres',
+    searchable: ['phone', 'data'],
+    preview: ['phone', 'data'],
+    filters: {
+      phone: 'string'
+    },
+    linkedFields: ['phone'],
     theme: 'identite'
   }
 };

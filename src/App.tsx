@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search,
   Database,
@@ -38,7 +38,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  ClipboardList
+  ClipboardList,
+  Bell
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -794,7 +795,7 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     setRequestsLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -803,29 +804,36 @@ const App: React.FC = () => {
           'Authorization': `Bearer ${token}`
         }
       });
-      const data = await res.json();
-      if (res.ok) {
-        const parsed = data.map((r: any) => ({
-          ...r,
-          profile: r.profile
-            ? {
-                ...r.profile,
-                extra_fields: r.profile.extra_fields
-                  ? typeof r.profile.extra_fields === 'string'
-                    ? JSON.parse(r.profile.extra_fields)
-                    : r.profile.extra_fields
-                  : []
-              }
-            : null
-        }));
-        setRequests(parsed);
-      }
-    } catch (error) {
-      console.error('Erreur chargement demandes:', error);
-    } finally {
-      setRequestsLoading(false);
+    const data = await res.json();
+    if (res.ok) {
+    const parsed = data.map((r: any) => ({
+      ...r,
+      profile: r.profile
+        ? {
+            ...r.profile,
+            extra_fields: r.profile.extra_fields
+              ? typeof r.profile.extra_fields === 'string'
+                ? JSON.parse(r.profile.extra_fields)
+                : r.profile.extra_fields
+              : []
+          }
+        : null
+    }));
+    const unique = Array.from(new Map(parsed.map(r => [r.id, r])).values());
+    setRequests(unique);
     }
-  };
+  } catch (error) {
+    console.error('Erreur chargement demandes:', error);
+  } finally {
+    setRequestsLoading(false);
+  }
+};
+
+useEffect(() => {
+  if (currentUser) {
+    fetchRequests();
+  }
+}, [currentUser, fetchRequests]);
 
   const markRequestIdentified = async (id: number, profileId?: number) => {
     try {
@@ -844,7 +852,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Erreur mise à jour demande:', error);
     }
-  };
+  }, []);
 
   const deleteRequest = async (id: number) => {
     if (!confirm('Supprimer cette demande ?')) return;
@@ -1555,6 +1563,8 @@ const App: React.FC = () => {
   // Vérifier si l'utilisateur est admin
   const isAdmin = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
 
+  const notificationCount = requests.filter(r => r.status === 'identified').length;
+
   const numericSearch = searchQuery.replace(/\D/g, '');
   const canRequestIdentification =
     !!searchResults &&
@@ -2001,8 +2011,21 @@ const App: React.FC = () => {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-auto">
-        <div className="p-8">
+        <div className="flex-1 overflow-auto">
+          <div className="p-8">
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => setCurrentPage('requests')}
+                className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <Bell className="h-6 w-6" />
+                {notificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                    {notificationCount}
+                  </span>
+                )}
+              </button>
+            </div>
           {currentPage === 'search' && (
             <div className="space-y-8">
               {/* Header */}
