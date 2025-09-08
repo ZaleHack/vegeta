@@ -1567,25 +1567,34 @@ useEffect(() => {
   // Vérifier si l'utilisateur est admin
   const isAdmin = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
 
-  const notificationCount = requests.filter(
-    (r) => r.status === 'identified' && !readNotifications.includes(r.id)
+  const identifiedRequests = requests.filter(r => r.status === 'identified');
+  const lastNotifications = identifiedRequests.slice(0, 20);
+  const notificationCount = lastNotifications.filter(
+    (r) => !readNotifications.includes(r.id)
   ).length;
-  const totalNotifications = requests.filter((r) => r.status === 'identified').length;
+  const totalNotifications = lastNotifications.length;
 
   useEffect(() => {
     if (currentPage === 'requests') {
-      const ids = requests.filter(r => r.status === 'identified').map(r => r.id);
+      const ids = lastNotifications.map(r => r.id);
       setReadNotifications(prev => Array.from(new Set([...prev, ...ids])));
       setShowNotifications(false);
     }
-  }, [currentPage, requests]);
+  }, [currentPage, lastNotifications]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const interval = setInterval(() => {
+      fetchRequests();
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [currentUser, fetchRequests]);
 
   const handleNotificationClick = () => {
     const nextState = !showNotifications;
     setShowNotifications(nextState);
     if (nextState) {
-      fetchRequests();
-      const ids = requests.filter(r => r.status === 'identified').map(r => r.id);
+      const ids = lastNotifications.map(r => r.id);
       setReadNotifications(prev => Array.from(new Set([...prev, ...ids])));
     }
   };
@@ -2052,20 +2061,31 @@ useEffect(() => {
                 </button>
                 {showNotifications && (
                   <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-xl ring-1 ring-black ring-opacity-5 z-50 overflow-hidden">
-                    <div className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700">
-                      Notifications ({totalNotifications})
+                    <div className="px-4 py-2 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700">
+                      <span>Notifications ({totalNotifications})</span>
+                      <button
+                        onClick={() => setShowNotifications(false)}
+                        className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
                     <div className="max-h-60 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
                       {totalNotifications === 0 ? (
                         <div className="p-4 text-sm text-gray-500 dark:text-gray-400">Aucune notification</div>
                       ) : (
-                        requests
-                          .filter(r => r.status === 'identified')
-                          .map(r => (
-                            <div key={r.id} className="p-4 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
-                              {r.phone} a été identifié par l'administrateur
+                        lastNotifications.map(r => {
+                          const isUnread = !readNotifications.includes(r.id);
+                          return (
+                            <div
+                              key={r.id}
+                              className={`p-4 text-sm flex items-center hover:bg-gray-50 dark:hover:bg-gray-700 ${isUnread ? 'font-medium' : 'text-gray-500 dark:text-gray-400'}`}
+                            >
+                              <span className={`w-2 h-2 rounded-full mr-2 ${isUnread ? 'bg-blue-600' : 'bg-transparent'}`}></span>
+                              <span>{r.phone} a été identifié par l'administrateur</span>
                             </div>
-                          ))
+                          );
+                        })
                       )}
                     </div>
                   </div>
