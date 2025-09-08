@@ -159,6 +159,10 @@ La plateforme supporte plusieurs opérateurs :
 - `POST /api/users` : Créer un utilisateur
 - `PATCH /api/users/:id` : Modifier un utilisateur
 
+### Numéros identifiés (ADMIN)
+- `GET /api/identified-numbers/:phone` : Récupérer les informations d'un numéro identifié
+- `PATCH /api/identified-numbers/:phone` : Modifier les informations d'un numéro identifié
+
 ## Sécurité
 
 - **Rate limiting** : 100 requêtes/15min pour la recherche
