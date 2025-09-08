@@ -102,6 +102,16 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               ctx.fillStyle = color;
               ctx.fill();
             }}
+            linkColor={() =>
+              document.documentElement.classList.contains('dark')
+                ? '#93c5fd'
+                : '#2563eb'
+            }
+            linkDirectionalArrowColor={() =>
+              document.documentElement.classList.contains('dark')
+                ? '#93c5fd'
+                : '#2563eb'
+            }
             linkWidth={(link: any) => 1 + Math.log(link.callCount + link.smsCount)}
             linkDirectionalParticles={2}
             linkDirectionalParticleSpeed={0.005}

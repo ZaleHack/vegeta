@@ -88,28 +88,13 @@ class ProfileService {
 
       const addFooter = () => {
         const pageWidth = doc.page.width;
-        const margin = doc.page.margins.left;
-        const logoSize = 20;
-        const footerY = doc.page.height - margin + (margin - logoSize) / 2;
-        const text = 'VEGETA';
-
+        const footerY = doc.page.height - 40;
         doc.save();
-        doc.font('Helvetica-Bold').fontSize(12);
-        const textWidth = doc.widthOfString(text);
-        const totalWidth = logoSize + 6 + textWidth;
-        const startX = (pageWidth - totalWidth) / 2;
-
         doc
-          .circle(startX + logoSize / 2, footerY + logoSize / 2, logoSize / 2)
-          .fill('#4F46E5');
-        doc
-          .fillColor('white')
-          .fontSize(logoSize * 0.6)
-          .text('V', startX, footerY + logoSize * 0.2, { width: logoSize, align: 'center' });
-        doc
-          .fillColor('#4F46E5')
+          .font('Helvetica-Bold')
           .fontSize(12)
-          .text(text, startX + logoSize + 6, footerY + logoSize * 0.2);
+          .fillColor('#4F46E5')
+          .text('VEGETA', 0, footerY, { width: pageWidth, align: 'center' });
         doc.restore();
       };
 
