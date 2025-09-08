@@ -3205,9 +3205,10 @@ useEffect(() => {
               <PageHeader icon={<FileText className="h-6 w-6" />} title="Fiches de profil" />
             {showProfileForm ? (
               <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-2xl font-bold mb-6 text-gray-800">
+                <h2 className="text-2xl font-bold text-center text-gray-800">
                   {editingProfileId ? 'Modifier la fiche de profil' : 'Créer une fiche de profil'}
                 </h2>
+                <p className="mb-6 text-center text-gray-500">Vegata</p>
                 <ProfileForm
                   initialValues={profileDefaults}
                   profileId={editingProfileId || undefined}
