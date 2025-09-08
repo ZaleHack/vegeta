@@ -140,6 +140,16 @@ class DatabaseManager {
       `);
 
       await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.identified_numbers (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          phone VARCHAR(50) NOT NULL UNIQUE,
+          data JSON DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await this.query(`
         CREATE TABLE IF NOT EXISTS autres.identification_requests (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,

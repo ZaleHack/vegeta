@@ -1,4 +1,5 @@
 import database from '../config/database.js';
+import IdentifiedNumber from './IdentifiedNumber.js';
 
 class IdentificationRequest {
   static async create(data) {
@@ -105,10 +106,30 @@ class IdentificationRequest {
       `UPDATE autres.identification_requests SET status = ?, profile_id = ? WHERE id = ?`,
       [status, profile_id, id]
     );
-    return database.queryOne(
+    const updated = await database.queryOne(
       `SELECT * FROM autres.identification_requests WHERE id = ?`,
       [id]
     );
+    if (status === 'identified' && profile_id) {
+      const profile = await database.queryOne(
+        `SELECT * FROM autres.profiles WHERE id = ?`,
+        [profile_id]
+      );
+      if (profile) {
+        const data = {
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          phone: profile.phone,
+          email: profile.email,
+          comment: profile.comment,
+          extra_fields: profile.extra_fields
+            ? JSON.parse(profile.extra_fields)
+            : []
+        };
+        await IdentifiedNumber.upsert(updated.phone, data);
+      }
+    }
+    return updated;
   }
 }
 
