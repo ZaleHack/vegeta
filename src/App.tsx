@@ -3189,8 +3189,17 @@ useEffect(() => {
                         <div className="space-y-1">
                           <div className="text-lg font-semibold">{r.phone}</div>
                           {isAdmin && <div className="text-sm text-gray-500">{r.user_login}</div>}
-                          <div className="text-sm">
-                            Statut: {r.status === 'identified' ? 'identifié' : 'en cours'}
+                          <div className="text-sm flex items-center">
+                            <span className="mr-1">Statut:</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                r.status === 'identified'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}
+                            >
+                              {r.status === 'identified' ? 'identifié' : 'en cours'}
+                            </span>
                           </div>
                           {r.status === 'identified' && r.profile && (
                             <div className="mt-2 text-sm text-gray-700 space-y-1">
