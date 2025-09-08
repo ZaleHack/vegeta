@@ -804,30 +804,32 @@ const App: React.FC = () => {
           'Authorization': `Bearer ${token}`
         }
       });
-    const data = await res.json();
-    if (res.ok) {
-    const parsed = data.map((r: any) => ({
-      ...r,
-      profile: r.profile
-        ? {
-            ...r.profile,
-            extra_fields: r.profile.extra_fields
-              ? typeof r.profile.extra_fields === 'string'
-                ? JSON.parse(r.profile.extra_fields)
-                : r.profile.extra_fields
-              : []
-          }
-        : null
-    }));
-    const unique = Array.from(new Map(parsed.map(r => [r.id, r])).values());
-    setRequests(unique);
+      const data = await res.json();
+      if (res.ok) {
+        const parsed = data.map((r: any) => ({
+          ...r,
+          profile: r.profile
+            ? {
+                ...r.profile,
+                extra_fields: r.profile.extra_fields
+                  ? typeof r.profile.extra_fields === 'string'
+                    ? JSON.parse(r.profile.extra_fields)
+                    : r.profile.extra_fields
+                  : []
+              }
+            : null
+        }));
+        const unique = Array.from(
+          new Map(parsed.map(r => [r.id, r])).values()
+        );
+        setRequests(unique);
+      }
+    } catch (error) {
+      console.error('Erreur chargement demandes:', error);
+    } finally {
+      setRequestsLoading(false);
     }
-  } catch (error) {
-    console.error('Erreur chargement demandes:', error);
-  } finally {
-    setRequestsLoading(false);
-  }
-};
+  }, []);
 
 useEffect(() => {
   if (currentUser) {
@@ -852,7 +854,7 @@ useEffect(() => {
     } catch (error) {
       console.error('Erreur mise à jour demande:', error);
     }
-  }, []);
+  };
 
   const deleteRequest = async (id: number) => {
     if (!confirm('Supprimer cette demande ?')) return;
