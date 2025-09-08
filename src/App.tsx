@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Search,
   Database,
@@ -351,6 +351,18 @@ const App: React.FC = () => {
   const [identifyingRequest, setIdentifyingRequest] = useState<IdentificationRequest | null>(null);
   const [readNotifications, setReadNotifications] = useState<number[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  const identifyingInitialValues = useMemo(
+    () => ({
+      extra_fields: [
+        {
+          title: 'Informations',
+          fields: [{ key: 'Téléphone', value: identifyingRequest?.phone || '' }]
+        }
+      ]
+    }),
+    [identifyingRequest?.phone]
+  );
 
   // États d'authentification
   const [loginData, setLoginData] = useState({ login: '', password: '' });
@@ -3100,14 +3112,7 @@ useEffect(() => {
                 <div className="bg-white rounded-lg shadow p-6">
                   <h3 className="text-xl font-semibold mb-4">Identifier {identifyingRequest.phone}</h3>
                   <ProfileForm
-                    initialValues={{
-                      extra_fields: [
-                        {
-                          title: 'Informations',
-                          fields: [{ key: 'Téléphone', value: identifyingRequest.phone }]
-                        }
-                      ]
-                    }}
+                    initialValues={identifyingInitialValues}
                     onSaved={handleProfileSaved}
                   />
                   <div className="mt-4 text-right">
