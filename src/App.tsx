@@ -376,6 +376,13 @@ const App: React.FC = () => {
     [filteredRequests, requestPage]
   );
 
+  // Ensure the current request page is within bounds when the filtered
+  // results change. Otherwise, a shrinking dataset can leave the user on an
+  // out-of-range page with no navigation controls.
+  useEffect(() => {
+    setRequestPage(p => Math.min(p, Math.max(totalRequestPages, 1)));
+  }, [totalRequestPages]);
+
   const identifyingInitialValues = useMemo(
     () => ({
       extra_fields: [
