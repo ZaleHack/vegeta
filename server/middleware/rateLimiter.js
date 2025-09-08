@@ -1,9 +1,9 @@
-const rateLimit = require('express-rate-limit');
+import rateLimit from 'express-rate-limit';
 
-const createRateLimiter = (windowMs, max, message) => {
+export const createRateLimiter = (windowMs, max, message) => {
   return rateLimit({
-    windowMs: windowMs,
-    max: max,
+    windowMs,
+    max,
     message: {
       error: message || 'Trop de requêtes, veuillez réessayer plus tard'
     },
@@ -16,26 +16,28 @@ const createRateLimiter = (windowMs, max, message) => {
   });
 };
 
-const searchRateLimit = createRateLimiter(
+export const searchRateLimit = createRateLimiter(
   15 * 60 * 1000, // 15 minutes
   100, // 100 requêtes par fenêtre
   'Limite de recherches atteinte. Veuillez patienter avant de réessayer.'
 );
 
-const authRateLimit = createRateLimiter(
-  15 * 60 * 1000, // 15 minutes  
+export const authRateLimit = createRateLimiter(
+  15 * 60 * 1000, // 15 minutes
   10, // 10 tentatives par fenêtre
   'Trop de tentatives de connexion. Veuillez patienter.'
 );
 
-const uploadRateLimit = createRateLimiter(
+export const uploadRateLimit = createRateLimiter(
   60 * 60 * 1000, // 1 heure
   5, // 5 uploads par heure
-  'Limite d\'upload atteinte. Veuillez patienter.'
+  "Limite d'upload atteinte. Veuillez patienter."
 );
 
-module.exports = {
+export default {
   searchRateLimit,
   authRateLimit,
-  uploadRateLimit
+  uploadRateLimit,
+  createRateLimiter
 };
+

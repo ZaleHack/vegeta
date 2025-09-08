@@ -3,6 +3,8 @@ import rateLimit from 'express-rate-limit';
 import SearchService from '../services/SearchService.js';
 import ElasticSearchService from '../services/ElasticSearchService.js';
 import { authenticate } from '../middleware/auth.js';
+import { validateSearch } from '../middleware/validators.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 const searchService = new SearchService();
@@ -17,11 +19,8 @@ const searchLimiter = rateLimit({
 });
 
 // Route de recherche principale
-router.post('/', authenticate, searchLimiter, async (req, res) => {
+router.post('/', authenticate, searchLimiter, validateSearch, async (req, res) => {
   try {
-    console.log('🔍 POST /api/search - Nouvelle recherche');
-    console.log('📥 Body reçu:', req.body);
-    
     const {
       query,
       filters = {},
@@ -58,7 +57,6 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
     req.user.ip_address = req.ip;
     req.user.user_agent = req.headers['user-agent'];
 
-    console.log('🔍 Lancement de la recherche...');
     let results;
     if (useElastic) {
       const es = await elasticService.search(
@@ -87,11 +85,10 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
       );
     }
 
-    console.log('✅ Recherche terminée, envoi des résultats');
     res.json(results);
   } catch (error) {
-    console.error('❌ Erreur recherche:', error);
-    res.status(500).json({ 
+    logger.error('Erreur recherche', error);
+    res.status(500).json({
       error: 'Erreur lors de la recherche. Veuillez réessayer.'
     });
   }
@@ -102,14 +99,10 @@ router.get('/details/:table/:id', authenticate, async (req, res) => {
   try {
     const { table, id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({ error: 'ID invalide' });
-    }
-
     const details = await searchService.getRecordDetails(table, id);
     res.json(details);
   } catch (error) {
-    console.error('❌ Erreur détails:', error);
+    logger.error('Erreur détails', error);
 
     if (error.message.includes('non trouvé')) {
       return res.status(404).json({ error: error.message });
@@ -120,3 +113,4 @@ router.get('/details/:table/:id', authenticate, async (req, res) => {
 });
 
 export default router;
+

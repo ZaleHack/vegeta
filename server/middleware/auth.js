@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import logger from '../utils/logger.js';
 
 export const authenticate = async (req, res, next) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -27,7 +28,7 @@ export const requireAdmin = (req, res, next) => {
     return res.status(401).json({ error: 'Authentification requise' });
   }
 
-  console.log('🔍 Vérification admin:', {
+  logger.info('Vérification admin', {
     userId: req.user.id,
     login: req.user.login,
     adminValue: req.user.admin,

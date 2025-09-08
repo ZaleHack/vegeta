@@ -1,5 +1,6 @@
 import database from '../config/database.js';
 import catalog from '../config/tables-catalog.js';
+import logger from '../utils/logger.js';
 
 async function createIndexes() {
   for (const [table, config] of Object.entries(catalog)) {
@@ -10,9 +11,9 @@ async function createIndexes() {
         await database.query(
           `CREATE INDEX IF NOT EXISTS ${indexName} ON ${table} (${field})`
         );
-        console.log(`✅ Index ${indexName} créé`);
+        logger.info(`Index ${indexName} créé`);
       } catch (err) {
-        console.log(`ℹ️ Index ${indexName} ignoré: ${err.message}`);
+        logger.info(`Index ${indexName} ignoré: ${err.message}`);
       }
     }
   }
@@ -20,6 +21,7 @@ async function createIndexes() {
 }
 
 createIndexes().catch(err => {
-  console.error('❌ Erreur création index:', err);
+  logger.error('Erreur création index', err);
   process.exit(1);
 });
+

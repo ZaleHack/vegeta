@@ -1,4 +1,4 @@
-import fs from 'fs';
+import logger from '../utils/logger.js';
 import path from 'path';
 import Case from '../models/Case.js';
 import CdrService from './CdrService.js';
@@ -86,7 +86,7 @@ class CaseService {
     try {
       await this.cdrService.deleteTable(existingCase.name);
     } catch (err) {
-      console.error(`Failed to remove CDR table for case ${existingCase.name}`, err);
+      logger.error(`Failed to remove CDR table for case ${existingCase.name}`, err);
     }
   }
 
@@ -109,3 +109,4 @@ class CaseService {
 }
 
 export default CaseService;
+
