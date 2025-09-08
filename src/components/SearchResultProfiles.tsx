@@ -41,14 +41,43 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
             </span>
           </div>
           <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {Object.entries(hit.preview).map(([key, value]) => {
-              if (!value) return null;
+            {Object.entries(hit.preview).flatMap(([key, value]) => {
+              if (!value) return [];
+
+              if (key === 'data') {
+                try {
+                  const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+                  return Object.entries(parsed).map(([k, v]) => (
+                    <div key={`${key}-${k}`} className="flex flex-col">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        {k.replace(/_/g, ' ')}
+                      </span>
+                      <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
+                        {String(v)}
+                      </span>
+                    </div>
+                  ));
+                } catch {
+                  // Si le parsing échoue, afficher la valeur brute
+                  return (
+                    <div key={key} className="flex flex-col">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        {key.replace(/_/g, ' ')}
+                      </span>
+                      <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
+                        {String(value)}
+                      </span>
+                    </div>
+                  );
+                }
+              }
+
               return (
                 <div key={key} className="flex flex-col">
                   <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                     {key.replace(/_/g, ' ')}
                   </span>
-                    <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
+                  <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
                     {String(value)}
                   </span>
                 </div>
