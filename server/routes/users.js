@@ -1,5 +1,4 @@
 import express from 'express';
-import logger from '../utils/logger.js';
 import User from '../models/User.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
@@ -15,7 +14,7 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
     }));
     res.json({ users: usersWithRoles });
   } catch (error) {
-    logger.error('Erreur liste utilisateurs:', error);
+    console.error('Erreur liste utilisateurs:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs' });
   }
 });
@@ -37,7 +36,7 @@ router.get('/:id', authenticate, requireAdmin, async (req, res) => {
     const { mdp, ...userResponse } = user;
     res.json({ user: userResponse });
   } catch (error) {
-    logger.error('Erreur détails utilisateur:', error);
+    console.error('Erreur détails utilisateur:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération de l\'utilisateur' });
   }
 });
@@ -79,7 +78,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error('Erreur création utilisateur:', error);
+    console.error('Erreur création utilisateur:', error);
     res.status(500).json({ error: 'Erreur lors de la création de l\'utilisateur' });
   }
 });
@@ -127,7 +126,7 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
       user: userResponse 
     });
   } catch (error) {
-    logger.error('Erreur mise à jour utilisateur:', error);
+    console.error('Erreur mise à jour utilisateur:', error);
     res.status(500).json({ error: 'Erreur lors de la mise à jour de l\'utilisateur' });
   }
 });
@@ -174,7 +173,7 @@ router.post('/:id/change-password', authenticate, async (req, res) => {
 
     res.json({ message: 'Mot de passe mis à jour avec succès' });
   } catch (error) {
-    logger.error('Erreur changement mot de passe:', error);
+    console.error('Erreur changement mot de passe:', error);
     res.status(500).json({ error: 'Erreur lors du changement de mot de passe' });
   }
 });
@@ -201,7 +200,7 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
     await User.delete(userId);
     res.json({ message: 'Utilisateur supprimé avec succès' });
   } catch (error) {
-    logger.error('Erreur suppression utilisateur:', error);
+    console.error('Erreur suppression utilisateur:', error);
     res.status(500).json({ error: 'Erreur lors de la suppression de l\'utilisateur' });
   }
 });

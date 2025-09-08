@@ -1,10 +1,9 @@
 import database from '../config/database.js';
 import bcrypt from 'bcryptjs';
-import logger from '../utils/logger.js';
 
 async function initDatabase() {
   try {
-    logger.info('Initialisation de la base de données...');
+    console.log('🔧 Initialisation de la base de données...');
     
     // Attendre que la base soit prête
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -16,7 +15,7 @@ async function initDatabase() {
     );
     
     if (existingAdmin) {
-      logger.info('Utilisateur admin existe déjà');
+      console.log('✅ Utilisateur admin existe déjà');
       return;
     }
     
@@ -28,9 +27,9 @@ async function initDatabase() {
       ['admin', hashedPassword, 1]
     );
     
-    logger.info('Utilisateur admin créé avec succès');
-    logger.info('Login: admin');
-    logger.info('Mot de passe: admin123');
+    console.log('✅ Utilisateur admin créé avec succès');
+    console.log('📋 Login: admin');
+    console.log('📋 Mot de passe: admin123');
     
     // Vérifier la création
     const newAdmin = await database.queryOne(
@@ -38,20 +37,20 @@ async function initDatabase() {
       ['admin']
     );
     
-    logger.info('Vérification', newAdmin);
+    console.log('✅ Vérification:', newAdmin);
     
   } catch (error) {
-    logger.error('Erreur lors de l\'initialisation', error);
+    console.error('❌ Erreur lors de l\'initialisation:', error);
   }
 }
 
 // Exécuter si appelé directement
 if (import.meta.url === `file://${process.argv[1]}`) {
   initDatabase().then(() => {
-    logger.info('Initialisation terminée');
+    console.log('🎉 Initialisation terminée');
     process.exit(0);
   }).catch(error => {
-    logger.error('Erreur fatale', error);
+    console.error('💥 Erreur fatale:', error);
     process.exit(1);
   });
 }

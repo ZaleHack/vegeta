@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
-import logger from '../utils/logger.js';
 
 /**
  * Service utilitaire pour synchroniser les tables configurées.
@@ -29,7 +28,7 @@ class SyncService {
         }
       }
     } catch (error) {
-      logger.error('Erreur chargement catalogue', error);
+      console.error('❌ Erreur chargement catalogue:', error);
     }
     return catalog;
   }
@@ -38,9 +37,9 @@ class SyncService {
     try {
       // Vérifie l'accès à la table en effectuant une requête simple.
       await database.queryOne(`SELECT 1 FROM ${tableName} LIMIT 1`);
-      logger.info(`Table ${tableName} synchronisée`);
+      console.log(`✅ Table ${tableName} synchronisée`);
     } catch (error) {
-      logger.error(`Synchronisation échouée pour ${tableName}: ${error.message}`);
+      console.error(`❌ Synchronisation échouée pour ${tableName}:`, error.message);
     }
   }
 
@@ -53,4 +52,3 @@ class SyncService {
 }
 
 export default SyncService;
-

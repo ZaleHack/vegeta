@@ -1,5 +1,4 @@
 import express from 'express';
-import logger from '../utils/logger.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import IdentificationRequest from '../models/IdentificationRequest.js';
 
@@ -18,7 +17,7 @@ router.post('/', authenticate, async (req, res) => {
     });
     res.json(request);
   } catch (error) {
-    logger.error('Erreur création demande:', error);
+    console.error('Erreur création demande:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -34,7 +33,7 @@ router.get('/', authenticate, async (req, res) => {
     }
     res.json(requests);
   } catch (error) {
-    logger.error('Erreur récupération demandes:', error);
+    console.error('Erreur récupération demandes:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -49,7 +48,7 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
     const updated = await IdentificationRequest.updateStatus(req.params.id, status, profile_id);
     res.json(updated);
   } catch (error) {
-    logger.error('Erreur mise à jour demande:', error);
+    console.error('Erreur mise à jour demande:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -68,10 +67,9 @@ router.delete('/:id', authenticate, async (req, res) => {
     await IdentificationRequest.delete(req.params.id);
     res.json({ success: true });
   } catch (error) {
-    logger.error('Erreur suppression demande:', error);
+    console.error('Erreur suppression demande:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
 export default router;
-

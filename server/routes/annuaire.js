@@ -1,5 +1,4 @@
 import express from 'express';
-import logger from '../utils/logger.js';
 import database from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -12,10 +11,9 @@ router.get('/', authenticate, async (req, res) => {
     );
     res.json({ entries: rows });
   } catch (error) {
-    logger.error('Erreur annuaire gendarmerie:', error);
+    console.error('Erreur annuaire gendarmerie:', error);
     res.status(500).json({ error: "Erreur lors de la récupération de l'annuaire" });
   }
 });
 
 export default router;
-

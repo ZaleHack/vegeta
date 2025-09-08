@@ -4,7 +4,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
-import logger from '../utils/logger.js';
 
 class SearchService {
   constructor() {
@@ -46,7 +45,7 @@ class SearchService {
         }
       }
     } catch (error) {
-       logger.error('❌ Erreur chargement catalogue:', error);
+      console.error('❌ Erreur chargement catalogue:', error);
     }
     return catalog;
   }
@@ -73,7 +72,7 @@ class SearchService {
         return pk;
       }
     } catch (error) {
-       logger.warn(
+      console.warn(
         `⚠️ Impossible de déterminer la clé primaire pour ${tableName}:`,
         error.message
       );
@@ -93,7 +92,7 @@ class SearchService {
       this.primaryKeyCache.set(tableName, fallback);
       return fallback;
     } catch (error) {
-       logger.warn(
+      console.warn(
         `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
         error.message
       );
@@ -140,7 +139,7 @@ class SearchService {
     const offset = (page - 1) * limit;
     const searchTerms = this.parseSearchQuery(query);
 
-     logger.info('🔍 Recherche:', { query, searchTerms, filters });
+    console.log('🔍 Recherche:', { query, searchTerms, filters });
 
     // Lancer les recherches en parallèle sur toutes les tables du catalogue
     const searchPromises = Object.entries(catalog).map(
@@ -148,7 +147,7 @@ class SearchService {
         this.searchInTable(tableName, config, searchTerms, filters)
           .then((tableResults) => ({ tableName, tableResults }))
           .catch((error) => {
-             logger.error(`❌ Erreur recherche table ${tableName}:`, error.message);
+            console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
             return { tableName, tableResults: [] };
           }),
     );
@@ -156,7 +155,7 @@ class SearchService {
     const tableSearches = await Promise.all(searchPromises);
     for (const { tableName, tableResults } of tableSearches) {
       if (tableResults.length > 0) {
-         logger.info(`✅ ${tableResults.length} résultats trouvés dans ${tableName}`);
+        console.log(`✅ ${tableResults.length} résultats trouvés dans ${tableName}`);
         results.push(...tableResults);
         tablesSearched.push(tableName);
       }
@@ -234,7 +233,7 @@ class SearchService {
 
     const executionTime = Date.now() - startTime;
 
-     logger.info(
+    console.log(
       `🎯 Recherche terminée: ${totalResults} résultats en ${executionTime}ms`
     );
 
@@ -339,7 +338,7 @@ class SearchService {
     try {
       await database.query(`SELECT 1 FROM ${tableName} LIMIT 1`);
     } catch (error) {
-       logger.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
+      console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
       return results;
     }
 
@@ -463,7 +462,7 @@ class SearchService {
         });
       }
     } catch (error) {
-       logger.error(`❌ Erreur SQL table ${tableName}:`, error.message);
+      console.error(`❌ Erreur SQL table ${tableName}:`, error.message);
     }
 
     return results;
@@ -588,7 +587,7 @@ class SearchService {
         ]
       );
     } catch (error) {
-       logger.error('❌ Erreur log recherche:', error);
+      console.error('❌ Erreur log recherche:', error);
     }
   }
 
