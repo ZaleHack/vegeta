@@ -116,7 +116,8 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
             linkDirectionalParticles={2}
             linkDirectionalParticleSpeed={0.005}
             linkDirectionalArrowLength={6}
-            linkDirectionalArrowRelPos={0.5}
+            // Position arrows near targets so call/SMS labels remain unobstructed
+            linkDirectionalArrowRelPos={0.9}
             linkCanvasObjectMode={() => 'after'}
             linkCanvasObject={(link: any, ctx, globalScale) => {
               const start = link.source;

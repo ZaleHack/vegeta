@@ -86,21 +86,7 @@ class ProfileService {
       const doc = new PDFDocument({ margin: 50 });
       const chunks = [];
 
-      const appName = process.env.APP_NAME || 'VEGETA';
-      const addFooter = () => {
-        const pageWidth = doc.page.width;
-        const footerY = doc.page.height - 40;
-        doc.save();
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(12)
-          .fillColor('#4F46E5')
-          .text(appName, 0, footerY, { width: pageWidth, align: 'center' });
-        doc.restore();
-      };
-
-      addFooter();
-      doc.on('pageAdded', addFooter);
+      // Removed application name footer to keep PDF layout clean
 
       return await new Promise(async (resolve, reject) => {
         doc.on('data', chunk => chunks.push(chunk));
