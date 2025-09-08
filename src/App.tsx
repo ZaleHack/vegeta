@@ -352,6 +352,30 @@ const App: React.FC = () => {
   const [readNotifications, setReadNotifications] = useState<number[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  const [requestSearchInput, setRequestSearchInput] = useState('');
+  const [requestSearch, setRequestSearch] = useState('');
+  const [requestPage, setRequestPage] = useState(1);
+  const requestsPerPage = 10;
+
+  const filteredRequests = useMemo(
+    () =>
+      requests.filter(r =>
+        r.phone.includes(requestSearch) ||
+        r.user_login?.toLowerCase().includes(requestSearch.toLowerCase())
+      ),
+    [requests, requestSearch]
+  );
+
+  const totalRequestPages = Math.ceil(filteredRequests.length / requestsPerPage);
+  const paginatedRequests = useMemo(
+    () =>
+      filteredRequests.slice(
+        (requestPage - 1) * requestsPerPage,
+        requestPage * requestsPerPage
+      ),
+    [filteredRequests, requestPage]
+  );
+
   const identifyingInitialValues = useMemo(
     () => ({
       extra_fields: [
@@ -3108,6 +3132,26 @@ useEffect(() => {
           {currentPage === 'requests' && (
             <div className="space-y-6">
               <PageHeader icon={<ClipboardList className="h-6 w-6" />} title="Liste des demandes" />
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex w-full md:max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Rechercher..."
+                    value={requestSearchInput}
+                    onChange={(e) => setRequestSearchInput(e.target.value)}
+                    className="flex-grow px-4 py-2 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => {
+                      setRequestSearch(requestSearchInput);
+                      setRequestPage(1);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-r-lg hover:bg-blue-700"
+                  >
+                    <Search className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
               {identifyingRequest && (
                 <div className="bg-white rounded-lg shadow p-6">
                   <h3 className="text-xl font-semibold mb-4">Identifier {identifyingRequest.phone}</h3>
@@ -3128,74 +3172,97 @@ useEffect(() => {
               {requestsLoading ? (
                 <LoadingSpinner />
               ) : (
-                <div className="grid gap-4">
-                  {requests.map(r => (
-                    <div
-                      key={r.id}
-                      className="bg-white rounded-xl shadow p-4 flex flex-col md:flex-row md:justify-between md:items-start"
-                    >
-                      <div className="space-y-1">
-                        <div className="text-lg font-semibold">{r.phone}</div>
-                        {isAdmin && <div className="text-sm text-gray-500">{r.user_login}</div>}
-                        <div className="text-sm">
-                          Statut: {r.status === 'identified' ? 'identifié' : 'en cours'}
-                        </div>
-                        {r.status === 'identified' && r.profile && (
-                          <div className="mt-2 text-sm text-gray-700 space-y-1">
-                            {r.profile.first_name && (
-                              <div>
-                                <span className="font-medium">Prénom:</span> {r.profile.first_name}
-                              </div>
-                            )}
-                            {r.profile.last_name && (
-                              <div>
-                                <span className="font-medium">Nom:</span> {r.profile.last_name}
-                              </div>
-                            )}
-                            {r.profile.phone && (
-                              <div>
-                                <span className="font-medium">Téléphone:</span> {r.profile.phone}
-                              </div>
-                            )}
-                            {r.profile.email && (
-                              <div>
-                                <span className="font-medium">Email:</span> {r.profile.email}
-                              </div>
-                            )}
-                            {r.profile.extra_fields &&
-                              r.profile.extra_fields.map((cat: any, idx: number) => (
-                                <div key={idx} className="mt-2">
-                                  <div className="font-medium">{cat.title}</div>
-                                  {cat.fields.map((f: any, fi: number) => (
-                                    <div key={fi} className="flex text-xs">
-                                      <span className="w-32 text-gray-500">{f.key}:</span>
-                                      <span>{f.value}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              ))}
+                <>
+                  <div className="grid gap-4">
+                    {paginatedRequests.map(r => (
+                      <div
+                        key={r.id}
+                        className="bg-white rounded-2xl shadow-md p-6 flex flex-col md:flex-row md:items-center md:justify-between hover:shadow-lg transition-shadow"
+                      >
+                        <div className="space-y-1">
+                          <div className="text-lg font-semibold">{r.phone}</div>
+                          {isAdmin && <div className="text-sm text-gray-500">{r.user_login}</div>}
+                          <div className="text-sm">
+                            Statut: {r.status === 'identified' ? 'identifié' : 'en cours'}
                           </div>
-                        )}
-                      </div>
-                      <div className="mt-4 md:mt-0 flex space-x-2">
-                        {isAdmin && r.status !== 'identified' && (
+                          {r.status === 'identified' && r.profile && (
+                            <div className="mt-2 text-sm text-gray-700 space-y-1">
+                              {r.profile.first_name && (
+                                <div>
+                                  <span className="font-medium">Prénom:</span> {r.profile.first_name}
+                                </div>
+                              )}
+                              {r.profile.last_name && (
+                                <div>
+                                  <span className="font-medium">Nom:</span> {r.profile.last_name}
+                                </div>
+                              )}
+                              {r.profile.phone && (
+                                <div>
+                                  <span className="font-medium">Téléphone:</span> {r.profile.phone}
+                                </div>
+                              )}
+                              {r.profile.email && (
+                                <div>
+                                  <span className="font-medium">Email:</span> {r.profile.email}
+                                </div>
+                              )}
+                              {r.profile.extra_fields &&
+                                r.profile.extra_fields.map((cat: any, idx: number) => (
+                                  <div key={idx} className="mt-2">
+                                    <div className="font-medium">{cat.title}</div>
+                                    {cat.fields.map((f: any, fi: number) => (
+                                      <div key={fi} className="flex text-xs">
+                                        <span className="w-32 text-gray-500">{f.key}:</span>
+                                        <span>{f.value}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-4 md:mt-0 flex space-x-2">
+                          {isAdmin && r.status !== 'identified' && (
+                            <button
+                              className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                              onClick={() => startIdentify(r)}
+                            >
+                              Identifier
+                            </button>
+                          )}
                           <button
-                            className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                            onClick={() => startIdentify(r)}
+                            className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                            onClick={() => deleteRequest(r.id)}
                           >
-                            Identifier
+                            Supprimer
                           </button>
-                        )}
-                        <button
-                          className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                          onClick={() => deleteRequest(r.id)}
-                        >
-                          Supprimer
-                        </button>
+                        </div>
                       </div>
+                    ))}
+                  </div>
+                  {totalRequestPages > 1 && (
+                    <div className="flex justify-center items-center space-x-2 mt-4">
+                      <button
+                        onClick={() => setRequestPage(p => Math.max(p - 1, 1))}
+                        disabled={requestPage === 1}
+                        className="p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <span className="text-sm">
+                        {requestPage} / {totalRequestPages}
+                      </span>
+                      <button
+                        onClick={() => setRequestPage(p => Math.min(p + 1, totalRequestPages))}
+                        disabled={requestPage === totalRequestPages}
+                        className="p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </div>
           )}
