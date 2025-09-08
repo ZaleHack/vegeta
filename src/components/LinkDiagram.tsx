@@ -124,7 +124,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               const end = link.target;
               if (typeof start !== 'object' || typeof end !== 'object') return;
               const label = `${link.callCount} appels / ${link.smsCount} SMS`;
-              const fontSize = 10 / globalScale;
+              const fontSize = 14 / globalScale;
               const textX = (start.x + end.x) / 2;
               const textY = (start.y + end.y) / 2;
               const isDarkMode = document.documentElement.classList.contains('dark');
