@@ -19,7 +19,7 @@ interface InitialValues {
 interface ProfileFormProps {
   initialValues?: InitialValues;
   profileId?: number | null;
-  onSaved?: () => void;
+  onSaved?: (profileId?: number) => void;
 }
 
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
@@ -117,6 +117,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     e.preventDefault();
     const form = new FormData();
     let email = '';
+    let phone = '';
+    let first_name = '';
+    let last_name = '';
     const formatted = categories.map(cat => ({
       title: cat.title,
       fields: cat.fields.map(f => ({ key: f.key, value: f.value }))
@@ -125,9 +128,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       cat.fields.forEach(f => {
         const lower = f.key.trim().toLowerCase();
         if (lower === 'email') email = f.value;
+        if (['téléphone', 'telephone', 'phone'].includes(lower)) phone = f.value;
+        if (['prénom', 'prenom', 'first name'].includes(lower)) first_name = f.value;
+        if (['nom', 'last name'].includes(lower)) last_name = f.value;
       });
     });
     form.append('email', email);
+    if (phone) form.append('phone', phone);
+    if (first_name) form.append('first_name', first_name);
+    if (last_name) form.append('last_name', last_name);
     form.append('comment', comment);
     form.append('extra_fields', JSON.stringify(formatted));
     if (photo) form.append('photo', photo);
@@ -144,7 +153,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     const data = await res.json();
     if (res.ok) {
       setMessage('Profil enregistré avec succès');
-      if (onSaved) onSaved();
+      if (onSaved) onSaved(data.profile?.id);
     } else {
       setMessage(data.error || 'Erreur lors de la sauvegarde');
     }
