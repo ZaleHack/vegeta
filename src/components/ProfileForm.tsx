@@ -37,7 +37,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     ];
   };
 
-  const [categories, setCategories] = useState<FieldCategory[]>(buildInitialFields);
+  const [categories, setCategories] = useState<FieldCategory[]>(() => buildInitialFields());
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -56,33 +56,41 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   }, [initialValues, profileId]);
 
   const addCategory = () =>
-    setCategories([...categories, { title: '', fields: [{ key: '', value: '' }] }]);
+    setCategories(prev => [...prev, { title: '', fields: [{ key: '', value: '' }] }]);
   const removeCategory = (idx: number) =>
-    setCategories(categories.filter((_, i) => i !== idx));
+    setCategories(prev => prev.filter((_, i) => i !== idx));
   const updateCategoryTitle = (idx: number, title: string) => {
-    const updated = [...categories];
-    updated[idx].title = title;
-    setCategories(updated);
+    setCategories(prev => {
+      const updated = [...prev];
+      updated[idx].title = title;
+      return updated;
+    });
   };
 
   const addField = (catIdx: number) => {
-    const updated = [...categories];
-    updated[catIdx].fields.push({ key: '', value: '' });
-    setCategories(updated);
+    setCategories(prev => {
+      const updated = [...prev];
+      updated[catIdx].fields.push({ key: '', value: '' });
+      return updated;
+    });
   };
   const removeField = (catIdx: number, fieldIdx: number) => {
-    const updated = [...categories];
-    updated[catIdx].fields = updated[catIdx].fields.filter((_, i) => i !== fieldIdx);
-    setCategories(updated);
+    setCategories(prev => {
+      const updated = [...prev];
+      updated[catIdx].fields = updated[catIdx].fields.filter((_, i) => i !== fieldIdx);
+      return updated;
+    });
   };
   const updateField = (catIdx: number, fieldIdx: number, key: keyof ExtraField, value: string) => {
-    const updated = [...categories];
-    if (key === 'key') value = capitalize(value);
-    updated[catIdx].fields[fieldIdx] = {
-      ...updated[catIdx].fields[fieldIdx],
-      [key]: value
-    };
-    setCategories(updated);
+    setCategories(prev => {
+      const updated = [...prev];
+      if (key === 'key') value = capitalize(value);
+      updated[catIdx].fields[fieldIdx] = {
+        ...updated[catIdx].fields[fieldIdx],
+        [key]: value
+      };
+      return updated;
+    });
   };
 
   const handleDragStart = (catIdx: number, fieldIdx: number) => {
