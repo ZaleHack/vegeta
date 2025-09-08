@@ -2290,14 +2290,68 @@ useEffect(() => {
 
                               {/* Contenu des données */}
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {Object.entries(result.preview).map(([key, value]) => {
-                                  if (!value || value === '' || value === null || value === undefined) return null;
+                                {Object.entries(result.preview).flatMap(([key, value]) => {
+                                  if (!value || value === '' || value === null || value === undefined) return [];
+
+                                  if (key === 'data') {
+                                    try {
+                                      const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+                                      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                                        return Object.entries(parsed).map(([k, v]) => (
+                                          <div
+                                            key={`${key}-${k}`}
+                                            className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
+                                          >
+                                            <div className="flex flex-col">
+                                              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                                {k.replace(/_/g, ' ')}
+                                              </span>
+                                              <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+                                                {String(v)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ));
+                                      }
+                                      return (
+                                        <div
+                                          key={key}
+                                          className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                              {key.replace(/_/g, ' ')}
+                                            </span>
+                                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+                                              {String(parsed)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    } catch {
+                                      return (
+                                        <div
+                                          key={key}
+                                          className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                              {key.replace(/_/g, ' ')}
+                                            </span>
+                                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+                                              {String(value)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                  }
 
                                   return (
                                     <div
                                       key={key}
                                       className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
-                                      >
+                                    >
                                       <div className="flex flex-col">
                                         <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
                                           {key.replace(/_/g, ' ')}
