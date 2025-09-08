@@ -1578,8 +1578,10 @@ useEffect(() => {
   }, [currentPage, requests]);
 
   const handleNotificationClick = () => {
-    setShowNotifications(prev => !prev);
-    if (!showNotifications) {
+    const nextState = !showNotifications;
+    setShowNotifications(nextState);
+    if (nextState) {
+      fetchRequests();
       const ids = requests.filter(r => r.status === 'identified').map(r => r.id);
       setReadNotifications(prev => Array.from(new Set([...prev, ...ids])));
     }
