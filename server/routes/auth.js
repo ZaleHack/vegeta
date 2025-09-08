@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import express from 'express';
 import rateLimit from 'express-rate-limit';
 import User from '../models/User.js';
 
-const router = Router();
+const router = express.Router();
 
 // Rate limiting pour les tentatives de connexion
 const loginLimiter = rateLimit({
