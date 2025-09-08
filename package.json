@@ -10,9 +10,11 @@
     "init-db": "node server/scripts/init-database.js",
     "sync": "node server/scripts/sync-all.js",
     "create-indexes": "node server/scripts/create-search-indexes.js",
+    "migrate": "node server/scripts/run-migrations.js",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -24,7 +26,10 @@
     "@elastic/elasticsearch": "^8.13.0",
     "express": "^4.18.2",
     "express-rate-limit": "^6.10.0",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.0.0",
     "jsonwebtoken": "^9.0.2",
+    "winston": "^3.10.0",
     "lucide-react": "^0.263.1",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.6.0",
@@ -52,6 +57,7 @@
     "eslint": "^8.45.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.3",
+    "jest": "^29.7.0",
     "postcss": "^8.4.27",
     "tailwindcss": "^3.3.3",
     "typescript": "^5.0.2",

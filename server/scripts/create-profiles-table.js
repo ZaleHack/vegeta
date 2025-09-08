@@ -1,4 +1,5 @@
 import database from '../config/database.js';
+import logger from '../utils/logger.js';
 
 async function createProfilesTable() {
   await database.query(`
@@ -23,13 +24,14 @@ async function createProfilesTable() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   createProfilesTable()
     .then(() => {
-      console.log('✅ Table profiles prête');
+      logger.info('Table profiles prête');
       process.exit(0);
     })
     .catch(err => {
-      console.error('❌ Erreur création table profiles:', err);
+      logger.error('Erreur création table profiles', err);
       process.exit(1);
     });
 }
 
 export default createProfilesTable;
+

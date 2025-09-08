@@ -3,8 +3,10 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import logger from './utils/logger.js';
 
 // Import des routes
 import authRoutes from './routes/auth.js';
@@ -25,22 +27,34 @@ import identifiedNumbersRoutes from './routes/identified-numbers.js';
 import database from './config/database.js';
 import initDatabase from './scripts/init-database.js';
 
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
 // Middlewares
+app.use(helmet());
 app.use(cors({
   origin: true,
   credentials: true
 }));
 
-// Middleware de logging pour déboguer
+// Middleware de logging avec masquage des champs sensibles
 app.use((req, res, next) => {
-  console.log(`📥 ${req.method} ${req.path}`);
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log('📦 Body:', req.body);
+  const { password, mdp, ...rest } = req.body || {};
+  const sanitizedBody = {
+    ...rest,
+    ...(password ? { password: '[REDACTED]' } : {}),
+    ...(mdp ? { mdp: '[REDACTED]' } : {})
+  };
+  if (Object.keys(sanitizedBody).length > 0) {
+    logger.info(`📥 ${req.method} ${req.path}`, { body: sanitizedBody });
+  } else {
+    logger.info(`📥 ${req.method} ${req.path}`);
   }
   next();
 });
@@ -83,7 +97,7 @@ app.get('*', (req, res) => {
 
 // Gestionnaire d'erreurs global
 app.use((error, req, res, next) => {
-  console.error('❌ Erreur non gérée:', error);
+  logger.error('❌ Erreur non gérée:', error);
   res.status(500).json({ 
     error: process.env.NODE_ENV === 'production' 
       ? 'Erreur interne du serveur' 
@@ -94,21 +108,21 @@ app.use((error, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Serveur VEGETA démarré sur le port ${PORT}`);
-  console.log(`📊 Base de données: MySQL`);
-  console.log(`🔒 Mode: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`🚀 Serveur VEGETA démarré sur le port ${PORT}`);
+  logger.info(`📊 Base de données: MySQL`);
+  logger.info(`🔒 Mode: ${process.env.NODE_ENV || 'development'}`);
   
   // Initialiser la base de données après le démarrage
   setTimeout(() => {
-    initDatabase().catch(console.error);
+    initDatabase().catch(logger.error);
   }, 3000);
 });
 
 // Gestion propre de l'arrêt
 process.on('SIGINT', () => {
-  console.log('Arrêt du serveur VEGETA...');
+  logger.info('Arrêt du serveur VEGETA...');
   database.close().then(() => {
-    console.log('✅ Connexions fermées');
+    logger.info('✅ Connexions fermées');
     process.exit(0);
   });
 });

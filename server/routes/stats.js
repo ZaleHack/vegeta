@@ -1,4 +1,5 @@
 import express from 'express';
+import logger from '../utils/logger.js';
 import StatsService from '../services/StatsService.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -12,7 +13,7 @@ router.get('/overview', authenticate, async (req, res) => {
     const stats = await statsService.getOverviewStats(isAdmin ? null : req.user.id);
     res.json(stats);
   } catch (error) {
-    console.error('Erreur stats overview:', error);
+    logger.error('Erreur stats overview:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des statistiques' });
   }
 });
@@ -23,7 +24,7 @@ router.get('/data-distribution', authenticate, async (req, res) => {
     const distribution = await statsService.getDataStatistics();
     res.json({ distribution });
   } catch (error) {
-    console.error('Erreur distribution données:', error);
+    logger.error('Erreur distribution données:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération de la distribution' });
   }
 });
@@ -36,7 +37,7 @@ router.get('/time-series', authenticate, async (req, res) => {
     const timeSeries = await statsService.getTimeSeriesData(days, isAdmin ? null : req.user.id);
     res.json({ time_series: timeSeries });
   } catch (error) {
-    console.error('Erreur série temporelle:', error);
+    logger.error('Erreur série temporelle:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des données temporelles' });
   }
 });
@@ -51,7 +52,7 @@ router.get('/user-activity', authenticate, async (req, res) => {
     const userActivity = await statsService.getUserActivity();
     res.json({ user_activity: userActivity });
   } catch (error) {
-    console.error('Erreur activité utilisateurs:', error);
+    logger.error('Erreur activité utilisateurs:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération de l\'activité' });
   }
 });
@@ -66,7 +67,7 @@ router.get('/search-logs', authenticate, async (req, res) => {
     const logs = await statsService.getSearchLogs(limit, username, userId);
     res.json({ logs });
   } catch (error) {
-    console.error('Erreur logs de recherche:', error);
+    logger.error('Erreur logs de recherche:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des logs' });
   }
 });
@@ -77,7 +78,7 @@ router.get('/regions', authenticate, async (req, res) => {
     const regions = await statsService.getRegionDistribution();
     res.json({ regions });
   } catch (error) {
-    console.error('Erreur distribution régions:', error);
+    logger.error('Erreur distribution régions:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des données régionales' });
   }
 });

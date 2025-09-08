@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import database from '../config/database.js';
+import logger from '../utils/logger.js';
 
 class User {
   static async create(userData) {
@@ -28,16 +29,14 @@ class User {
   }
 
   static async findByLogin(login) {
-    console.log('🔍 Recherche utilisateur avec login:', login);
     try {
       const user = await database.queryOne(
         'SELECT * FROM autres.users WHERE login = ?',
         [login]
       );
-      console.log('✅ Résultat recherche utilisateur:', user ? 'trouvé' : 'non trouvé');
       return user;
     } catch (error) {
-      console.error('❌ Erreur lors de la recherche utilisateur:', error);
+      logger.error('Erreur lors de la recherche utilisateur', error);
       throw error;
     }
   }
@@ -48,18 +47,18 @@ class User {
 
   static generateToken(user) {
     return jwt.sign(
-      { 
-        id: user.id, 
-        login: user.login, 
-        admin: user.admin 
+      {
+        id: user.id,
+        login: user.login,
+        admin: user.admin
       },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
   }
 
   static verifyToken(token) {
-    return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    return jwt.verify(token, process.env.JWT_SECRET);
   }
 
   static async findAll() {

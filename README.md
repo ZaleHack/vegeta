@@ -68,7 +68,12 @@ PORT=3000
 NODE_ENV=development
 ```
 
-3. **Démarrer l'application** :
+3. **Exécuter les migrations** :
+```bash
+npm run migrate
+```
+
+4. **Démarrer l'application** :
 ```bash
 npm run dev
 ```

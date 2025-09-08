@@ -1,4 +1,4 @@
-import database from '../config/database.js';
+import logger from '../utils/logger.js';
 import csv from 'csv-parser';
 import fs from 'fs';
 import path from 'path';
@@ -97,7 +97,7 @@ class UploadService {
       };
 
     } catch (error) {
-      console.error('Erreur upload CSV:', error);
+      logger.error('Erreur upload CSV:', error);
       throw error;
     }
   }
@@ -178,7 +178,7 @@ class UploadService {
 
       return { success: true, execution_time: Date.now() - startTime };
     } catch (error) {
-      console.error('Erreur upload SQL:', error);
+      logger.error('Erreur upload SQL:', error);
       throw error;
     }
   }
@@ -209,7 +209,7 @@ class UploadService {
 
       fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2));
     } catch (error) {
-      console.error('Erreur mise à jour catalogue:', error);
+      logger.error('Erreur mise à jour catalogue:', error);
     }
   }
 
@@ -232,7 +232,7 @@ class UploadService {
       ]);
       return result.insertId;
     } catch (error) {
-      console.error('Erreur log upload:', error);
+      logger.error('Erreur log upload:', error);
     }
   }
 
@@ -255,7 +255,7 @@ class UploadService {
 
       return await database.query(sql, params);
     } catch (error) {
-      console.error('Erreur historique upload:', error);
+      logger.error('Erreur historique upload:', error);
       return [];
     }
   }
@@ -279,7 +279,7 @@ class UploadService {
       }
       await database.query('DELETE FROM upload_history WHERE id = ?', [id]);
     } catch (error) {
-      console.error('Erreur suppression upload:', error);
+      logger.error('Erreur suppression upload:', error);
       throw error;
     }
   }

@@ -1,6 +1,8 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import User from '../models/User.js';
+import logger from '../utils/logger.js';
+import { validateLogin } from '../middleware/validators.js';
 
 const router = express.Router();
 
@@ -12,41 +14,30 @@ const loginLimiter = rateLimit({
 });
 
 // Route de connexion
-router.post('/login', loginLimiter, async (req, res) => {
+router.post('/login', loginLimiter, validateLogin, async (req, res) => {
   try {
-    console.log('🔐 POST /api/auth/login - Tentative de connexion');
-    console.log('📥 Body reçu:', req.body);
-    
     const { login, password } = req.body;
 
     if (!login || !password) {
-      console.log('❌ Login ou password manquant');
       return res.status(400).json({ error: 'Login et mot de passe requis' });
     }
-
-    console.log('🔍 Recherche utilisateur:', login);
     const user = await User.findByLogin(login);
-    
+
     if (!user) {
-      console.log('❌ Utilisateur non trouvé:', login);
+      logger.warn(`Utilisateur non trouvé: ${login}`);
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
-
-    console.log('✅ Utilisateur trouvé, validation du mot de passe');
     const isValidPassword = await User.validatePassword(password, user.mdp);
-    
+
     if (!isValidPassword) {
-      console.log('❌ Mot de passe invalide pour:', login);
+      logger.warn(`Mot de passe invalide pour ${login}`);
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
-
-    console.log('✅ Mot de passe valide, génération du token');
     const token = User.generateToken(user);
     
     // Ne pas renvoyer le mot de passe
     const { mdp, ...userResponse } = user;
 
-    console.log('✅ Connexion réussie pour:', login);
     const response = {
       message: 'Connexion réussie',
       user: {
@@ -55,12 +46,10 @@ router.post('/login', loginLimiter, async (req, res) => {
       },
       token: token
     };
-    
-    console.log('📤 Envoi de la réponse:', response);
     res.json(response);
-    
+
   } catch (error) {
-    console.error('❌ Erreur lors de la connexion:', error);
+    logger.error('Erreur lors de la connexion', error);
     res.status(500).json({ error: 'Erreur serveur: ' + error.message });
   }
 });
