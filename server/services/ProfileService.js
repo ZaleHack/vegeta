@@ -86,6 +86,7 @@ class ProfileService {
       const doc = new PDFDocument({ margin: 50 });
       const chunks = [];
 
+      const appName = process.env.APP_NAME || 'VEGETA';
       const addFooter = () => {
         const pageWidth = doc.page.width;
         const footerY = doc.page.height - 40;
@@ -94,7 +95,7 @@ class ProfileService {
           .font('Helvetica-Bold')
           .fontSize(12)
           .fillColor('#4F46E5')
-          .text('VEGETA', 0, footerY, { width: pageWidth, align: 'center' });
+          .text(appName, 0, footerY, { width: pageWidth, align: 'center' });
         doc.restore();
       };
 
