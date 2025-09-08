@@ -217,7 +217,7 @@ class StatsService {
   }
 
   generateCSVExport(stats) {
-    let csv = 'Statistiques Dvine Intelligence\n\n';
+    let csv = 'Statistiques VEGETA\n\n';
 
     csv += 'Recherches totales,' + stats.total_searches + '\n';
     csv += '\nTop termes\n';

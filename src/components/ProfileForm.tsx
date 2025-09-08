@@ -166,7 +166,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
           >
             <div className="flex items-center space-x-3">
               <input
-                className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Titre de la catégorie"
                 value={cat.title}
                 onChange={e => updateCategoryTitle(cIdx, e.target.value)}
@@ -189,13 +189,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
                 onDrop={() => handleDrop(cIdx, fIdx)}
               >
                 <input
-                  className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Nom du champ"
                   value={field.key}
                   onChange={e => updateField(cIdx, fIdx, 'key', e.target.value)}
                 />
                 <input
-                  className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Valeur"
                   value={field.value}
                   onChange={e => updateField(cIdx, fIdx, 'value', e.target.value)}
@@ -211,7 +211,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
             ))}
             <button
               type="button"
-              className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
               onClick={() => addField(cIdx)}
             >
               Ajouter un champ
@@ -220,7 +220,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
         ))}
         <button
           type="button"
-          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           onClick={addCategory}
         >
           Ajouter une catégorie
@@ -229,7 +229,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       <div>
         <label className="block mb-2 font-medium text-gray-700">Commentaire</label>
         <textarea
-          className="w-full rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+          className="w-full rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           value={comment}
           onChange={e => setComment(e.target.value)}
         />
@@ -238,7 +238,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
         <input
           type="file"
           onChange={handlePhoto}
-          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
+          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
         />
         {preview && (
           <img
@@ -250,7 +250,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       </div>
       <button
         type="submit"
-        className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
       >
         Enregistrer
       </button>

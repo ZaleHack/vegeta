@@ -4,8 +4,7 @@ const fs = require('fs');
 
 class DatabaseManager {
   constructor() {
-    this.dbPath = path.join(__dirname, '../../data/dvine-intelligence.db');
-    this.legacyDbPath = path.join(__dirname, '../../data/vegeta.db');
+    this.dbPath = path.join(__dirname, '../../data/vegeta.db');
     this.db = null;
     this.init();
   }
@@ -16,17 +15,6 @@ class DatabaseManager {
       const dataDir = path.dirname(this.dbPath);
       if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
-      }
-
-      // Migrer automatiquement l'ancienne base de données si nécessaire
-      if (!fs.existsSync(this.dbPath) && fs.existsSync(this.legacyDbPath)) {
-        try {
-          fs.renameSync(this.legacyDbPath, this.dbPath);
-          console.log('➡️  Base de données migrée de vegeta.db vers dvine-intelligence.db');
-        } catch (err) {
-          console.error('❌ Échec de la migration de la base de données existante:', err);
-          throw err;
-        }
       }
 
       // Initialiser la base SQLite

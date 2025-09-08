@@ -74,7 +74,7 @@ app.get('/api/health', (req, res) => {
 
 // Servir l'application React pour toutes les autres routes
 app.get('*', (req, res) => {
-  res.json({ message: 'API Dvine Intelligence - Utilisez /api/* pour les endpoints' });
+  res.json({ message: 'API VEGETA - Utilisez /api/* pour les endpoints' });
 });
 
 // Gestionnaire d'erreurs global
@@ -90,7 +90,7 @@ app.use((error, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Serveur Dvine Intelligence démarré sur le port ${PORT}`);
+  console.log(`🚀 Serveur VEGETA démarré sur le port ${PORT}`);
   console.log(`📊 Base de données: MySQL`);
   console.log(`🔒 Mode: ${process.env.NODE_ENV || 'development'}`);
   
@@ -102,7 +102,7 @@ app.listen(PORT, () => {
 
 // Gestion propre de l'arrêt
 process.on('SIGINT', () => {
-  console.log('Arrêt du serveur Dvine Intelligence...');
+  console.log('Arrêt du serveur VEGETA...');
   database.close().then(() => {
     console.log('✅ Connexions fermées');
     process.exit(0);

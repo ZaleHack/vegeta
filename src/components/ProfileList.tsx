@@ -95,13 +95,13 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-2 bg-white/80 backdrop-blur-sm p-4 rounded-2xl shadow-lg">
         <input
-          className="border border-gray-300 p-2 rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-red-500"
+          className="border border-gray-300 p-2 rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Recherche"
           value={query}
           onChange={e => setQuery(e.target.value)}
         />
         <button
-          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           onClick={() => {
             setPage(1);
             load();
@@ -111,7 +111,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
         </button>
         {onCreate && (
           <button
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             onClick={onCreate}
           >
             Créer profil
@@ -153,14 +153,14 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
               return (
                 <div
                   key={p.id}
-                  className="bg-white/80 backdrop-blur-sm shadow-md rounded-2xl p-6 flex flex-col border border-red-100 hover:border-red-300 hover:shadow-xl transition-shadow"
+                  className="bg-white/80 backdrop-blur-sm shadow-md rounded-2xl p-6 flex flex-col border border-blue-100 hover:border-blue-300 hover:shadow-xl transition-shadow"
                 >
                   <div className="flex items-center space-x-4">
                     {p.photo_path ? (
                       <img
                         src={`/${p.photo_path}`}
                         alt="profil"
-                        className="w-16 h-16 rounded-full object-cover ring-2 ring-red-500"
+                        className="w-16 h-16 rounded-full object-cover ring-2 ring-blue-500"
                       />
                     ) : (
                       <div className="w-16 h-16 rounded-full bg-gray-200" />
@@ -176,14 +176,14 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                   </div>
                   <div className="mt-4 flex justify-end space-x-4 text-sm">
                     <button
-                      className="text-red-600 hover:underline"
+                      className="text-blue-600 hover:underline"
                       onClick={() => setSelected(p)}
                     >
                       Aperçu
                     </button>
                     {onEdit && (
                       <button
-                        className="text-red-600 hover:underline"
+                        className="text-blue-600 hover:underline"
                         onClick={() => onEdit(p.id)}
                       >
                         Modifier
@@ -196,7 +196,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                       Supprimer
                     </button>
                     <button
-                      className="text-red-600 hover:underline"
+                      className="text-blue-600 hover:underline"
                       onClick={() => exportProfile(p.id)}
                     >
                       Exporter Profil
@@ -208,7 +208,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
           </div>
           <div className="flex justify-center items-center space-x-2 mt-4">
             <button
-              className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+              className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
             >
@@ -218,7 +218,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
               Page {page} / {Math.max(1, Math.ceil(total / limit))}
             </span>
             <button
-              className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+              className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               onClick={() => setPage(p => p + 1)}
               disabled={page >= Math.ceil(total / limit)}
             >
@@ -240,7 +240,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
               <img
                 src={`/${selected.photo_path}`}
                 alt="profil"
-                className="mx-auto w-32 h-32 rounded-full object-cover mb-4 ring-2 ring-red-500"
+                className="mx-auto w-32 h-32 rounded-full object-cover mb-4 ring-2 ring-blue-500"
               />
             )}
             <h2 className="text-2xl font-semibold text-center mb-4">Détails du profil</h2>
