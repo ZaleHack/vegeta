@@ -20,14 +20,14 @@ interface LinkDiagramProps {
 }
 
 const typePalette = [
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
+  '#0ea5e9',
   '#6366f1',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6'
+  '#22c55e',
+  '#f97316',
+  '#a855f7',
+  '#e11d48',
+  '#14b8a6',
+  '#f59e0b'
 ];
 
 const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
@@ -52,7 +52,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-11/12 h-5/6 relative flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between p-4 bg-blue-500 text-white">
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white">
           <h2 className="text-lg font-semibold">Diagramme des liens</h2>
           <button
             className="text-black hover:text-gray-800 dark:text-white dark:hover:text-gray-200"
@@ -80,12 +80,25 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
             nodeCanvasObject={(node: any, ctx, globalScale) => {
               const label = node.id;
               const fontSize = 12 / globalScale;
-              const radius = 8;
+              const radius = 10;
               const isDarkMode = document.documentElement.classList.contains('dark');
+              const gradient = ctx.createRadialGradient(
+                node.x,
+                node.y,
+                0,
+                node.x,
+                node.y,
+                radius
+              );
+              gradient.addColorStop(0, '#ffffff');
+              gradient.addColorStop(1, node.color);
               ctx.beginPath();
               ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
-              ctx.fillStyle = node.color;
+              ctx.fillStyle = gradient;
+              ctx.shadowColor = 'rgba(0,0,0,0.2)';
+              ctx.shadowBlur = 8;
               ctx.fill();
+              ctx.shadowBlur = 0;
               ctx.strokeStyle = isDarkMode ? '#374151' : '#e5e7eb';
               ctx.lineWidth = 1;
               ctx.stroke();
@@ -96,7 +109,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               ctx.fillText(label, node.x, node.y + radius + 4);
             }}
             nodePointerAreaPaint={(node: any, color, ctx) => {
-              const radius = 8;
+              const radius = 10;
               ctx.beginPath();
               ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
               ctx.fillStyle = color;
@@ -104,17 +117,17 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
             }}
             linkColor={() =>
               document.documentElement.classList.contains('dark')
-                ? '#93c5fd'
-                : '#2563eb'
+                ? '#a5b4fc'
+                : '#6366f1'
             }
             linkDirectionalArrowColor={() =>
               document.documentElement.classList.contains('dark')
-                ? '#93c5fd'
-                : '#2563eb'
+                ? '#a5b4fc'
+                : '#6366f1'
             }
             linkWidth={(link: any) => 1 + Math.log(link.callCount + link.smsCount)}
-            linkDirectionalParticles={2}
-            linkDirectionalParticleSpeed={0.005}
+            linkDirectionalParticles={4}
+            linkDirectionalParticleSpeed={0.006}
             linkDirectionalArrowLength={6}
             // Position arrows near targets so call/SMS labels remain unobstructed
             linkDirectionalArrowRelPos={0.9}
@@ -135,7 +148,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               ctx.fillText(label, textX, textY);
             }}
           />
-          <div className="absolute top-4 left-4 bg-white/80 dark:bg-gray-800/80 rounded-md shadow p-2 text-xs space-y-1">
+          <div className="absolute top-4 left-4 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-md shadow p-2 text-xs space-y-1">
             {nodeTypes.map((type) => (
               <div key={type} className="flex items-center gap-2">
                 <span
