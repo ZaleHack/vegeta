@@ -139,6 +139,19 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.identification_requests (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          phone VARCHAR(50) NOT NULL,
+          status ENUM('pending','identified') DEFAULT 'pending',
+          profile_id INT DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_user_id (user_id),
+          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
       // Table des dossiers CDR
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_cases (
