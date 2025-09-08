@@ -8,26 +8,26 @@
     @apply bg-gray-900 text-gray-100;
   }
   form {
-    @apply border border-white;
+    @apply bg-white rounded-xl shadow-md;
   }
   .dark form {
-    @apply border-2 border-gray-700 rounded-xl;
+    @apply bg-gray-800 rounded-xl shadow-md;
   }
   input,
   textarea,
   select {
-    @apply bg-white text-gray-900 border border-white;
+    @apply bg-gray-50 text-gray-900 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500;
   }
   button {
-    @apply bg-white text-gray-900;
+    @apply bg-white text-gray-900 rounded-lg;
   }
   .dark button {
-    @apply bg-gray-800 text-gray-100;
+    @apply bg-gray-800 text-gray-100 rounded-lg;
   }
   .dark input,
   .dark textarea,
   .dark select {
-    @apply bg-gray-800 text-gray-100 border-2 border-gray-700 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-blue-500;
+    @apply bg-gray-800 text-gray-100 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500;
   }
   .dark .btn-primary {
     @apply bg-blue-600 text-white;
