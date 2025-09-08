@@ -349,8 +349,23 @@ const App: React.FC = () => {
   const [requests, setRequests] = useState<IdentificationRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [identifyingRequest, setIdentifyingRequest] = useState<IdentificationRequest | null>(null);
-  const [readNotifications, setReadNotifications] = useState<number[]>([]);
+  const [readNotifications, setReadNotifications] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('readNotifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('readNotifications', JSON.stringify(readNotifications));
+    } catch {
+      // Ignore write errors (e.g., private browsing)
+    }
+  }, [readNotifications]);
 
   const [requestSearchInput, setRequestSearchInput] = useState('');
   const [requestSearch, setRequestSearch] = useState('');
