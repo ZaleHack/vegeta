@@ -138,11 +138,23 @@ interface EntrepriseEntry {
   systeme: string;
 }
 
+interface ProfileData {
+  id: number;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  comment?: string | null;
+  extra_fields?: any;
+  photo_path?: string | null;
+}
+
 interface IdentificationRequest {
   id: number;
   phone: string;
   status: string;
   user_login?: string;
+  profile?: ProfileData | null;
 }
 
 interface OngEntry {
@@ -335,6 +347,7 @@ const App: React.FC = () => {
   // États des demandes d'identification
   const [requests, setRequests] = useState<IdentificationRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
+  const [identifyingRequest, setIdentifyingRequest] = useState<IdentificationRequest | null>(null);
 
   // États d'authentification
   const [loginData, setLoginData] = useState({ login: '', password: '' });
@@ -792,7 +805,20 @@ const App: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
-        setRequests(data);
+        const parsed = data.map((r: any) => ({
+          ...r,
+          profile: r.profile
+            ? {
+                ...r.profile,
+                extra_fields: r.profile.extra_fields
+                  ? typeof r.profile.extra_fields === 'string'
+                    ? JSON.parse(r.profile.extra_fields)
+                    : r.profile.extra_fields
+                  : []
+              }
+            : null
+        }));
+        setRequests(parsed);
       }
     } catch (error) {
       console.error('Erreur chargement demandes:', error);
@@ -801,7 +827,7 @@ const App: React.FC = () => {
     }
   };
 
-  const markRequestIdentified = async (id: number) => {
+  const markRequestIdentified = async (id: number, profileId?: number) => {
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/requests/${id}`, {
@@ -810,7 +836,7 @@ const App: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ status: 'identified' })
+        body: JSON.stringify({ status: 'identified', profile_id: profileId })
       });
       if (res.ok) {
         fetchRequests();
@@ -818,6 +844,31 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Erreur mise à jour demande:', error);
     }
+  };
+
+  const deleteRequest = async (id: number) => {
+    if (!confirm('Supprimer cette demande ?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`/api/requests/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      fetchRequests();
+    } catch (error) {
+      console.error('Erreur suppression demande:', error);
+    }
+  };
+
+  const startIdentify = (request: IdentificationRequest) => {
+    setIdentifyingRequest(request);
+  };
+
+  const handleProfileSaved = async (profileId?: number) => {
+    if (identifyingRequest && profileId) {
+      await markRequestIdentified(identifyingRequest.id, profileId);
+    }
+    setIdentifyingRequest(null);
   };
 
   // Gestion des utilisateurs
@@ -2957,39 +3008,100 @@ const App: React.FC = () => {
           {currentPage === 'requests' && (
             <div className="space-y-6">
               <PageHeader icon={<ClipboardList className="h-6 w-6" />} title="Liste des demandes" />
+              {identifyingRequest && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-xl font-semibold mb-4">Identifier {identifyingRequest.phone}</h3>
+                  <ProfileForm
+                    initialValues={{
+                      extra_fields: [
+                        {
+                          title: 'Informations',
+                          fields: [{ key: 'Téléphone', value: identifyingRequest.phone }]
+                        }
+                      ]
+                    }}
+                    onSaved={handleProfileSaved}
+                  />
+                  <div className="mt-4 text-right">
+                    <button
+                      className="text-sm text-gray-600 hover:underline"
+                      onClick={() => setIdentifyingRequest(null)}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
               {requestsLoading ? (
                 <LoadingSpinner />
               ) : (
-                <div className="bg-white rounded-lg shadow p-6 overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead>
-                      <tr>
-                        <th className="px-4 py-2 text-left">Numéro</th>
-                        {isAdmin && <th className="px-4 py-2 text-left">Utilisateur</th>}
-                        <th className="px-4 py-2 text-left">Statut</th>
-                        {isAdmin && <th className="px-4 py-2" />}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {requests.map((r) => (
-                        <tr key={r.id}>
-                          <td className="px-4 py-2">{r.phone}</td>
-                          {isAdmin && <td className="px-4 py-2">{r.user_login}</td>}
-                          <td className="px-4 py-2">{r.status === 'identified' ? 'identifié' : 'en cours'}</td>
-                          {isAdmin && r.status !== 'identified' && (
-                            <td className="px-4 py-2 text-right">
-                              <button
-                                className="text-blue-600 hover:underline"
-                                onClick={() => markRequestIdentified(r.id)}
-                              >
-                                Marquer identifié
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="grid gap-4">
+                  {requests.map(r => (
+                    <div
+                      key={r.id}
+                      className="bg-white rounded-xl shadow p-4 flex flex-col md:flex-row md:justify-between md:items-start"
+                    >
+                      <div className="space-y-1">
+                        <div className="text-lg font-semibold">{r.phone}</div>
+                        {isAdmin && <div className="text-sm text-gray-500">{r.user_login}</div>}
+                        <div className="text-sm">
+                          Statut: {r.status === 'identified' ? 'identifié' : 'en cours'}
+                        </div>
+                        {r.status === 'identified' && r.profile && (
+                          <div className="mt-2 text-sm text-gray-700 space-y-1">
+                            {r.profile.first_name && (
+                              <div>
+                                <span className="font-medium">Prénom:</span> {r.profile.first_name}
+                              </div>
+                            )}
+                            {r.profile.last_name && (
+                              <div>
+                                <span className="font-medium">Nom:</span> {r.profile.last_name}
+                              </div>
+                            )}
+                            {r.profile.phone && (
+                              <div>
+                                <span className="font-medium">Téléphone:</span> {r.profile.phone}
+                              </div>
+                            )}
+                            {r.profile.email && (
+                              <div>
+                                <span className="font-medium">Email:</span> {r.profile.email}
+                              </div>
+                            )}
+                            {r.profile.extra_fields &&
+                              r.profile.extra_fields.map((cat: any, idx: number) => (
+                                <div key={idx} className="mt-2">
+                                  <div className="font-medium">{cat.title}</div>
+                                  {cat.fields.map((f: any, fi: number) => (
+                                    <div key={fi} className="flex text-xs">
+                                      <span className="w-32 text-gray-500">{f.key}:</span>
+                                      <span>{f.value}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-4 md:mt-0 flex space-x-2">
+                        {isAdmin && r.status !== 'identified' && (
+                          <button
+                            className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            onClick={() => startIdentify(r)}
+                          >
+                            Identifier
+                          </button>
+                        )}
+                        <button
+                          className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                          onClick={() => deleteRequest(r.id)}
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

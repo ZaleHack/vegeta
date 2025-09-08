@@ -53,4 +53,23 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+// Supprimer une demande
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const request = await IdentificationRequest.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ error: 'Demande non trouvée' });
+    }
+    const isAdmin = req.user.admin === 1 || req.user.admin === '1';
+    if (!isAdmin && request.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+    await IdentificationRequest.delete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur suppression demande:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 export default router;
