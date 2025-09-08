@@ -1,5 +1,4 @@
 import express from 'express';
-import logger from '../utils/logger.js';
 import database from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -44,10 +43,9 @@ router.get('/', authenticate, async (req, res) => {
 
     res.json({ entries: rows, total: totalResult.count });
   } catch (error) {
-    logger.error('Erreur récupération véhicules:', error);
+    console.error('Erreur récupération véhicules:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des véhicules' });
   }
 });
 
 export default router;
-

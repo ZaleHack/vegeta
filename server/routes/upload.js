@@ -1,5 +1,4 @@
 import express from 'express';
-import logger from '../utils/logger.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -81,7 +80,7 @@ router.post('/csv', authenticate, requireAdmin, upload.single('csvFile'), async 
       throw uploadError;
     }
   } catch (error) {
-    logger.error('Erreur upload CSV:', error);
+    console.error('Erreur upload CSV:', error);
     res.status(500).json({ 
       error: error.message || 'Erreur lors de l\'upload du fichier'
     });
@@ -109,7 +108,7 @@ router.post('/file', authenticate, requireAdmin, upload.single('dataFile'), asyn
 
     res.json({ message: 'Données chargées avec succès', ...result });
   } catch (error) {
-    logger.error('Erreur upload fichier:', error);
+    console.error('Erreur upload fichier:', error);
     res.status(500).json({ error: error.message || 'Erreur lors du chargement du fichier' });
   }
 });
@@ -123,7 +122,7 @@ router.get('/history', authenticate, async (req, res) => {
     const history = await uploadService.getUploadHistory(userId, limit);
     res.json({ history });
   } catch (error) {
-    logger.error('Erreur historique upload:', error);
+    console.error('Erreur historique upload:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération de l\'historique' });
   }
 });
@@ -138,7 +137,7 @@ router.delete('/history/:id', authenticate, requireAdmin, async (req, res) => {
     await uploadService.deleteUpload(id);
     res.json({ message: 'Données supprimées' });
   } catch (error) {
-    logger.error('Erreur suppression upload:', error);
+    console.error('Erreur suppression upload:', error);
     res.status(500).json({ error: error.message || 'Erreur lors de la suppression' });
   }
 });

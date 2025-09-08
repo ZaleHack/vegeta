@@ -1,4 +1,4 @@
-import logger from '../utils/logger.js';
+import database from '../config/database.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -30,7 +30,7 @@ class StatsService {
         }
       }
     } catch (error) {
-      logger.error('❌ Erreur chargement catalogue:', error);
+      console.error('❌ Erreur chargement catalogue:', error);
     }
     return catalog;
   }
@@ -91,7 +91,7 @@ class StatsService {
       this.cache.set(cacheKey, stats);
       return stats;
     } catch (error) {
-      logger.error('Erreur statistiques overview:', error);
+      console.error('Erreur statistiques overview:', error);
       throw error;
     }
   }
@@ -118,7 +118,7 @@ class StatsService {
             database: config.database
           }];
         } catch (error) {
-          logger.warn(`Table ${tableName} non accessible: ${error.message}`);
+          console.warn(`Table ${tableName} non accessible:`, error.message);
           return [tableName, {
             total_records: 0,
             table_name: config.display,
@@ -173,7 +173,7 @@ class StatsService {
       this.cache.set(cacheKey, data);
       return data;
     } catch (error) {
-      logger.error('Erreur données temporelles:', error);
+      console.error('Erreur données temporelles:', error);
       throw error;
     }
   }
@@ -205,7 +205,7 @@ class StatsService {
       this.cache.set(cacheKey, userActivity || []);
       return userActivity || [];
     } catch (error) {
-      logger.error('Erreur statistiques utilisateurs:', error);
+      console.error('Erreur statistiques utilisateurs:', error);
       throw error;
     }
   }
@@ -233,7 +233,7 @@ class StatsService {
       this.cache.set(cacheKey, regions || []);
       return regions || [];
     } catch (error) {
-      logger.warn('Erreur stats régions:', error);
+      console.warn('Erreur stats régions:', error);
       return [];
     }
   }
@@ -278,12 +278,11 @@ class StatsService {
       this.cache.set(cacheKey, logs || []);
       return logs || [];
     } catch (error) {
-      logger.error('Erreur logs de recherche:', error);
+      console.error('Erreur logs de recherche:', error);
       return [];
     }
   }
 }
 
 export default StatsService;
-
 

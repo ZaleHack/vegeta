@@ -1,5 +1,4 @@
 import express from 'express';
-import logger from '../utils/logger.js';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
@@ -24,7 +23,7 @@ router.get('/', authenticate, async (req, res) => {
     const cases = await caseService.listCases(req.user);
     res.json(cases);
   } catch (err) {
-    logger.error('Erreur liste cases:', err);
+    console.error('Erreur liste cases:', err);
     res.status(500).json({ error: 'Erreur récupération cases' });
   }
 });
@@ -38,7 +37,7 @@ router.post('/', authenticate, async (req, res) => {
     const newCase = await caseService.createCase(name.trim(), req.user.id);
     res.json(newCase);
   } catch (err) {
-    logger.error('Erreur création case:', err);
+    console.error('Erreur création case:', err);
     if (err.message === 'User not found') {
       return res.status(400).json({ error: 'Utilisateur inexistant' });
     }
@@ -61,7 +60,7 @@ router.post('/:id/upload', authenticate, upload.single('file'), async (req, res)
     fs.unlinkSync(req.file.path);
     res.json({ message: 'CDR importés', ...result });
   } catch (err) {
-    logger.error('Erreur import case:', err);
+    console.error('Erreur import case:', err);
     res.status(500).json({ error: "Erreur lors de l'import du fichier" });
   }
 });
@@ -114,7 +113,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
     }, req.user);
     res.json(result);
   } catch (err) {
-    logger.error('Erreur recherche case:', err);
+    console.error('Erreur recherche case:', err);
     res.status(500).json({ error: 'Erreur lors de la recherche' });
   }
 });
@@ -129,7 +128,7 @@ router.post('/:id/link-diagram', authenticate, async (req, res) => {
     const result = await caseService.linkDiagram(caseId, numbers, req.user);
     res.json(result);
   } catch (err) {
-    logger.error('Erreur diagramme des liens:', err);
+    console.error('Erreur diagramme des liens:', err);
     res.status(500).json({ error: 'Erreur diagramme des liens' });
   }
 });
@@ -140,7 +139,7 @@ router.get('/:id/files', authenticate, async (req, res) => {
     const files = await caseService.listFiles(caseId, req.user);
     res.json(files);
   } catch (err) {
-    logger.error('Erreur liste fichiers case:', err);
+    console.error('Erreur liste fichiers case:', err);
     res.status(500).json({ error: 'Erreur récupération fichiers' });
   }
 });
@@ -152,7 +151,7 @@ router.delete('/:id/files/:fileId', authenticate, async (req, res) => {
     await caseService.deleteFile(caseId, fileId, req.user);
     res.json({ message: 'Fichier supprimé' });
   } catch (err) {
-    logger.error('Erreur suppression fichier case:', err);
+    console.error('Erreur suppression fichier case:', err);
     res.status(500).json({ error: 'Erreur suppression fichier' });
   }
 });
@@ -163,10 +162,9 @@ router.delete('/:id', authenticate, async (req, res) => {
     await caseService.deleteCase(caseId, req.user);
     res.json({ message: 'Case supprimé' });
   } catch (err) {
-    logger.error('Erreur suppression case:', err);
+    console.error('Erreur suppression case:', err);
     res.status(500).json({ error: 'Erreur suppression case' });
   }
 });
 
 export default router;
-
