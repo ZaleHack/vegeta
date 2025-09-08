@@ -80,7 +80,7 @@ router.get('/export', authenticate, authorize(['ADMIN', 'ANALYSTE']), async (req
     const format = req.query.format || 'csv';
     const exportData = await statsService.exportStats(format);
 
-    const filename = `dvine-intelligence-stats-${new Date().toISOString().split('T')[0]}.${format}`;
+    const filename = `vegeta-stats-${new Date().toISOString().split('T')[0]}.${format}`;
 
     if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv');

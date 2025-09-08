@@ -27,10 +27,10 @@
   .dark input,
   .dark textarea,
   .dark select {
-    @apply bg-gray-800 text-gray-100 border-2 border-gray-700 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-red-500;
+    @apply bg-gray-800 text-gray-100 border-2 border-gray-700 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-blue-500;
   }
   .dark .btn-primary {
-    @apply bg-red-600 text-white;
+    @apply bg-blue-600 text-white;
   }
 }
 
@@ -79,7 +79,7 @@
   left: 0;
   height: 100%;
   width: 100%;
-  background-color: #ef4444;
+  background-color: #3b82f6;
   animation: loading-bar 1.5s linear infinite;
 }
 
@@ -102,12 +102,12 @@
   width: 12px;
   height: 12px;
   border-radius: 9999px;
-  background-color: #ef4444;
+  background-color: #4f46e5;
   animation: thinking-bounce 1.4s infinite both;
 }
 
 .dark .thinking-dot {
-  background-color: #fca5a5;
+  background-color: #818cf8;
 }
 
 .thinking-dot:nth-child(2) {

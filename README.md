@@ -1,8 +1,8 @@
-# Dvine Intelligence - Plateforme de recherche professionnelle multi-bases
+# VEGETA - Plateforme de recherche professionnelle multi-bases
 
 ## Description
 
-Dvine Intelligence est une plateforme Web professionnelle permettant des recherches ultra-rapides sur de grands volumes de données multi-tables avec des fonctionnalités avancées de filtrage, statistiques et gestion des utilisateurs.
+VEGETA est une plateforme Web professionnelle permettant des recherches ultra-rapides sur de grands volumes de données multi-tables avec des fonctionnalités avancées de filtrage, statistiques et gestion des utilisateurs.
 
 ## Fonctionnalités principales
 
@@ -33,7 +33,7 @@ Dvine Intelligence est une plateforme Web professionnelle permettant des recherc
 
 1. **Créer la base de données MySQL** :
 ```sql
-CREATE DATABASE dvine-intelligence CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE vegeta CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
 2. **Configuration MySQL recommandée** :
@@ -57,7 +57,7 @@ Le fichier `.env` est déjà configuré avec :
 DB_HOST=localhost
 DB_USERNAME=root
 DB_PASSWORD=
-DB_DATABASE=dvine-intelligence
+DB_DATABASE=vegeta
 DB_CHARSET=utf8mb4
 DB_COLLATION=utf8mb4_unicode_ci
 
