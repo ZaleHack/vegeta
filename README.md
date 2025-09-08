@@ -75,42 +75,6 @@ npm run dev
 
 L'application sera accessible sur `http://localhost:3000`
 
-## Structure des données
-
-### Tables principales
-
-La plateforme supporte les bases de données suivantes :
-
-#### Base `esolde`
-- **mytable** : matricule, nomprenom, cni, telephone
-
-#### Base `rhpolice`
-- **personne_concours** : prenom, nom, date_naiss, lieu_naiss, sexe, adresse, email, telephone, cni, prenom_pere, nom_pere, nom_mere
-
-#### Base `renseignement`
-- **agentfinance** : MATRICULE, PRENOM, NOM, CORPS, EMPLOI, SECTION, CHAPITRE, POSTE, DIRECTION
-
-#### Base `rhgendarmerie`
-- **personne** : matricule, prenom, nom, codesex, naissville, adresse, tel, email, carteidentite, etc.
-
-#### Base `permis`
-- **tables** : NumeroPermis, DateObtention, Categorie, Prenoms, Nom, Sexe, DateNaissance, etc.
-
-#### Base `expresso`
-- **expresso** : numero, prenom, nom, cni, date_creation, datefermeture
-
-#### Base `elections`
-- **dakar** (et autres régions) : numero_electeur, prenoms, nom, datenaiss, lieunaiss, CNI
-
-#### Base `autres`
-- **Vehicules** : Numero_Immatriculation, Marque, Categorie, Prenoms, Nom, etc.
-- **entreprises** : ninea_ninet, raison_social, region, forme_juridique, etc.
-- **ong** : OrganizationName, Type, Name, EmailAddress, Telephone, etc.
-- **affaire_etrangere**, **agent_non_fonctionnaire**, **fpublique**, **demdikk**
-- **annuaire_gendarmerie** : id, Libelle, Telephone, SousCategorie, Secteur, created_at
-- **uvs** : id, date, matricule, cniPasseport, prenom, genre, nom, email, mail_perso, telephone, adresse, eno, pole, filiere, login
-- **collections** : id, Nom, Prenom, DateNaissance, CNI, Telephone, Localite, created_at
-
 ## Utilisation
 
 ### Comptes par défaut
