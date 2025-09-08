@@ -349,6 +349,8 @@ const App: React.FC = () => {
   const [requests, setRequests] = useState<IdentificationRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [identifyingRequest, setIdentifyingRequest] = useState<IdentificationRequest | null>(null);
+  const [readNotifications, setReadNotifications] = useState<number[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // États d'authentification
   const [loginData, setLoginData] = useState({ login: '', password: '' });
@@ -1565,7 +1567,23 @@ useEffect(() => {
   // Vérifier si l'utilisateur est admin
   const isAdmin = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
 
-  const notificationCount = requests.filter(r => r.status === 'identified').length;
+  const notificationCount = requests.filter(r => r.status === 'identified' && !readNotifications.includes(r.id)).length;
+
+  useEffect(() => {
+    if (currentPage === 'requests') {
+      const ids = requests.filter(r => r.status === 'identified').map(r => r.id);
+      setReadNotifications(prev => Array.from(new Set([...prev, ...ids])));
+      setShowNotifications(false);
+    }
+  }, [currentPage, requests]);
+
+  const handleNotificationClick = () => {
+    setShowNotifications(prev => !prev);
+    if (!showNotifications) {
+      const ids = requests.filter(r => r.status === 'identified').map(r => r.id);
+      setReadNotifications(prev => Array.from(new Set([...prev, ...ids])));
+    }
+  };
 
   const numericSearch = searchQuery.replace(/\D/g, '');
   const canRequestIdentification =
@@ -2015,9 +2033,9 @@ useEffect(() => {
       {/* Main content */}
         <div className="flex-1 overflow-auto">
           <div className="p-8">
-            <div className="flex justify-end mb-4">
+            <div className="flex justify-end mb-4 relative">
               <button
-                onClick={() => setCurrentPage('requests')}
+                onClick={handleNotificationClick}
                 className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <Bell className="h-6 w-6" />
@@ -2027,6 +2045,21 @@ useEffect(() => {
                   </span>
                 )}
               </button>
+              {showNotifications && (
+                <div className="absolute right-0 mt-10 w-64 bg-white border rounded-md shadow-lg z-50">
+                  {requests.filter(r => r.status === 'identified').length === 0 ? (
+                    <div className="p-2 text-sm text-gray-500">Aucune notification</div>
+                  ) : (
+                    requests
+                      .filter(r => r.status === 'identified')
+                      .map(r => (
+                        <div key={r.id} className="p-2 text-sm border-b last:border-b-0">
+                          {r.phone} a été identifié par l'administrateur
+                        </div>
+                      ))
+                  )}
+                </div>
+              )}
             </div>
           {currentPage === 'search' && (
             <div className="space-y-8">
