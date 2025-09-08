@@ -37,7 +37,8 @@ import {
   List,
   Loader2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ClipboardList
 } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -135,6 +136,13 @@ interface EntrepriseEntry {
   libelle_activite_principale: string;
   observations: string;
   systeme: string;
+}
+
+interface IdentificationRequest {
+  id: number;
+  phone: string;
+  status: string;
+  user_login?: string;
 }
 
 interface OngEntry {
@@ -323,6 +331,10 @@ const App: React.FC = () => {
     photo_path?: string | null;
   }>({});
   const [editingProfileId, setEditingProfileId] = useState<number | null>(null);
+
+  // États des demandes d'identification
+  const [requests, setRequests] = useState<IdentificationRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
 
   // États d'authentification
   const [loginData, setLoginData] = useState({ login: '', password: '' });
@@ -744,6 +756,67 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Erreur export:', error);
       alert('Erreur lors de l\'export');
+    }
+  };
+
+  const handleRequestIdentification = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ phone: searchQuery })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert('Demande envoyée');
+      } else {
+        alert(data.error || 'Erreur lors de la demande');
+      }
+    } catch (error) {
+      alert('Erreur de connexion');
+    }
+  };
+
+  const fetchRequests = async () => {
+    setRequestsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/requests', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRequests(data);
+      }
+    } catch (error) {
+      console.error('Erreur chargement demandes:', error);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  const markRequestIdentified = async (id: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/requests/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'identified' })
+      });
+      if (res.ok) {
+        fetchRequests();
+      }
+    } catch (error) {
+      console.error('Erreur mise à jour demande:', error);
     }
   };
 
@@ -1423,10 +1496,20 @@ const App: React.FC = () => {
     if (currentPage === 'cdr' && currentUser) {
       fetchCases();
     }
+    if (currentPage === 'requests' && currentUser) {
+      fetchRequests();
+    }
   }, [currentPage, currentUser, entreprisesPage, entreprisesSearch, vehiculesPage, vehiculesSearch]);
 
   // Vérifier si l'utilisateur est admin
   const isAdmin = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
+
+  const numericSearch = searchQuery.replace(/\D/g, '');
+  const canRequestIdentification =
+    !!searchResults &&
+    searchResults.hits.length === 0 &&
+    (numericSearch.startsWith('77') || numericSearch.startsWith('78')) &&
+    numericSearch.length >= 9;
 
   const getPageNumbers = (current: number, total: number) => {
     const delta = 2;
@@ -1750,6 +1833,17 @@ const App: React.FC = () => {
               {sidebarOpen && <span className="ml-3">CDR</span>}
             </button>
 
+            <button
+              onClick={() => setCurrentPage('requests')}
+              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'requests'
+                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+              } ${!sidebarOpen && 'justify-center'}`}
+            >
+              <ClipboardList className="h-5 w-5" />
+              {sidebarOpen && <span className="ml-3">Demandes</span>}
+            </button>
 
             <button
               onClick={() => {
@@ -1961,6 +2055,14 @@ const App: React.FC = () => {
                         <p className="text-gray-500">
                           Essayez avec d'autres termes de recherche ou vérifiez l'orthographe.
                         </p>
+                        {canRequestIdentification && (
+                          <button
+                            onClick={handleRequestIdentification}
+                            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                          >
+                            Demander identification
+                          </button>
+                        )}
                       </div>
                     ) : viewMode === 'list' ? (
                       <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
@@ -2849,9 +2951,49 @@ const App: React.FC = () => {
               {linkDiagram && (
                 <LinkDiagram data={linkDiagram} onClose={() => setLinkDiagram(null)} />
               )}
+              </div>
+            )}
+
+          {currentPage === 'requests' && (
+            <div className="space-y-6">
+              <PageHeader icon={<ClipboardList className="h-6 w-6" />} title="Liste des demandes" />
+              {requestsLoading ? (
+                <LoadingSpinner />
+              ) : (
+                <div className="bg-white rounded-lg shadow p-6 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead>
+                      <tr>
+                        <th className="px-4 py-2 text-left">Numéro</th>
+                        {isAdmin && <th className="px-4 py-2 text-left">Utilisateur</th>}
+                        <th className="px-4 py-2 text-left">Statut</th>
+                        {isAdmin && <th className="px-4 py-2" />}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {requests.map((r) => (
+                        <tr key={r.id}>
+                          <td className="px-4 py-2">{r.phone}</td>
+                          {isAdmin && <td className="px-4 py-2">{r.user_login}</td>}
+                          <td className="px-4 py-2">{r.status === 'identified' ? 'identifié' : 'en cours'}</td>
+                          {isAdmin && r.status !== 'identified' && (
+                            <td className="px-4 py-2 text-right">
+                              <button
+                                className="text-blue-600 hover:underline"
+                                onClick={() => markRequestIdentified(r.id)}
+                              >
+                                Marquer identifié
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
-
 
           {currentPage === 'profiles' && (
             <div className="space-y-6">
