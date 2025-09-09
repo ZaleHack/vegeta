@@ -99,8 +99,8 @@ router.get('/:id/search', authenticate, async (req, res) => {
     if (start && end && new Date(start) > new Date(end)) {
       return res.status(400).json({ error: 'La date de début doit précéder la date de fin' });
     }
-    const validDirections = ['incoming', 'outgoing', 'both'];
-    const validTypes = ['call', 'sms', 'both'];
+    const validDirections = ['incoming', 'outgoing', 'position', 'both'];
+    const validTypes = ['call', 'sms', 'web', 'both'];
     const dirParam = typeof direction === 'string' && validDirections.includes(direction) ? direction : 'both';
     const typeParam = typeof type === 'string' && validTypes.includes(type) ? type : 'both';
     const locParam = typeof location === 'string' && location.trim() ? location.trim() : null;

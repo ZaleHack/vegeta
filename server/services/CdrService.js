@@ -154,11 +154,17 @@ class CdrService {
       const isSms = typeStr.includes('sms');
       const eventType = isWeb ? 'web' : isSms ? 'sms' : 'call';
 
-      if (direction !== 'both' && !isWeb && directionRecord !== direction) {
-        continue;
-      }
-      if (type !== 'both' && type !== eventType) {
-        continue;
+      if (direction === 'position') {
+        if (!isWeb) {
+          continue;
+        }
+      } else {
+        if (direction !== 'both' && !isWeb && directionRecord !== direction) {
+          continue;
+        }
+        if (type !== 'both' && type !== eventType) {
+          continue;
+        }
       }
 
       if (!isWeb && other) {

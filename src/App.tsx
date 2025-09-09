@@ -3058,8 +3058,8 @@ useEffect(() => {
                 &larr; Retour
               </button>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-lg shadow p-6 space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-lg shadow p-6 space-y-4">
                   <h3 className="text-lg font-semibold text-gray-700">Importation CDR</h3>
                   <form onSubmit={handleCdrUpload} className="space-y-4">
                     <input
@@ -3125,7 +3125,7 @@ useEffect(() => {
                   )}
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6 space-y-4">
+                <div className="bg-white rounded-lg shadow p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                   <h3 className="text-lg font-semibold text-gray-700">Recherche</h3>
                   <form onSubmit={handleCdrSearch} className="space-y-4">
                     <input
@@ -3172,6 +3172,7 @@ useEffect(() => {
                         <option value="both">Appels entrants et sortants</option>
                         <option value="incoming">Uniquement entrants</option>
                         <option value="outgoing">Uniquement sortants</option>
+                        <option value="position">Position</option>
                       </select>
                       <select
                         value={cdrType}
