@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { PhoneIncoming, PhoneOutgoing, MessageSquare, ArrowRight } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, MessageSquare, ArrowRight, MapPin } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -9,9 +9,10 @@ interface Point {
   longitude: string;
   nom: string;
   type: string;
-  direction: string;
+  direction?: string;
   number?: string;
   callDate: string;
+  endDate?: string;
   startTime: string;
   endTime: string;
   duration?: string;
@@ -38,12 +39,13 @@ interface Props {
   onIdentifyNumber?: (num: string) => void;
   showRoute?: boolean;
 }
-
-const getIcon = (type: string, direction: string) => {
+const getIcon = (type: string, direction?: string) => {
   const size = 32;
   let icon: React.ReactElement;
 
-  if (type === 'sms') {
+  if (type === 'web') {
+    icon = <MapPin size={size} className="text-purple-600" />;
+  } else if (type === 'sms') {
     icon = <MessageSquare size={size} className="text-green-600" />;
   } else {
     icon =
@@ -203,14 +205,33 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
                     </button>
                   </div>
                 )}
-                <p>Type: {loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
-                <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
-                <p>Date: {loc.callDate}</p>
-                <p>Début: {loc.startTime}</p>
-                <p>Fin: {loc.endTime}</p>
-                <p>Durée: {loc.duration || 'N/A'}</p>
-                <p>IMEI appelant: {loc.imeiCaller || 'N/A'}</p>
-                <p>IMEI appelé: {loc.imeiCalled || 'N/A'}</p>
+                {loc.type === 'web' ? (
+                  <>
+                    <p>Type: Position</p>
+                    {loc.callDate === loc.endDate ? (
+                      <p>Date: {loc.callDate}</p>
+                    ) : (
+                      <>
+                        <p>Date début: {loc.callDate}</p>
+                        <p>Date fin: {loc.endDate}</p>
+                      </>
+                    )}
+                    <p>Début: {loc.startTime}</p>
+                    <p>Fin: {loc.endTime}</p>
+                    <p>Durée: {loc.duration || 'N/A'}</p>
+                  </>
+                ) : (
+                  <>
+                    <p>Type: {loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
+                    <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
+                    <p>Date: {loc.callDate}</p>
+                    <p>Début: {loc.startTime}</p>
+                    <p>Fin: {loc.endTime}</p>
+                    <p>Durée: {loc.duration || 'N/A'}</p>
+                    <p>IMEI appelant: {loc.imeiCaller || 'N/A'}</p>
+                    <p>IMEI appelé: {loc.imeiCalled || 'N/A'}</p>
+                  </>
+                )}
               </div>
             </Popup>
           </Marker>

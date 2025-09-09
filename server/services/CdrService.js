@@ -147,20 +147,21 @@ class CdrService {
     for (const r of records) {
       const caller = r.numero_intl_appelant;
       const callee = r.numero_intl_appele;
+      const isWeb = !callee;
       const other = caller === identifier ? callee : caller;
       const directionRecord = caller === identifier ? 'outgoing' : 'incoming';
       const typeStr = (r.type_cdr || '').toLowerCase();
       const isSms = typeStr.includes('sms');
+      const eventType = isWeb ? 'web' : isSms ? 'sms' : 'call';
 
-      if (direction !== 'both' && directionRecord !== direction) {
+      if (direction !== 'both' && !isWeb && directionRecord !== direction) {
         continue;
       }
-      if (type !== 'both') {
-        if (type === 'sms' && !isSms) continue;
-        if (type === 'call' && isSms) continue;
+      if (type !== 'both' && type !== eventType) {
+        continue;
       }
 
-      if (other) {
+      if (!isWeb && other) {
         if (!contactsMap[other]) {
           contactsMap[other] = { number: other, callCount: 0, smsCount: 0 };
         }
@@ -211,6 +212,13 @@ class CdrService {
             ? r.date_debut
             : parsed.toISOString().split('T')[0];
         })();
+        const endDate = (() => {
+          if (!r.date_fin) return 'N/A';
+          const parsed = new Date(r.date_fin);
+          return isNaN(parsed.getTime())
+            ? r.date_fin
+            : parsed.toISOString().split('T')[0];
+        })();
         const startTime = r.heure_debut
           ? r.heure_debut.toString().slice(0, 8)
           : 'N/A';
@@ -218,20 +226,25 @@ class CdrService {
           ? r.heure_fin.toString().slice(0, 8)
           : 'N/A';
 
-        path.push({
+        const entry = {
           latitude: r.latitude,
           longitude: r.longitude,
           nom: r.nom_localisation,
-          type: isSms ? 'sms' : 'call',
-          direction: directionRecord,
-          number: other,
+          type: eventType,
           callDate,
+          endDate,
           startTime,
           endTime,
           duration,
           imeiCaller: r.imei_appelant,
           imeiCalled: r.imei_appele
-        });
+        };
+        if (!isWeb) {
+          entry.direction = directionRecord;
+          entry.number = other;
+        }
+
+        path.push(entry);
       }
     }
 
