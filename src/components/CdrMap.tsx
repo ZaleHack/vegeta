@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { PhoneIncoming, PhoneOutgoing, MessageSquare, ArrowRight, MapPin, Navigation } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, MessageSquare, MapPin, Navigation } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -80,7 +80,7 @@ const getArrowIcon = (angle: number) => {
   const size = 16;
   const icon = (
     <div style={{ transform: `rotate(${angle}deg)` }}>
-      <ArrowRight size={size} className="text-red-600" />
+      <Navigation size={size} className="text-red-600" />
     </div>
   );
   return L.divIcon({
@@ -389,12 +389,13 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
 
 
   return (
-    <div className="relative rounded-lg overflow-hidden shadow-lg">
-      <MapContainer
-        center={center}
-        zoom={13}
-        className="w-full h-[70vh]"
-      >
+    <> 
+      <div className="relative rounded-lg overflow-hidden shadow-lg">
+        <MapContainer
+          center={center}
+          zoom={13}
+          className="w-full h-[80vh]"
+        >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -482,14 +483,14 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
               interactive={false}
             />
           ))}
-      </MapContainer>
+        </MapContainer>
 
-      {showRoute && (
-        <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">
-          <label htmlFor="speed" className="block font-semibold mb-1">
-            Vitesse : {speed}x
-          </label>
-          <input
+        {showRoute && (
+          <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">
+            <label htmlFor="speed" className="block font-semibold mb-1">
+              Vitesse : {speed}x
+            </label>
+            <input
             id="speed"
             type="range"
             min={1}
@@ -497,11 +498,11 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
             value={speed}
             onChange={(e) => setSpeed(Number(e.target.value))}
           />
-        </div>
-      )}
+          </div>
+        )}
 
-      {showMeetingPoints && colorMap.size > 0 && (
-        <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">
+        {showMeetingPoints && colorMap.size > 0 && (
+          <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">
           <p className="font-semibold mb-1">Légende</p>
           {Array.from(colorMap.entries()).map(([num, color]) => (
             <div key={num} className="flex items-center space-x-2">
@@ -526,62 +527,92 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
               <span>Position</span>
             </div>
           </div>
+          </div>
+        )}
+
+        <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
+          <p className="font-semibold">Total : {total}</p>
+          {topContacts && topContacts.length > 0 && (
+            <div>
+              <p className="font-semibold mb-2">Top contacts</p>
+              <table className="min-w-full border-collapse">
+                <thead>
+                  <tr className="text-left">
+                    <th className="pr-4">Numéro</th>
+                    <th className="pr-4">Appels</th>
+                    <th className="pr-4">SMS</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topContacts.map((c, i) => (
+                    <tr
+                      key={c.number}
+                      className={`${i === 0 ? 'font-bold text-blue-600' : ''} border-t`}
+                    >
+                      <td className="pr-4">{c.number}</td>
+                      <td className="pr-4">{c.callCount}</td>
+                      <td className="pr-4">{c.smsCount}</td>
+                      <td>{c.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {topLocations && topLocations.length > 0 && (
+            <div>
+              <p className="font-semibold mb-2">Top lieux</p>
+              <table className="min-w-full border-collapse">
+                <thead>
+                  <tr className="text-left">
+                    <th className="pr-4">Lieu</th>
+                    <th>Occurrences</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topLocations.map((l, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
+                      <td>{l.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showMeetingPoints && meetingPoints.length > 0 && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-sm text-gray-700">
+            <thead>
+              <tr className="text-left">
+                <th className="px-2 py-1">Point</th>
+                <th className="px-2 py-1">Numéro</th>
+                <th className="px-2 py-1">Événements</th>
+                <th className="px-2 py-1">Début</th>
+                <th className="px-2 py-1">Fin</th>
+                <th className="px-2 py-1">Durée</th>
+              </tr>
+            </thead>
+            <tbody>
+              {meetingPoints.map((m, i) => (
+                <tr key={i} className="border-t">
+                  <td className="px-2 py-1">{m.nom || `${m.lat},${m.lng}`}</td>
+                  <td className="px-2 py-1">{m.number || '-'}</td>
+                  <td className="px-2 py-1">{m.events.length}</td>
+                  <td className="px-2 py-1">{m.start}</td>
+                  <td className="px-2 py-1">{m.end}</td>
+                  <td className="px-2 py-1">{m.duration}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
-
-      <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
-        <p className="font-semibold">Total : {total}</p>
-        {topContacts && topContacts.length > 0 && (
-          <div>
-            <p className="font-semibold mb-2">Top contacts</p>
-            <table className="min-w-full border-collapse">
-              <thead>
-                <tr className="text-left">
-                  <th className="pr-4">Numéro</th>
-                  <th className="pr-4">Appels</th>
-                  <th className="pr-4">SMS</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topContacts.map((c, i) => (
-                  <tr
-                    key={c.number}
-                    className={`${i === 0 ? 'font-bold text-blue-600' : ''} border-t`}
-                  >
-                    <td className="pr-4">{c.number}</td>
-                    <td className="pr-4">{c.callCount}</td>
-                    <td className="pr-4">{c.smsCount}</td>
-                    <td>{c.total}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {topLocations && topLocations.length > 0 && (
-          <div>
-            <p className="font-semibold mb-2">Top lieux</p>
-            <table className="min-w-full border-collapse">
-              <thead>
-                <tr className="text-left">
-                  <th className="pr-4">Lieu</th>
-                  <th>Occurrences</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topLocations.map((l, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
-                    <td>{l.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
+    </>
   );
 };
 
