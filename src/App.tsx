@@ -3270,6 +3270,13 @@ useEffect(() => {
                       }}
                     />
                   </div>
+                  <button
+                    onClick={() => setShowCdrMap(false)}
+                    className="fixed top-4 right-4 z-[1000] bg-white/90 backdrop-blur rounded-full p-2 shadow"
+                    aria-label="Fermer la carte"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                   {renderCdrSearchForm()}
                 </>
               )}
