@@ -77,6 +77,31 @@ const getArrowIcon = (angle: number) => {
   });
 };
 
+const createLabelIcon = (text: string, bgColor: string) => {
+  const icon = (
+    <div
+      style={{
+        backgroundColor: bgColor,
+        color: 'white',
+        borderRadius: '9999px',
+        padding: '2px 6px',
+        fontSize: '12px',
+        fontWeight: 'bold',
+        textAlign: 'center'
+      }}
+    >
+      {text}
+    </div>
+  );
+
+  return L.divIcon({
+    html: renderToStaticMarkup(icon),
+    className: '',
+    iconSize: [60, 24],
+    iconAnchor: [30, 12]
+  });
+};
+
 const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
   if (!points || points.length === 0) return null;
 
@@ -139,6 +164,9 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
     return markers;
   }, [routePositions, showRoute]);
 
+  const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
+  const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
+
 
   return (
     <div className="relative rounded-lg overflow-hidden shadow-lg">
@@ -189,6 +217,15 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
         ))}
         {showRoute && routePositions.length > 1 && (
           <Polyline positions={routePositions} color="red" />
+        )}
+        {showRoute && routePositions.length > 0 && (
+          <Marker position={routePositions[0]} icon={startIcon} />
+        )}
+        {showRoute && routePositions.length > 1 && (
+          <Marker
+            position={routePositions[routePositions.length - 1]}
+            icon={endIcon}
+          />
         )}
         {showRoute &&
           arrowMarkers.map((a, idx) => (
