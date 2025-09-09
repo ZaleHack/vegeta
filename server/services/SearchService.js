@@ -139,8 +139,6 @@ class SearchService {
     const offset = (page - 1) * limit;
     const searchTerms = this.parseSearchQuery(query);
 
-    console.log('🔍 Recherche:', { query, searchTerms, filters });
-
     // Lancer les recherches en parallèle sur toutes les tables du catalogue
     const searchPromises = Object.entries(catalog).map(
       ([tableName, config]) =>
@@ -155,7 +153,6 @@ class SearchService {
     const tableSearches = await Promise.all(searchPromises);
     for (const { tableName, tableResults } of tableSearches) {
       if (tableResults.length > 0) {
-        console.log(`✅ ${tableResults.length} résultats trouvés dans ${tableName}`);
         results.push(...tableResults);
         tablesSearched.push(tableName);
       }
@@ -232,28 +229,6 @@ class SearchService {
     const paginatedResults = sortedResults.slice(offset, offset + limit);
 
     const executionTime = Date.now() - startTime;
-
-    console.log(
-      `🎯 Recherche terminée: ${totalResults} résultats en ${executionTime}ms`
-    );
-
-    // Journalisation
-    if (user && depth === 0) {
-      await this.logSearch({
-        user_id: user.id,
-        username: user.login,
-        search_term: query,
-        search_type: searchType,
-        filters: JSON.stringify(filters),
-        tables_searched: JSON.stringify([...new Set(tablesSearched)]),
-        results_count: totalResults,
-        execution_time_ms: executionTime,
-        ip_address: user.ip_address || '',
-        user_agent: user.user_agent || '',
-        extra_searches: extraSearches,
-        linked_identifiers: identifiersFollowed
-      });
-    }
 
     const response = {
       total: totalResults,
@@ -560,35 +535,6 @@ class SearchService {
       }
       return a.table.localeCompare(b.table);
     });
-  }
-
-  async logSearch(logData) {
-    try {
-      await database.query(
-        `
-        INSERT INTO autres.search_logs (
-          user_id, username, search_term, search_type, tables_searched,
-          results_count, execution_time_ms, ip_address, user_agent,
-          extra_searches, linked_identifiers
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-        [
-          logData.user_id,
-          logData.username,
-          logData.search_term,
-          logData.search_type,
-          logData.tables_searched,
-          logData.results_count,
-          logData.execution_time_ms,
-          logData.ip_address,
-          logData.user_agent,
-          logData.extra_searches || 0,
-          JSON.stringify(logData.linked_identifiers || [])
-        ]
-      );
-    } catch (error) {
-      console.error('❌ Erreur log recherche:', error);
-    }
   }
 
   async getRecordDetails(tableName, id) {

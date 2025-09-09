@@ -26,14 +26,6 @@ export const requireAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentification requise' });
   }
-
-  console.log('🔍 Vérification admin:', {
-    userId: req.user.id,
-    login: req.user.login,
-    adminValue: req.user.admin,
-    adminType: typeof req.user.admin
-  });
-
   if (req.user.admin !== 1 && req.user.admin !== "1") {
     return res.status(403).json({ error: 'Permissions administrateur requises' });
   }

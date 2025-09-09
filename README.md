@@ -10,8 +10,7 @@ VEGETA est une plateforme Web professionnelle permettant des recherches ultra-ra
 - 🎯 **Filtres avancés** : Filtres dynamiques par thématique (identité, contact, pro, transport, etc.)
 - 📊 **Dashboard interactif** : Graphiques et tableaux de bord avec Chart.js
 - 👥 **Gestion RBAC** : Système de rôles (ADMIN, ANALYSTE, LECTEUR)
-- 📤 **Upload de données** : Interface d'import CSV/Excel avec validation
-- 📝 **Journalisation** : Audit complet des recherches et actions
+- 📤 **Upload de données** : Interface d'import CSV/Excel
 
 ## Architecture technique
 
@@ -19,7 +18,6 @@ VEGETA est une plateforme Web professionnelle permettant des recherches ultra-ra
 - **Base de données** : MySQL 8.0+
 - **Frontend** : Bootstrap 5 + Chart.js + DataTables
 - **Authentification** : JWT avec bcrypt
-- **Sécurité** : Rate limiting, CSRF, validation des entrées
 
 ## Installation
 
@@ -129,10 +127,7 @@ La plateforme supporte plusieurs opérateurs :
 
 ## Sécurité
 
-- **Rate limiting** : 100 requêtes/15min pour la recherche
 - **Authentification JWT** : Tokens sécurisés avec expiration
-- **Validation des entrées** : Tous les paramètres sont validés
-- **Logs d'audit** : Toutes les actions sont journalisées
 - **Requêtes préparées** : Protection contre l'injection SQL
 
 ## Performance
@@ -151,7 +146,7 @@ La plateforme supporte plusieurs opérateurs :
 │   ├── models/          # Modèles de données
 │   ├── services/        # Services métier
 │   ├── routes/          # Routes API
-│   ├── middleware/      # Middlewares (auth, rate limit)
+│   ├── middleware/      # Middlewares (auth)
 │   └── app.js          # Application principale
 ├── public/             # Interface utilisateur
 ├── src/               # Sources React (si applicable)
@@ -203,7 +198,6 @@ npm start
 
 Les logs sont disponibles dans :
 - Console serveur pour les erreurs
-- Table `search_logs` pour l'audit des recherches
 - Table `upload_history` pour les imports
 
 ### Monitoring
@@ -217,7 +211,6 @@ Les logs sont disponibles dans :
 Sauvegarder régulièrement :
 - Base de données MySQL complète
 - Fichiers de configuration
-- Logs d'audit
 
 ## Licence
 
