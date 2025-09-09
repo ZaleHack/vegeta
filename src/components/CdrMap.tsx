@@ -34,6 +34,17 @@ interface LocationStat {
   count: number;
 }
 
+interface MeetingPoint {
+  lat: number;
+  lng: number;
+  nom: string;
+  number?: string;
+  events: Point[];
+  start: string;
+  end: string;
+  duration: string;
+}
+
 interface Props {
   points: Point[];
   onIdentifyNumber?: (num: string) => void;
@@ -110,6 +121,20 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
 
   const first = points[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
+
+  const colorPalette = ['#f97316', '#3b82f6', '#a855f7', '#10b981', '#e11d48', '#14b8a6', '#4b5563'];
+
+  const colorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    let idx = 0;
+    points.forEach((p) => {
+      if (p.number && !map.has(p.number)) {
+        map.set(p.number, colorPalette[idx % colorPalette.length]);
+        idx += 1;
+      }
+    });
+    return map;
+  }, [points]);
 
   const { topContacts, topLocations, total } = useMemo(() => {
     const contactMap = new Map<string, { callCount: number; smsCount: number }>();
@@ -225,15 +250,16 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
     });
   }, [carAngle]);
 
-  const meetingPoints = useMemo(() => {
-    const map = new Map<string, { lat: number; lng: number; nom: string; events: Point[] }>();
+  const meetingPoints = useMemo<MeetingPoint[]>(() => {
+    const map = new Map<string, { lat: number; lng: number; nom: string; number?: string; events: Point[] }>();
     points.forEach((p) => {
-      const key = `${p.latitude},${p.longitude}`;
+      const key = `${p.latitude},${p.longitude},${p.number || ''}`;
       if (!map.has(key)) {
         map.set(key, {
           lat: parseFloat(p.latitude),
           lng: parseFloat(p.longitude),
           nom: p.nom,
+          number: p.number,
           events: []
         });
       }
@@ -258,10 +284,108 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
         return { ...m, start, end, duration };
       });
   }, [points]);
-  const meetingColors = ['#f97316', '#3b82f6', '#a855f7', '#10b981', '#e11d48', '#14b8a6', '#4b5563'];
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
+
+  const MeetingPointMarker: React.FC<{ mp: MeetingPoint }> = ({ mp }) => {
+    const [selected, setSelected] = useState(0);
+    const color = mp.number ? colorMap.get(mp.number) || '#4b5563' : '#4b5563';
+    const event = mp.events[selected];
+
+    return (
+      <Marker
+        position={[mp.lat, mp.lng]}
+        icon={L.divIcon({
+          html: renderToStaticMarkup(
+            <MapPin size={32} style={{ color }} />
+          ),
+          className: '',
+          iconSize: [32, 32],
+          iconAnchor: [16, 32]
+        })}
+      >
+        <Popup>
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
+            {mp.events.length > 1 && (
+              <div className="mb-2">
+                <label className="mr-1">Événement :</label>
+                <select
+                  className="border rounded p-1"
+                  value={selected}
+                  onChange={(e) => setSelected(parseInt(e.target.value))}
+                >
+                  {mp.events.map((e, i) => (
+                    <option key={i} value={i}>
+                      {e.type === 'sms'
+                        ? 'SMS'
+                        : e.type === 'web'
+                        ? 'Position'
+                        : 'Appel'}{' '}
+                      - {e.callDate}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {event && (
+              <div className="space-y-1">
+                {event.number && (
+                  <div className="flex items-center justify-between">
+                    <span>Numéro: {event.number}</span>
+                    <button
+                      className="ml-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                      onClick={() => {
+                        const cleaned = event.number!.replace(/^221/, '');
+                        navigator.clipboard.writeText(cleaned);
+                        if (onIdentifyNumber) onIdentifyNumber(cleaned);
+                      }}
+                    >
+                      Identifier numéro
+                    </button>
+                  </div>
+                )}
+                {event.type === 'web' ? (
+                  <>
+                    <p>Type: Position</p>
+                    {event.callDate === event.endDate ? (
+                      <p>Date: {event.callDate}</p>
+                    ) : (
+                      <>
+                        <p>Date début: {event.callDate}</p>
+                        <p>Date fin: {event.endDate}</p>
+                      </>
+                    )}
+                    <p>Début: {event.startTime}</p>
+                    <p>Fin: {event.endTime}</p>
+                    <p>Durée: {event.duration || 'N/A'}</p>
+                  </>
+                ) : (
+                  <>
+                    <p>Type: {event.type === 'sms' ? 'SMS' : 'Appel'}</p>
+                    {event.type !== 'sms' && (
+                      <p>Direction: {event.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
+                    )}
+                    <p>Date: {event.callDate}</p>
+                    <p>Début: {event.startTime}</p>
+                    <p>Fin: {event.endTime}</p>
+                    <p>Durée: {event.duration || 'N/A'}</p>
+                    {event.type !== 'sms' && (
+                      <>
+                        <p>IMEI appelant: {event.imeiCaller || 'N/A'}</p>
+                        <p>IMEI appelé: {event.imeiCalled || 'N/A'}</p>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </Popup>
+      </Marker>
+    );
+  };
 
 
   return (
@@ -332,31 +456,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
         ))}
         {showMeetingPoints &&
           meetingPoints.map((mp, idx) => (
-            <Marker
-              key={`meeting-${idx}`}
-              position={[mp.lat, mp.lng]}
-              icon={L.divIcon({
-                html: renderToStaticMarkup(
-                  <MapPin
-                    size={32}
-                    style={{ color: meetingColors[idx % meetingColors.length] }}
-                  />
-                ),
-                className: '',
-                iconSize: [32, 32],
-                iconAnchor: [16, 32]
-              })}
-            >
-              <Popup>
-                <div className="space-y-1 text-sm">
-                  <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
-                  <p>Occurrences: {mp.events.length}</p>
-                  <p>Date début: {mp.start}</p>
-                  <p>Date fin: {mp.end}</p>
-                  <p>Durée totale: {mp.duration}</p>
-                </div>
-              </Popup>
-            </Marker>
+            <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
           ))}
         {showRoute && routePositions.length > 1 && (
           <Polyline positions={routePositions} color="red" />
@@ -397,6 +497,35 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
             value={speed}
             onChange={(e) => setSpeed(Number(e.target.value))}
           />
+        </div>
+      )}
+
+      {showMeetingPoints && colorMap.size > 0 && (
+        <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">
+          <p className="font-semibold mb-1">Légende</p>
+          {Array.from(colorMap.entries()).map(([num, color]) => (
+            <div key={num} className="flex items-center space-x-2">
+              <span
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: color }}
+              ></span>
+              <span>{num}</span>
+            </div>
+          ))}
+          <div className="mt-2 space-y-1">
+            <div className="flex items-center space-x-1">
+              <MessageSquare size={14} className="text-green-600" />
+              <span>SMS</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <PhoneOutgoing size={14} className="text-blue-600" />
+              <span>Appel</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <MapPin size={14} className="text-purple-600" />
+              <span>Position</span>
+            </div>
+          </div>
         </div>
       )}
 
