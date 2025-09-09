@@ -509,32 +509,27 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
           </div>
         )}
 
-        {showMeetingPoints && colorMap.size > 0 && (
-          <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">
-          <p className="font-semibold mb-1">Légende</p>
-          {Array.from(colorMap.entries()).map(([num, color]) => (
-            <div key={num} className="flex items-center space-x-2">
-              <span
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: color }}
-              ></span>
-              <span>{num}</span>
-            </div>
-          ))}
-          <div className="mt-2 space-y-1">
-            <div className="flex items-center space-x-1">
-              <MessageSquare size={14} className="text-green-600" />
-              <span>SMS</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <PhoneOutgoing size={14} className="text-blue-600" />
-              <span>Appel</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <MapPin size={14} className="text-purple-600" />
-              <span>Position</span>
-            </div>
-          </div>
+        {showMeetingPoints && meetingPoints.length > 0 && (
+          <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] max-h-48 overflow-y-auto">
+            <p className="font-semibold mb-1">Points de rencontre</p>
+            <table className="text-xs">
+              <thead>
+                <tr className="text-left">
+                  <th className="pr-2">Point</th>
+                  <th className="pr-2">Numéro</th>
+                  <th>Événements</th>
+                </tr>
+              </thead>
+              <tbody>
+                {meetingPoints.map((m, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="pr-2">{m.nom || `${m.lat},${m.lng}`}</td>
+                    <td className="pr-2">{m.number || '-'}</td>
+                    <td>{m.events.length}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -592,34 +587,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
         </div>
       </div>
 
-      {showMeetingPoints && meetingPoints.length > 0 && (
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-sm text-gray-700">
-            <thead>
-              <tr className="text-left">
-                <th className="px-2 py-1">Point</th>
-                <th className="px-2 py-1">Numéro</th>
-                <th className="px-2 py-1">Événements</th>
-                <th className="px-2 py-1">Début</th>
-                <th className="px-2 py-1">Fin</th>
-                <th className="px-2 py-1">Durée</th>
-              </tr>
-            </thead>
-            <tbody>
-              {meetingPoints.map((m, i) => (
-                <tr key={i} className="border-t">
-                  <td className="px-2 py-1">{m.nom || `${m.lat},${m.lng}`}</td>
-                  <td className="px-2 py-1">{m.number || '-'}</td>
-                  <td className="px-2 py-1">{m.events.length}</td>
-                  <td className="px-2 py-1">{m.start}</td>
-                  <td className="px-2 py-1">{m.end}</td>
-                  <td className="px-2 py-1">{m.duration}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+
     </>
   );
 };
