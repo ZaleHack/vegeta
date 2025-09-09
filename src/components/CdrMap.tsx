@@ -171,22 +171,39 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
   useEffect(() => {
     if (!showRoute || routePositions.length < 2) return;
     setCarIndex(0);
+    let current = 0;
     const id = setInterval(() => {
-      setCarIndex((idx) => (idx + 1) % routePositions.length);
+      current += 1;
+      if (current >= routePositions.length) {
+        clearInterval(id);
+      } else {
+        setCarIndex(current);
+      }
     }, 1000 / speed);
     return () => clearInterval(id);
   }, [showRoute, routePositions, speed]);
 
+  const carAngle = useMemo(() => {
+    if (carIndex >= routePositions.length - 1) return 0;
+    const [lat1, lng1] = routePositions[carIndex];
+    const [lat2, lng2] = routePositions[carIndex + 1];
+    return (Math.atan2(lat2 - lat1, lng2 - lng1) * 180) / Math.PI;
+  }, [carIndex, routePositions]);
+
   const carIcon = useMemo(() => {
     const size = 32;
-    const icon = <Car size={size} className="text-slate-700" />;
+    const icon = (
+      <div style={{ transform: `rotate(${carAngle}deg)` }}>
+        <Car size={size} className="text-blue-600" />
+      </div>
+    );
     return L.divIcon({
       html: renderToStaticMarkup(icon),
       className: '',
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2]
     });
-  }, []);
+  }, [carAngle]);
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
