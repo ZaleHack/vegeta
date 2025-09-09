@@ -56,7 +56,7 @@ const getIcon = (type: string, direction?: string) => {
   let icon: React.ReactElement;
 
   if (type === 'web') {
-    icon = <MapPin size={size} className="text-purple-600" />;
+    icon = <MapPin size={size} className="text-red-600" />;
   } else if (type === 'sms') {
     icon = <MessageSquare size={size} className="text-green-600" />;
   } else {
