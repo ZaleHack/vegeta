@@ -125,6 +125,7 @@ class CdrService {
       endDate = null,
       startTime = null,
       endTime = null,
+      location = null,
       caseName,
       direction = 'both',
       type = 'both',
@@ -136,6 +137,7 @@ class CdrService {
       endDate,
       startTime,
       endTime,
+      location,
       caseName
     );
     const contactsMap = {};
@@ -320,6 +322,11 @@ class CdrService {
     }
 
     return { nodes, links };
+  }
+
+  async listLocations(caseName) {
+    const rows = await Cdr.listLocations(caseName);
+    return rows.map((r) => r.nom_localisation);
   }
 
   async deleteTable(caseName) {

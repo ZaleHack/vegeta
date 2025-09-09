@@ -79,7 +79,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
     if (!identifier) {
       return res.status(400).json({ error: 'Paramètre phone ou imei requis' });
     }
-    const { start, end, startTime, endTime, direction = 'both', type = 'both' } = req.query;
+    const { start, end, startTime, endTime, direction = 'both', type = 'both', location } = req.query;
     const isValidDate = (str) => {
       if (!str) return false;
       const regex = /^\d{4}-\d{2}-\d{2}$/;
@@ -103,6 +103,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
     const validTypes = ['call', 'sms', 'both'];
     const dirParam = typeof direction === 'string' && validDirections.includes(direction) ? direction : 'both';
     const typeParam = typeof type === 'string' && validTypes.includes(type) ? type : 'both';
+    const locParam = typeof location === 'string' && location.trim() ? location.trim() : null;
     const result = await caseService.search(caseId, identifier, {
       startDate: start || null,
       endDate: end || null,
@@ -110,6 +111,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
       endTime: endTime || null,
       direction: dirParam,
       type: typeParam,
+      location: locParam,
     }, req.user);
     res.json(result);
   } catch (err) {
@@ -130,6 +132,17 @@ router.post('/:id/link-diagram', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Erreur diagramme des liens:', err);
     res.status(500).json({ error: 'Erreur diagramme des liens' });
+  }
+});
+
+router.get('/:id/locations', authenticate, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    const locations = await caseService.listLocations(caseId, req.user);
+    res.json(locations);
+  } catch (err) {
+    console.error('Erreur liste localisations case:', err);
+    res.status(500).json({ error: 'Erreur récupération localisations' });
   }
 });
 

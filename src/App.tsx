@@ -547,6 +547,8 @@ const App: React.FC = () => {
   const [cdrEndTime, setCdrEndTime] = useState('');
   const [cdrDirection, setCdrDirection] = useState('both');
   const [cdrType, setCdrType] = useState('both');
+  const [cdrLocation, setCdrLocation] = useState('all');
+  const [cdrLocations, setCdrLocations] = useState<string[]>([]);
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
   const [cdrError, setCdrError] = useState('');
@@ -1390,6 +1392,7 @@ useEffect(() => {
       if (cdrEndTime) params.append('endTime', cdrEndTime);
       if (cdrDirection !== 'both') params.append('direction', cdrDirection);
       if (cdrType !== 'both') params.append('type', cdrType);
+      if (cdrLocation !== 'all') params.append('location', cdrLocation);
       const res = await fetch(`/api/cases/${selectedCase.id}/search?${params.toString()}`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
@@ -1493,6 +1496,21 @@ useEffect(() => {
     }
   };
 
+  const fetchCaseLocations = async (caseId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/cases/${caseId}/locations`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCdrLocations(data);
+      }
+    } catch (err) {
+      console.error('Erreur chargement localisations:', err);
+    }
+  };
+
   const handleDeleteFile = async (fileId: number) => {
     if (!selectedCase) return;
     if (!window.confirm('Supprimer ce fichier ?')) return;
@@ -1511,8 +1529,11 @@ useEffect(() => {
   useEffect(() => {
     if (!selectedCase) {
       setCaseFiles([]);
+      setCdrLocations([]);
+      setCdrLocation('all');
     } else {
       fetchCaseFiles(selectedCase.id);
+      fetchCaseLocations(selectedCase.id);
     }
   }, [selectedCase]);
 
@@ -3160,6 +3181,16 @@ useEffect(() => {
                         <option value="sms">Seulement SMS</option>
                       </select>
                     </div>
+                    <select
+                      value={cdrLocation}
+                      onChange={(e) => setCdrLocation(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">Toutes les localisations</option>
+                      {cdrLocations.map((loc) => (
+                        <option key={loc} value={loc}>{loc}</option>
+                      ))}
+                    </select>
                     <div className="flex gap-2">
                       <button
                         type="submit"

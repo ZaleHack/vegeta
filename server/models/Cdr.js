@@ -81,6 +81,7 @@ class Cdr {
     endDate = null,
     startTime = null,
     endTime = null,
+    location = null,
     tableName
   ) {
     const table = this.escapeIdentifier(tableName);
@@ -109,10 +110,21 @@ class Cdr {
       query += ` AND heure_debut <= ?`;
       params.push(endTime);
     }
+    if (location) {
+      query += ` AND nom_localisation = ?`;
+      params.push(location);
+    }
 
     query += ' ORDER BY date_debut, heure_debut';
 
     return await database.query(query, params);
+  }
+
+  static async listLocations(tableName) {
+    const table = this.escapeIdentifier(tableName);
+    return await database.query(
+      `SELECT DISTINCT nom_localisation FROM ${table} WHERE nom_localisation IS NOT NULL AND nom_localisation <> '' ORDER BY nom_localisation`
+    );
   }
 
   static async deleteTable(tableName) {
