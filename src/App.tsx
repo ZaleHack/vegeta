@@ -549,6 +549,7 @@ const App: React.FC = () => {
   const [cdrType, setCdrType] = useState('both');
   const [cdrLocation, setCdrLocation] = useState('all');
   const [cdrLocations, setCdrLocations] = useState<string[]>([]);
+  const [cdrItinerary, setCdrItinerary] = useState(false);
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
   const [cdrError, setCdrError] = useState('');
@@ -3191,6 +3192,15 @@ useEffect(() => {
                         <option key={loc} value={loc}>{loc}</option>
                       ))}
                     </select>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={cdrItinerary}
+                        onChange={(e) => setCdrItinerary(e.target.checked)}
+                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span>Itinéraire</span>
+                    </label>
                     <div className="flex gap-2">
                       <button
                         type="submit"
@@ -3223,6 +3233,7 @@ useEffect(() => {
               {showCdrMap && cdrResult && !cdrLoading && cdrResult.total > 0 && (
                 <CdrMap
                   points={cdrResult.path}
+                  showRoute={cdrItinerary}
                   onIdentifyNumber={(num) => {
                     setSearchQuery(num);
                     setCurrentPage('search');

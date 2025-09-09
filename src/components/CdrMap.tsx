@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import { PhoneIncoming, PhoneOutgoing, MessageSquare } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -36,6 +36,7 @@ interface LocationStat {
 interface Props {
   points: Point[];
   onIdentifyNumber?: (num: string) => void;
+  showRoute?: boolean;
 }
 
 const getIcon = (type: string, direction: string) => {
@@ -61,7 +62,7 @@ const getIcon = (type: string, direction: string) => {
   });
 };
 
-const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber }) => {
+const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
   if (!points || points.length === 0) return null;
 
   const first = points[0];
@@ -97,6 +98,16 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber }) => {
 
     return { topContacts: contacts, topLocations: locations, total: points.length };
   }, [points]);
+
+  const routePositions = useMemo(() => {
+    if (!showRoute) return [];
+    const sorted = [...points].sort((a, b) => {
+      const dateA = new Date(`${a.callDate}T${a.startTime}`);
+      const dateB = new Date(`${b.callDate}T${b.startTime}`);
+      return dateA.getTime() - dateB.getTime();
+    });
+    return sorted.map((p) => [parseFloat(p.latitude), parseFloat(p.longitude)] as [number, number]);
+  }, [points, showRoute]);
 
   return (
     <div className="relative rounded-lg overflow-hidden shadow-lg">
@@ -145,6 +156,9 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber }) => {
             </Popup>
           </Marker>
         ))}
+        {showRoute && routePositions.length > 1 && (
+          <Polyline positions={routePositions} color="red" />
+        )}
       </MapContainer>
 
       <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
