@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import { PhoneIncoming, PhoneOutgoing, MessageSquare, ArrowRight } from 'lucide-react';
@@ -139,33 +139,6 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
     return markers;
   }, [routePositions, showRoute]);
 
-  const [movingArrow, setMovingArrow] = useState<{ position: [number, number]; angle: number } | null>(null);
-
-  useEffect(() => {
-    if (!showRoute || routePositions.length < 2) return;
-    let frame: number;
-    let idx = 0;
-    let progress = 0;
-    const speed = 0.002;
-
-    const step = () => {
-      const [lat1, lng1] = routePositions[idx];
-      const [lat2, lng2] = routePositions[idx + 1];
-      progress += speed;
-      if (progress >= 1) {
-        progress = 0;
-        idx += 1;
-        if (idx >= routePositions.length - 1) idx = 0;
-      }
-      const lat = lat1 + (lat2 - lat1) * progress;
-      const lng = lng1 + (lng2 - lng1) * progress;
-      const angle = (Math.atan2(lat1 - lat2, lng2 - lng1) * 180) / Math.PI;
-      setMovingArrow({ position: [lat, lng], angle });
-      frame = requestAnimationFrame(step);
-    };
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [routePositions, showRoute]);
 
   return (
     <div className="relative rounded-lg overflow-hidden shadow-lg">
@@ -226,13 +199,6 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
               interactive={false}
             />
           ))}
-        {showRoute && movingArrow && (
-          <Marker
-            position={movingArrow.position}
-            icon={getArrowIcon(movingArrow.angle)}
-            interactive={false}
-          />
-        )}
       </MapContainer>
 
       <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
