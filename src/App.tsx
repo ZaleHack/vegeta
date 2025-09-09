@@ -1874,6 +1874,125 @@ useEffect(() => {
     );
   }
 
+  const renderCdrSearchForm = () => (
+    <div
+      className={`${
+        showCdrMap
+          ? 'absolute top-4 left-4 z-[1000] w-full max-w-md bg-white/90 backdrop-blur rounded-lg shadow p-4 space-y-4'
+          : 'bg-white rounded-lg shadow p-6 space-y-4 max-h-[60vh] overflow-y-auto'
+      }`}
+    >
+      <h3 className="text-lg font-semibold text-gray-700">Recherche</h3>
+      <form onSubmit={handleCdrSearch} className="space-y-4">
+        <input
+          type="text"
+          placeholder="Numéro(s) ou IMEI (séparés par des virgules)"
+          value={cdrIdentifier}
+          onChange={(e) => setCdrIdentifier(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <input
+            type="date"
+            value={cdrStart}
+            onChange={(e) => setCdrStart(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="date"
+            value={cdrEnd}
+            onChange={(e) => setCdrEnd(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <input
+            type="time"
+            value={cdrStartTime}
+            onChange={(e) => setCdrStartTime(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="time"
+            value={cdrEndTime}
+            onChange={(e) => setCdrEndTime(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <select
+            value={cdrDirection}
+            onChange={(e) => setCdrDirection(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="both">Appels entrants et sortants</option>
+            <option value="incoming">Uniquement entrants</option>
+            <option value="outgoing">Uniquement sortants</option>
+            <option value="position">Position</option>
+          </select>
+          <select
+            value={cdrType}
+            onChange={(e) => setCdrType(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="both">Appels et SMS</option>
+            <option value="call">Seulement appels</option>
+            <option value="sms">Seulement SMS</option>
+            <option value="web">Seulement positions</option>
+          </select>
+        </div>
+        <select
+          value={cdrLocation}
+          onChange={(e) => setCdrLocation(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">Toutes les localisations</option>
+          {cdrLocations.map((loc) => (
+            <option key={loc} value={loc}>
+              {loc}
+            </option>
+          ))}
+        </select>
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={cdrItinerary}
+            onChange={(e) => setCdrItinerary(e.target.checked)}
+            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <span>Itinéraire</span>
+        </label>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={cdrLoading}
+            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-transform transform hover:scale-105 active:scale-95"
+          >
+            Rechercher
+          </button>
+          {caseFiles.filter((f) => f.cdr_number).length >= 2 && (
+            <button
+              type="button"
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
+              onClick={handleLinkDiagram}
+            >
+              Diagramme des liens
+            </button>
+          )}
+          {cdrResult && cdrResult.total > 0 && (
+            <button
+              type="button"
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
+              onClick={() => setShowMeetingPoints((v) => !v)}
+            >
+              Points de rencontre
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+
   return (
     <div
       className="min-h-screen flex bg-gray-50 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100"
@@ -3058,6 +3177,7 @@ useEffect(() => {
                 &larr; Retour
               </button>
 
+              {!showCdrMap && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="bg-white rounded-lg shadow p-6 space-y-4">
                   <h3 className="text-lg font-semibold text-gray-700">Importation CDR</h3>
@@ -3125,115 +3245,9 @@ useEffect(() => {
                   )}
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                  <h3 className="text-lg font-semibold text-gray-700">Recherche</h3>
-                  <form onSubmit={handleCdrSearch} className="space-y-4">
-                    <input
-                      type="text"
-                      placeholder="Numéro(s) ou IMEI (séparés par des virgules)"
-                      value={cdrIdentifier}
-                      onChange={(e) => setCdrIdentifier(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <input
-                        type="date"
-                        value={cdrStart}
-                        onChange={(e) => setCdrStart(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="date"
-                        value={cdrEnd}
-                        onChange={(e) => setCdrEnd(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <input
-                        type="time"
-                        value={cdrStartTime}
-                        onChange={(e) => setCdrStartTime(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="time"
-                        value={cdrEndTime}
-                        onChange={(e) => setCdrEndTime(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <select
-                        value={cdrDirection}
-                        onChange={(e) => setCdrDirection(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="both">Appels entrants et sortants</option>
-                        <option value="incoming">Uniquement entrants</option>
-                        <option value="outgoing">Uniquement sortants</option>
-                        <option value="position">Position</option>
-                      </select>
-                      <select
-                        value={cdrType}
-                        onChange={(e) => setCdrType(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="both">Appels et SMS</option>
-                        <option value="call">Seulement appels</option>
-                        <option value="sms">Seulement SMS</option>
-                        <option value="web">Seulement positions</option>
-                      </select>
-                    </div>
-                    <select
-                      value={cdrLocation}
-                      onChange={(e) => setCdrLocation(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="all">Toutes les localisations</option>
-                      {cdrLocations.map((loc) => (
-                        <option key={loc} value={loc}>{loc}</option>
-                      ))}
-                    </select>
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={cdrItinerary}
-                        onChange={(e) => setCdrItinerary(e.target.checked)}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span>Itinéraire</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={cdrLoading}
-                        className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-transform transform hover:scale-105 active:scale-95"
-                      >
-                        Rechercher
-                      </button>
-                        {caseFiles.filter(f => f.cdr_number).length >= 2 && (
-                          <button
-                            type="button"
-                            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
-                            onClick={handleLinkDiagram}
-                          >
-                            Diagramme des liens
-                          </button>
-                        )}
-                        {cdrResult && cdrResult.total > 0 && (
-                          <button
-                            type="button"
-                            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
-                            onClick={() => setShowMeetingPoints((v) => !v)}
-                          >
-                            Points de rencontre
-                          </button>
-                        )}
-                    </div>
-                  </form>
-                </div>
-              </div>
+                    {renderCdrSearchForm()}
+                  </div>
+                )}
 
               {cdrLoading && (
                 <div className="loading-bar-container my-4">
@@ -3243,16 +3257,21 @@ useEffect(() => {
               {cdrError && <p className="text-red-600">{cdrError}</p>}
               {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
               {showCdrMap && cdrResult && !cdrLoading && cdrResult.total > 0 && (
-                <CdrMap
-                  points={cdrResult.path}
-                  showRoute={cdrItinerary}
-                  showMeetingPoints={showMeetingPoints}
-                  onIdentifyNumber={(num) => {
-                    setSearchQuery(num);
-                    setCurrentPage('search');
-                    handleSearch(undefined, num);
-                  }}
-                />
+                <>
+                  <div className="fixed inset-0 z-0">
+                    <CdrMap
+                      points={cdrResult.path}
+                      showRoute={cdrItinerary}
+                      showMeetingPoints={showMeetingPoints}
+                      onIdentifyNumber={(num) => {
+                        setSearchQuery(num);
+                        setCurrentPage('search');
+                        handleSearch(undefined, num);
+                      }}
+                    />
+                  </div>
+                  {renderCdrSearchForm()}
+                </>
               )}
               {linkDiagram && (
                 <LinkDiagram data={linkDiagram} onClose={() => setLinkDiagram(null)} />
