@@ -98,6 +98,14 @@ class CaseService {
     return await Case.listFiles(caseId);
   }
 
+  async listLocations(caseId, user) {
+    const existingCase = await this.getCaseById(caseId, user);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
+    return await this.cdrService.listLocations(existingCase.name);
+  }
+
   async deleteFile(caseId, fileId, user) {
     const existingCase = await this.getCaseById(caseId, user);
     if (!existingCase) {
