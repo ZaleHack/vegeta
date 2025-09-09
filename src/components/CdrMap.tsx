@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { PhoneIncoming, PhoneOutgoing, MessageSquare } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, MessageSquare, ArrowRight } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -62,6 +62,21 @@ const getIcon = (type: string, direction: string) => {
   });
 };
 
+const getArrowIcon = (angle: number) => {
+  const size = 16;
+  const icon = (
+    <div style={{ transform: `rotate(${angle}deg)` }}>
+      <ArrowRight size={size} className="text-red-600" />
+    </div>
+  );
+  return L.divIcon({
+    html: renderToStaticMarkup(icon),
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
+  });
+};
+
 const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
   if (!points || points.length === 0) return null;
 
@@ -108,6 +123,21 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
     });
     return sorted.map((p) => [parseFloat(p.latitude), parseFloat(p.longitude)] as [number, number]);
   }, [points, showRoute]);
+
+  const arrowMarkers = useMemo(() => {
+    if (!showRoute || routePositions.length < 2) return [];
+    const markers: { position: [number, number]; angle: number }[] = [];
+    for (let i = 1; i < routePositions.length; i++) {
+      const [lat1, lng1] = routePositions[i - 1];
+      const [lat2, lng2] = routePositions[i];
+      const angle = (Math.atan2(lat1 - lat2, lng2 - lng1) * 180) / Math.PI;
+      markers.push({
+        position: [(lat1 + lat2) / 2, (lng1 + lng2) / 2] as [number, number],
+        angle
+      });
+    }
+    return markers;
+  }, [routePositions, showRoute]);
 
   return (
     <div className="relative rounded-lg overflow-hidden shadow-lg">
@@ -159,6 +189,15 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
         {showRoute && routePositions.length > 1 && (
           <Polyline positions={routePositions} color="red" />
         )}
+        {showRoute &&
+          arrowMarkers.map((a, idx) => (
+            <Marker
+              key={`arrow-${idx}`}
+              position={a.position}
+              icon={getArrowIcon(a.angle)}
+              interactive={false}
+            />
+          ))}
       </MapContainer>
 
       <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
