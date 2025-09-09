@@ -1,5 +1,4 @@
 import express from 'express';
-import rateLimit from 'express-rate-limit';
 import SearchService from '../services/SearchService.js';
 import ElasticSearchService from '../services/ElasticSearchService.js';
 import { authenticate } from '../middleware/auth.js';
@@ -9,19 +8,9 @@ const searchService = new SearchService();
 const useElastic = process.env.USE_ELASTICSEARCH === 'true';
 const elasticService = useElastic ? new ElasticSearchService() : null;
 
-// Rate limiting pour les recherches
-const searchLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 recherches par IP
-  message: { error: 'Limite de recherches atteinte. Veuillez patienter.' }
-});
-
 // Route de recherche principale
-router.post('/', authenticate, searchLimiter, async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
-    console.log('🔍 POST /api/search - Nouvelle recherche');
-    console.log('📥 Body reçu:', req.body);
-    
     const {
       query,
       filters = {},
@@ -33,7 +22,7 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
     } = req.body;
 
     if (!query || query.trim().length === 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Le terme de recherche ne peut pas être vide'
       });
     }
@@ -54,11 +43,6 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
       return res.status(400).json({ error: 'depth doit être >= 1' });
     }
 
-    // Ajouter les infos utilisateur pour les logs
-    req.user.ip_address = req.ip;
-    req.user.user_agent = req.headers['user-agent'];
-
-    console.log('🔍 Lancement de la recherche...');
     let results;
     if (useElastic) {
       const es = await elasticService.search(
@@ -87,11 +71,10 @@ router.post('/', authenticate, searchLimiter, async (req, res) => {
       );
     }
 
-    console.log('✅ Recherche terminée, envoi des résultats');
     res.json(results);
   } catch (error) {
-    console.error('❌ Erreur recherche:', error);
-    res.status(500).json({ 
+    console.error('Erreur recherche:', error);
+    res.status(500).json({
       error: 'Erreur lors de la recherche. Veuillez réessayer.'
     });
   }
@@ -109,7 +92,7 @@ router.get('/details/:table/:id', authenticate, async (req, res) => {
     const details = await searchService.getRecordDetails(table, id);
     res.json(details);
   } catch (error) {
-    console.error('❌ Erreur détails:', error);
+    console.error('Erreur détails:', error);
 
     if (error.message.includes('non trouvé')) {
       return res.status(404).json({ error: error.message });

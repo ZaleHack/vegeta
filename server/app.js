@@ -36,15 +36,6 @@ app.use(cors({
   credentials: true
 }));
 
-// Middleware de logging pour déboguer
-app.use((req, res, next) => {
-  console.log(`📥 ${req.method} ${req.path}`);
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log('📦 Body:', req.body);
-  }
-  next();
-});
-
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
