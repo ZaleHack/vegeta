@@ -116,6 +116,110 @@ const createLabelIcon = (text: string, bgColor: string) => {
   });
 };
 
+const MeetingPointMarker: React.FC<{
+  mp: MeetingPoint;
+  colorMap: Map<string, string>;
+  onIdentifyNumber?: (num: string) => void;
+}> = React.memo(({ mp, colorMap, onIdentifyNumber }) => {
+  const [selected, setSelected] = useState(0);
+  const color = mp.number ? colorMap.get(mp.number) || '#4b5563' : '#4b5563';
+  const event = mp.events[selected];
+
+  return (
+    <Marker
+      position={[mp.lat, mp.lng]}
+      icon={L.divIcon({
+        html: renderToStaticMarkup(<MapPin size={32} style={{ color }} />),
+        className: '',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      })}
+    >
+      <Popup>
+        <div className="space-y-1 text-sm">
+          <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
+          {mp.events.length > 1 && (
+            <div className="mb-2">
+              <label className="mr-1">Événement :</label>
+              <select
+                className="border rounded p-1"
+                value={selected}
+                onChange={(e) => setSelected(parseInt(e.target.value))}
+              >
+                {mp.events.map((e, i) => (
+                  <option key={i} value={i}>
+                    {e.type === 'sms'
+                      ? 'SMS'
+                      : e.type === 'web'
+                      ? 'Position'
+                      : 'Appel'}{' '}
+                    - {e.callDate}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {event && (
+            <div className="space-y-1">
+              {event.number && (
+                <div className="flex items-center justify-between">
+                  <span>Numéro: {event.number}</span>
+                  <button
+                    className="ml-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                    onClick={() => {
+                      const cleaned = event.number!.replace(/^221/, '');
+                      navigator.clipboard.writeText(cleaned);
+                      if (onIdentifyNumber) onIdentifyNumber(cleaned);
+                    }}
+                  >
+                    Identifier numéro
+                  </button>
+                </div>
+              )}
+              {event.type === 'web' ? (
+                <>
+                  <p>Type: Position</p>
+                  {event.callDate === event.endDate ? (
+                    <p>Date: {event.callDate}</p>
+                  ) : (
+                    <>
+                      <p>Date début: {event.callDate}</p>
+                      <p>Date fin: {event.endDate}</p>
+                    </>
+                  )}
+                  <p>Début: {event.startTime}</p>
+                  <p>Fin: {event.endTime}</p>
+                  <p>Durée: {event.duration || 'N/A'}</p>
+                </>
+              ) : (
+                <>
+                  <p>Type: {event.type === 'sms' ? 'SMS' : 'Appel'}</p>
+                  {event.type !== 'sms' && (
+                    <p>
+                      Direction:{' '}
+                      {event.direction === 'outgoing' ? 'Sortant' : 'Entrant'}
+                    </p>
+                  )}
+                  <p>Date: {event.callDate}</p>
+                  <p>Début: {event.startTime}</p>
+                  <p>Fin: {event.endTime}</p>
+                  <p>Durée: {event.duration || 'N/A'}</p>
+                  {event.type !== 'sms' && (
+                    <>
+                      <p>IMEI appelant: {event.imeiCaller || 'N/A'}</p>
+                      <p>IMEI appelé: {event.imeiCalled || 'N/A'}</p>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </Popup>
+    </Marker>
+  );
+});
+
 const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeetingPoints }) => {
   if (!points || points.length === 0) return null;
 
@@ -287,107 +391,6 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
-
-  const MeetingPointMarker: React.FC<{ mp: MeetingPoint }> = ({ mp }) => {
-    const [selected, setSelected] = useState(0);
-    const color = mp.number ? colorMap.get(mp.number) || '#4b5563' : '#4b5563';
-    const event = mp.events[selected];
-
-    return (
-      <Marker
-        position={[mp.lat, mp.lng]}
-        icon={L.divIcon({
-          html: renderToStaticMarkup(
-            <MapPin size={32} style={{ color }} />
-          ),
-          className: '',
-          iconSize: [32, 32],
-          iconAnchor: [16, 32]
-        })}
-      >
-        <Popup>
-          <div className="space-y-1 text-sm">
-            <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
-            {mp.events.length > 1 && (
-              <div className="mb-2">
-                <label className="mr-1">Événement :</label>
-                <select
-                  className="border rounded p-1"
-                  value={selected}
-                  onChange={(e) => setSelected(parseInt(e.target.value))}
-                >
-                  {mp.events.map((e, i) => (
-                    <option key={i} value={i}>
-                      {e.type === 'sms'
-                        ? 'SMS'
-                        : e.type === 'web'
-                        ? 'Position'
-                        : 'Appel'}{' '}
-                      - {e.callDate}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {event && (
-              <div className="space-y-1">
-                {event.number && (
-                  <div className="flex items-center justify-between">
-                    <span>Numéro: {event.number}</span>
-                    <button
-                      className="ml-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                      onClick={() => {
-                        const cleaned = event.number!.replace(/^221/, '');
-                        navigator.clipboard.writeText(cleaned);
-                        if (onIdentifyNumber) onIdentifyNumber(cleaned);
-                      }}
-                    >
-                      Identifier numéro
-                    </button>
-                  </div>
-                )}
-                {event.type === 'web' ? (
-                  <>
-                    <p>Type: Position</p>
-                    {event.callDate === event.endDate ? (
-                      <p>Date: {event.callDate}</p>
-                    ) : (
-                      <>
-                        <p>Date début: {event.callDate}</p>
-                        <p>Date fin: {event.endDate}</p>
-                      </>
-                    )}
-                    <p>Début: {event.startTime}</p>
-                    <p>Fin: {event.endTime}</p>
-                    <p>Durée: {event.duration || 'N/A'}</p>
-                  </>
-                ) : (
-                  <>
-                    <p>Type: {event.type === 'sms' ? 'SMS' : 'Appel'}</p>
-                    {event.type !== 'sms' && (
-                      <p>Direction: {event.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
-                    )}
-                    <p>Date: {event.callDate}</p>
-                    <p>Début: {event.startTime}</p>
-                    <p>Fin: {event.endTime}</p>
-                    <p>Durée: {event.duration || 'N/A'}</p>
-                    {event.type !== 'sms' && (
-                      <>
-                        <p>IMEI appelant: {event.imeiCaller || 'N/A'}</p>
-                        <p>IMEI appelé: {event.imeiCalled || 'N/A'}</p>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </Popup>
-      </Marker>
-    );
-  };
-
-
   return (
     <> 
       <div className="relative rounded-lg overflow-hidden shadow-lg">
@@ -457,7 +460,12 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
         ))}
         {showMeetingPoints &&
           meetingPoints.map((mp, idx) => (
-            <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
+            <MeetingPointMarker
+              key={`meeting-${idx}`}
+              mp={mp}
+              colorMap={colorMap}
+              onIdentifyNumber={onIdentifyNumber}
+            />
           ))}
         {showRoute && routePositions.length > 1 && (
           <Polyline positions={routePositions} color="red" />
