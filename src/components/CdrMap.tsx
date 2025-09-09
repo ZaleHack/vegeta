@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { PhoneIncoming, PhoneOutgoing, MessageSquare, ArrowRight, MapPin, Car } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, MessageSquare, ArrowRight, MapPin, Navigation } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -38,6 +38,7 @@ interface Props {
   points: Point[];
   onIdentifyNumber?: (num: string) => void;
   showRoute?: boolean;
+  showMeetingPoints?: boolean;
 }
 const getIcon = (type: string, direction?: string) => {
   const size = 32;
@@ -104,7 +105,7 @@ const createLabelIcon = (text: string, bgColor: string) => {
   });
 };
 
-const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
+const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeetingPoints }) => {
   if (!points || points.length === 0) return null;
 
   const first = points[0];
@@ -151,6 +152,22 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
     return sorted.map((p) => [parseFloat(p.latitude), parseFloat(p.longitude)] as [number, number]);
   }, [points, showRoute]);
 
+  const interpolatedRoute = useMemo(() => {
+    if (!showRoute || routePositions.length < 2) return [] as [number, number][];
+    const result: [number, number][] = [];
+    for (let i = 1; i < routePositions.length; i++) {
+      const [lat1, lng1] = routePositions[i - 1];
+      const [lat2, lng2] = routePositions[i];
+      const steps = 20;
+      if (i === 1) result.push([lat1, lng1]);
+      for (let s = 1; s <= steps; s++) {
+        const t = s / steps;
+        result.push([lat1 + (lat2 - lat1) * t, lng1 + (lng2 - lng1) * t]);
+      }
+    }
+    return result;
+  }, [routePositions, showRoute]);
+
   const arrowMarkers = useMemo(() => {
     if (!showRoute || routePositions.length < 2) return [];
     const markers: { position: [number, number]; angle: number }[] = [];
@@ -165,36 +182,39 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
     }
     return markers;
   }, [routePositions, showRoute]);
+
   const [carIndex, setCarIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
 
   useEffect(() => {
-    if (!showRoute || routePositions.length < 2) return;
+    if (!showRoute || interpolatedRoute.length < 2) return;
     setCarIndex(0);
     let current = 0;
     const id = setInterval(() => {
       current += 1;
-      if (current >= routePositions.length) {
+      if (current >= interpolatedRoute.length) {
         clearInterval(id);
       } else {
         setCarIndex(current);
       }
-    }, 1000 / speed);
+    }, 100 / speed);
     return () => clearInterval(id);
-  }, [showRoute, routePositions, speed]);
+  }, [showRoute, interpolatedRoute, speed]);
 
   const carAngle = useMemo(() => {
-    if (carIndex >= routePositions.length - 1) return 0;
-    const [lat1, lng1] = routePositions[carIndex];
-    const [lat2, lng2] = routePositions[carIndex + 1];
+    if (carIndex >= interpolatedRoute.length - 1) return 0;
+    const [lat1, lng1] = interpolatedRoute[carIndex];
+    const [lat2, lng2] = interpolatedRoute[carIndex + 1];
     return (Math.atan2(lat2 - lat1, lng2 - lng1) * 180) / Math.PI;
-  }, [carIndex, routePositions]);
+  }, [carIndex, interpolatedRoute]);
+
+  const carPosition = interpolatedRoute[carIndex] || interpolatedRoute[0];
 
   const carIcon = useMemo(() => {
     const size = 32;
     const icon = (
       <div style={{ transform: `rotate(${carAngle}deg)` }}>
-        <Car size={size} className="text-blue-600" />
+        <Navigation size={size} className="text-blue-600" />
       </div>
     );
     return L.divIcon({
@@ -204,6 +224,41 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
       iconAnchor: [size / 2, size / 2]
     });
   }, [carAngle]);
+
+  const meetingPoints = useMemo(() => {
+    const map = new Map<string, { lat: number; lng: number; nom: string; events: Point[] }>();
+    points.forEach((p) => {
+      const key = `${p.latitude},${p.longitude}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          lat: parseFloat(p.latitude),
+          lng: parseFloat(p.longitude),
+          nom: p.nom,
+          events: []
+        });
+      }
+      map.get(key)!.events.push(p);
+    });
+    return Array.from(map.values())
+      .filter((m) => m.events.length > 1)
+      .map((m) => {
+        const dates = m.events.map((e) => new Date(`${e.callDate}T${e.startTime}`));
+        const start = new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString().split('T')[0];
+        const end = new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString().split('T')[0];
+        let total = 0;
+        m.events.forEach((e) => {
+          if (e.duration) {
+            const parts = e.duration.split(':').map((n) => parseInt(n, 10));
+            if (parts.length === 3) total += parts[0] * 3600 + parts[1] * 60 + parts[2];
+            else if (parts.length === 2) total += parts[0] * 60 + parts[1];
+            else if (!isNaN(parseInt(e.duration, 10))) total += parseInt(e.duration, 10);
+          }
+        });
+        const duration = total > 0 ? new Date(total * 1000).toISOString().substr(11, 8) : 'N/A';
+        return { ...m, start, end, duration };
+      });
+  }, [points]);
+  const meetingColors = ['#f97316', '#3b82f6', '#a855f7', '#10b981', '#e11d48', '#14b8a6', '#4b5563'];
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
@@ -275,6 +330,34 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
             </Popup>
           </Marker>
         ))}
+        {showMeetingPoints &&
+          meetingPoints.map((mp, idx) => (
+            <Marker
+              key={`meeting-${idx}`}
+              position={[mp.lat, mp.lng]}
+              icon={L.divIcon({
+                html: renderToStaticMarkup(
+                  <MapPin
+                    size={32}
+                    style={{ color: meetingColors[idx % meetingColors.length] }}
+                  />
+                ),
+                className: '',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32]
+              })}
+            >
+              <Popup>
+                <div className="space-y-1 text-sm">
+                  <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
+                  <p>Occurrences: {mp.events.length}</p>
+                  <p>Date début: {mp.start}</p>
+                  <p>Date fin: {mp.end}</p>
+                  <p>Durée totale: {mp.duration}</p>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
         {showRoute && routePositions.length > 1 && (
           <Polyline positions={routePositions} color="red" />
         )}
@@ -287,8 +370,8 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
             icon={endIcon}
           />
         )}
-        {showRoute && routePositions.length > 0 && (
-          <Marker position={routePositions[carIndex]} icon={carIcon} />
+        {showRoute && interpolatedRoute.length > 0 && (
+          <Marker position={carPosition} icon={carIcon} />
         )}
         {showRoute &&
           arrowMarkers.map((a, idx) => (

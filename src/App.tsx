@@ -578,6 +578,7 @@ const App: React.FC = () => {
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
   const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
+  const [showMeetingPoints, setShowMeetingPoints] = useState(false);
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -3180,6 +3181,7 @@ useEffect(() => {
                         <option value="both">Appels et SMS</option>
                         <option value="call">Seulement appels</option>
                         <option value="sms">Seulement SMS</option>
+                        <option value="web">Seulement positions</option>
                       </select>
                     </div>
                     <select
@@ -3218,6 +3220,15 @@ useEffect(() => {
                             Diagramme des liens
                           </button>
                         )}
+                        {cdrResult && cdrResult.total > 0 && (
+                          <button
+                            type="button"
+                            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
+                            onClick={() => setShowMeetingPoints((v) => !v)}
+                          >
+                            Points de rencontre
+                          </button>
+                        )}
                     </div>
                   </form>
                 </div>
@@ -3234,6 +3245,7 @@ useEffect(() => {
                 <CdrMap
                   points={cdrResult.path}
                   showRoute={cdrItinerary}
+                  showMeetingPoints={showMeetingPoints}
                   onIdentifyNumber={(num) => {
                     setSearchQuery(num);
                     setCurrentPage('search');
