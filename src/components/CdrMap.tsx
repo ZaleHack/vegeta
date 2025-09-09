@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { PhoneIncoming, PhoneOutgoing, MessageSquare, ArrowRight, MapPin } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, MessageSquare, ArrowRight, MapPin, Car } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -165,6 +165,28 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
     }
     return markers;
   }, [routePositions, showRoute]);
+  const [carIndex, setCarIndex] = useState(0);
+  const [speed, setSpeed] = useState(1);
+
+  useEffect(() => {
+    if (!showRoute || routePositions.length < 2) return;
+    setCarIndex(0);
+    const id = setInterval(() => {
+      setCarIndex((idx) => (idx + 1) % routePositions.length);
+    }, 1000 / speed);
+    return () => clearInterval(id);
+  }, [showRoute, routePositions, speed]);
+
+  const carIcon = useMemo(() => {
+    const size = 32;
+    const icon = <Car size={size} className="text-slate-700" />;
+    return L.divIcon({
+      html: renderToStaticMarkup(icon),
+      className: '',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2]
+    });
+  }, []);
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
@@ -248,6 +270,9 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
             icon={endIcon}
           />
         )}
+        {showRoute && routePositions.length > 0 && (
+          <Marker position={routePositions[carIndex]} icon={carIcon} />
+        )}
         {showRoute &&
           arrowMarkers.map((a, idx) => (
             <Marker
@@ -258,6 +283,22 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute }) => {
             />
           ))}
       </MapContainer>
+
+      {showRoute && (
+        <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">
+          <label htmlFor="speed" className="block font-semibold mb-1">
+            Vitesse : {speed}x
+          </label>
+          <input
+            id="speed"
+            type="range"
+            min={1}
+            max={10}
+            value={speed}
+            onChange={(e) => setSpeed(Number(e.target.value))}
+          />
+        </div>
+      )}
 
       <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
         <p className="font-semibold">Total : {total}</p>
