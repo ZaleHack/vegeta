@@ -533,7 +533,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
           </div>
         )}
 
-        <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
+        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
           <p className="font-semibold">Total : {total}</p>
           {topContacts && topContacts.length > 0 && (
             <div>
