@@ -392,12 +392,12 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
   return (
-    <> 
-      <div className="relative rounded-lg overflow-hidden shadow-lg">
+    <>
+      <div className="relative w-full h-full">
         <MapContainer
           center={center}
           zoom={13}
-          className="w-full h-[80vh]"
+          className="w-full h-full"
         >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
