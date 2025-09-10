@@ -1,7 +1,15 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { PhoneIncoming, PhoneOutgoing, MessageSquare, MapPin, Navigation, Car } from 'lucide-react';
+import {
+  PhoneIncoming,
+  PhoneOutgoing,
+  MessageSquare,
+  MapPin,
+  Navigation,
+  Car,
+  XCircle
+} from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -39,7 +47,7 @@ interface MeetingPoint {
   lat: number;
   lng: number;
   nom: string;
-  number?: string;
+  numbers: string[];
   events: Point[];
   start: string;
   end: string;
@@ -122,22 +130,22 @@ const formatDate = (d: string) => {
   return `${day}/${month}/${year}`;
 };
 
+const formatDateTime = (iso: string) => {
+  const date = new Date(iso);
+  return date.toLocaleString('fr-FR');
+};
+
 const MeetingPointMarker: React.FC<{
   mp: MeetingPoint;
-  colorMap: Map<string, string>;
   onIdentifyNumber?: (num: string) => void;
-}> = React.memo(({ mp, colorMap, onIdentifyNumber }) => {
-  const [selected, setSelected] = useState(0);
-  const color = mp.events[0]?.source
-    ? colorMap.get(mp.events[0].source!) || '#4b5563'
-    : '#4b5563';
-  const event = mp.events[selected];
-
+}> = React.memo(({ mp, onIdentifyNumber }) => {
   return (
     <Marker
       position={[mp.lat, mp.lng]}
       icon={L.divIcon({
-        html: renderToStaticMarkup(<MapPin size={32} style={{ color }} />),
+        html: renderToStaticMarkup(
+          <XCircle size={32} className="text-red-600" />
+        ),
         className: '',
         iconSize: [32, 32],
         iconAnchor: [16, 32]
@@ -146,82 +154,24 @@ const MeetingPointMarker: React.FC<{
       <Popup>
         <div className="space-y-1 text-sm">
           <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
-          {mp.events.length > 1 && (
-            <div className="mb-2">
-              <label className="mr-1">Événement :</label>
-              <select
-                className="border rounded p-1"
-                value={selected}
-                onChange={(e) => setSelected(parseInt(e.target.value))}
+          <p>Numéros : {mp.numbers.join(', ')}</p>
+          <p>Début : {formatDateTime(mp.start)}</p>
+          <p>Fin : {formatDateTime(mp.end)}</p>
+          <p>Durée : {mp.duration}</p>
+          {onIdentifyNumber &&
+            mp.numbers.map((num) => (
+              <button
+                key={num}
+                className="mt-1 mr-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                onClick={() => {
+                  const cleaned = num.replace(/^221/, '');
+                  navigator.clipboard.writeText(cleaned);
+                  onIdentifyNumber(cleaned);
+                }}
               >
-                {mp.events.map((e, i) => (
-                  <option key={i} value={i}>
-                    {e.type === 'sms'
-                      ? 'SMS'
-                      : e.type === 'web'
-                      ? 'Position'
-                      : 'Appel'}{' '}
-                    - {formatDate(e.callDate)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {event && (
-            <div className="space-y-1">
-              {event.number && (
-                <div className="flex items-center justify-between">
-                  <span>Numéro: {event.number}</span>
-                  <button
-                    className="ml-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                    onClick={() => {
-                      const cleaned = event.number!.replace(/^221/, '');
-                      navigator.clipboard.writeText(cleaned);
-                      if (onIdentifyNumber) onIdentifyNumber(cleaned);
-                    }}
-                  >
-                    Identifier numéro
-                  </button>
-                </div>
-              )}
-              {event.type === 'web' ? (
-                <>
-                  <p>Type: Position</p>
-                  {event.callDate === event.endDate ? (
-                    <p>Date: {formatDate(event.callDate)}</p>
-                  ) : (
-                    <>
-                      <p>Date début: {formatDate(event.callDate)}</p>
-                      <p>Date fin: {event.endDate && formatDate(event.endDate)}</p>
-                    </>
-                  )}
-                  <p>Début: {event.startTime}</p>
-                  <p>Fin: {event.endTime}</p>
-                  <p>Durée: {event.duration || 'N/A'}</p>
-                </>
-              ) : (
-                <>
-                  <p>Type: {event.type === 'sms' ? 'SMS' : 'Appel'}</p>
-                  {event.type !== 'sms' && (
-                    <p>
-                      Direction:{' '}
-                      {event.direction === 'outgoing' ? 'Sortant' : 'Entrant'}
-                    </p>
-                  )}
-                  <p>Date: {formatDate(event.callDate)}</p>
-                  <p>Début: {event.startTime}</p>
-                  <p>Fin: {event.endTime}</p>
-                  <p>Durée: {event.duration || 'N/A'}</p>
-                  {event.type !== 'sms' && (
-                    <>
-                      <p>IMEI appelant: {event.imeiCaller || 'N/A'}</p>
-                      <p>IMEI appelé: {event.imeiCalled || 'N/A'}</p>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                Identifier {num}
+              </button>
+            ))}
         </div>
       </Popup>
     </Marker>
@@ -363,37 +313,31 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
   }, [carAngle]);
 
   const meetingPoints = useMemo<MeetingPoint[]>(() => {
-    const map = new Map<string, { lat: number; lng: number; nom: string; number?: string; events: Point[] }>();
+    const map = new Map<string, { lat: number; lng: number; nom: string; events: Point[] }>();
     points.forEach((p) => {
-      const key = `${p.latitude},${p.longitude},${p.number || ''}`;
+      if (!p.number) return;
+      const key = `${p.latitude},${p.longitude}`;
       if (!map.has(key)) {
         map.set(key, {
           lat: parseFloat(p.latitude),
           lng: parseFloat(p.longitude),
           nom: p.nom,
-          number: p.number,
           events: []
         });
       }
       map.get(key)!.events.push(p);
     });
     return Array.from(map.values())
-      .filter((m) => m.events.length > 1)
+      .filter((m) => new Set(m.events.map((e) => e.number)).size > 1)
       .map((m) => {
-        const dates = m.events.map((e) => new Date(`${e.callDate}T${e.startTime}`));
-        const start = new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString().split('T')[0];
-        const end = new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString().split('T')[0];
-        let total = 0;
-        m.events.forEach((e) => {
-          if (e.duration) {
-            const parts = e.duration.split(':').map((n) => parseInt(n, 10));
-            if (parts.length === 3) total += parts[0] * 3600 + parts[1] * 60 + parts[2];
-            else if (parts.length === 2) total += parts[0] * 60 + parts[1];
-            else if (!isNaN(parseInt(e.duration, 10))) total += parseInt(e.duration, 10);
-          }
-        });
-        const duration = total > 0 ? new Date(total * 1000).toISOString().substr(11, 8) : 'N/A';
-        return { ...m, start, end, duration };
+        const numbers = Array.from(new Set(m.events.map((e) => e.number!).filter(Boolean)));
+        const starts = m.events.map((e) => new Date(`${e.callDate}T${e.startTime}`));
+        const ends = m.events.map((e) => new Date(`${e.endDate || e.callDate}T${e.endTime}`));
+        const start = new Date(Math.min(...starts.map((d) => d.getTime()))).toISOString();
+        const end = new Date(Math.max(...ends.map((d) => d.getTime()))).toISOString();
+        const durationSeconds = Math.max(0, (new Date(end).getTime() - new Date(start).getTime()) / 1000);
+        const duration = new Date(durationSeconds * 1000).toISOString().substr(11, 8);
+        return { ...m, numbers, start, end, duration };
       });
   }, [points]);
 
@@ -471,7 +415,6 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
             <MeetingPointMarker
               key={`meeting-${idx}`}
               mp={mp}
-              colorMap={colorMap}
               onIdentifyNumber={onIdentifyNumber}
             />
           ))}
@@ -536,7 +479,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
               <thead>
                 <tr className="text-left">
                   <th className="pr-2">Point</th>
-                  <th className="pr-2">Numéro</th>
+                  <th className="pr-2">Numéros</th>
                   <th>Événements</th>
                 </tr>
               </thead>
@@ -544,7 +487,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
                 {meetingPoints.map((m, i) => (
                   <tr key={i} className="border-t">
                     <td className="pr-2">{m.nom || `${m.lat},${m.lng}`}</td>
-                    <td className="pr-2">{m.number || '-'}</td>
+                    <td className="pr-2">{m.numbers.join(', ')}</td>
                     <td>{m.events.length}</td>
                   </tr>
                 ))}
