@@ -445,7 +445,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
         </MapContainer>
 
         {colorMap.size > 1 && (
-          <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] space-y-1">
+          <div className="absolute left-2 top-24 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] space-y-1">
             <p className="font-semibold">Légende</p>
             {[...colorMap.entries()].map(([num, color]) => (
               <div key={num} className="flex items-center space-x-2">

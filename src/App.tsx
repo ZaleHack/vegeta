@@ -1378,7 +1378,7 @@ useEffect(() => {
       const ids = cdrIdentifier
         .split(',')
         .map((i) => i.trim())
-        .filter((i) => i);
+        .filter((i) => i && !i.startsWith('2214'));
 
       const allPaths: CdrPoint[] = [];
 
@@ -1397,6 +1397,7 @@ useEffect(() => {
         if (res.ok) {
           const filtered = Array.isArray(data.path)
             ? data.path.filter((p: CdrPoint) => {
+                if (String(p.number || '').startsWith('2214')) return false;
                 if (p.type === 'web') return cdrPosition;
                 if (p.type === 'sms') return cdrSms;
                 return p.direction === 'incoming'
@@ -1921,7 +1922,7 @@ useEffect(() => {
     <div
       className={`${
         showCdrMap
-          ? 'fixed top-20 left-4 z-[1000] w-full max-w-md bg-white/90 backdrop-blur rounded-lg shadow p-4 space-y-4'
+          ? 'fixed bottom-4 left-4 z-[1000] w-full max-w-md bg-white/90 backdrop-blur rounded-lg shadow p-4 space-y-4'
           : 'bg-white rounded-lg shadow p-6 space-y-4 max-h-[60vh] overflow-y-auto'
       }`}
     >
