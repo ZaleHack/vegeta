@@ -53,6 +53,8 @@ interface MeetingPoint {
   numbers: string[];
   events: Point[];
   perNumber: { number: string; durations: string[]; total: string }[];
+  start: string;
+  end: string;
 }
 
 interface Props {
@@ -363,7 +365,21 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           const total = new Date(totalSec * 1000).toISOString().substr(11, 8);
           return { number: num, durations, total };
         });
-        return { ...m, numbers, perNumber };
+        const startDate = m.events.reduce((min, e) => {
+          const s = new Date(`${e.callDate}T${e.startTime}`);
+          return s < min ? s : min;
+        }, new Date(`${m.events[0].callDate}T${m.events[0].startTime}`));
+        const endDate = m.events.reduce((max, e) => {
+          const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
+          return en > max ? en : max;
+        }, new Date(`${m.events[0].endDate || m.events[0].callDate}T${m.events[0].endTime}`));
+        const startStr = `${formatDate(startDate.toISOString().split('T')[0])} ${startDate
+          .toTimeString()
+          .substr(0, 8)}`;
+        const endStr = `${formatDate(endDate.toISOString().split('T')[0])} ${endDate
+          .toTimeString()
+          .substr(0, 8)}`;
+        return { ...m, numbers, perNumber, start: startStr, end: endStr };
       });
   }, [points]);
 
@@ -414,10 +430,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                       <PhoneOutgoing size={16} className="text-gray-700" />
                       <span>Appelant: {loc.caller || 'N/A'}</span>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <PhoneIncoming size={16} className="text-gray-700" />
-                      <span>Appelé: {loc.callee || 'N/A'}</span>
-                    </div>
+                    {loc.type !== 'web' && (
+                      <div className="flex items-center space-x-1">
+                        <PhoneIncoming size={16} className="text-gray-700" />
+                        <span>Appelé: {loc.callee || 'N/A'}</span>
+                      </div>
+                    )}
                     {loc.type === 'web' ? (
                       <>
                         <p>Type: Position</p>
@@ -433,16 +451,21 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                         <p>Fin: {loc.endTime}</p>
                         <p>Durée: {loc.duration || 'N/A'}</p>
                       </>
+                    ) : loc.type === 'sms' ? (
+                      <>
+                        <p>Type: SMS</p>
+                        <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
+                        <p>Date: {formatDate(loc.callDate)}</p>
+                        <p>Heure: {loc.startTime}</p>
+                      </>
                     ) : (
                       <>
-                        <p>Type: {loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
+                        <p>Type: Appel</p>
                         <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
                         <p>Date: {formatDate(loc.callDate)}</p>
                         <p>Début: {loc.startTime}</p>
                         <p>Fin: {loc.endTime}</p>
                         <p>Durée: {loc.duration || 'N/A'}</p>
-                        <p>IMEI appelant: {loc.imeiCaller || 'N/A'}</p>
-                        <p>IMEI appelé: {loc.imeiCalled || 'N/A'}</p>
                       </>
                     )}
                   </div>
@@ -466,25 +489,36 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                   {group.events.map((loc, i) => (
                     <div key={i} className="border-t pt-2 mt-2">
                       <p className="font-semibold">{loc.source || 'N/A'}</p>
-                      <p>Type: {loc.type === 'web' ? 'Position' : loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
-                      {loc.type !== 'web' && (
-                        <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
-                      )}
-                      {loc.type === 'web' && loc.callDate === loc.endDate ? (
-                        <p>Date: {formatDate(loc.callDate)}</p>
+                      {loc.type === 'web' ? (
+                        <>
+                          <p>Type: Position</p>
+                          {loc.callDate === loc.endDate ? (
+                            <p>Date: {formatDate(loc.callDate)}</p>
+                          ) : (
+                            <>
+                              <p>Date début: {formatDate(loc.callDate)}</p>
+                              <p>Date fin: {loc.endDate && formatDate(loc.endDate!)}</p>
+                            </>
+                          )}
+                          <p>Début: {loc.startTime}</p>
+                          <p>Fin: {loc.endTime}</p>
+                          <p>Durée: {loc.duration || 'N/A'}</p>
+                        </>
+                      ) : loc.type === 'sms' ? (
+                        <>
+                          <p>Type: SMS</p>
+                          <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
+                          <p>Date: {formatDate(loc.callDate)}</p>
+                          <p>Heure: {loc.startTime}</p>
+                        </>
                       ) : (
                         <>
-                          <p>Date début: {formatDate(loc.callDate)}</p>
-                          <p>Date fin: {loc.endDate && formatDate(loc.endDate!)}</p>
-                        </>
-                      )}
-                      <p>Début: {loc.startTime}</p>
-                      <p>Fin: {loc.endTime}</p>
-                      <p>Durée: {loc.duration || 'N/A'}</p>
-                      {loc.type !== 'web' && (
-                        <>
-                          <p>IMEI appelant: {loc.imeiCaller || 'N/A'}</p>
-                          <p>IMEI appelé: {loc.imeiCalled || 'N/A'}</p>
+                          <p>Type: Appel</p>
+                          <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
+                          <p>Date: {formatDate(loc.callDate)}</p>
+                          <p>Début: {loc.startTime}</p>
+                          <p>Fin: {loc.endTime}</p>
+                          <p>Durée: {loc.duration || 'N/A'}</p>
                         </>
                       )}
                     </div>
@@ -563,7 +597,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                 <tr className="text-left">
                   <th className="pr-2">Point</th>
                   <th className="pr-2">Numéros</th>
-                  <th>Événements</th>
+                  <th className="pr-2">Événements</th>
+                  <th className="pr-2">Heure début</th>
+                  <th>Heure fin</th>
                 </tr>
               </thead>
               <tbody>
@@ -571,7 +607,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                   <tr key={i} className="border-t">
                     <td className="pr-2">{m.nom || `${m.lat},${m.lng}`}</td>
                     <td className="pr-2">{m.numbers.join(', ')}</td>
-                    <td>{m.events.length}</td>
+                    <td className="pr-2">{m.events.length}</td>
+                    <td className="pr-2">{m.start}</td>
+                    <td>{m.end}</td>
                   </tr>
                 ))}
               </tbody>
