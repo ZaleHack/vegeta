@@ -52,9 +52,14 @@ interface MeetingPoint {
   nom: string;
   numbers: string[];
   events: Point[];
-  perNumber: { number: string; durations: string[]; total: string }[];
+  perNumber: {
+    number: string;
+    events: { start: string; end: string; duration: string }[];
+    total: string;
+  }[];
   start: string;
   end: string;
+  total: string;
 }
 
 interface Props {
@@ -172,7 +177,7 @@ const MeetingPointMarker: React.FC<{
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-2 py-1 text-left">Numéro</th>
-                <th className="px-2 py-1 text-left">Durées</th>
+                <th className="px-2 py-1 text-left">Heures & durées</th>
                 <th className="px-2 py-1 text-left">Total</th>
               </tr>
             </thead>
@@ -182,8 +187,8 @@ const MeetingPointMarker: React.FC<{
                   <td className="px-2 py-1 font-medium">{d.number}</td>
                   <td className="px-2 py-1">
                     <div className="max-h-24 overflow-y-auto space-y-1">
-                      {d.durations.map((dur, i) => (
-                        <div key={i}>{dur}</div>
+                      {d.events.map((ev, i) => (
+                        <div key={i}>{ev.start} - {ev.end} ({ev.duration})</div>
                       ))}
                     </div>
                   </td>
@@ -352,19 +357,29 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       .map((m) => {
         const numbers = Array.from(new Set(m.events.map((e) => e.source!).filter(Boolean)));
         const perNumber = numbers.map((num) => {
-          const evts = m.events.filter((e) => e.source === num);
-          const durationsSec = evts.map((e) => {
-            const s = new Date(`${e.callDate}T${e.startTime}`);
-            const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
-            return Math.max(0, (en.getTime() - s.getTime()) / 1000);
-          });
-          const durations = durationsSec.map((sec) =>
-            new Date(sec * 1000).toISOString().substr(11, 8)
-          );
-          const totalSec = durationsSec.reduce((a, b) => a + b, 0);
+          const evts = m.events
+            .filter((e) => e.source === num)
+            .map((e) => {
+              const s = new Date(`${e.callDate}T${e.startTime}`);
+              const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
+              const durationSec = Math.max(0, (en.getTime() - s.getTime()) / 1000);
+              return {
+                start: e.startTime,
+                end: e.endTime,
+                duration: new Date(durationSec * 1000).toISOString().substr(11, 8),
+                durationSec
+              };
+            });
+          const totalSec = evts.reduce((a, b) => a + b.durationSec, 0);
           const total = new Date(totalSec * 1000).toISOString().substr(11, 8);
-          return { number: num, durations, total };
+          return {
+            number: num,
+            events: evts.map(({ start, end, duration }) => ({ start, end, duration })),
+            total,
+            totalSec
+          };
         });
+        const overallSec = perNumber.reduce((sum, n) => sum + n.totalSec, 0);
         const startDate = m.events.reduce((min, e) => {
           const s = new Date(`${e.callDate}T${e.startTime}`);
           return s < min ? s : min;
@@ -379,7 +394,15 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
         const endStr = `${formatDate(endDate.toISOString().split('T')[0])} ${endDate
           .toTimeString()
           .substr(0, 8)}`;
-        return { ...m, numbers, perNumber, start: startStr, end: endStr };
+        const total = new Date(overallSec * 1000).toISOString().substr(11, 8);
+        return {
+          ...m,
+          numbers,
+          perNumber: perNumber.map(({ totalSec, ...rest }) => rest),
+          start: startStr,
+          end: endStr,
+          total
+        };
       });
   }, [points]);
 
@@ -487,8 +510,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                 <div className="space-y-2 text-sm max-h-60 overflow-y-auto pr-1">
                   <p className="font-semibold text-blue-600">{first.nom || 'Localisation'}</p>
                   {group.events.map((loc, i) => (
-                    <div key={i} className="border-t pt-2 mt-2">
+                    <div key={i} className="mt-2 p-2 bg-gray-50 rounded-lg shadow">
                       <p className="font-semibold">{loc.source || 'N/A'}</p>
+                      <div className="flex items-center space-x-1">
+                        <PhoneOutgoing size={16} className="text-gray-700" />
+                        <span>Appelant: {loc.caller || 'N/A'}</span>
+                      </div>
+                      {loc.type !== 'web' && (
+                        <div className="flex items-center space-x-1">
+                          <PhoneIncoming size={16} className="text-gray-700" />
+                          <span>Appelé: {loc.callee || 'N/A'}</span>
+                        </div>
+                      )}
                       {loc.type === 'web' ? (
                         <>
                           <p>Type: Position</p>
@@ -599,7 +632,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                   <th className="pr-2">Numéros</th>
                   <th className="pr-2">Événements</th>
                   <th className="pr-2">Heure début</th>
-                  <th>Heure fin</th>
+                  <th className="pr-2">Heure fin</th>
+                  <th>Durée totale</th>
                 </tr>
               </thead>
               <tbody>
@@ -609,7 +643,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     <td className="pr-2">{m.numbers.join(', ')}</td>
                     <td className="pr-2">{m.events.length}</td>
                     <td className="pr-2">{m.start}</td>
-                    <td>{m.end}</td>
+                    <td className="pr-2">{m.end}</td>
+                    <td>{m.total}</td>
                   </tr>
                 ))}
               </tbody>
