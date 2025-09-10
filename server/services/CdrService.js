@@ -147,6 +147,9 @@ class CdrService {
     for (const r of records) {
       const caller = r.numero_intl_appelant;
       const callee = r.numero_intl_appele;
+      if (String(caller || '').startsWith('2214') || String(callee || '').startsWith('2214')) {
+        continue;
+      }
       const isWeb = !callee;
       const other = caller === identifier ? callee : caller;
       const directionRecord = caller === identifier ? 'outgoing' : 'incoming';
