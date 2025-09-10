@@ -135,3 +135,15 @@
   background-color: #9ca3af;
   border-radius: 4px;
 }
+
+/* Ensure Leaflet popups remain white even in dark mode */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background-color: #fff !important;
+  color: #111827 !important;
+}
+.dark .leaflet-popup-content-wrapper,
+.dark .leaflet-popup-tip {
+  background-color: #fff !important;
+  color: #111827 !important;
+}

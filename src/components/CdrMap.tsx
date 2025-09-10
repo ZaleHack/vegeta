@@ -6,9 +6,8 @@ import {
   PhoneOutgoing,
   MessageSquare,
   MapPin,
-  Navigation,
+  ArrowRight,
   Car,
-  XCircle,
   Layers
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -96,7 +95,7 @@ const getArrowIcon = (angle: number) => {
   const size = 16;
   const icon = (
     <div style={{ transform: `rotate(${angle}deg)` }}>
-      <Navigation size={size} className="text-red-600" />
+      <ArrowRight size={size} className="text-blue-600" />
     </div>
   );
   return L.divIcon({
@@ -163,11 +162,14 @@ const MeetingPointMarker: React.FC<{
       position={[mp.lat, mp.lng]}
       icon={L.divIcon({
         html: renderToStaticMarkup(
-          <XCircle size={32} className="text-red-600" />
+          <div className="relative flex items-center justify-center">
+            <span className="absolute inline-flex h-8 w-8 rounded-full bg-red-400 opacity-75 animate-ping"></span>
+            <span className="relative inline-flex h-4 w-4 rounded-full bg-red-600"></span>
+          </div>
         ),
         className: '',
         iconSize: [32, 32],
-        iconAnchor: [16, 32]
+        iconAnchor: [16, 16]
       })}
     >
       <Popup>
