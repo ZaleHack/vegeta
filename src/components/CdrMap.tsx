@@ -8,7 +8,8 @@ import {
   MapPin,
   Navigation,
   Car,
-  XCircle
+  XCircle,
+  Layers
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -124,6 +125,24 @@ const createLabelIcon = (text: string, bgColor: string) => {
   });
 };
 
+const getGroupIcon = (count: number, color: string) => {
+  const size = 32;
+  const icon = (
+    <div className="relative">
+      <Layers size={size} style={{ color }} />
+      <span className="absolute -top-1 -right-1 bg-gray-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+        {count}
+      </span>
+    </div>
+  );
+  return L.divIcon({
+    html: renderToStaticMarkup(icon),
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size]
+  });
+};
+
 const formatDate = (d: string) => {
   const [year, month, day] = d.split('-');
   return `${day}/${month}/${year}`;
@@ -159,7 +178,13 @@ const MeetingPointMarker: React.FC<{
               {mp.perNumber.map((d, idx) => (
                 <tr key={idx} className="border-t">
                   <td className="px-2 py-1 font-medium">{d.number}</td>
-                  <td className="px-2 py-1">{d.durations.join(', ')}</td>
+                  <td className="px-2 py-1">
+                    <div className="max-h-24 overflow-y-auto space-y-1">
+                      {d.durations.map((dur, i) => (
+                        <div key={i}>{dur}</div>
+                      ))}
+                    </div>
+                  </td>
                   <td className="px-2 py-1 font-semibold">{d.total}</td>
                 </tr>
               ))}
@@ -430,14 +455,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             <Marker
               key={idx}
               position={[group.lat, group.lng]}
-              icon={getIcon(
-                first.type,
-                first.direction,
+              icon={getGroupIcon(
+                group.events.length,
                 colorMap.get(first.source || '') || '#7e22ce'
               )}
             >
               <Popup>
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-sm max-h-60 overflow-y-auto pr-1">
                   <p className="font-semibold text-blue-600">{first.nom || 'Localisation'}</p>
                   {group.events.map((loc, i) => (
                     <div key={i} className="border-t pt-2 mt-2">
