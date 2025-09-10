@@ -509,10 +509,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
               )}
             >
               <Popup>
-                <div className="space-y-2 text-sm max-h-60 overflow-y-auto pr-1 bg-white dark:bg-white text-gray-900 dark:!text-gray-900">
-                  <p className="font-semibold text-blue-600">{first.nom || 'Localisation'}</p>
+                <div className="space-y-2 text-sm max-h-60 overflow-y-auto pr-1 bg-white dark:!bg-white text-gray-900 dark:!text-gray-900">
+                  <p className="font-semibold text-blue-600 text-center">{first.nom || 'Localisation'}</p>
                   {group.events.map((loc, i) => (
-                    <div key={i} className="mt-2 p-2 bg-gray-50 dark:!bg-white rounded-lg shadow text-gray-900 dark:!text-gray-900">
+                    <div key={i} className="mt-2 p-2 bg-white dark:!bg-white rounded-lg shadow text-gray-900 dark:!text-gray-900">
                       <p className="font-semibold">{loc.source || 'N/A'}</p>
                       <div className="flex items-center space-x-1">
                         <PhoneOutgoing size={16} className="text-gray-700 dark:!text-gray-700" />
