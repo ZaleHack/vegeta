@@ -140,6 +140,9 @@ const formatDateTime = (iso: string) => {
 const MeetingPointMarker: React.FC<{
   mp: MeetingPoint;
 }> = React.memo(({ mp }) => {
+  const durationDetail = mp.perNumber
+    .map((d) => d.duration)
+    .join(' + ');
   return (
     <Marker
       position={[mp.lat, mp.lng]}
@@ -175,7 +178,9 @@ const MeetingPointMarker: React.FC<{
               ))}
             </tbody>
           </table>
-          <p className="text-xs text-gray-600">Durée totale : {mp.duration}</p>
+          <p className="text-xs font-bold text-black">
+            Durée totale : {durationDetail} = {mp.duration}
+          </p>
         </div>
       </Popup>
     </Marker>
@@ -363,6 +368,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
+  const locationCounts = new Map<string, number>();
   return (
     <>
       <div className="relative w-full h-full">
@@ -375,54 +381,68 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {points.map((loc, idx) => (
-          <Marker
-            key={idx}
-            position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-            icon={getIcon(loc.type, loc.direction, colorMap.get(loc.source || '') || '#4b5563')}
-          >
-            <Popup>
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
-                <div className="flex items-center space-x-1">
-                  <PhoneOutgoing size={16} className="text-gray-700" />
-                  <span>Appelant: {loc.caller || 'N/A'}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <PhoneIncoming size={16} className="text-gray-700" />
-                  <span>Appelé: {loc.callee || 'N/A'}</span>
-                </div>
-                {loc.type === 'web' ? (
-                  <>
-                    <p>Type: Position</p>
-                    {loc.callDate === loc.endDate ? (
+        {points.map((loc, idx) => {
+          const key = `${loc.latitude},${loc.longitude}`;
+          const count = locationCounts.get(key) || 0;
+          locationCounts.set(key, count + 1);
+          const offset = 0.00005;
+          const position: [number, number] = [
+            parseFloat(loc.latitude) + count * offset,
+            parseFloat(loc.longitude) + count * offset
+          ];
+          return (
+            <Marker
+              key={idx}
+              position={position}
+              icon={getIcon(
+                loc.type,
+                loc.direction,
+                colorMap.get(loc.source || '') || '#4b5563'
+              )}
+            >
+              <Popup>
+                <div className="space-y-2 text-sm">
+                  <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
+                  <div className="flex items-center space-x-1">
+                    <PhoneOutgoing size={16} className="text-gray-700" />
+                    <span>Appelant: {loc.caller || 'N/A'}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <PhoneIncoming size={16} className="text-gray-700" />
+                    <span>Appelé: {loc.callee || 'N/A'}</span>
+                  </div>
+                  {loc.type === 'web' ? (
+                    <>
+                      <p>Type: Position</p>
+                      {loc.callDate === loc.endDate ? (
+                        <p>Date: {formatDate(loc.callDate)}</p>
+                      ) : (
+                        <>
+                          <p>Date début: {formatDate(loc.callDate)}</p>
+                          <p>Date fin: {loc.endDate && formatDate(loc.endDate)}</p>
+                        </>
+                      )}
+                      <p>Début: {loc.startTime}</p>
+                      <p>Fin: {loc.endTime}</p>
+                      <p>Durée: {loc.duration || 'N/A'}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>Type: {loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
+                      <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
                       <p>Date: {formatDate(loc.callDate)}</p>
-                    ) : (
-                      <>
-                        <p>Date début: {formatDate(loc.callDate)}</p>
-                        <p>Date fin: {loc.endDate && formatDate(loc.endDate)}</p>
-                      </>
-                    )}
-                    <p>Début: {loc.startTime}</p>
-                    <p>Fin: {loc.endTime}</p>
-                    <p>Durée: {loc.duration || 'N/A'}</p>
-                  </>
-                ) : (
-                  <>
-                    <p>Type: {loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
-                    <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
-                    <p>Date: {formatDate(loc.callDate)}</p>
-                    <p>Début: {loc.startTime}</p>
-                    <p>Fin: {loc.endTime}</p>
-                    <p>Durée: {loc.duration || 'N/A'}</p>
-                    <p>IMEI appelant: {loc.imeiCaller || 'N/A'}</p>
-                    <p>IMEI appelé: {loc.imeiCalled || 'N/A'}</p>
-                  </>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+                      <p>Début: {loc.startTime}</p>
+                      <p>Fin: {loc.endTime}</p>
+                      <p>Durée: {loc.duration || 'N/A'}</p>
+                      <p>IMEI appelant: {loc.imeiCaller || 'N/A'}</p>
+                      <p>IMEI appelé: {loc.imeiCalled || 'N/A'}</p>
+                    </>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
         {showMeetingPoints &&
           meetingPoints.map((mp, idx) => (
             <MeetingPointMarker
