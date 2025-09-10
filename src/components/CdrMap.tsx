@@ -51,10 +51,7 @@ interface MeetingPoint {
   nom: string;
   numbers: string[];
   events: Point[];
-  start: string;
-  end: string;
-  duration: string;
-  perNumber: { number: string; start: string; end: string; duration: string }[];
+  perNumber: { number: string; durations: string[]; total: string }[];
 }
 
 interface Props {
@@ -132,17 +129,9 @@ const formatDate = (d: string) => {
   return `${day}/${month}/${year}`;
 };
 
-const formatDateTime = (iso: string) => {
-  const date = new Date(iso);
-  return date.toLocaleString('fr-FR');
-};
-
 const MeetingPointMarker: React.FC<{
   mp: MeetingPoint;
 }> = React.memo(({ mp }) => {
-  const durationDetail = mp.perNumber
-    .map((d) => d.duration)
-    .join(' + ');
   return (
     <Marker
       position={[mp.lat, mp.lng]}
@@ -158,29 +147,24 @@ const MeetingPointMarker: React.FC<{
       <Popup>
         <div className="space-y-2 text-sm">
           <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
-          <table className="min-w-full text-xs border border-gray-200">
+          <table className="min-w-full text-xs border border-gray-200 rounded">
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-2 py-1 text-left">Numéro</th>
-                <th className="px-2 py-1 text-left">Début</th>
-                <th className="px-2 py-1 text-left">Fin</th>
-                <th className="px-2 py-1 text-left">Durée</th>
+                <th className="px-2 py-1 text-left">Durées</th>
+                <th className="px-2 py-1 text-left">Total</th>
               </tr>
             </thead>
             <tbody>
               {mp.perNumber.map((d, idx) => (
                 <tr key={idx} className="border-t">
-                  <td className="px-2 py-1">{d.number}</td>
-                  <td className="px-2 py-1">{formatDateTime(d.start)}</td>
-                  <td className="px-2 py-1">{formatDateTime(d.end)}</td>
-                  <td className="px-2 py-1">{d.duration}</td>
+                  <td className="px-2 py-1 font-medium">{d.number}</td>
+                  <td className="px-2 py-1">{d.durations.join(', ')}</td>
+                  <td className="px-2 py-1 font-semibold">{d.total}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="text-xs font-bold text-black">
-            Durée totale : {durationDetail} = {mp.duration}
-          </p>
         </div>
       </Popup>
     </Marker>
@@ -340,35 +324,39 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       .filter((m) => new Set(m.events.map((e) => e.source)).size > 1)
       .map((m) => {
         const numbers = Array.from(new Set(m.events.map((e) => e.source!).filter(Boolean)));
-        const starts = m.events.map((e) => new Date(`${e.callDate}T${e.startTime}`));
-        const ends = m.events.map((e) => new Date(`${e.endDate || e.callDate}T${e.endTime}`));
-        const start = new Date(Math.min(...starts.map((d) => d.getTime()))).toISOString();
-        const end = new Date(Math.max(...ends.map((d) => d.getTime()))).toISOString();
-        const durationSeconds = Math.max(
-          0,
-          (new Date(end).getTime() - new Date(start).getTime()) / 1000
-        );
-        const duration = new Date(durationSeconds * 1000).toISOString().substr(11, 8);
         const perNumber = numbers.map((num) => {
           const evts = m.events.filter((e) => e.source === num);
-          const s = evts.map((e) => new Date(`${e.callDate}T${e.startTime}`));
-          const e = evts.map((e) => new Date(`${e.endDate || e.callDate}T${e.endTime}`));
-          const startN = new Date(Math.min(...s.map((d) => d.getTime()))).toISOString();
-          const endN = new Date(Math.max(...e.map((d) => d.getTime()))).toISOString();
-          const durSec = Math.max(
-            0,
-            (new Date(endN).getTime() - new Date(startN).getTime()) / 1000
+          const durationsSec = evts.map((e) => {
+            const s = new Date(`${e.callDate}T${e.startTime}`);
+            const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
+            return Math.max(0, (en.getTime() - s.getTime()) / 1000);
+          });
+          const durations = durationsSec.map((sec) =>
+            new Date(sec * 1000).toISOString().substr(11, 8)
           );
-          const dur = new Date(durSec * 1000).toISOString().substr(11, 8);
-          return { number: num, start: startN, end: endN, duration: dur };
+          const totalSec = durationsSec.reduce((a, b) => a + b, 0);
+          const total = new Date(totalSec * 1000).toISOString().substr(11, 8);
+          return { number: num, durations, total };
         });
-        return { ...m, numbers, start, end, duration, perNumber };
+        return { ...m, numbers, perNumber };
       });
   }, [points]);
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
-  const locationCounts = new Map<string, number>();
+  const groupedPoints = useMemo(() => {
+    const map = new Map<string, Point[]>();
+    points.forEach((p) => {
+      const key = `${p.latitude},${p.longitude}`;
+      const arr = map.get(key) || [];
+      arr.push(p);
+      map.set(key, arr);
+    });
+    return Array.from(map.entries()).map(([key, events]) => {
+      const [lat, lng] = key.split(',').map(Number);
+      return { lat, lng, events };
+    });
+  }, [points]);
   return (
     <>
       <div className="relative w-full h-full">
@@ -381,63 +369,102 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {points.map((loc, idx) => {
-          const key = `${loc.latitude},${loc.longitude}`;
-          const count = locationCounts.get(key) || 0;
-          locationCounts.set(key, count + 1);
-          const offset = 0.00005;
-          const position: [number, number] = [
-            parseFloat(loc.latitude) + count * offset,
-            parseFloat(loc.longitude) + count * offset
-          ];
+        {groupedPoints.map((group, idx) => {
+          if (group.events.length === 1) {
+            const loc = group.events[0];
+            return (
+              <Marker
+                key={idx}
+                position={[group.lat, group.lng]}
+                icon={getIcon(
+                  loc.type,
+                  loc.direction,
+                  colorMap.get(loc.source || '') || '#4b5563'
+                )}
+              >
+                <Popup>
+                  <div className="space-y-2 text-sm">
+                    <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
+                    <div className="flex items-center space-x-1">
+                      <PhoneOutgoing size={16} className="text-gray-700" />
+                      <span>Appelant: {loc.caller || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <PhoneIncoming size={16} className="text-gray-700" />
+                      <span>Appelé: {loc.callee || 'N/A'}</span>
+                    </div>
+                    {loc.type === 'web' ? (
+                      <>
+                        <p>Type: Position</p>
+                        {loc.callDate === loc.endDate ? (
+                          <p>Date: {formatDate(loc.callDate)}</p>
+                        ) : (
+                          <>
+                            <p>Date début: {formatDate(loc.callDate)}</p>
+                            <p>Date fin: {loc.endDate && formatDate(loc.endDate)}</p>
+                          </>
+                        )}
+                        <p>Début: {loc.startTime}</p>
+                        <p>Fin: {loc.endTime}</p>
+                        <p>Durée: {loc.duration || 'N/A'}</p>
+                      </>
+                    ) : (
+                      <>
+                        <p>Type: {loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
+                        <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
+                        <p>Date: {formatDate(loc.callDate)}</p>
+                        <p>Début: {loc.startTime}</p>
+                        <p>Fin: {loc.endTime}</p>
+                        <p>Durée: {loc.duration || 'N/A'}</p>
+                        <p>IMEI appelant: {loc.imeiCaller || 'N/A'}</p>
+                        <p>IMEI appelé: {loc.imeiCalled || 'N/A'}</p>
+                      </>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          }
+          const first = group.events[0];
           return (
             <Marker
               key={idx}
-              position={position}
+              position={[group.lat, group.lng]}
               icon={getIcon(
-                loc.type,
-                loc.direction,
-                colorMap.get(loc.source || '') || '#4b5563'
+                first.type,
+                first.direction,
+                colorMap.get(first.source || '') || '#7e22ce'
               )}
             >
               <Popup>
                 <div className="space-y-2 text-sm">
-                  <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
-                  <div className="flex items-center space-x-1">
-                    <PhoneOutgoing size={16} className="text-gray-700" />
-                    <span>Appelant: {loc.caller || 'N/A'}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <PhoneIncoming size={16} className="text-gray-700" />
-                    <span>Appelé: {loc.callee || 'N/A'}</span>
-                  </div>
-                  {loc.type === 'web' ? (
-                    <>
-                      <p>Type: Position</p>
-                      {loc.callDate === loc.endDate ? (
+                  <p className="font-semibold text-blue-600">{first.nom || 'Localisation'}</p>
+                  {group.events.map((loc, i) => (
+                    <div key={i} className="border-t pt-2 mt-2">
+                      <p className="font-semibold">{loc.source || 'N/A'}</p>
+                      <p>Type: {loc.type === 'web' ? 'Position' : loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
+                      {loc.type !== 'web' && (
+                        <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
+                      )}
+                      {loc.type === 'web' && loc.callDate === loc.endDate ? (
                         <p>Date: {formatDate(loc.callDate)}</p>
                       ) : (
                         <>
                           <p>Date début: {formatDate(loc.callDate)}</p>
-                          <p>Date fin: {loc.endDate && formatDate(loc.endDate)}</p>
+                          <p>Date fin: {loc.endDate && formatDate(loc.endDate!)}</p>
                         </>
                       )}
                       <p>Début: {loc.startTime}</p>
                       <p>Fin: {loc.endTime}</p>
                       <p>Durée: {loc.duration || 'N/A'}</p>
-                    </>
-                  ) : (
-                    <>
-                      <p>Type: {loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
-                      <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
-                      <p>Date: {formatDate(loc.callDate)}</p>
-                      <p>Début: {loc.startTime}</p>
-                      <p>Fin: {loc.endTime}</p>
-                      <p>Durée: {loc.duration || 'N/A'}</p>
-                      <p>IMEI appelant: {loc.imeiCaller || 'N/A'}</p>
-                      <p>IMEI appelé: {loc.imeiCalled || 'N/A'}</p>
-                    </>
-                  )}
+                      {loc.type !== 'web' && (
+                        <>
+                          <p>IMEI appelant: {loc.imeiCaller || 'N/A'}</p>
+                          <p>IMEI appelé: {loc.imeiCalled || 'N/A'}</p>
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </Popup>
             </Marker>
