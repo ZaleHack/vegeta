@@ -1711,6 +1711,7 @@ useEffect(() => {
   const notificationCount = lastNotifications.filter(
     (r) => !readNotifications.includes(r.id)
   ).length;
+  const displayNotificationCount = notificationCount > 99 ? '99+' : notificationCount;
   const totalNotifications = lastNotifications.length;
 
   useEffect(() => {
@@ -2355,8 +2356,8 @@ useEffect(() => {
                 >
                   <Bell className="h-6 w-6" />
                   {notificationCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center shadow">
-                      {notificationCount}
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs min-w-[20px] h-5 px-1 flex items-center justify-center shadow">
+                      {displayNotificationCount}
                     </span>
                   )}
                 </button>
