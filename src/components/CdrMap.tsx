@@ -18,6 +18,7 @@ interface Point {
   duration?: string;
   imeiCaller?: string;
   imeiCalled?: string;
+  source?: string;
 }
 
 interface Contact {
@@ -51,20 +52,20 @@ interface Props {
   showRoute?: boolean;
   showMeetingPoints?: boolean;
 }
-const getIcon = (type: string, direction?: string) => {
+const getIcon = (type: string, direction: string | undefined, color: string) => {
   const size = 32;
   let icon: React.ReactElement;
 
   if (type === 'web') {
-    icon = <MapPin size={size} className="text-red-600" />;
+    icon = <MapPin size={size} style={{ color }} />;
   } else if (type === 'sms') {
-    icon = <MessageSquare size={size} className="text-green-600" />;
+    icon = <MessageSquare size={size} style={{ color }} />;
   } else {
     icon =
       direction === 'outgoing' ? (
-        <PhoneOutgoing size={size} className="text-blue-600" />
+        <PhoneOutgoing size={size} style={{ color }} />
       ) : (
-        <PhoneIncoming size={size} className="text-green-600" />
+        <PhoneIncoming size={size} style={{ color }} />
       );
   }
 
@@ -116,13 +117,20 @@ const createLabelIcon = (text: string, bgColor: string) => {
   });
 };
 
+const formatDate = (d: string) => {
+  const [year, month, day] = d.split('-');
+  return `${day}/${month}/${year}`;
+};
+
 const MeetingPointMarker: React.FC<{
   mp: MeetingPoint;
   colorMap: Map<string, string>;
   onIdentifyNumber?: (num: string) => void;
 }> = React.memo(({ mp, colorMap, onIdentifyNumber }) => {
   const [selected, setSelected] = useState(0);
-  const color = mp.number ? colorMap.get(mp.number) || '#4b5563' : '#4b5563';
+  const color = mp.events[0]?.source
+    ? colorMap.get(mp.events[0].source!) || '#4b5563'
+    : '#4b5563';
   const event = mp.events[selected];
 
   return (
@@ -153,7 +161,7 @@ const MeetingPointMarker: React.FC<{
                       : e.type === 'web'
                       ? 'Position'
                       : 'Appel'}{' '}
-                    - {e.callDate}
+                    - {formatDate(e.callDate)}
                   </option>
                 ))}
               </select>
@@ -180,11 +188,11 @@ const MeetingPointMarker: React.FC<{
                 <>
                   <p>Type: Position</p>
                   {event.callDate === event.endDate ? (
-                    <p>Date: {event.callDate}</p>
+                    <p>Date: {formatDate(event.callDate)}</p>
                   ) : (
                     <>
-                      <p>Date début: {event.callDate}</p>
-                      <p>Date fin: {event.endDate}</p>
+                      <p>Date début: {formatDate(event.callDate)}</p>
+                      <p>Date fin: {event.endDate && formatDate(event.endDate)}</p>
                     </>
                   )}
                   <p>Début: {event.startTime}</p>
@@ -200,7 +208,7 @@ const MeetingPointMarker: React.FC<{
                       {event.direction === 'outgoing' ? 'Sortant' : 'Entrant'}
                     </p>
                   )}
-                  <p>Date: {event.callDate}</p>
+                  <p>Date: {formatDate(event.callDate)}</p>
                   <p>Début: {event.startTime}</p>
                   <p>Fin: {event.endTime}</p>
                   <p>Durée: {event.duration || 'N/A'}</p>
@@ -232,8 +240,8 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
     const map = new Map<string, string>();
     let idx = 0;
     points.forEach((p) => {
-      if (p.number && !map.has(p.number)) {
-        map.set(p.number, colorPalette[idx % colorPalette.length]);
+      if (p.source && !map.has(p.source)) {
+        map.set(p.source, colorPalette[idx % colorPalette.length]);
         idx += 1;
       }
     });
@@ -407,7 +415,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
           <Marker
             key={idx}
             position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-            icon={getIcon(loc.type, loc.direction)}
+            icon={getIcon(loc.type, loc.direction, colorMap.get(loc.source || '') || '#4b5563')}
           >
             <Popup>
               <div className="space-y-2 text-sm">
@@ -431,11 +439,11 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
                   <>
                     <p>Type: Position</p>
                     {loc.callDate === loc.endDate ? (
-                      <p>Date: {loc.callDate}</p>
+                      <p>Date: {formatDate(loc.callDate)}</p>
                     ) : (
                       <>
-                        <p>Date début: {loc.callDate}</p>
-                        <p>Date fin: {loc.endDate}</p>
+                        <p>Date début: {formatDate(loc.callDate)}</p>
+                        <p>Date fin: {loc.endDate && formatDate(loc.endDate)}</p>
                       </>
                     )}
                     <p>Début: {loc.startTime}</p>
@@ -446,7 +454,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
                   <>
                     <p>Type: {loc.type === 'sms' ? 'SMS' : 'Appel'}</p>
                     <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
-                    <p>Date: {loc.callDate}</p>
+                    <p>Date: {formatDate(loc.callDate)}</p>
                     <p>Début: {loc.startTime}</p>
                     <p>Fin: {loc.endTime}</p>
                     <p>Durée: {loc.duration || 'N/A'}</p>
@@ -468,7 +476,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
             />
           ))}
         {showRoute && routePositions.length > 1 && (
-          <Polyline positions={routePositions} color="red" />
+          <Polyline positions={routePositions} color="black" />
         )}
         {showRoute && routePositions.length > 0 && (
           <Marker position={routePositions[0]} icon={startIcon} />
@@ -492,6 +500,18 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
             />
           ))}
         </MapContainer>
+
+        {colorMap.size > 1 && (
+          <div className="absolute top-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] space-y-1">
+            <p className="font-semibold">Légende</p>
+            {[...colorMap.entries()].map(([num, color]) => (
+              <div key={num} className="flex items-center space-x-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></span>
+                <span>{num}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {showRoute && (
           <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">

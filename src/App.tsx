@@ -31,6 +31,7 @@ import {
   Building2,
   Globe,
   Car,
+  Check,
   Link as LinkIcon,
   ExternalLink,
   UserCircle,
@@ -236,6 +237,7 @@ interface CdrPoint {
   duration?: string;
   imeiCaller?: string;
   imeiCalled?: string;
+  source?: string;
 }
 
 interface CdrSearchResult {
@@ -1373,77 +1375,87 @@ useEffect(() => {
 
     try {
       const token = localStorage.getItem('token');
-      const param = cdrIdentifier.trim().length === 15 ? 'imei' : 'phone';
-      const params = new URLSearchParams();
-      params.append(param, cdrIdentifier.trim());
-      if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
-      if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
-      if (cdrStartTime) params.append('startTime', cdrStartTime);
-      if (cdrEndTime) params.append('endTime', cdrEndTime);
-      const res = await fetch(`/api/cases/${selectedCase.id}/search?${params.toString()}`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        const filteredPath = Array.isArray(data.path)
-          ? data.path.filter((p: CdrPoint) => {
-              if (p.type === 'web') return cdrPosition;
-              if (p.type === 'sms') return cdrSms;
-              return p.direction === 'incoming'
-                ? cdrIncoming
-                : p.direction === 'outgoing'
-                ? cdrOutgoing
-                : false;
-            })
-          : [];
+      const ids = cdrIdentifier
+        .split(',')
+        .map((i) => i.trim())
+        .filter((i) => i);
 
-        const contactsMap = new Map<string, { callCount: number; smsCount: number }>();
-        const locationsMap = new Map<string, CdrLocation>();
-        filteredPath.forEach((p: CdrPoint) => {
-          if (p.number) {
-            const entry = contactsMap.get(p.number) || { callCount: 0, smsCount: 0 };
-            if (p.type === 'sms') entry.smsCount += 1; else entry.callCount += 1;
-            contactsMap.set(p.number, entry);
-          }
-          const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
-          const loc = locationsMap.get(key) || {
-            latitude: p.latitude,
-            longitude: p.longitude,
-            nom: p.nom,
-            count: 0
-          };
-          loc.count += 1;
-          locationsMap.set(key, loc);
+      const allPaths: CdrPoint[] = [];
+
+      for (const id of ids) {
+        const param = id.length === 15 ? 'imei' : 'phone';
+        const params = new URLSearchParams();
+        params.append(param, id);
+        if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
+        if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
+        if (cdrStartTime) params.append('startTime', cdrStartTime);
+        if (cdrEndTime) params.append('endTime', cdrEndTime);
+        const res = await fetch(`/api/cases/${selectedCase.id}/search?${params.toString()}`, {
+          headers: { Authorization: token ? `Bearer ${token}` : '' }
         });
-
-        const contacts = Array.from(contactsMap.entries())
-          .map(([number, c]) => ({
-            number,
-            callCount: c.callCount,
-            smsCount: c.smsCount,
-            total: c.callCount + c.smsCount
-          }))
-          .sort((a, b) => b.total - a.total);
-
-        const locations = Array.from(locationsMap.values()).sort((a, b) => b.count - a.count);
-
-        const result: CdrSearchResult = {
-          total: filteredPath.length,
-          contacts,
-          topContacts: contacts.slice(0, 5),
-          locations,
-          topLocations: locations.slice(0, 5),
-          path: filteredPath
-        };
-        setCdrResult(result);
-
-        const hasPath = filteredPath.length > 0;
-        setShowCdrMap(hasPath);
-        setCdrInfoMessage(hasPath ? '' : 'Aucun CDR trouvé pour le filtre sélectionné');
-      } else {
-        setCdrError(data.error || 'Erreur lors de la recherche');
-        setCdrResult(null);
+        const data = await res.json();
+        if (res.ok) {
+          const filtered = Array.isArray(data.path)
+            ? data.path.filter((p: CdrPoint) => {
+                if (p.type === 'web') return cdrPosition;
+                if (p.type === 'sms') return cdrSms;
+                return p.direction === 'incoming'
+                  ? cdrIncoming
+                  : p.direction === 'outgoing'
+                  ? cdrOutgoing
+                  : false;
+              })
+            : [];
+          filtered.forEach((p: CdrPoint) => (p.source = id));
+          allPaths.push(...filtered);
+        } else {
+          setCdrError(data.error || 'Erreur lors de la recherche');
+        }
       }
+
+      const contactsMap = new Map<string, { callCount: number; smsCount: number }>();
+      const locationsMap = new Map<string, CdrLocation>();
+      allPaths.forEach((p: CdrPoint) => {
+        if (p.number) {
+          const entry = contactsMap.get(p.number) || { callCount: 0, smsCount: 0 };
+          if (p.type === 'sms') entry.smsCount += 1; else entry.callCount += 1;
+          contactsMap.set(p.number, entry);
+        }
+        const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
+        const loc = locationsMap.get(key) || {
+          latitude: p.latitude,
+          longitude: p.longitude,
+          nom: p.nom,
+          count: 0
+        };
+        loc.count += 1;
+        locationsMap.set(key, loc);
+      });
+
+      const contacts = Array.from(contactsMap.entries())
+        .map(([number, c]) => ({
+          number,
+          callCount: c.callCount,
+          smsCount: c.smsCount,
+          total: c.callCount + c.smsCount
+        }))
+        .sort((a, b) => b.total - a.total);
+
+      const locations = Array.from(locationsMap.values()).sort((a, b) => b.count - a.count);
+
+      const result: CdrSearchResult = {
+        total: allPaths.length,
+        contacts,
+        topContacts: contacts.slice(0, 5),
+        locations,
+        topLocations: locations.slice(0, 5),
+        path: allPaths
+      };
+      setCdrResult(result);
+
+      const hasPath = allPaths.length > 0;
+      setShowCdrMap(hasPath);
+      setCdrInfoMessage(hasPath ? '' : 'Aucun CDR trouvé pour le filtre sélectionné');
     } catch (error) {
       console.error('Erreur recherche CDR:', error);
       setCdrError('Erreur lors de la recherche');
@@ -1453,6 +1465,13 @@ useEffect(() => {
       setCdrLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (cdrIdentifier.trim()) {
+      fetchCdrData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cdrIncoming, cdrOutgoing, cdrSms, cdrPosition]);
 
   const handleCdrSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -1944,52 +1963,52 @@ useEffect(() => {
           />
         </div>
         <div className="space-y-2">
-          <label className="flex items-center space-x-2">
+          <label className="flex items-center space-x-2 cursor-pointer">
             <input
               type="checkbox"
               checked={cdrIncoming}
-              onChange={(e) => {
-                setCdrIncoming(e.target.checked);
-                if (cdrIdentifier.trim()) setTimeout(fetchCdrData, 0);
-              }}
-              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              onChange={(e) => setCdrIncoming(e.target.checked)}
+              className="sr-only peer"
             />
+            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
+              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
+            </div>
             <span>Appels entrants</span>
           </label>
-          <label className="flex items-center space-x-2">
+          <label className="flex items-center space-x-2 cursor-pointer">
             <input
               type="checkbox"
               checked={cdrOutgoing}
-              onChange={(e) => {
-                setCdrOutgoing(e.target.checked);
-                if (cdrIdentifier.trim()) setTimeout(fetchCdrData, 0);
-              }}
-              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              onChange={(e) => setCdrOutgoing(e.target.checked)}
+              className="sr-only peer"
             />
+            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
+              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
+            </div>
             <span>Appels sortants</span>
           </label>
-          <label className="flex items-center space-x-2">
+          <label className="flex items-center space-x-2 cursor-pointer">
             <input
               type="checkbox"
               checked={cdrSms}
-              onChange={(e) => {
-                setCdrSms(e.target.checked);
-                if (cdrIdentifier.trim()) setTimeout(fetchCdrData, 0);
-              }}
-              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              onChange={(e) => setCdrSms(e.target.checked)}
+              className="sr-only peer"
             />
+            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
+              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
+            </div>
             <span>SMS</span>
           </label>
-          <label className="flex items-center space-x-2">
+          <label className="flex items-center space-x-2 cursor-pointer">
             <input
               type="checkbox"
               checked={cdrPosition}
-              onChange={(e) => {
-                setCdrPosition(e.target.checked);
-                if (cdrIdentifier.trim()) setTimeout(fetchCdrData, 0);
-              }}
-              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              onChange={(e) => setCdrPosition(e.target.checked)}
+              className="sr-only peer"
             />
+            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
+              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
+            </div>
             <span>Position</span>
           </label>
         </div>
@@ -1997,11 +2016,14 @@ useEffect(() => {
           type="button"
           onClick={() => setCdrItinerary((v) => !v)}
           className={`flex items-center px-4 py-2 rounded-full text-white transition-colors ${
-            cdrItinerary ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
+            cdrItinerary
+              ? 'bg-green-600 hover:bg-green-700 ring-2 ring-green-300'
+              : 'bg-blue-600 hover:bg-blue-700'
           }`}
         >
           <Car className="w-4 h-4 mr-2" />
           Itinéraire
+          {cdrItinerary && <Check className="w-4 h-4 ml-2" />}
         </button>
         <div className="flex gap-2">
           <button
