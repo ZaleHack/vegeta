@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { PhoneIncoming, PhoneOutgoing, MessageSquare, MapPin, Navigation } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, MessageSquare, MapPin, Navigation, Car } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -343,7 +343,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
     const size = 32;
     const icon = (
       <div style={{ transform: `rotate(${carAngle}deg)` }}>
-        <Navigation size={size} className="text-blue-600" />
+        <Car size={size} className="text-blue-600" />
       </div>
     );
     return L.divIcon({
