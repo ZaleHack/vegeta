@@ -544,7 +544,8 @@ const App: React.FC = () => {
   const [vehiculesTotal, setVehiculesTotal] = useState(0);
 
   // États CDR
-  const [cdrIdentifier, setCdrIdentifier] = useState('');
+  const [cdrIdentifiers, setCdrIdentifiers] = useState<string[]>([]);
+  const [cdrIdentifierInput, setCdrIdentifierInput] = useState('');
   const [cdrStart, setCdrStart] = useState('');
   const [cdrEnd, setCdrEnd] = useState('');
   const [cdrStartTime, setCdrStartTime] = useState('');
@@ -592,6 +593,18 @@ const App: React.FC = () => {
   const [timeSeries, setTimeSeries] = useState<any[]>([]);
   const [tableDistribution, setTableDistribution] = useState<any[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
+
+  const addCdrIdentifier = () => {
+    const id = cdrIdentifierInput.trim();
+    if (id && !cdrIdentifiers.includes(id)) {
+      setCdrIdentifiers([...cdrIdentifiers, id]);
+    }
+    setCdrIdentifierInput('');
+  };
+
+  const removeCdrIdentifier = (index: number) => {
+    setCdrIdentifiers(cdrIdentifiers.filter((_, i) => i !== index));
+  };
 
   // Vérification de l'authentification au démarrage
   useEffect(() => {
@@ -1367,7 +1380,7 @@ useEffect(() => {
   };
 
   const fetchCdrData = async () => {
-    if (!selectedCase || !cdrIdentifier.trim()) return;
+    if (!selectedCase || cdrIdentifiers.length === 0) return;
 
     setLinkDiagram(null);
     setCdrLoading(true);
@@ -1377,8 +1390,7 @@ useEffect(() => {
 
     try {
       const token = localStorage.getItem('token');
-      const ids = cdrIdentifier
-        .split(',')
+      const ids = cdrIdentifiers
         .map((i) => i.trim())
         .filter((i) => i && !i.startsWith('2214'));
 
@@ -1470,7 +1482,7 @@ useEffect(() => {
   };
 
   useEffect(() => {
-    if (cdrIdentifier.trim()) {
+    if (cdrIdentifiers.length > 0) {
       fetchCdrData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1483,7 +1495,7 @@ useEffect(() => {
       setCdrError('La date de début doit précéder la date de fin');
       return;
     }
-    if (!cdrIdentifier.trim()) {
+    if (cdrIdentifiers.length === 0) {
       setCdrError('Numéro ou IMEI requis');
       return;
     }
@@ -1930,13 +1942,36 @@ useEffect(() => {
     >
       <h3 className="text-lg font-semibold text-gray-700">Recherche</h3>
       <form onSubmit={handleCdrSearch} className="space-y-4">
-        <input
-          type="text"
-          placeholder="Numéro(s) ou IMEI (séparés par des virgules)"
-          value={cdrIdentifier}
-          onChange={(e) => setCdrIdentifier(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="w-full px-4 py-2 border border-gray-300 rounded-md flex flex-wrap gap-2">
+          {cdrIdentifiers.map((id, idx) => (
+            <span
+              key={idx}
+              className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center"
+            >
+              {id}
+              <button
+                type="button"
+                onClick={() => removeCdrIdentifier(idx)}
+                className="ml-1 text-blue-500 hover:text-blue-700"
+              >
+                <X size={14} />
+              </button>
+            </span>
+          ))}
+          <input
+            type="text"
+            value={cdrIdentifierInput}
+            onChange={(e) => setCdrIdentifierInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addCdrIdentifier();
+              }
+            }}
+            placeholder="Ajouter un numéro ou IMEI"
+            className="flex-1 min-w-[120px] border-none focus:outline-none focus:ring-0"
+          />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <input
             type="date"
