@@ -545,10 +545,10 @@ const App: React.FC = () => {
   const [cdrEnd, setCdrEnd] = useState('');
   const [cdrStartTime, setCdrStartTime] = useState('');
   const [cdrEndTime, setCdrEndTime] = useState('');
-  const [cdrDirection, setCdrDirection] = useState('both');
+  const [cdrIncoming, setCdrIncoming] = useState(true);
+  const [cdrOutgoing, setCdrOutgoing] = useState(true);
+  const [cdrPosition, setCdrPosition] = useState(false);
   const [cdrType, setCdrType] = useState('both');
-  const [cdrLocation, setCdrLocation] = useState('all');
-  const [cdrLocations, setCdrLocations] = useState<string[]>([]);
   const [cdrItinerary, setCdrItinerary] = useState(false);
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
@@ -1392,9 +1392,14 @@ useEffect(() => {
       if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
       if (cdrStartTime) params.append('startTime', cdrStartTime);
       if (cdrEndTime) params.append('endTime', cdrEndTime);
-      if (cdrDirection !== 'both') params.append('direction', cdrDirection);
+      if (cdrPosition) {
+        params.append('direction', 'position');
+      } else if (cdrIncoming && !cdrOutgoing) {
+        params.append('direction', 'incoming');
+      } else if (!cdrIncoming && cdrOutgoing) {
+        params.append('direction', 'outgoing');
+      }
       if (cdrType !== 'both') params.append('type', cdrType);
-      if (cdrLocation !== 'all') params.append('location', cdrLocation);
       const res = await fetch(`/api/cases/${selectedCase.id}/search?${params.toString()}`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
@@ -1498,21 +1503,6 @@ useEffect(() => {
     }
   };
 
-  const fetchCaseLocations = async (caseId: number) => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/cases/${caseId}/locations`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCdrLocations(data);
-      }
-    } catch (err) {
-      console.error('Erreur chargement localisations:', err);
-    }
-  };
-
   const handleDeleteFile = async (fileId: number) => {
     if (!selectedCase) return;
     if (!window.confirm('Supprimer ce fichier ?')) return;
@@ -1531,11 +1521,8 @@ useEffect(() => {
   useEffect(() => {
     if (!selectedCase) {
       setCaseFiles([]);
-      setCdrLocations([]);
-      setCdrLocation('all');
     } else {
       fetchCaseFiles(selectedCase.id);
-      fetchCaseLocations(selectedCase.id);
     }
   }, [selectedCase]);
 
@@ -1920,16 +1907,47 @@ useEffect(() => {
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <select
-            value={cdrDirection}
-            onChange={(e) => setCdrDirection(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="both">Appels entrants et sortants</option>
-            <option value="incoming">Uniquement entrants</option>
-            <option value="outgoing">Uniquement sortants</option>
-            <option value="position">Position</option>
-          </select>
+          <div className="space-y-2">
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={cdrIncoming}
+                onChange={(e) => {
+                  setCdrIncoming(e.target.checked);
+                  if (e.target.checked) setCdrPosition(false);
+                }}
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <span>Appels entrants</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={cdrOutgoing}
+                onChange={(e) => {
+                  setCdrOutgoing(e.target.checked);
+                  if (e.target.checked) setCdrPosition(false);
+                }}
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <span>Appels sortants</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={cdrPosition}
+                onChange={(e) => {
+                  setCdrPosition(e.target.checked);
+                  if (e.target.checked) {
+                    setCdrIncoming(false);
+                    setCdrOutgoing(false);
+                  }
+                }}
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <span>Position</span>
+            </label>
+          </div>
           <select
             value={cdrType}
             onChange={(e) => setCdrType(e.target.value)}
@@ -1941,18 +1959,6 @@ useEffect(() => {
             <option value="web">Seulement positions</option>
           </select>
         </div>
-        <select
-          value={cdrLocation}
-          onChange={(e) => setCdrLocation(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">Toutes les localisations</option>
-          {cdrLocations.map((loc) => (
-            <option key={loc} value={loc}>
-              {loc}
-            </option>
-          ))}
-        </select>
         <label className="flex items-center space-x-2">
           <input
             type="checkbox"
