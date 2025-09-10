@@ -315,7 +315,7 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
   const meetingPoints = useMemo<MeetingPoint[]>(() => {
     const map = new Map<string, { lat: number; lng: number; nom: string; events: Point[] }>();
     points.forEach((p) => {
-      if (!p.number) return;
+      if (!p.source) return;
       const key = `${p.latitude},${p.longitude}`;
       if (!map.has(key)) {
         map.set(key, {
@@ -328,9 +328,9 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
       map.get(key)!.events.push(p);
     });
     return Array.from(map.values())
-      .filter((m) => new Set(m.events.map((e) => e.number)).size > 1)
+      .filter((m) => new Set(m.events.map((e) => e.source)).size > 1)
       .map((m) => {
-        const numbers = Array.from(new Set(m.events.map((e) => e.number!).filter(Boolean)));
+        const numbers = Array.from(new Set(m.events.map((e) => e.source!).filter(Boolean)));
         const starts = m.events.map((e) => new Date(`${e.callDate}T${e.startTime}`));
         const ends = m.events.map((e) => new Date(`${e.endDate || e.callDate}T${e.endTime}`));
         const start = new Date(Math.min(...starts.map((d) => d.getTime()))).toISOString();
