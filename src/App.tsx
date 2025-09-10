@@ -547,8 +547,8 @@ const App: React.FC = () => {
   const [cdrEndTime, setCdrEndTime] = useState('');
   const [cdrIncoming, setCdrIncoming] = useState(true);
   const [cdrOutgoing, setCdrOutgoing] = useState(true);
+  const [cdrSms, setCdrSms] = useState(true);
   const [cdrPosition, setCdrPosition] = useState(false);
-  const [cdrType, setCdrType] = useState('both');
   const [cdrItinerary, setCdrItinerary] = useState(false);
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
@@ -1362,22 +1362,10 @@ useEffect(() => {
     }
   };
 
-  const handleCdrSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCase) return;
+  const fetchCdrData = async () => {
+    if (!selectedCase || !cdrIdentifier.trim()) return;
 
     setLinkDiagram(null);
-
-    if (cdrStart && cdrEnd && new Date(cdrStart) > new Date(cdrEnd)) {
-      setCdrError('La date de début doit précéder la date de fin');
-      return;
-    }
-
-    if (!cdrIdentifier.trim()) {
-      setCdrError('Numéro ou IMEI requis');
-      return;
-    }
-
     setCdrLoading(true);
     setCdrError('');
     setCdrInfoMessage('');
@@ -1392,31 +1380,66 @@ useEffect(() => {
       if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
       if (cdrStartTime) params.append('startTime', cdrStartTime);
       if (cdrEndTime) params.append('endTime', cdrEndTime);
-      if (cdrPosition) {
-        params.append('direction', 'position');
-      } else if (cdrIncoming && !cdrOutgoing) {
-        params.append('direction', 'incoming');
-      } else if (!cdrIncoming && cdrOutgoing) {
-        params.append('direction', 'outgoing');
-      }
-      if (cdrType !== 'both') params.append('type', cdrType);
       const res = await fetch(`/api/cases/${selectedCase.id}/search?${params.toString()}`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
       const data = await res.json();
       if (res.ok) {
-        setCdrResult(data);
+        const filteredPath = Array.isArray(data.path)
+          ? data.path.filter((p: CdrPoint) => {
+              if (p.type === 'web') return cdrPosition;
+              if (p.type === 'sms') return cdrSms;
+              return p.direction === 'incoming'
+                ? cdrIncoming
+                : p.direction === 'outgoing'
+                ? cdrOutgoing
+                : false;
+            })
+          : [];
 
-        const hasPath = Array.isArray(data.path) && data.path.length > 0;
+        const contactsMap = new Map<string, { callCount: number; smsCount: number }>();
+        const locationsMap = new Map<string, CdrLocation>();
+        filteredPath.forEach((p: CdrPoint) => {
+          if (p.number) {
+            const entry = contactsMap.get(p.number) || { callCount: 0, smsCount: 0 };
+            if (p.type === 'sms') entry.smsCount += 1; else entry.callCount += 1;
+            contactsMap.set(p.number, entry);
+          }
+          const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
+          const loc = locationsMap.get(key) || {
+            latitude: p.latitude,
+            longitude: p.longitude,
+            nom: p.nom,
+            count: 0
+          };
+          loc.count += 1;
+          locationsMap.set(key, loc);
+        });
+
+        const contacts = Array.from(contactsMap.entries())
+          .map(([number, c]) => ({
+            number,
+            callCount: c.callCount,
+            smsCount: c.smsCount,
+            total: c.callCount + c.smsCount
+          }))
+          .sort((a, b) => b.total - a.total);
+
+        const locations = Array.from(locationsMap.values()).sort((a, b) => b.count - a.count);
+
+        const result: CdrSearchResult = {
+          total: filteredPath.length,
+          contacts,
+          topContacts: contacts.slice(0, 5),
+          locations,
+          topLocations: locations.slice(0, 5),
+          path: filteredPath
+        };
+        setCdrResult(result);
+
+        const hasPath = filteredPath.length > 0;
         setShowCdrMap(hasPath);
-
-        setCdrInfoMessage(
-          data.total === 0
-            ? 'Aucun CDR trouvé pour l\u2019intervalle sélectionné'
-            : !hasPath
-              ? 'Aucune donnée de localisation disponible pour cet intervalle'
-              : ''
-        );
+        setCdrInfoMessage(hasPath ? '' : 'Aucun CDR trouvé pour le filtre sélectionné');
       } else {
         setCdrError(data.error || 'Erreur lors de la recherche');
         setCdrResult(null);
@@ -1429,6 +1452,20 @@ useEffect(() => {
     } finally {
       setCdrLoading(false);
     }
+  };
+
+  const handleCdrSearch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!selectedCase) return;
+    if (cdrStart && cdrEnd && new Date(cdrStart) > new Date(cdrEnd)) {
+      setCdrError('La date de début doit précéder la date de fin');
+      return;
+    }
+    if (!cdrIdentifier.trim()) {
+      setCdrError('Numéro ou IMEI requis');
+      return;
+    }
+    await fetchCdrData();
   };
 
   const handleLinkDiagram = async () => {
@@ -1906,68 +1943,66 @@ useEffect(() => {
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={cdrIncoming}
-                onChange={(e) => {
-                  setCdrIncoming(e.target.checked);
-                  if (e.target.checked) setCdrPosition(false);
-                }}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <span>Appels entrants</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={cdrOutgoing}
-                onChange={(e) => {
-                  setCdrOutgoing(e.target.checked);
-                  if (e.target.checked) setCdrPosition(false);
-                }}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <span>Appels sortants</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={cdrPosition}
-                onChange={(e) => {
-                  setCdrPosition(e.target.checked);
-                  if (e.target.checked) {
-                    setCdrIncoming(false);
-                    setCdrOutgoing(false);
-                  }
-                }}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <span>Position</span>
-            </label>
-          </div>
-          <select
-            value={cdrType}
-            onChange={(e) => setCdrType(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="both">Appels et SMS</option>
-            <option value="call">Seulement appels</option>
-            <option value="sms">Seulement SMS</option>
-            <option value="web">Seulement positions</option>
-          </select>
+        <div className="space-y-2">
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={cdrIncoming}
+              onChange={(e) => {
+                setCdrIncoming(e.target.checked);
+                if (cdrIdentifier.trim()) setTimeout(fetchCdrData, 0);
+              }}
+              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span>Appels entrants</span>
+          </label>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={cdrOutgoing}
+              onChange={(e) => {
+                setCdrOutgoing(e.target.checked);
+                if (cdrIdentifier.trim()) setTimeout(fetchCdrData, 0);
+              }}
+              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span>Appels sortants</span>
+          </label>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={cdrSms}
+              onChange={(e) => {
+                setCdrSms(e.target.checked);
+                if (cdrIdentifier.trim()) setTimeout(fetchCdrData, 0);
+              }}
+              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span>SMS</span>
+          </label>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={cdrPosition}
+              onChange={(e) => {
+                setCdrPosition(e.target.checked);
+                if (cdrIdentifier.trim()) setTimeout(fetchCdrData, 0);
+              }}
+              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span>Position</span>
+          </label>
         </div>
-        <label className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={cdrItinerary}
-            onChange={(e) => setCdrItinerary(e.target.checked)}
-            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-          />
-          <span>Itinéraire</span>
-        </label>
+        <button
+          type="button"
+          onClick={() => setCdrItinerary((v) => !v)}
+          className={`flex items-center px-4 py-2 rounded-full text-white transition-colors ${
+            cdrItinerary ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
+          }`}
+        >
+          <Car className="w-4 h-4 mr-2" />
+          Itinéraire
+        </button>
         <div className="flex gap-2">
           <button
             type="submit"
