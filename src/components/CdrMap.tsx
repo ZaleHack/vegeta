@@ -54,6 +54,7 @@ interface MeetingPoint {
   start: string;
   end: string;
   duration: string;
+  perNumber: { number: string; start: string; end: string; duration: string }[];
 }
 
 interface Props {
@@ -136,8 +137,8 @@ const formatDateTime = (iso: string) => {
   return date.toLocaleString('fr-FR');
 };
 
-const MeetingPointMarker: React.FC<{ 
-  mp: MeetingPoint; 
+const MeetingPointMarker: React.FC<{
+  mp: MeetingPoint;
 }> = React.memo(({ mp }) => {
   return (
     <Marker
@@ -152,12 +153,29 @@ const MeetingPointMarker: React.FC<{
       })}
     >
       <Popup>
-        <div className="space-y-1 text-sm">
+        <div className="space-y-2 text-sm">
           <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
-          <p>Numéros : {mp.numbers.join(', ')}</p>
-          <p>Début : {formatDateTime(mp.start)}</p>
-          <p>Fin : {formatDateTime(mp.end)}</p>
-          <p>Durée : {mp.duration}</p>
+          <table className="min-w-full text-xs border border-gray-200">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-2 py-1 text-left">Numéro</th>
+                <th className="px-2 py-1 text-left">Début</th>
+                <th className="px-2 py-1 text-left">Fin</th>
+                <th className="px-2 py-1 text-left">Durée</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mp.perNumber.map((d, idx) => (
+                <tr key={idx} className="border-t">
+                  <td className="px-2 py-1">{d.number}</td>
+                  <td className="px-2 py-1">{formatDateTime(d.start)}</td>
+                  <td className="px-2 py-1">{formatDateTime(d.end)}</td>
+                  <td className="px-2 py-1">{d.duration}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-xs text-gray-600">Durée totale : {mp.duration}</p>
         </div>
       </Popup>
     </Marker>
@@ -321,9 +339,25 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
         const ends = m.events.map((e) => new Date(`${e.endDate || e.callDate}T${e.endTime}`));
         const start = new Date(Math.min(...starts.map((d) => d.getTime()))).toISOString();
         const end = new Date(Math.max(...ends.map((d) => d.getTime()))).toISOString();
-        const durationSeconds = Math.max(0, (new Date(end).getTime() - new Date(start).getTime()) / 1000);
+        const durationSeconds = Math.max(
+          0,
+          (new Date(end).getTime() - new Date(start).getTime()) / 1000
+        );
         const duration = new Date(durationSeconds * 1000).toISOString().substr(11, 8);
-        return { ...m, numbers, start, end, duration };
+        const perNumber = numbers.map((num) => {
+          const evts = m.events.filter((e) => e.source === num);
+          const s = evts.map((e) => new Date(`${e.callDate}T${e.startTime}`));
+          const e = evts.map((e) => new Date(`${e.endDate || e.callDate}T${e.endTime}`));
+          const startN = new Date(Math.min(...s.map((d) => d.getTime()))).toISOString();
+          const endN = new Date(Math.max(...e.map((d) => d.getTime()))).toISOString();
+          const durSec = Math.max(
+            0,
+            (new Date(endN).getTime() - new Date(startN).getTime()) / 1000
+          );
+          const dur = new Date(durSec * 1000).toISOString().substr(11, 8);
+          return { number: num, start: startN, end: endN, duration: dur };
+        });
+        return { ...m, numbers, start, end, duration, perNumber };
       });
   }, [points]);
 
