@@ -231,6 +231,8 @@ interface CdrPoint {
   type: string;
   direction: string;
   number?: string;
+  caller?: string;
+  callee?: string;
   callDate: string;
   startTime: string;
   endTime: string;
@@ -3327,11 +3329,6 @@ useEffect(() => {
                       points={cdrResult.path}
                       showRoute={cdrItinerary}
                       showMeetingPoints={showMeetingPoints}
-                      onIdentifyNumber={(num) => {
-                        setSearchQuery(num);
-                        setCurrentPage('search');
-                        handleSearch(undefined, num);
-                      }}
                     />
                   </div>
                   <button

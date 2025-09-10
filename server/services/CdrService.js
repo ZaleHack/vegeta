@@ -246,7 +246,9 @@ class CdrService {
           endTime,
           duration,
           imeiCaller: r.imei_appelant,
-          imeiCalled: r.imei_appele
+          imeiCalled: r.imei_appele,
+          caller,
+          callee
         };
         if (!isWeb) {
           entry.direction = directionRecord;

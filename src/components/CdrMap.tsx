@@ -19,6 +19,8 @@ interface Point {
   type: string;
   direction?: string;
   number?: string;
+  caller?: string;
+  callee?: string;
   callDate: string;
   endDate?: string;
   startTime: string;
@@ -56,7 +58,6 @@ interface MeetingPoint {
 
 interface Props {
   points: Point[];
-  onIdentifyNumber?: (num: string) => void;
   showRoute?: boolean;
   showMeetingPoints?: boolean;
 }
@@ -135,10 +136,9 @@ const formatDateTime = (iso: string) => {
   return date.toLocaleString('fr-FR');
 };
 
-const MeetingPointMarker: React.FC<{
-  mp: MeetingPoint;
-  onIdentifyNumber?: (num: string) => void;
-}> = React.memo(({ mp, onIdentifyNumber }) => {
+const MeetingPointMarker: React.FC<{ 
+  mp: MeetingPoint; 
+}> = React.memo(({ mp }) => {
   return (
     <Marker
       position={[mp.lat, mp.lng]}
@@ -158,27 +158,13 @@ const MeetingPointMarker: React.FC<{
           <p>Début : {formatDateTime(mp.start)}</p>
           <p>Fin : {formatDateTime(mp.end)}</p>
           <p>Durée : {mp.duration}</p>
-          {onIdentifyNumber &&
-            mp.numbers.map((num) => (
-              <button
-                key={num}
-                className="mt-1 mr-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                onClick={() => {
-                  const cleaned = num.replace(/^221/, '');
-                  navigator.clipboard.writeText(cleaned);
-                  onIdentifyNumber(cleaned);
-                }}
-              >
-                Identifier {num}
-              </button>
-            ))}
         </div>
       </Popup>
     </Marker>
   );
 });
 
-const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeetingPoints }) => {
+const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
   if (!points || points.length === 0) return null;
 
   const first = points[0];
@@ -364,21 +350,14 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
             <Popup>
               <div className="space-y-2 text-sm">
                 <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
-                {loc.number && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-black">Numéro: {loc.number}</span>
-                    <button
-                      className="ml-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                      onClick={() => {
-                        const cleaned = loc.number.replace(/^221/, '');
-                        navigator.clipboard.writeText(cleaned);
-                        if (onIdentifyNumber) onIdentifyNumber(cleaned);
-                      }}
-                    >
-                      Identifier numéro
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center space-x-1">
+                  <PhoneOutgoing size={16} className="text-gray-700" />
+                  <span>Appelant: {loc.caller || 'N/A'}</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <PhoneIncoming size={16} className="text-gray-700" />
+                  <span>Appelé: {loc.callee || 'N/A'}</span>
+                </div>
                 {loc.type === 'web' ? (
                   <>
                     <p>Type: Position</p>
@@ -415,7 +394,6 @@ const CdrMap: React.FC<Props> = ({ points, onIdentifyNumber, showRoute, showMeet
             <MeetingPointMarker
               key={`meeting-${idx}`}
               mp={mp}
-              onIdentifyNumber={onIdentifyNumber}
             />
           ))}
         {showRoute && routePositions.length > 1 && (
