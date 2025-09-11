@@ -29,7 +29,6 @@ import {
   Building2,
   Globe,
   Car,
-  Check,
   Link as LinkIcon,
   ExternalLink,
   UserCircle,
@@ -40,6 +39,7 @@ import {
   ClipboardList,
   Bell
 } from 'lucide-react';
+import ToggleSwitch from './components/ToggleSwitch';
 
 const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...props}>
@@ -2013,68 +2013,37 @@ useEffect(() => {
           />
         </div>
         <div className="space-y-2">
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={cdrIncoming}
-              onChange={(e) => setCdrIncoming(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
-              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
-            </div>
-            <span>Appels entrants</span>
-          </label>
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={cdrOutgoing}
-              onChange={(e) => setCdrOutgoing(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
-              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
-            </div>
-            <span>Appels sortants</span>
-          </label>
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={cdrSms}
-              onChange={(e) => setCdrSms(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
-              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
-            </div>
-            <span>SMS</span>
-          </label>
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={cdrPosition}
-              onChange={(e) => setCdrPosition(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
-              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
-            </div>
-            <span>Position</span>
-          </label>
+          <ToggleSwitch
+            label="Appels entrants"
+            checked={cdrIncoming}
+            onChange={setCdrIncoming}
+          />
+          <ToggleSwitch
+            label="Appels sortants"
+            checked={cdrOutgoing}
+            onChange={setCdrOutgoing}
+          />
+          <ToggleSwitch
+            label="SMS"
+            checked={cdrSms}
+            onChange={setCdrSms}
+          />
+          <ToggleSwitch
+            label="Position"
+            checked={cdrPosition}
+            onChange={setCdrPosition}
+          />
+          <ToggleSwitch
+            label={
+              <>
+                <Car className="w-4 h-4" />
+                <span>Itinéraire</span>
+              </>
+            }
+            checked={cdrItinerary}
+            onChange={setCdrItinerary}
+          />
         </div>
-        <button
-          type="button"
-          onClick={() => setCdrItinerary((v) => !v)}
-          className={`flex items-center px-4 py-2 rounded-full text-white transition-colors ${
-            cdrItinerary
-              ? 'bg-green-600 hover:bg-green-700 ring-2 ring-green-300'
-              : 'bg-blue-600 hover:bg-blue-700'
-          }`}
-        >
-          <Car className="w-4 h-4 mr-2" />
-          Itinéraire
-          {cdrItinerary && <Check className="w-4 h-4 ml-2" />}
-        </button>
         <div className="flex gap-2">
           <button
             type="submit"
