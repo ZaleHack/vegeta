@@ -29,6 +29,7 @@ import {
   Building2,
   Globe,
   Car,
+  Route,
   Check,
   Link as LinkIcon,
   ExternalLink,
@@ -2013,68 +2014,63 @@ useEffect(() => {
           />
         </div>
         <div className="space-y-2">
-          <label className="flex items-center space-x-2 cursor-pointer">
+          <label className="relative flex items-center cursor-pointer">
             <input
               type="checkbox"
+              role="switch"
               checked={cdrIncoming}
               onChange={(e) => setCdrIncoming(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
-              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
-            </div>
-            <span>Appels entrants</span>
+            <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-500 peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+            <span className="ml-3">Appels entrants</span>
           </label>
-          <label className="flex items-center space-x-2 cursor-pointer">
+          <label className="relative flex items-center cursor-pointer">
             <input
               type="checkbox"
+              role="switch"
               checked={cdrOutgoing}
               onChange={(e) => setCdrOutgoing(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
-              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
-            </div>
-            <span>Appels sortants</span>
+            <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-500 peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+            <span className="ml-3">Appels sortants</span>
           </label>
-          <label className="flex items-center space-x-2 cursor-pointer">
+          <label className="relative flex items-center cursor-pointer">
             <input
               type="checkbox"
+              role="switch"
               checked={cdrSms}
               onChange={(e) => setCdrSms(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
-              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
-            </div>
-            <span>SMS</span>
+            <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-500 peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+            <span className="ml-3">SMS</span>
           </label>
-          <label className="flex items-center space-x-2 cursor-pointer">
+          <label className="relative flex items-center cursor-pointer">
             <input
               type="checkbox"
+              role="switch"
               checked={cdrPosition}
               onChange={(e) => setCdrPosition(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-5 h-5 border rounded-md flex items-center justify-center peer-checked:bg-blue-600 peer-checked:border-blue-600">
-              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100" />
-            </div>
-            <span>Position</span>
+            <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-500 peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+            <span className="ml-3">Position</span>
           </label>
         </div>
-        <button
-          type="button"
-          onClick={() => setCdrItinerary((v) => !v)}
-          className={`flex items-center px-4 py-2 rounded-full text-white transition-colors ${
-            cdrItinerary
-              ? 'bg-green-600 hover:bg-green-700 ring-2 ring-green-300'
-              : 'bg-blue-600 hover:bg-blue-700'
-          }`}
-        >
-          <Car className="w-4 h-4 mr-2" />
-          Itinéraire
-          {cdrItinerary && <Check className="w-4 h-4 ml-2" />}
-        </button>
+        <div className="border-t my-4"></div>
+        <label className="relative flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={cdrItinerary}
+            onChange={(e) => setCdrItinerary(e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-500 peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+          <span className="ml-3 flex items-center"><Route className="w-4 h-4 mr-1" />Itinéraire</span>
+        </label>
         <div className="flex gap-2">
           <button
             type="submit"
