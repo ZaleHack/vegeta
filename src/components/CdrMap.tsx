@@ -723,14 +723,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           {(activeInfo === 'recent' || activeInfo === 'popular') && (
             <button
               onClick={() => setShowOthers((s) => !s)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
+              className={`p-2 rounded-full shadow transition-colors ${
                 showOthers
                   ? 'bg-white/90 text-gray-600 border border-gray-600 hover:bg-gray-50 dark:bg-white/90 dark:text-gray-600 dark:border-gray-600 dark:hover:bg-gray-50'
                   : 'bg-gray-600 text-white ring-2 ring-gray-300'
               }`}
+              title={showOthers ? 'Masquer autres éléments' : 'Afficher autres éléments'}
             >
               <Layers className="w-4 h-4" />
-              <span>{showOthers ? 'Masquer autres éléments' : 'Afficher autres éléments'}</span>
             </button>
           )}
         </div>
@@ -776,7 +776,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
         )}
 
         {showBaseMarkers && showMeetingPoints && meetingPoints.length > 0 && (
-          <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] max-h-48 overflow-y-auto">
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] max-h-48 overflow-y-auto">
             <p className="font-semibold mb-1">Points de rencontre</p>
             <table className="text-xs">
               <thead>
