@@ -1936,7 +1936,7 @@ useEffect(() => {
     <div
       className={`${
         showCdrMap
-          ? 'fixed bottom-4 left-4 z-[1000] w-full max-w-md bg-white/90 backdrop-blur rounded-lg shadow p-4 space-y-4'
+          ? 'fixed bottom-24 left-4 z-[1000] w-full max-w-md bg-white/90 backdrop-blur rounded-lg shadow p-4 space-y-4'
           : 'bg-white rounded-lg shadow p-6 space-y-4 max-h-[60vh] overflow-y-auto'
       }`}
     >
