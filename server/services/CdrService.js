@@ -273,9 +273,9 @@ class CdrService {
     return {
       total: records.length,
       contacts,
-      topContacts: contacts.slice(0, 5),
+      topContacts: contacts.slice(0, 10),
       locations,
-      topLocations: locations.slice(0, 5),
+      topLocations: locations.slice(0, 10),
       path
     };
   }
