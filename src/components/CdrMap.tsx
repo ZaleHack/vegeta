@@ -538,14 +538,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     ) : loc.type === 'sms' ? (
                       <>
                         <p>Type: SMS</p>
-                        <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
                         <p>Date: {formatDate(loc.callDate)}</p>
                         <p>Heure: {loc.startTime}</p>
                       </>
                     ) : (
                       <>
-                        <p>Type: Appel</p>
-                        <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
+                        <p>
+                          Type:{' '}
+                          {loc.direction === 'outgoing'
+                            ? 'Appel Sortant'
+                            : 'Appel Entrant'}
+                        </p>
                         <p>Date: {formatDate(loc.callDate)}</p>
                         <p>Début: {loc.startTime}</p>
                         <p>Fin: {loc.endTime}</p>
@@ -602,14 +605,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                       ) : loc.type === 'sms' ? (
                         <>
                           <p>Type: SMS</p>
-                          <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
                           <p>Date: {formatDate(loc.callDate)}</p>
                           <p>Heure: {loc.startTime}</p>
                         </>
                       ) : (
                         <>
-                          <p>Type: Appel</p>
-                          <p>Direction: {loc.direction === 'outgoing' ? 'Sortant' : 'Entrant'}</p>
+                          <p>
+                            Type:{' '}
+                            {loc.direction === 'outgoing'
+                              ? 'Appel Sortant'
+                              : 'Appel Entrant'}
+                          </p>
                           <p>Date: {formatDate(loc.callDate)}</p>
                           <p>Début: {loc.startTime}</p>
                           <p>Fin: {loc.endTime}</p>
