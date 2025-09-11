@@ -144,7 +144,7 @@ const createLabelIcon = (text: string, bgColor: string) => {
       >
         <MapPin size={16} className="text-white" />
       </div>
-      <span className="absolute -bottom-1 -right-1 bg-white text-gray-800 text-xs font-bold rounded-full px-1">
+      <span className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-xs font-bold rounded-full px-1">
         {text}
       </span>
     </div>
@@ -243,11 +243,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
 
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | null>(null);
+  const [showOthers, setShowOthers] = useState(true);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular') => {
     setActiveInfo((prev) => (prev === key ? null : key));
     if (key === 'contacts') setContactPage(1);
+    if (key !== 'recent' && key !== 'popular') setShowOthers(true);
   };
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
@@ -301,6 +303,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
     if (activeInfo === 'recent') return recentLocations;
     return [] as LocationStat[];
   }, [activeInfo, topLocations, recentLocations]);
+
+  const showBaseMarkers = useMemo(
+    () => !(activeInfo === 'recent' || activeInfo === 'popular') || showOthers,
+    [activeInfo, showOthers]
+  );
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -490,7 +497,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {groupedPoints.map((group, idx) => {
+        {showBaseMarkers &&
+          groupedPoints.map((group, idx) => {
           if (group.events.length === 1) {
             const loc = group.events[0];
             return (
@@ -624,29 +632,29 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             </Marker>
           );
         })}
-        {showMeetingPoints &&
+        {showBaseMarkers && showMeetingPoints &&
           meetingPoints.map((mp, idx) => (
             <MeetingPointMarker
               key={`meeting-${idx}`}
               mp={mp}
             />
           ))}
-        {showRoute && routePositions.length > 1 && (
+        {showBaseMarkers && showRoute && routePositions.length > 1 && (
           <Polyline positions={routePositions} color="black" />
         )}
-        {showRoute && routePositions.length > 0 && (
+        {showBaseMarkers && showRoute && routePositions.length > 0 && (
           <Marker position={routePositions[0]} icon={startIcon} />
         )}
-        {showRoute && routePositions.length > 1 && (
+        {showBaseMarkers && showRoute && routePositions.length > 1 && (
           <Marker
             position={routePositions[routePositions.length - 1]}
             icon={endIcon}
           />
         )}
-        {showRoute && interpolatedRoute.length > 0 && (
+        {showBaseMarkers && showRoute && interpolatedRoute.length > 0 && (
           <Marker position={carPosition} icon={carIcon} />
         )}
-        {showRoute &&
+        {showBaseMarkers && showRoute &&
           arrowMarkers.map((a, idx) => (
             <Marker
               key={`arrow-${idx}`}
@@ -665,6 +673,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                 activeInfo === 'popular' ? '#9333ea' : '#f97316'
               )
             }
+            zIndexOffset={1000}
           >
             <Popup>
               <div>
@@ -711,6 +720,19 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             <Flame className="w-4 h-4" />
             <span>Lieux les plus visités</span>
           </button>
+          {(activeInfo === 'recent' || activeInfo === 'popular') && (
+            <button
+              onClick={() => setShowOthers((s) => !s)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
+                showOthers
+                  ? 'bg-white/90 text-gray-600 border border-gray-600 hover:bg-gray-50 dark:bg-white/90 dark:text-gray-600 dark:border-gray-600 dark:hover:bg-gray-50'
+                  : 'bg-gray-600 text-white ring-2 ring-gray-300'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>{showOthers ? 'Masquer autres éléments' : 'Afficher autres éléments'}</span>
+            </button>
+          )}
         </div>
 
         <div className="absolute left-2 top-24 z-[1000]">
@@ -737,7 +759,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           </div>
         </div>
 
-        {showRoute && (
+        {showBaseMarkers && showRoute && (
           <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">
             <label htmlFor="speed" className="block font-semibold mb-1">
               Vitesse : {speed}x
@@ -753,7 +775,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           </div>
         )}
 
-        {showMeetingPoints && meetingPoints.length > 0 && (
+        {showBaseMarkers && showMeetingPoints && meetingPoints.length > 0 && (
           <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] max-h-48 overflow-y-auto">
             <p className="font-semibold mb-1">Points de rencontre</p>
             <table className="text-xs">
@@ -778,7 +800,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
         )}
 
         {activeInfo && (
-          <div className="absolute top-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000] max-h-[80vh] overflow-y-auto">
+          <div className="absolute top-2 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
             <p className="font-semibold">Total : {total}</p>
             {activeInfo === 'contacts' && topContacts.length > 0 && (
               <div>
@@ -847,7 +869,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     {recentLocations.map((l, i) => (
                       <tr key={i} className="border-t">
                         <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
-                        <td className="pr-4">{l.count}</td>
+                        <td className="pr-4 text-gray-800 dark:text-white">{l.count}</td>
                         <td>{l.lastDate && formatDate(l.lastDate)}</td>
                       </tr>
                     ))}
@@ -869,7 +891,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     {topLocations.map((l, i) => (
                       <tr key={i} className="border-t">
                         <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
-                        <td>{l.count}</td>
+                        <td className="text-gray-800 dark:text-white">{l.count}</td>
                       </tr>
                     ))}
                   </tbody>
