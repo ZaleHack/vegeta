@@ -57,9 +57,10 @@ interface MeetingPoint {
   events: Point[];
   perNumber: {
     number: string;
-    events: { start: string; end: string; duration: string }[];
+    events: { date: string; start: string; end: string; duration: string }[];
     total: string;
   }[];
+  date: string;
   start: string;
   end: string;
   total: string;
@@ -218,7 +219,7 @@ const MeetingPointMarker: React.FC<{
                   <td className="px-2 py-1">
                     <div className="max-h-24 overflow-y-auto space-y-1">
                       {d.events.map((ev, i) => (
-                        <div key={i}>{ev.start} - {ev.end} ({ev.duration})</div>
+                        <div key={i}>{ev.date} {ev.start} - {ev.end} ({ev.duration})</div>
                       ))}
                     </div>
                   </td>
@@ -242,13 +243,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | null>(null);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
-  const [recentPage, setRecentPage] = useState(1);
-  const [popularPage, setPopularPage] = useState(1);
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular') => {
     setActiveInfo((prev) => (prev === key ? null : key));
     if (key === 'contacts') setContactPage(1);
-    if (key === 'recent') setRecentPage(1);
-    if (key === 'popular') setPopularPage(1);
   };
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
@@ -350,15 +347,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
     return topContacts.slice(start, start + pageSize);
   }, [topContacts, contactPage, pageSize]);
 
-  const paginatedRecent = useMemo(() => {
-    const start = (recentPage - 1) * pageSize;
-    return recentLocations.slice(start, start + pageSize);
-  }, [recentLocations, recentPage, pageSize]);
-
-  const paginatedPopular = useMemo(() => {
-    const start = (popularPage - 1) * pageSize;
-    return topLocations.slice(start, start + pageSize);
-  }, [topLocations, popularPage, pageSize]);
 
   useEffect(() => {
     if (!showRoute || interpolatedRoute.length < 2) return;
@@ -426,6 +414,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
               const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
               const durationSec = Math.max(0, (en.getTime() - s.getTime()) / 1000);
               return {
+                date: formatDate(e.callDate),
                 start: e.startTime,
                 end: e.endTime,
                 duration: new Date(durationSec * 1000).toISOString().substr(11, 8),
@@ -436,7 +425,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           const total = new Date(totalSec * 1000).toISOString().substr(11, 8);
           return {
             number: num,
-            events: evts.map(({ start, end, duration }) => ({ start, end, duration })),
+            events: evts.map(({ date, start, end, duration }) => ({ date, start, end, duration })),
             total,
             totalSec
           };
@@ -450,7 +439,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
           return en > max ? en : max;
         }, new Date(`${m.events[0].endDate || m.events[0].callDate}T${m.events[0].endTime}`));
-        const startStr = `${formatDate(startDate.toISOString().split('T')[0])} ${startDate
+        const dateStr = formatDate(startDate.toISOString().split('T')[0]);
+        const startStr = `${dateStr} ${startDate
           .toTimeString()
           .substr(0, 8)}`;
         const endStr = `${formatDate(endDate.toISOString().split('T')[0])} ${endDate
@@ -461,6 +451,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           ...m,
           numbers,
           perNumber: perNumber.map(({ totalSec, ...rest }) => rest),
+          date: dateStr,
           start: startStr,
           end: endStr,
           total
@@ -683,7 +674,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
               activeInfo === 'contacts'
                 ? 'bg-blue-600 text-white ring-2 ring-blue-300'
-                : 'bg-white/90 text-blue-600 border border-blue-600 hover:bg-blue-50'
+                : 'bg-white/90 text-blue-600 border border-blue-600 hover:bg-blue-50 dark:bg-white/90 dark:text-blue-600 dark:border-blue-600 dark:hover:bg-blue-50'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -694,7 +685,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
               activeInfo === 'recent'
                 ? 'bg-green-600 text-white ring-2 ring-green-300'
-                : 'bg-white/90 text-green-600 border border-green-600 hover:bg-green-50'
+                : 'bg-white/90 text-green-600 border border-green-600 hover:bg-green-50 dark:bg-white/90 dark:text-green-600 dark:border-green-600 dark:hover:bg-green-50'
             }`}
           >
             <Clock className="w-4 h-4" />
@@ -705,7 +696,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
               activeInfo === 'popular'
                 ? 'bg-purple-600 text-white ring-2 ring-purple-300'
-                : 'bg-white/90 text-purple-600 border border-purple-600 hover:bg-purple-50'
+                : 'bg-white/90 text-purple-600 border border-purple-600 hover:bg-purple-50 dark:bg-white/90 dark:text-purple-600 dark:border-purple-600 dark:hover:bg-purple-50'
             }`}
           >
             <Flame className="w-4 h-4" />
@@ -762,6 +753,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                   <th className="pr-2">Point</th>
                   <th className="pr-2">Numéros</th>
                   <th className="pr-2">Événements</th>
+                  <th className="pr-2">Date</th>
                   <th className="pr-2">Heure début</th>
                   <th className="pr-2">Heure fin</th>
                   <th>Durée totale</th>
@@ -773,6 +765,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     <td className="pr-2">{m.nom || `${m.lat},${m.lng}`}</td>
                     <td className="pr-2">{m.numbers.join(', ')}</td>
                     <td className="pr-2">{m.events.length}</td>
+                    <td className="pr-2">{m.date}</td>
                     <td className="pr-2">{m.start}</td>
                     <td className="pr-2">{m.end}</td>
                     <td>{m.total}</td>
@@ -850,7 +843,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedRecent.map((l, i) => (
+                    {recentLocations.map((l, i) => (
                       <tr key={i} className="border-t">
                         <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
                         <td className="pr-4">{l.count}</td>
@@ -859,25 +852,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     ))}
                   </tbody>
                 </table>
-                <div className="flex justify-center items-center space-x-2 mt-2">
-                  <button
-                    className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
-                    onClick={() => setRecentPage((p) => Math.max(1, p - 1))}
-                    disabled={recentPage === 1}
-                  >
-                    Précédent
-                  </button>
-                  <span>
-                    Page {recentPage} / {Math.max(1, Math.ceil(recentLocations.length / pageSize))}
-                  </span>
-                  <button
-                    className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
-                    onClick={() => setRecentPage((p) => p + 1)}
-                    disabled={recentPage >= Math.ceil(recentLocations.length / pageSize)}
-                  >
-                    Suivant
-                  </button>
-                </div>
               </div>
             )}
             {activeInfo === 'popular' && topLocations.length > 0 && (
@@ -891,7 +865,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedPopular.map((l, i) => (
+                    {topLocations.map((l, i) => (
                       <tr key={i} className="border-t">
                         <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
                         <td>{l.count}</td>
@@ -899,25 +873,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     ))}
                   </tbody>
                 </table>
-                <div className="flex justify-center items-center space-x-2 mt-2">
-                  <button
-                    className="px-3 py-1 bg-purple-600 text-white rounded disabled:opacity-50"
-                    onClick={() => setPopularPage((p) => Math.max(1, p - 1))}
-                    disabled={popularPage === 1}
-                  >
-                    Précédent
-                  </button>
-                  <span>
-                    Page {popularPage} / {Math.max(1, Math.ceil(topLocations.length / pageSize))}
-                  </span>
-                  <button
-                    className="px-3 py-1 bg-purple-600 text-white rounded disabled:opacity-50"
-                    onClick={() => setPopularPage((p) => p + 1)}
-                    disabled={popularPage >= Math.ceil(topLocations.length / pageSize)}
-                  >
-                    Suivant
-                  </button>
-                </div>
               </div>
             )}
           </div>
