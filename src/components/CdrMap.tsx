@@ -398,7 +398,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
     const map = new Map<string, { lat: number; lng: number; nom: string; events: Point[] }>();
     points.forEach((p) => {
       if (!p.source) return;
-      const key = `${p.latitude},${p.longitude}`;
+      // Include date and time in the key to ensure events match by
+      // location and occur at the same moment.
+      const key = `${p.latitude},${p.longitude},${p.callDate},${p.startTime}`;
       if (!map.has(key)) {
         map.set(key, {
           lat: parseFloat(p.latitude),
