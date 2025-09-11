@@ -8,7 +8,10 @@ import {
   MapPin,
   ArrowRight,
   Car,
-  Layers
+  Layers,
+  Users,
+  Clock,
+  Flame
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -69,20 +72,36 @@ interface Props {
 }
 const getIcon = (type: string, direction: string | undefined, color: string) => {
   const size = 32;
-  let icon: React.ReactElement;
+  let inner: React.ReactElement;
 
   if (type === 'web') {
-    icon = <MapPin size={size} style={{ color }} />;
+    inner = <MapPin size={16} className="text-white" />;
   } else if (type === 'sms') {
-    icon = <MessageSquare size={size} style={{ color }} />;
+    inner = <MessageSquare size={16} className="text-white" />;
   } else {
-    icon =
+    inner =
       direction === 'outgoing' ? (
-        <PhoneOutgoing size={size} style={{ color }} />
+        <PhoneOutgoing size={16} className="text-white" />
       ) : (
-        <PhoneIncoming size={size} style={{ color }} />
+        <PhoneIncoming size={16} className="text-white" />
       );
   }
+
+  const icon = (
+    <div
+      style={{
+        backgroundColor: color,
+        borderRadius: '9999px',
+        width: size,
+        height: size,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      {inner}
+    </div>
+  );
 
   return L.divIcon({
     html: renderToStaticMarkup(icon),
@@ -213,8 +232,15 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
 
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | null>(null);
+  const pageSize = 20;
+  const [contactPage, setContactPage] = useState(1);
+  const [recentPage, setRecentPage] = useState(1);
+  const [popularPage, setPopularPage] = useState(1);
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular') => {
     setActiveInfo((prev) => (prev === key ? null : key));
+    if (key === 'contacts') setContactPage(1);
+    if (key === 'recent') setRecentPage(1);
+    if (key === 'popular') setPopularPage(1);
   };
 
   const colorPalette = ['#f97316', '#3b82f6', '#a855f7', '#10b981', '#e11d48', '#14b8a6', '#4b5563'];
@@ -253,20 +279,24 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       locationMap.set(key, loc);
     });
 
-    const contacts: Contact[] = Array.from(contactMap.entries()).map(([number, c]) => ({
-      number,
-      callCount: c.callCount,
-      smsCount: c.smsCount,
-      total: c.callCount + c.smsCount
-    })).sort((a, b) => b.total - a.total).slice(0, 10);
+    const contacts: Contact[] = Array.from(contactMap.entries())
+      .map(([number, c]) => ({
+        number,
+        callCount: c.callCount,
+        smsCount: c.smsCount,
+        total: c.callCount + c.smsCount
+      }))
+      .sort((a, b) => b.total - a.total);
 
-    const locations: LocationStat[] = Array.from(locationMap.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+    const locations: LocationStat[] = Array.from(locationMap.values()).sort(
+      (a, b) => b.count - a.count
+    );
 
-    const recent: LocationStat[] = Array.from(locationMap.values())
-      .sort((a, b) => new Date(b.lastDate || 0).getTime() - new Date(a.lastDate || 0).getTime())
-      .slice(0, 10);
+    const recent: LocationStat[] = Array.from(locationMap.values()).sort(
+      (a, b) =>
+        new Date(b.lastDate || 0).getTime() -
+        new Date(a.lastDate || 0).getTime()
+    );
 
     return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: points.length };
   }, [points]);
@@ -320,6 +350,21 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
 
   const [carIndex, setCarIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
+
+  const paginatedContacts = useMemo(() => {
+    const start = (contactPage - 1) * pageSize;
+    return topContacts.slice(start, start + pageSize);
+  }, [topContacts, contactPage, pageSize]);
+
+  const paginatedRecent = useMemo(() => {
+    const start = (recentPage - 1) * pageSize;
+    return recentLocations.slice(start, start + pageSize);
+  }, [recentLocations, recentPage, pageSize]);
+
+  const paginatedPopular = useMemo(() => {
+    const start = (popularPage - 1) * pageSize;
+    return topLocations.slice(start, start + pageSize);
+  }, [topLocations, popularPage, pageSize]);
 
   useEffect(() => {
     if (!showRoute || interpolatedRoute.length < 2) return;
@@ -635,33 +680,36 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] flex space-x-2">
           <button
             onClick={() => toggleInfo('contacts')}
-            className={`px-4 py-2 rounded-full border text-sm transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
               activeInfo === 'contacts'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white/90 text-blue-600 border-blue-600 hover:bg-blue-600 hover:text-white'
+                ? 'bg-blue-600 text-white ring-2 ring-blue-300'
+                : 'bg-white/90 text-blue-600 border border-blue-600 hover:bg-blue-50'
             }`}
           >
-            Personnes en contact
+            <Users className="w-4 h-4" />
+            <span>Personnes en contact</span>
           </button>
           <button
             onClick={() => toggleInfo('recent')}
-            className={`px-4 py-2 rounded-full border text-sm transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
               activeInfo === 'recent'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white/90 text-blue-600 border-blue-600 hover:bg-blue-600 hover:text-white'
+                ? 'bg-green-600 text-white ring-2 ring-green-300'
+                : 'bg-white/90 text-green-600 border border-green-600 hover:bg-green-50'
             }`}
           >
-            Lieux récents visités
+            <Clock className="w-4 h-4" />
+            <span>Lieux récents visités</span>
           </button>
           <button
             onClick={() => toggleInfo('popular')}
-            className={`px-4 py-2 rounded-full border text-sm transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
               activeInfo === 'popular'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white/90 text-blue-600 border-blue-600 hover:bg-blue-600 hover:text-white'
+                ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                : 'bg-white/90 text-purple-600 border border-purple-600 hover:bg-purple-50'
             }`}
           >
-            Lieux les plus visités
+            <Flame className="w-4 h-4" />
+            <span>Lieux les plus visités</span>
           </button>
         </div>
 
@@ -744,20 +792,42 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {topContacts.map((c, i) => (
-                      <tr
-                        key={c.number}
-                        className={`${i === 0 ? 'font-bold text-blue-600' : ''} border-t`}
-                      >
-                        <td className="pr-4">{c.number}</td>
-                        <td className="pr-4">{c.callCount}</td>
-                        <td className="pr-4">{c.smsCount}</td>
-                        <td className="pr-4">{meetingPoints.filter((m) => m.numbers.includes(c.number)).length}</td>
-                        <td>{c.total}</td>
-                      </tr>
-                    ))}
+                    {paginatedContacts.map((c, i) => {
+                      const idx = (contactPage - 1) * pageSize + i;
+                      return (
+                        <tr
+                          key={c.number}
+                          className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
+                        >
+                          <td className="pr-4">{c.number}</td>
+                          <td className="pr-4">{c.callCount}</td>
+                          <td className="pr-4">{c.smsCount}</td>
+                          <td className="pr-4">{meetingPoints.filter((m) => m.numbers.includes(c.number)).length}</td>
+                          <td>{c.total}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
+                <div className="flex justify-center items-center space-x-2 mt-2">
+                  <button
+                    className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                    onClick={() => setContactPage((p) => Math.max(1, p - 1))}
+                    disabled={contactPage === 1}
+                  >
+                    Précédent
+                  </button>
+                  <span>
+                    Page {contactPage} / {Math.max(1, Math.ceil(topContacts.length / pageSize))}
+                  </span>
+                  <button
+                    className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                    onClick={() => setContactPage((p) => p + 1)}
+                    disabled={contactPage >= Math.ceil(topContacts.length / pageSize)}
+                  >
+                    Suivant
+                  </button>
+                </div>
               </div>
             )}
             {activeInfo === 'recent' && recentLocations.length > 0 && (
@@ -772,7 +842,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {recentLocations.map((l, i) => (
+                    {paginatedRecent.map((l, i) => (
                       <tr key={i} className="border-t">
                         <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
                         <td className="pr-4">{l.count}</td>
@@ -781,6 +851,25 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     ))}
                   </tbody>
                 </table>
+                <div className="flex justify-center items-center space-x-2 mt-2">
+                  <button
+                    className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
+                    onClick={() => setRecentPage((p) => Math.max(1, p - 1))}
+                    disabled={recentPage === 1}
+                  >
+                    Précédent
+                  </button>
+                  <span>
+                    Page {recentPage} / {Math.max(1, Math.ceil(recentLocations.length / pageSize))}
+                  </span>
+                  <button
+                    className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
+                    onClick={() => setRecentPage((p) => p + 1)}
+                    disabled={recentPage >= Math.ceil(recentLocations.length / pageSize)}
+                  >
+                    Suivant
+                  </button>
+                </div>
               </div>
             )}
             {activeInfo === 'popular' && topLocations.length > 0 && (
@@ -794,7 +883,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {topLocations.map((l, i) => (
+                    {paginatedPopular.map((l, i) => (
                       <tr key={i} className="border-t">
                         <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
                         <td>{l.count}</td>
@@ -802,6 +891,25 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     ))}
                   </tbody>
                 </table>
+                <div className="flex justify-center items-center space-x-2 mt-2">
+                  <button
+                    className="px-3 py-1 bg-purple-600 text-white rounded disabled:opacity-50"
+                    onClick={() => setPopularPage((p) => Math.max(1, p - 1))}
+                    disabled={popularPage === 1}
+                  >
+                    Précédent
+                  </button>
+                  <span>
+                    Page {popularPage} / {Math.max(1, Math.ceil(topLocations.length / pageSize))}
+                  </span>
+                  <button
+                    className="px-3 py-1 bg-purple-600 text-white rounded disabled:opacity-50"
+                    onClick={() => setPopularPage((p) => p + 1)}
+                    disabled={popularPage >= Math.ceil(topLocations.length / pageSize)}
+                  >
+                    Suivant
+                  </button>
+                </div>
               </div>
             )}
           </div>
