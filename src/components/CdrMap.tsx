@@ -202,10 +202,6 @@ const MeetingPointMarker: React.FC<{
       <Popup>
         <div className="space-y-2 text-sm">
           <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
-          <p>Date : {mp.date}</p>
-          <p>Heure début : {mp.start}</p>
-          <p>Heure fin : {mp.end}</p>
-          <p>Durée totale : {mp.total}</p>
           <table className="min-w-full text-xs border border-gray-200 rounded">
             <thead className="bg-gray-100">
               <tr>
@@ -669,7 +665,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
             icon={
               createLabelIcon(
-                loc.count.toString(),
+                String(loc.count),
                 activeInfo === 'popular' ? '#9333ea' : '#f97316'
               )
             }

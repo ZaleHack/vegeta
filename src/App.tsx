@@ -553,7 +553,7 @@ const App: React.FC = () => {
   const [cdrIncoming, setCdrIncoming] = useState(true);
   const [cdrOutgoing, setCdrOutgoing] = useState(true);
   const [cdrSms, setCdrSms] = useState(true);
-  const [cdrPosition, setCdrPosition] = useState(false);
+  const [cdrPosition, setCdrPosition] = useState(true);
   const [cdrItinerary, setCdrItinerary] = useState(false);
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
