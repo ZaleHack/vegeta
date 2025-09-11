@@ -279,11 +279,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       }))
       .sort((a, b) => b.total - a.total);
 
-    const locations: LocationStat[] = Array.from(locationMap.values())
+    const allLocations = Array.from(locationMap.values()).filter(
+      (loc) =>
+        !isNaN(parseFloat(loc.latitude)) && !isNaN(parseFloat(loc.longitude))
+    );
+
+    const locations: LocationStat[] = allLocations
+      .slice()
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    const recent: LocationStat[] = Array.from(locationMap.values())
+    const recent: LocationStat[] = allLocations
+      .slice()
       .sort(
         (a, b) =>
           new Date(b.lastDate || 0).getTime() -
