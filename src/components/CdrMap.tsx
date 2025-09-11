@@ -776,7 +776,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
         )}
 
         {showBaseMarkers && showMeetingPoints && meetingPoints.length > 0 && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] max-h-48 overflow-y-auto">
+          <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] max-h-48 overflow-y-auto">
             <p className="font-semibold mb-1">Points de rencontre</p>
             <table className="text-xs">
               <thead>
