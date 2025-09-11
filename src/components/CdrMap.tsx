@@ -43,6 +43,7 @@ interface LocationStat {
   longitude: string;
   nom: string;
   count: number;
+  lastDate?: string;
 }
 
 interface MeetingPoint {
@@ -211,6 +212,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
   const first = points[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
 
+  const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | null>(null);
+  const toggleInfo = (key: 'contacts' | 'recent' | 'popular') => {
+    setActiveInfo((prev) => (prev === key ? null : key));
+  };
+
   const colorPalette = ['#f97316', '#3b82f6', '#a855f7', '#10b981', '#e11d48', '#14b8a6', '#4b5563'];
 
   const colorMap = useMemo(() => {
@@ -225,7 +231,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
     return map;
   }, [points]);
 
-  const { topContacts, topLocations, total } = useMemo(() => {
+  const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
     const contactMap = new Map<string, { callCount: number; smsCount: number }>();
     const locationMap = new Map<string, LocationStat>();
 
@@ -237,8 +243,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       }
 
       const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
-      const loc = locationMap.get(key) || { latitude: p.latitude, longitude: p.longitude, nom: p.nom, count: 0 };
+      const loc =
+        locationMap.get(key) ||
+        { latitude: p.latitude, longitude: p.longitude, nom: p.nom, count: 0, lastDate: p.callDate };
       loc.count += 1;
+      if (!loc.lastDate || new Date(p.callDate) > new Date(loc.lastDate)) {
+        loc.lastDate = p.callDate;
+      }
       locationMap.set(key, loc);
     });
 
@@ -253,8 +264,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    return { topContacts: contacts, topLocations: locations, total: points.length };
+    const recent: LocationStat[] = Array.from(locationMap.values())
+      .sort((a, b) => new Date(b.lastDate || 0).getTime() - new Date(a.lastDate || 0).getTime())
+      .slice(0, 10);
+
+    return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: points.length };
   }, [points]);
+
+  const locationMarkers = useMemo(() => {
+    if (activeInfo === 'popular') return topLocations;
+    if (activeInfo === 'recent') return recentLocations;
+    return [] as LocationStat[];
+  }, [activeInfo, topLocations, recentLocations]);
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -594,17 +615,69 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
               interactive={false}
             />
           ))}
+        {locationMarkers.map((loc, idx) => (
+          <Marker
+            key={`stat-${idx}`}
+            position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
+            icon={createLabelIcon(loc.count.toString(), activeInfo === 'popular' ? '#2563eb' : '#16a34a')}
+          >
+            <Popup>
+              <div>
+                <p>{loc.nom || `${loc.latitude},${loc.longitude}`}</p>
+                <p>Occurrences : {loc.count}</p>
+                {loc.lastDate && <p>Dernière visite : {formatDate(loc.lastDate)}</p>}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
         </MapContainer>
 
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] flex space-x-2">
+          <button
+            onClick={() => toggleInfo('contacts')}
+            className={`px-4 py-2 rounded-full border text-sm transition-colors ${
+              activeInfo === 'contacts'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white/90 text-blue-600 border-blue-600 hover:bg-blue-600 hover:text-white'
+            }`}
+          >
+            Personnes en contact
+          </button>
+          <button
+            onClick={() => toggleInfo('recent')}
+            className={`px-4 py-2 rounded-full border text-sm transition-colors ${
+              activeInfo === 'recent'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white/90 text-blue-600 border-blue-600 hover:bg-blue-600 hover:text-white'
+            }`}
+          >
+            Lieux récents visités
+          </button>
+          <button
+            onClick={() => toggleInfo('popular')}
+            className={`px-4 py-2 rounded-full border text-sm transition-colors ${
+              activeInfo === 'popular'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white/90 text-blue-600 border-blue-600 hover:bg-blue-600 hover:text-white'
+            }`}
+          >
+            Lieux les plus visités
+          </button>
+        </div>
+
         {colorMap.size > 1 && (
-          <div className="absolute left-2 top-24 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] space-y-1">
-            <p className="font-semibold">Légende</p>
-            {[...colorMap.entries()].map(([num, color]) => (
-              <div key={num} className="flex items-center space-x-2">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></span>
-                <span>{num}</span>
-              </div>
-            ))}
+          <div className="absolute left-2 top-24 z-[1000]">
+            <div className="bg-white/80 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-3 text-xs text-gray-700">
+              <p className="font-bold text-sm mb-2 border-b border-gray-200 pb-1">Légende</p>
+              <ul className="space-y-1">
+                {[...colorMap.entries()].map(([num, color]) => (
+                  <li key={num} className="flex items-center space-x-2">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></span>
+                    <span>{num}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         )}
 
@@ -654,58 +727,85 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           </div>
         )}
 
-        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000]">
-          <p className="font-semibold">Total : {total}</p>
-          {topContacts && topContacts.length > 0 && (
-            <div>
-              <p className="font-semibold mb-2">Top contacts</p>
-              <table className="min-w-full border-collapse">
-                <thead>
-                  <tr className="text-left">
-                    <th className="pr-4">Numéro</th>
-                    <th className="pr-4">Appels</th>
-                    <th className="pr-4">SMS</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topContacts.map((c, i) => (
-                    <tr
-                      key={c.number}
-                      className={`${i === 0 ? 'font-bold text-blue-600' : ''} border-t`}
-                    >
-                      <td className="pr-4">{c.number}</td>
-                      <td className="pr-4">{c.callCount}</td>
-                      <td className="pr-4">{c.smsCount}</td>
-                      <td>{c.total}</td>
+        {activeInfo && (
+          <div className="absolute top-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 z-[1000] max-h-[80vh] overflow-y-auto">
+            <p className="font-semibold">Total : {total}</p>
+            {activeInfo === 'contacts' && topContacts.length > 0 && (
+              <div>
+                <p className="font-semibold mb-2">Personnes en contact</p>
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr className="text-left">
+                      <th className="pr-4">Numéro</th>
+                      <th className="pr-4">Appels</th>
+                      <th className="pr-4">SMS</th>
+                      <th className="pr-4">Rencontres</th>
+                      <th>Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {topLocations && topLocations.length > 0 && (
-            <div>
-              <p className="font-semibold mb-2">Top lieux</p>
-              <table className="min-w-full border-collapse">
-                <thead>
-                  <tr className="text-left">
-                    <th className="pr-4">Lieu</th>
-                    <th>Occurrences</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topLocations.map((l, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
-                      <td>{l.count}</td>
+                  </thead>
+                  <tbody>
+                    {topContacts.map((c, i) => (
+                      <tr
+                        key={c.number}
+                        className={`${i === 0 ? 'font-bold text-blue-600' : ''} border-t`}
+                      >
+                        <td className="pr-4">{c.number}</td>
+                        <td className="pr-4">{c.callCount}</td>
+                        <td className="pr-4">{c.smsCount}</td>
+                        <td className="pr-4">{meetingPoints.filter((m) => m.numbers.includes(c.number)).length}</td>
+                        <td>{c.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {activeInfo === 'recent' && recentLocations.length > 0 && (
+              <div>
+                <p className="font-semibold mb-2">Lieux récents visités</p>
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr className="text-left">
+                      <th className="pr-4">Lieu</th>
+                      <th className="pr-4">Occurrences</th>
+                      <th>Dernière visite</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  </thead>
+                  <tbody>
+                    {recentLocations.map((l, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
+                        <td className="pr-4">{l.count}</td>
+                        <td>{l.lastDate && formatDate(l.lastDate)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {activeInfo === 'popular' && topLocations.length > 0 && (
+              <div>
+                <p className="font-semibold mb-2">Lieux les plus visités</p>
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr className="text-left">
+                      <th className="pr-4">Lieu</th>
+                      <th>Occurrences</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topLocations.map((l, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
+                        <td>{l.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
 
