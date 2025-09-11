@@ -137,26 +137,24 @@ const getArrowIcon = (angle: number) => {
 
 const createLabelIcon = (text: string, bgColor: string) => {
   const icon = (
-    <div
-      style={{
-        backgroundColor: bgColor,
-        color: 'white',
-        borderRadius: '9999px',
-        padding: '2px 6px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        textAlign: 'center'
-      }}
-    >
-      {text}
+    <div className="relative">
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center shadow-md"
+        style={{ backgroundColor: bgColor }}
+      >
+        <MapPin size={16} className="text-white" />
+      </div>
+      <span className="absolute -bottom-1 -right-1 bg-white text-gray-800 text-xs font-bold rounded-full px-1">
+        {text}
+      </span>
     </div>
   );
 
   return L.divIcon({
     html: renderToStaticMarkup(icon),
     className: '',
-    iconSize: [60, 24],
-    iconAnchor: [30, 12]
+    iconSize: [32, 32],
+    iconAnchor: [16, 32]
   });
 };
 
@@ -204,6 +202,10 @@ const MeetingPointMarker: React.FC<{
       <Popup>
         <div className="space-y-2 text-sm">
           <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
+          <p>Date : {mp.date}</p>
+          <p>Heure début : {mp.start}</p>
+          <p>Heure fin : {mp.end}</p>
+          <p>Durée totale : {mp.total}</p>
           <table className="min-w-full text-xs border border-gray-200 rounded">
             <thead className="bg-gray-100">
               <tr>
@@ -657,7 +659,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           <Marker
             key={`stat-${idx}`}
             position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-            icon={createLabelIcon(loc.count.toString(), activeInfo === 'popular' ? '#2563eb' : '#16a34a')}
+            icon={
+              createLabelIcon(
+                loc.count.toString(),
+                activeInfo === 'popular' ? '#9333ea' : '#f97316'
+              )
+            }
           >
             <Popup>
               <div>
@@ -686,8 +693,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             onClick={() => toggleInfo('recent')}
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
               activeInfo === 'recent'
-                ? 'bg-green-600 text-white ring-2 ring-green-300'
-                : 'bg-white/90 text-green-600 border border-green-600 hover:bg-green-50 dark:bg-white/90 dark:text-green-600 dark:border-green-600 dark:hover:bg-green-50'
+                ? 'bg-orange-600 text-white ring-2 ring-orange-300'
+                : 'bg-white/90 text-orange-600 border border-orange-600 hover:bg-orange-50 dark:bg-white/90 dark:text-orange-600 dark:border-orange-600 dark:hover:bg-orange-50'
             }`}
           >
             <Clock className="w-4 h-4" />
@@ -755,10 +762,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                   <th className="pr-2">Point</th>
                   <th className="pr-2">Numéros</th>
                   <th className="pr-2">Événements</th>
-                  <th className="pr-2">Date</th>
-                  <th className="pr-2">Heure début</th>
-                  <th className="pr-2">Heure fin</th>
-                  <th>Durée totale</th>
                 </tr>
               </thead>
               <tbody>
@@ -767,10 +770,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     <td className="pr-2">{m.nom || `${m.lat},${m.lng}`}</td>
                     <td className="pr-2">{m.numbers.join(', ')}</td>
                     <td className="pr-2">{m.events.length}</td>
-                    <td className="pr-2">{m.date}</td>
-                    <td className="pr-2">{m.start}</td>
-                    <td className="pr-2">{m.end}</td>
-                    <td>{m.total}</td>
                   </tr>
                 ))}
               </tbody>
