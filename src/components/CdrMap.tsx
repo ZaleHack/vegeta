@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, Rectangle, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Polygon, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import {
   PhoneIncoming,
@@ -71,7 +71,7 @@ interface Props {
   points: Point[];
   showRoute?: boolean;
   showMeetingPoints?: boolean;
-  zoneMode?: 'rectangle' | 'circle' | null;
+  zoneMode?: boolean;
   onZoneCreated?: () => void;
 }
 
@@ -253,34 +253,43 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
     if (key !== 'recent' && key !== 'popular') setShowOthers(true);
   };
 
-  const [zoneShape, setZoneShape] = useState<
-    { type: 'rectangle'; bounds: L.LatLngBounds } |
-    { type: 'circle'; center: L.LatLng; radius: number } |
-    null
-  >(null);
-  const [selectionStart, setSelectionStart] = useState<L.LatLng | null>(null);
+  const [zoneShape, setZoneShape] = useState<L.LatLng[] | null>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [currentPoints, setCurrentPoints] = useState<L.LatLng[]>([]);
 
   useEffect(() => {
     if (zoneMode) {
       setZoneShape(null);
-      setSelectionStart(null);
+      setCurrentPoints([]);
       setShowZoneInfo(false);
     }
   }, [zoneMode]);
 
-  const displayedPoints = useMemo(() => {
-    if (!zoneShape) return points;
-    if (zoneShape.type === 'rectangle') {
-      return points.filter((p) =>
-        zoneShape.bounds.contains([parseFloat(p.latitude), parseFloat(p.longitude)])
-      );
+  const pointInPolygon = (point: L.LatLng, polygon: L.LatLng[]) => {
+    const x = point.lng;
+    const y = point.lat;
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].lng;
+      const yi = polygon[i].lat;
+      const xj = polygon[j].lng;
+      const yj = polygon[j].lat;
+      const intersect =
+        yi > y !== yj > y &&
+        x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+      if (intersect) inside = !inside;
     }
-    return points.filter(
-      (p) =>
-        zoneShape.center.distanceTo(
-          L.latLng(parseFloat(p.latitude), parseFloat(p.longitude))
-        ) <= zoneShape.radius
-    );
+    return inside;
+  };
+
+  const displayedPoints = useMemo(() => {
+    if (!zoneShape || zoneShape.length < 3) return points;
+    return points.filter((p) => {
+      const lat = parseFloat(p.latitude);
+      const lng = parseFloat(p.longitude);
+      if (isNaN(lat) || isNaN(lng)) return false;
+      return pointInPolygon(L.latLng(lat, lng), zoneShape);
+    });
   }, [points, zoneShape]);
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
@@ -432,23 +441,28 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
   const carPosition = interpolatedRoute[carIndex] || interpolatedRoute[0];
 
   const ZoneSelector: React.FC = () => {
-    useMapEvents({
-      click(e) {
+    const map = useMapEvents({
+      mousedown(e) {
         if (!zoneMode) return;
-        if (!selectionStart) {
-          setSelectionStart(e.latlng);
-        } else {
-          if (zoneMode === 'rectangle') {
-            const bounds = L.latLngBounds(selectionStart, e.latlng);
-            setZoneShape({ type: 'rectangle', bounds });
-          } else {
-            const radius = selectionStart.distanceTo(e.latlng);
-            setZoneShape({ type: 'circle', center: selectionStart, radius });
-          }
-          setSelectionStart(null);
+        setDrawing(true);
+        setCurrentPoints([e.latlng]);
+        map.dragging.disable();
+      },
+      mousemove(e) {
+        if (!zoneMode || !drawing) return;
+        setCurrentPoints((pts) => [...pts, e.latlng]);
+      },
+      mouseup() {
+        if (!zoneMode || !drawing) return;
+        map.dragging.enable();
+        setDrawing(false);
+        if (currentPoints.length > 2) {
+          const final = currentPoints.slice();
+          setZoneShape(final);
           setShowZoneInfo(true);
           onZoneCreated && onZoneCreated();
         }
+        setCurrentPoints([]);
       }
     });
     return null;
@@ -644,18 +658,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
           center={center}
           zoom={13}
           className="w-full h-full"
-          style={{ cursor: zoneMode ? 'crosshair' : undefined }}
+          style={{ cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined }}
         >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <ZoneSelector />
-        {zoneShape?.type === 'rectangle' && (
-          <Rectangle bounds={zoneShape.bounds} pathOptions={{ color: 'blue' }} />
+        {drawing && currentPoints.length > 0 && (
+          <Polyline positions={currentPoints} pathOptions={{ color: 'blue' }} />
         )}
-        {zoneShape?.type === 'circle' && (
-          <Circle center={zoneShape.center} radius={zoneShape.radius} pathOptions={{ color: 'blue' }} />
+        {zoneShape && (
+          <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
         )}
         {showBaseMarkers &&
           groupedPoints.map((group, idx) => {
