@@ -4207,7 +4207,7 @@ useEffect(() => {
                       className="absolute inset-y-0 right-0 pr-3 flex items-center"
                       onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
                     >
-                      {showPasswords.current ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
+                      {showPasswords.current ? <Eye className="h-4 w-4 text-gray-400" /> : <EyeOff className="h-4 w-4 text-gray-400" />}
                     </button>
                   </div>
                 </div>
@@ -4229,7 +4229,7 @@ useEffect(() => {
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
                   >
-                    {showPasswords.new ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
+                    {showPasswords.new ? <Eye className="h-4 w-4 text-gray-400" /> : <EyeOff className="h-4 w-4 text-gray-400" />}
                   </button>
                 </div>
                 <p className="mt-1 text-sm text-gray-500">Minimum 6 caractères</p>
@@ -4251,7 +4251,7 @@ useEffect(() => {
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
                   >
-                    {showPasswords.confirm ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
+                    {showPasswords.confirm ? <Eye className="h-4 w-4 text-gray-400" /> : <EyeOff className="h-4 w-4 text-gray-400" />}
                   </button>
                 </div>
               </div>

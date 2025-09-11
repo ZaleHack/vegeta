@@ -692,7 +692,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
               activeInfo === 'contacts'
                 ? 'bg-blue-600 text-white ring-2 ring-blue-300'
-                : 'bg-white/90 text-blue-600 border border-blue-600 hover:bg-blue-50 dark:bg-white/90 dark:text-blue-600 dark:border-blue-600 dark:hover:bg-blue-50'
+                : 'bg-white/90 text-gray-600 border border-gray-600 hover:bg-gray-50 dark:bg-white/90 dark:text-gray-600 dark:border-gray-600 dark:hover:bg-gray-50'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -702,8 +702,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             onClick={() => toggleInfo('recent')}
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
               activeInfo === 'recent'
-                ? 'bg-orange-600 text-white ring-2 ring-orange-300'
-                : 'bg-white/90 text-orange-600 border border-orange-600 hover:bg-orange-50 dark:bg-white/90 dark:text-orange-600 dark:border-orange-600 dark:hover:bg-orange-50'
+                ? 'bg-blue-600 text-white ring-2 ring-blue-300'
+                : 'bg-white/90 text-gray-600 border border-gray-600 hover:bg-gray-50 dark:bg-white/90 dark:text-gray-600 dark:border-gray-600 dark:hover:bg-gray-50'
             }`}
           >
             <Clock className="w-4 h-4" />
@@ -713,8 +713,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
             onClick={() => toggleInfo('popular')}
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
               activeInfo === 'popular'
-                ? 'bg-purple-600 text-white ring-2 ring-purple-300'
-                : 'bg-white/90 text-purple-600 border border-purple-600 hover:bg-purple-50 dark:bg-white/90 dark:text-purple-600 dark:border-purple-600 dark:hover:bg-purple-50'
+                ? 'bg-blue-600 text-white ring-2 ring-blue-300'
+                : 'bg-white/90 text-gray-600 border border-gray-600 hover:bg-gray-50 dark:bg-white/90 dark:text-gray-600 dark:border-gray-600 dark:hover:bg-gray-50'
             }`}
           >
             <Flame className="w-4 h-4" />
