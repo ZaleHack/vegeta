@@ -245,7 +245,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
   const [showOthers, setShowOthers] = useState(true);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
+  const [showZoneInfo, setShowZoneInfo] = useState(false);
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular') => {
+    setShowZoneInfo(false);
     setActiveInfo((prev) => (prev === key ? null : key));
     if (key === 'contacts') setContactPage(1);
     if (key !== 'recent' && key !== 'popular') setShowOthers(true);
@@ -262,6 +264,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
     if (zoneMode) {
       setZoneShape(null);
       setSelectionStart(null);
+      setShowZoneInfo(false);
     }
   }, [zoneMode]);
 
@@ -443,6 +446,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
             setZoneShape({ type: 'circle', center: selectionStart, radius });
           }
           setSelectionStart(null);
+          setShowZoneInfo(true);
           onZoneCreated && onZoneCreated();
         }
       }
@@ -640,6 +644,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
           center={center}
           zoom={13}
           className="w-full h-full"
+          style={{ cursor: zoneMode ? 'crosshair' : undefined }}
         >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -959,10 +964,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
           </div>
         )}
 
-        {activeInfo && (
+        {(showZoneInfo || activeInfo) && (
           <div className="absolute top-2 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
             <p className="font-semibold">Total : {total}</p>
-            {activeInfo === 'contacts' && topContacts.length > 0 && (
+            {(showZoneInfo || activeInfo === 'contacts') && topContacts.length > 0 && (
               <div>
                 <p className="font-semibold mb-2">Personnes en contact</p>
                 <table className="min-w-full border-collapse">
@@ -1014,7 +1019,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
                 </div>
               </div>
             )}
-            {activeInfo === 'recent' && recentLocations.length > 0 && (
+            {(showZoneInfo || activeInfo === 'recent') && recentLocations.length > 0 && (
               <div>
                 <p className="font-semibold mb-2">Lieux récents visités</p>
                 <table className="min-w-full border-collapse">
@@ -1039,7 +1044,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
                 </table>
               </div>
             )}
-            {activeInfo === 'popular' && topLocations.length > 0 && (
+            {(showZoneInfo || activeInfo === 'popular') && topLocations.length > 0 && (
               <div>
                 <p className="font-semibold mb-2">Lieux les plus visités</p>
                 <table className="min-w-full border-collapse">
