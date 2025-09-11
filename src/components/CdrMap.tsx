@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, Rectangle, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import {
   PhoneIncoming,
@@ -71,6 +71,8 @@ interface Props {
   points: Point[];
   showRoute?: boolean;
   showMeetingPoints?: boolean;
+  zoneMode?: 'rectangle' | 'circle' | null;
+  onZoneCreated?: () => void;
 }
 
 const getPointColor = (type: string, direction?: string) => {
@@ -233,7 +235,7 @@ const MeetingPointMarker: React.FC<{
   );
 });
 
-const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
+const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMode, onZoneCreated }) => {
   if (!points || points.length === 0) return null;
 
   const first = points[0];
@@ -249,11 +251,40 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
     if (key !== 'recent' && key !== 'popular') setShowOthers(true);
   };
 
+  const [zoneShape, setZoneShape] = useState<
+    { type: 'rectangle'; bounds: L.LatLngBounds } |
+    { type: 'circle'; center: L.LatLng; radius: number } |
+    null
+  >(null);
+  const [selectionStart, setSelectionStart] = useState<L.LatLng | null>(null);
+
+  useEffect(() => {
+    if (zoneMode) {
+      setZoneShape(null);
+      setSelectionStart(null);
+    }
+  }, [zoneMode]);
+
+  const displayedPoints = useMemo(() => {
+    if (!zoneShape) return points;
+    if (zoneShape.type === 'rectangle') {
+      return points.filter((p) =>
+        zoneShape.bounds.contains([parseFloat(p.latitude), parseFloat(p.longitude)])
+      );
+    }
+    return points.filter(
+      (p) =>
+        zoneShape.center.distanceTo(
+          L.latLng(parseFloat(p.latitude), parseFloat(p.longitude))
+        ) <= zoneShape.radius
+    );
+  }, [points, zoneShape]);
+
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
     const contactMap = new Map<string, { callCount: number; smsCount: number }>();
     const locationMap = new Map<string, LocationStat>();
 
-    points.forEach((p) => {
+    displayedPoints.forEach((p) => {
       if (p.number) {
         const entry = contactMap.get(p.number) || { callCount: 0, smsCount: 0 };
         if (p.type === 'sms') entry.smsCount += 1; else entry.callCount += 1;
@@ -309,8 +340,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       })
       .slice(0, 10);
 
-    return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: points.length };
-  }, [points]);
+    return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: displayedPoints.length };
+  }, [displayedPoints]);
 
   const locationMarkers = useMemo(() => {
     if (activeInfo === 'popular') return topLocations;
@@ -325,13 +356,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
-    const sorted = [...points].sort((a, b) => {
+    const sorted = [...displayedPoints].sort((a, b) => {
       const dateA = new Date(`${a.callDate}T${a.startTime}`);
       const dateB = new Date(`${b.callDate}T${b.startTime}`);
       return dateA.getTime() - dateB.getTime();
     });
     return sorted.map((p) => [parseFloat(p.latitude), parseFloat(p.longitude)] as [number, number]);
-  }, [points, showRoute]);
+  }, [displayedPoints, showRoute]);
 
   const interpolatedRoute = useMemo(() => {
     if (!showRoute || routePositions.length < 2) return [] as [number, number][];
@@ -397,6 +428,28 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
 
   const carPosition = interpolatedRoute[carIndex] || interpolatedRoute[0];
 
+  const ZoneSelector: React.FC = () => {
+    useMapEvents({
+      click(e) {
+        if (!zoneMode) return;
+        if (!selectionStart) {
+          setSelectionStart(e.latlng);
+        } else {
+          if (zoneMode === 'rectangle') {
+            const bounds = L.latLngBounds(selectionStart, e.latlng);
+            setZoneShape({ type: 'rectangle', bounds });
+          } else {
+            const radius = selectionStart.distanceTo(e.latlng);
+            setZoneShape({ type: 'circle', center: selectionStart, radius });
+          }
+          setSelectionStart(null);
+          onZoneCreated && onZoneCreated();
+        }
+      }
+    });
+    return null;
+  };
+
   const carIcon = useMemo(() => {
     const size = 32;
     const icon = (
@@ -418,7 +471,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       string,
       { lat: number; lng: number; nom: string; events: Point[] }
     >();
-    points.forEach((p) => {
+    displayedPoints.forEach((p) => {
       if (!p.source) return;
       const key = `${p.latitude},${p.longitude}`;
       if (!locationMap.has(key)) {
@@ -560,13 +613,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
     });
 
     return result;
-  }, [points]);
+  }, [displayedPoints]);
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
   const groupedPoints = useMemo(() => {
     const map = new Map<string, Point[]>();
-    points.forEach((p) => {
+    displayedPoints.forEach((p) => {
       const lat = parseFloat(p.latitude);
       const lng = parseFloat(p.longitude);
       if (isNaN(lat) || isNaN(lng)) return;
@@ -579,7 +632,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       const [lat, lng] = key.split(',').map(Number);
       return { lat, lng, events };
     });
-  }, [points]);
+  }, [displayedPoints]);
   return (
     <>
       <div className="relative w-full h-full">
@@ -592,6 +645,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <ZoneSelector />
+        {zoneShape?.type === 'rectangle' && (
+          <Rectangle bounds={zoneShape.bounds} pathOptions={{ color: 'blue' }} />
+        )}
+        {zoneShape?.type === 'circle' && (
+          <Circle center={zoneShape.center} radius={zoneShape.radius} pathOptions={{ color: 'blue' }} />
+        )}
         {showBaseMarkers &&
           groupedPoints.map((group, idx) => {
           if (group.events.length === 1) {
