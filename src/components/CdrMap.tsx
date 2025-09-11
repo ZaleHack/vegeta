@@ -47,6 +47,7 @@ interface LocationStat {
   nom: string;
   count: number;
   lastDate?: string;
+  lastTime?: string;
 }
 
 interface MeetingPoint {
@@ -262,10 +263,20 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
       const loc =
         locationMap.get(key) ||
-        { latitude: p.latitude, longitude: p.longitude, nom: p.nom, count: 0, lastDate: p.callDate };
+        {
+          latitude: p.latitude,
+          longitude: p.longitude,
+          nom: p.nom,
+          count: 0,
+          lastDate: p.callDate,
+          lastTime: p.startTime
+        };
       loc.count += 1;
-      if (!loc.lastDate || new Date(p.callDate) > new Date(loc.lastDate)) {
+      const current = new Date(`${p.callDate}T${p.startTime}`);
+      const prev = loc.lastDate && loc.lastTime ? new Date(`${loc.lastDate}T${loc.lastTime}`) : null;
+      if (!prev || current > prev) {
         loc.lastDate = p.callDate;
+        loc.lastTime = p.startTime;
       }
       locationMap.set(key, loc);
     });
@@ -291,11 +302,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
 
     const recent: LocationStat[] = allLocations
       .slice()
-      .sort(
-        (a, b) =>
-          new Date(b.lastDate || 0).getTime() -
-          new Date(a.lastDate || 0).getTime()
-      )
+      .sort((a, b) => {
+        const dateA = new Date(`${a.lastDate || ''}T${a.lastTime || '00:00:00'}`).getTime();
+        const dateB = new Date(`${b.lastDate || ''}T${b.lastTime || '00:00:00'}`).getTime();
+        return dateB - dateA;
+      })
       .slice(0, 10);
 
     return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: points.length };
@@ -556,7 +567,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
   const groupedPoints = useMemo(() => {
     const map = new Map<string, Point[]>();
     points.forEach((p) => {
-      const key = `${p.latitude},${p.longitude}`;
+      const lat = parseFloat(p.latitude);
+      const lng = parseFloat(p.longitude);
+      if (isNaN(lat) || isNaN(lng)) return;
+      const key = `${lat},${lng}`;
       const arr = map.get(key) || [];
       arr.push(p);
       map.set(key, arr);
@@ -760,7 +774,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
               <div>
                 <p>{loc.nom || `${loc.latitude},${loc.longitude}`}</p>
                 <p>Occurrences : {loc.count}</p>
-                {loc.lastDate && <p>Dernière visite : {formatDate(loc.lastDate)}</p>}
+                {loc.lastDate && (
+                  <p>
+                    Dernière visite : {formatDate(loc.lastDate)}
+                    {loc.lastTime && ` à ${loc.lastTime}`}
+                  </p>
+                )}
               </div>
             </Popup>
           </Marker>
@@ -943,7 +962,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                     <tr className="text-left">
                       <th className="pr-4">Lieu</th>
                       <th className="pr-4">Occurrences</th>
-                      <th>Dernière visite</th>
+                      <th className="pr-4">Dernière visite</th>
+                      <th>Heure dernière visite</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -951,7 +971,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                       <tr key={i} className="border-t">
                         <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
                         <td className="pr-4 text-gray-800 dark:text-white">{l.count}</td>
-                        <td>{l.lastDate && formatDate(l.lastDate)}</td>
+                        <td className="pr-4">{l.lastDate && formatDate(l.lastDate)}</td>
+                        <td>{l.lastTime}</td>
                       </tr>
                     ))}
                   </tbody>

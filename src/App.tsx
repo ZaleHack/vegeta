@@ -10,8 +10,6 @@ import {
   Edit,
   Trash2,
   Key,
-  Eye,
-  EyeOff,
   Download,
   Menu,
   X,
@@ -42,6 +40,21 @@ import {
   ClipboardList,
   Bell
 } from 'lucide-react';
+
+const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...props}>
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const HiddenIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...props}>
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+    <line x1="1" y1="1" x2="23" y2="23" />
+  </svg>
+);
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -1397,9 +1410,8 @@ useEffect(() => {
       const allPaths: CdrPoint[] = [];
 
       for (const id of ids) {
-        const param = id.length === 15 ? 'imei' : 'phone';
         const params = new URLSearchParams();
-        params.append(param, id);
+        params.append('phone', id);
         if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
         if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
         if (cdrStartTime) params.append('startTime', cdrStartTime);
@@ -1496,7 +1508,7 @@ useEffect(() => {
       return;
     }
     if (cdrIdentifiers.length === 0) {
-      setCdrError('Numéro ou IMEI requis');
+      setCdrError('Numéro requis');
       return;
     }
     await fetchCdrData();
@@ -1968,7 +1980,7 @@ useEffect(() => {
                 addCdrIdentifier();
               }
             }}
-            placeholder="Ajouter un numéro ou IMEI"
+            placeholder="Ajouter un numéro"
             className="flex-1 min-w-[120px] border-none focus:outline-none focus:ring-0"
           />
         </div>
@@ -4207,7 +4219,11 @@ useEffect(() => {
                       className="absolute inset-y-0 right-0 pr-3 flex items-center"
                       onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
                     >
-                      {showPasswords.current ? <Eye className="h-4 w-4 text-gray-400" /> : <EyeOff className="h-4 w-4 text-gray-400" />}
+                      {showPasswords.current ? (
+                        <VisibleIcon className="h-4 w-4 text-gray-400" />
+                      ) : (
+                        <HiddenIcon className="h-4 w-4 text-gray-400" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -4229,7 +4245,11 @@ useEffect(() => {
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
                   >
-                    {showPasswords.new ? <Eye className="h-4 w-4 text-gray-400" /> : <EyeOff className="h-4 w-4 text-gray-400" />}
+                    {showPasswords.new ? (
+                      <VisibleIcon className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <HiddenIcon className="h-4 w-4 text-gray-400" />
+                    )}
                   </button>
                 </div>
                 <p className="mt-1 text-sm text-gray-500">Minimum 6 caractères</p>
@@ -4251,7 +4271,11 @@ useEffect(() => {
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
                   >
-                    {showPasswords.confirm ? <Eye className="h-4 w-4 text-gray-400" /> : <EyeOff className="h-4 w-4 text-gray-400" />}
+                    {showPasswords.confirm ? (
+                      <VisibleIcon className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <HiddenIcon className="h-4 w-4 text-gray-400" />
+                    )}
                   </button>
                 </div>
               </div>
