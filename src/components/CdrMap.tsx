@@ -279,15 +279,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
       }))
       .sort((a, b) => b.total - a.total);
 
-    const locations: LocationStat[] = Array.from(locationMap.values()).sort(
-      (a, b) => b.count - a.count
-    );
+    const locations: LocationStat[] = Array.from(locationMap.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
 
-    const recent: LocationStat[] = Array.from(locationMap.values()).sort(
-      (a, b) =>
-        new Date(b.lastDate || 0).getTime() -
-        new Date(a.lastDate || 0).getTime()
-    );
+    const recent: LocationStat[] = Array.from(locationMap.values())
+      .sort(
+        (a, b) =>
+          new Date(b.lastDate || 0).getTime() -
+          new Date(a.lastDate || 0).getTime()
+      )
+      .slice(0, 10);
 
     return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: points.length };
   }, [points]);
