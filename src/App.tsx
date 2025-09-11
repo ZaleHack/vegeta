@@ -597,6 +597,8 @@ const App: React.FC = () => {
   const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
   const [showMeetingPoints, setShowMeetingPoints] = useState(false);
+  const [zoneMenu, setZoneMenu] = useState(false);
+  const [zoneMode, setZoneMode] = useState<'rectangle' | 'circle' | null>(null);
 
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
@@ -3345,6 +3347,8 @@ useEffect(() => {
                       points={cdrResult.path}
                       showRoute={cdrItinerary}
                       showMeetingPoints={showMeetingPoints}
+                      zoneMode={zoneMode}
+                      onZoneCreated={() => setZoneMode(null)}
                     />
                   </div>
                   <button
@@ -3355,6 +3359,36 @@ useEffect(() => {
                     <X className="w-5 h-5" />
                   </button>
                   {renderCdrSearchForm()}
+                  <div className="fixed bottom-4 left-4 z-[1000] space-y-2">
+                    <button
+                      onClick={() => setZoneMenu((z) => !z)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-full shadow"
+                    >
+                      Créer une Zone
+                    </button>
+                    {zoneMenu && (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => {
+                            setZoneMode('rectangle');
+                            setZoneMenu(false);
+                          }}
+                          className="px-3 py-1 bg-white text-gray-800 rounded shadow"
+                        >
+                          Rectangulaire
+                        </button>
+                        <button
+                          onClick={() => {
+                            setZoneMode('circle');
+                            setZoneMenu(false);
+                          }}
+                          className="px-3 py-1 bg-white text-gray-800 rounded shadow"
+                        >
+                          Circulaire
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
               {linkDiagram && (
