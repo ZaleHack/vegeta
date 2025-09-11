@@ -2123,7 +2123,7 @@ useEffect(() => {
                 onClick={() =>
                   setTheme(theme === 'dark' ? 'light' : 'dark')
                 }
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white transition-colors"
                 aria-label="Toggle theme"
               >
                 {theme === 'dark' ? (
@@ -2134,7 +2134,7 @@ useEffect(() => {
               </button>
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white transition-colors"
               >
                 {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
@@ -2150,7 +2150,7 @@ useEffect(() => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'dashboard'
                   ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Activity className="h-5 w-5" />
@@ -2162,7 +2162,7 @@ useEffect(() => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'search'
                   ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Search className="h-5 w-5" />
@@ -2174,7 +2174,7 @@ useEffect(() => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'annuaire'
                   ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Phone className="h-5 w-5" />
@@ -2186,7 +2186,7 @@ useEffect(() => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'ong'
                   ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Globe className="h-5 w-5" />
@@ -2198,7 +2198,7 @@ useEffect(() => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'entreprises'
                   ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Building2 className="h-5 w-5" />
@@ -2210,7 +2210,7 @@ useEffect(() => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'vehicules'
                   ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Car className="h-5 w-5" />
@@ -2222,7 +2222,7 @@ useEffect(() => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr'
                   ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <Clock className="h-5 w-5" />
@@ -2234,7 +2234,7 @@ useEffect(() => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'requests'
                   ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <ClipboardList className="h-5 w-5" />
@@ -2249,7 +2249,7 @@ useEffect(() => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'profiles'
                   ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <FileText className="h-5 w-5" />
@@ -2261,7 +2261,7 @@ useEffect(() => {
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'links'
                   ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
               <LinkIcon className="h-5 w-5" />
@@ -2274,7 +2274,7 @@ useEffect(() => {
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'users'
                     ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
                 } ${!sidebarOpen && 'justify-center'}`}
               >
                 <Users className="h-5 w-5" />
@@ -2288,7 +2288,7 @@ useEffect(() => {
                 className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'upload'
                     ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
               >
                 <Upload className="h-5 w-5" />
@@ -2351,7 +2351,7 @@ useEffect(() => {
               <div className="flex justify-end mb-4 relative">
                 <button
                   onClick={handleNotificationClick}
-                  className="relative p-2 rounded-full hover:bg-blue-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                  className="relative p-2 rounded-full hover:bg-blue-50 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 >
                   <Bell className="h-6 w-6" />
                   {notificationCount > 0 && (
@@ -2380,7 +2380,7 @@ useEffect(() => {
                           return (
                             <div
                               key={r.id}
-                              className={`p-4 text-sm flex items-center hover:bg-gray-50 dark:hover:bg-gray-700 ${isUnread ? 'font-medium' : 'text-gray-500 dark:text-gray-400'}`}
+                              className={`p-4 text-sm flex items-center hover:bg-gray-50 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white ${isUnread ? 'font-medium' : 'text-gray-500 dark:text-gray-400'}`}
                             >
                               <span className={`w-2 h-2 rounded-full mr-2 ${isUnread ? 'bg-blue-600' : 'bg-transparent'}`}></span>
                               <span>{r.phone} a été identifié par l'administrateur</span>
@@ -2462,7 +2462,7 @@ useEffect(() => {
                       <div className="flex space-x-2">
                         <button
                           onClick={() => setViewMode(viewMode === 'list' ? 'profile' : 'list')}
-                          className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
+                          className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
                         >
                           {viewMode === 'list' ? (
                             <>
@@ -2479,7 +2479,7 @@ useEffect(() => {
                         {searchResults.hits.length > 0 && (
                           <button
                             onClick={exportToCSV}
-                            className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
+                            className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
                           >
                             <Download className="w-4 h-4 mr-2" />
                             Export CSV
