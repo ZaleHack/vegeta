@@ -396,7 +396,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
 
   const meetingPoints = useMemo<MeetingPoint[]>(() => {
     // Group events by location regardless of start time
-    const locationMap = new Map<string, { lat: number; lng: number; nom: string; events: Point[] }>();
+    const locationMap = new Map<
+      string,
+      { lat: number; lng: number; nom: string; events: Point[] }
+    >();
     points.forEach((p) => {
       if (!p.source) return;
       const key = `${p.latitude},${p.longitude}`;
@@ -414,84 +417,127 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
     const result: MeetingPoint[] = [];
 
     locationMap.forEach((loc) => {
-      // Collect events that overlap in time between different numbers
-      const overlaps = new Set<Point>();
       const evs = loc.events;
-      for (let i = 0; i < evs.length; i++) {
-        for (let j = i + 1; j < evs.length; j++) {
-          const a = evs[i];
-          const b = evs[j];
-          if (!a.source || !b.source || a.source === b.source) continue;
+      if (evs.length < 2) return;
 
-          const startA = new Date(`${a.callDate}T${a.startTime}`);
-          const endA = new Date(`${a.endDate || a.callDate}T${a.endTime}`);
-          const startB = new Date(`${b.callDate}T${b.startTime}`);
-          const endB = new Date(`${b.endDate || b.callDate}T${b.endTime}`);
-
-          // Overlap if each starts before the other ends
-          if (startA < endB && startB < endA) {
-            overlaps.add(a);
-            overlaps.add(b);
-          }
-        }
-      }
-
-      const overlapEvents = Array.from(overlaps);
-      if (overlapEvents.length < 2) return;
-
-      const numbers = Array.from(new Set(overlapEvents.map((e) => e.source!).filter(Boolean)));
-      const perNumber = numbers.map((num) => {
-        const evts = overlapEvents
-          .filter((e) => e.source === num)
-          .map((e) => {
-            const s = new Date(`${e.callDate}T${e.startTime}`);
-            const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
-            const durationSec = Math.max(0, (en.getTime() - s.getTime()) / 1000);
-            return {
-              date: formatDate(e.callDate),
-              start: e.startTime,
-              end: e.endTime,
-              duration: new Date(durationSec * 1000).toISOString().substr(11, 8),
-              durationSec
-            };
-          });
-        const totalSec = evts.reduce((a, b) => a + b.durationSec, 0);
-        const total = new Date(totalSec * 1000).toISOString().substr(11, 8);
-        return {
-          number: num,
-          events: evts.map(({ date, start, end, duration }) => ({ date, start, end, duration })),
-          total,
-          totalSec
-        };
+      // Build timeline of all events to detect distinct overlapping windows
+      const timeline: { time: Date; type: 'start' | 'end'; index: number }[] = [];
+      evs.forEach((e, idx) => {
+        timeline.push({
+          time: new Date(`${e.callDate}T${e.startTime}`),
+          type: 'start',
+          index: idx
+        });
+        timeline.push({
+          time: new Date(`${e.endDate || e.callDate}T${e.endTime}`),
+          type: 'end',
+          index: idx
+        });
       });
 
-      const overallSec = perNumber.reduce((sum, n) => sum + n.totalSec, 0);
-      const startDate = overlapEvents.reduce((min, e) => {
-        const s = new Date(`${e.callDate}T${e.startTime}`);
-        return s < min ? s : min;
-      }, new Date(`${overlapEvents[0].callDate}T${overlapEvents[0].startTime}`));
-      const endDate = overlapEvents.reduce((max, e) => {
-        const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
-        return en > max ? en : max;
-      }, new Date(`${overlapEvents[0].endDate || overlapEvents[0].callDate}T${overlapEvents[0].endTime}`));
-      const dateStr = formatDate(startDate.toISOString().split('T')[0]);
-      const startStr = `${dateStr} ${startDate.toTimeString().substr(0, 8)}`;
-      const endStr = `${formatDate(endDate.toISOString().split('T')[0])} ${endDate
-        .toTimeString()
-        .substr(0, 8)}`;
-      const total = new Date(overallSec * 1000).toISOString().substr(11, 8);
+      timeline.sort((a, b) => {
+        const diff = a.time.getTime() - b.time.getTime();
+        if (diff !== 0) return diff;
+        if (a.type === b.type) return 0;
+        return a.type === 'end' ? -1 : 1;
+      });
 
-      result.push({
-        lat: loc.lat,
-        lng: loc.lng,
-        nom: loc.nom,
-        numbers,
-        perNumber: perNumber.map(({ totalSec, ...rest }) => rest),
-        events: overlapEvents,
-        date: dateStr,
-        start: startStr,
-        end: endStr,
-        total
+      const active = new Set<number>();
+      const windows: { start: Date; end: Date }[] = [];
+      let windowStart: Date | null = null;
+
+      const getActiveSources = () =>
+        new Set(
+          Array.from(active).map((i) => evs[i].source).filter(Boolean) as string[]
+        );
+
+      timeline.forEach(({ time, type, index }) => {
+        if (type === 'start') {
+          active.add(index);
+          const sources = getActiveSources();
+          if (windowStart === null && sources.size >= 2) {
+            windowStart = time;
+          }
+        } else {
+          const wasMeeting = windowStart !== null;
+          active.delete(index);
+          const sources = getActiveSources();
+          if (wasMeeting && sources.size < 2) {
+            windows.push({ start: windowStart!, end: time });
+            windowStart = null;
+          }
+        }
+      });
+
+      windows.forEach(({ start, end }) => {
+        const groupEvents = evs.filter((e) => {
+          const s = new Date(`${e.callDate}T${e.startTime}`);
+          const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
+          return s < end && start < en;
+        });
+
+        const numbers = Array.from(
+          new Set(groupEvents.map((e) => e.source!).filter(Boolean))
+        );
+        if (numbers.length < 2) return;
+
+        const perNumber = numbers.map((num) => {
+          const evts = groupEvents
+            .filter((e) => e.source === num)
+            .map((e) => {
+              const s = new Date(`${e.callDate}T${e.startTime}`);
+              const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
+              const overlapStart = s < start ? start : s;
+              const overlapEnd = en > end ? end : en;
+              const durationSec = Math.max(
+                0,
+                (overlapEnd.getTime() - overlapStart.getTime()) / 1000
+              );
+              return {
+                date: formatDate(overlapStart.toISOString().split('T')[0]),
+                start: overlapStart.toTimeString().substr(0, 8),
+                end: overlapEnd.toTimeString().substr(0, 8),
+                duration: new Date(durationSec * 1000)
+                  .toISOString()
+                  .substr(11, 8),
+                durationSec
+              };
+            });
+          const totalSec = evts.reduce((a, b) => a + b.durationSec, 0);
+          const total = new Date(totalSec * 1000).toISOString().substr(11, 8);
+          return {
+            number: num,
+            events: evts.map(({ date, start, end, duration }) => ({
+              date,
+              start,
+              end,
+              duration
+            })),
+            total,
+            totalSec
+          };
+        });
+
+        const overallSec = perNumber.reduce((sum, n) => sum + n.totalSec, 0);
+        const dateStr = formatDate(start.toISOString().split('T')[0]);
+        const startStr = `${dateStr} ${start.toTimeString().substr(0, 8)}`;
+        const endStr = `${formatDate(
+          end.toISOString().split('T')[0]
+        )} ${end.toTimeString().substr(0, 8)}`;
+        const total = new Date(overallSec * 1000).toISOString().substr(11, 8);
+
+        result.push({
+          lat: loc.lat,
+          lng: loc.lng,
+          nom: loc.nom,
+          numbers,
+          perNumber: perNumber.map(({ totalSec, ...rest }) => rest),
+          events: groupEvents,
+          date: dateStr,
+          start: startStr,
+          end: endStr,
+          total
+        });
       });
     });
 
