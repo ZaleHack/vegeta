@@ -70,7 +70,15 @@ interface Props {
   showRoute?: boolean;
   showMeetingPoints?: boolean;
 }
-const getIcon = (type: string, direction: string | undefined, color: string) => {
+
+const getPointColor = (type: string, direction?: string) => {
+  if (type === 'web') return '#dc2626';
+  if (type === 'sms') return '#16a34a';
+  if (direction === 'outgoing') return '#2563eb';
+  return '#16a34a';
+};
+
+const getIcon = (type: string, direction: string | undefined) => {
   const size = 32;
   let inner: React.ReactElement;
 
@@ -90,7 +98,7 @@ const getIcon = (type: string, direction: string | undefined, color: string) => 
   const icon = (
     <div
       style={{
-        backgroundColor: color,
+        backgroundColor: getPointColor(type, direction),
         borderRadius: '9999px',
         width: size,
         height: size,
@@ -151,11 +159,11 @@ const createLabelIcon = (text: string, bgColor: string) => {
   });
 };
 
-const getGroupIcon = (count: number, color: string) => {
+const getGroupIcon = (count: number, type: string, direction: string | undefined) => {
   const size = 32;
   const icon = (
     <div className="relative">
-      <Layers size={size} style={{ color }} />
+      <Layers size={size} style={{ color: getPointColor(type, direction) }} />
       <span className="absolute -top-1 -right-1 bg-gray-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
         {count}
       </span>
@@ -242,20 +250,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
     if (key === 'recent') setRecentPage(1);
     if (key === 'popular') setPopularPage(1);
   };
-
-  const colorPalette = ['#f97316', '#3b82f6', '#a855f7', '#10b981', '#e11d48', '#14b8a6', '#4b5563'];
-
-  const colorMap = useMemo(() => {
-    const map = new Map<string, string>();
-    let idx = 0;
-    points.forEach((p) => {
-      if (p.source && !map.has(p.source)) {
-        map.set(p.source, colorPalette[idx % colorPalette.length]);
-        idx += 1;
-      }
-    });
-    return map;
-  }, [points]);
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
     const contactMap = new Map<string, { callCount: number; smsCount: number }>();
@@ -510,8 +504,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
                 position={[group.lat, group.lng]}
                 icon={getIcon(
                   loc.type,
-                  loc.direction,
-                  colorMap.get(loc.source || '') || '#4b5563'
+                  loc.direction
                 )}
               >
                 <Popup>
@@ -571,7 +564,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
               position={[group.lat, group.lng]}
               icon={getGroupIcon(
                 group.events.length,
-                colorMap.get(first.source || '') || '#7e22ce'
+                first.type,
+                first.direction
               )}
             >
               <Popup>
@@ -713,21 +707,29 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints }) => {
           </button>
         </div>
 
-        {colorMap.size > 1 && (
-          <div className="absolute left-2 top-24 z-[1000]">
-            <div className="bg-white/80 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-3 text-xs text-gray-700">
-              <p className="font-bold text-sm mb-2 border-b border-gray-200 pb-1">Légende</p>
-              <ul className="space-y-1">
-                {[...colorMap.entries()].map(([num, color]) => (
-                  <li key={num} className="flex items-center space-x-2">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></span>
-                    <span>{num}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <div className="absolute left-2 top-24 z-[1000]">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-3 text-xs text-gray-700">
+            <p className="font-bold text-sm mb-2 border-b border-gray-200 pb-1">Légende</p>
+            <ul className="space-y-1">
+              <li className="flex items-center space-x-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#16a34a' }}></span>
+                <span>Appel entrant</span>
+              </li>
+              <li className="flex items-center space-x-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#2563eb' }}></span>
+                <span>Appel sortant</span>
+              </li>
+              <li className="flex items-center space-x-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#16a34a' }}></span>
+                <span>SMS</span>
+              </li>
+              <li className="flex items-center space-x-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#dc2626' }}></span>
+                <span>Position</span>
+              </li>
+            </ul>
           </div>
-        )}
+        </div>
 
         {showRoute && (
           <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">
