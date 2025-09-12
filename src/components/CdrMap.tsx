@@ -287,6 +287,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     return map;
   }, [sourceNumbers]);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
+  const [visibleSources, setVisibleSources] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setVisibleSources(new Set(sourceNumbers));
+  }, [sourceNumbers]);
 
   useEffect(() => {
     if (sourceNumbers.length < 2) setShowSimilar(false);
@@ -303,6 +308,15 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       setSelectedSource(null);
     }
   }, [sourceNumbers, selectedSource]);
+
+  const toggleSourceVisibility = (src: string) => {
+    setVisibleSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(src)) next.delete(src);
+      else next.add(src);
+      return next;
+    });
+  };
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular') => {
     setShowZoneInfo(false);
     setActiveInfo((prev) => (prev === key ? null : key));
@@ -347,6 +361,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     let filtered = points;
     if (selectedSource) {
       filtered = filtered.filter((p) => p.source === selectedSource);
+    } else {
+      filtered = filtered.filter((p) => !p.source || visibleSources.has(p.source));
     }
     if (!zoneShape || zoneShape.length < 3) return filtered;
     return filtered.filter((p) => {
@@ -355,7 +371,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       if (isNaN(lat) || isNaN(lng)) return false;
       return pointInPolygon(L.latLng(lat, lng), zoneShape);
     });
-  }, [points, zoneShape, selectedSource]);
+  }, [points, zoneShape, selectedSource, visibleSources]);
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
     const contactMap = new Map<string, { callCount: number; smsCount: number }>();
@@ -1310,9 +1326,24 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   <li key={n} className="flex items-center space-x-2">
                     <span
                       className="w-5 h-5 rounded-full"
-                      style={{ backgroundColor: colorMap.get(n) }}
+                      style={{
+                        backgroundColor: colorMap.get(n),
+                        opacity: visibleSources.has(n) ? 1 : 0.3
+                      }}
                     ></span>
-                    <span>{n}</span>
+                    <span className={visibleSources.has(n) ? '' : 'line-through'}>
+                      {n}
+                    </span>
+                    <button
+                      className="ml-1"
+                      onClick={() => toggleSourceVisibility(n)}
+                    >
+                      {visibleSources.has(n) ? (
+                        <Eye className="w-4 h-4 text-gray-600" />
+                      ) : (
+                        <EyeOff className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
                   </li>
                 ))
               ) : (
