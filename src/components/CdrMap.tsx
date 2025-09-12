@@ -1340,19 +1340,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <span>Points de rencontre</span>
               </button>
             )}
-            {onToggleZoneMode && (
-              <button
-                onClick={onToggleZoneMode}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors transform hover:scale-105 ${
-                  zoneMode
-                    ? 'bg-green-700 text-white'
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
-              >
-                <Square className="w-4 h-4" />
-                <span>{zoneMode ? 'Annuler' : 'Créer une zone'}</span>
-              </button>
-            )}
             {(activeInfo === 'recent' ||
               activeInfo === 'popular' ||
               showMeetingPoints ||
@@ -1371,6 +1358,22 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             )}
           </div>
         </div>
+
+        {onToggleZoneMode && (
+          <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-[1000] flex justify-center">
+            <button
+              onClick={onToggleZoneMode}
+              className={`pointer-events-auto flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors transform hover:scale-105 ${
+                zoneMode
+                  ? 'bg-green-700 text-white'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              <Square className="w-4 h-4" />
+              <span>{zoneMode ? 'Annuler' : 'Créer une zone'}</span>
+            </button>
+          </div>
+        )}
 
         <div className="absolute left-2 top-24 z-[1000]">
           <div className="bg-white/80 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-3 text-xs text-gray-700">
