@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Polygon, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Polygon, CircleMarker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import {
   PhoneIncoming,
@@ -15,7 +15,8 @@ import {
   Eye,
   EyeOff,
   Activity,
-  Square
+  Square,
+  Crosshair
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -211,6 +212,122 @@ const formatDate = (d: string) => {
   return `${day}/${month}/${year}`;
 };
 
+const getLocationRadius = (nom: string) => {
+  const name = nom.toLowerCase();
+  if (name.includes('urbain')) return 200;
+  if (name.includes('peri')) return 600;
+  if (name.includes('rural')) return 2000;
+  return 1000;
+};
+
+type Coord = [number, number]; // [lng, lat]
+
+const convexHull = (points: Coord[]): Coord[] => {
+  if (points.length <= 1) return points;
+  const pts = points.slice().sort((a, b) => (a[0] === b[0] ? a[1] - b[1] : a[0] - b[0]));
+  const cross = (o: Coord, a: Coord, b: Coord) =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower: Coord[] = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0)
+      lower.pop();
+    lower.push(p);
+  }
+  const upper: Coord[] = [];
+  for (const p of pts.slice().reverse()) {
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0)
+      upper.pop();
+    upper.push(p);
+  }
+  upper.pop();
+  lower.pop();
+  return lower.concat(upper);
+};
+
+const bufferPolygon = (coords: Coord[], center: Coord, buffer: number): Coord[] => {
+  const latFactor = buffer / 111320;
+  const lonFactor = buffer / (111320 * Math.cos((center[1] * Math.PI) / 180));
+  return coords.map(([lng, lat]) => {
+    const latDiff = lat - center[1];
+    const lngDiff = lng - center[0];
+    const len =
+      Math.sqrt((latDiff / latFactor) ** 2 + (lngDiff / lonFactor) ** 2) || 1;
+    const scale = (len + 1) / len;
+    return [center[0] + lngDiff * scale, center[1] + latDiff * scale];
+  });
+};
+
+const createCircle = (center: [number, number], radius: number, steps = 32): [number, number][] => {
+  const [lat, lng] = center;
+  const coords: [number, number][] = [];
+  const radLat = (lat * Math.PI) / 180;
+  const radLng = (lng * Math.PI) / 180;
+  const d = radius / 6378137; // Earth radius
+  for (let i = 0; i <= steps; i++) {
+    const bearing = (i * 360) / steps;
+    const br = (bearing * Math.PI) / 180;
+    const lat2 = Math.asin(
+      Math.sin(radLat) * Math.cos(d) + Math.cos(radLat) * Math.sin(d) * Math.cos(br)
+    );
+    const lng2 =
+      radLng +
+      Math.atan2(
+        Math.sin(br) * Math.sin(d) * Math.cos(radLat),
+        Math.cos(d) - Math.sin(radLat) * Math.sin(lat2)
+      );
+    coords.push([(lat2 * 180) / Math.PI, (lng2 * 180) / Math.PI]);
+  }
+  return coords;
+};
+
+interface TriangulationZone {
+  barycenter: [number, number]; // [lat, lng]
+  polygon: [number, number][]; // [lat, lng]
+  cells: [number, number][]; // [lat, lng]
+  timestamp: number;
+}
+
+const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
+  const groups: Record<string, Point[]> = {};
+  pts.forEach((p) => {
+    const key = `${p.callDate}-${p.startTime}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(p);
+  });
+  const zones: TriangulationZone[] = [];
+  Object.values(groups).forEach((g) => {
+    const unique = new Map<string, Point>();
+    g.forEach((p) => unique.set(`${p.latitude},${p.longitude}`, p));
+    const cells = Array.from(unique.values());
+    if (cells.length === 0) return;
+    const latSum = cells.reduce((s, c) => s + parseFloat(c.latitude), 0);
+    const lngSum = cells.reduce((s, c) => s + parseFloat(c.longitude), 0);
+    const centerLat = latSum / cells.length;
+    const centerLng = lngSum / cells.length;
+    const radius = Math.max(...cells.map((c) => getLocationRadius(c.nom || '')));
+    let poly: [number, number][] = [];
+    if (cells.length >= 3) {
+      const coords: Coord[] = cells.map((c) => [
+        parseFloat(c.longitude),
+        parseFloat(c.latitude)
+      ]);
+      const hull = convexHull(coords);
+      const buff = bufferPolygon(hull, [centerLng, centerLat], radius);
+      poly = buff.map(([lng, lat]) => [lat, lng]);
+      if (poly.length > 0) poly.push(poly[0]);
+    } else {
+      poly = createCircle([centerLat, centerLng], radius);
+    }
+    zones.push({
+      barycenter: [centerLat, centerLng],
+      polygon: poly,
+      cells: cells.map((c) => [parseFloat(c.latitude), parseFloat(c.longitude)]),
+      timestamp: new Date(`${cells[0].callDate}T${cells[0].startTime}`).getTime()
+    });
+  });
+  return zones.sort((a, b) => a.timestamp - b.timestamp);
+};
+
 const MeetingPointMarker: React.FC<{
   mp: MeetingPoint;
 }> = React.memo(({ mp }) => {
@@ -275,6 +392,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const [showZoneInfo, setShowZoneInfo] = useState(false);
   const [hiddenLocations, setHiddenLocations] = useState<Set<string>>(new Set());
   const [showSimilar, setShowSimilar] = useState(false);
+  const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
 
   const sourceNumbers = useMemo(
     () =>
@@ -374,6 +492,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       return pointInPolygon(L.latLng(lat, lng), zoneShape);
     });
   }, [points, zoneShape, selectedSource, visibleSources]);
+
+  const handleTriangulation = () => {
+    if (triangulationZones.length > 0) {
+      setTriangulationZones([]);
+    } else {
+      setTriangulationZones(computeTriangulation(displayedPoints));
+    }
+  };
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
     const contactMap = new Map<string, { callCount: number; smsCount: number }>();
@@ -1277,10 +1403,45 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             </Popup>
           </Marker>
         ))}
+        {triangulationZones.map((zone, idx) => (
+          <React.Fragment key={`tri-${idx}`}>
+            <Polygon positions={zone.polygon} pathOptions={{ color: '#7e22ce', weight: 2, fillOpacity: 0.2 }} />
+            {zone.cells.map((c, i) => (
+              <CircleMarker
+                key={`tri-cell-${idx}-${i}`}
+                center={c as [number, number]}
+                radius={4}
+                pathOptions={{ color: '#7e22ce' }}
+              />
+            ))}
+            <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#7e22ce')} />
+          </React.Fragment>
+        ))}
+        {triangulationZones.length > 1 && (
+          <Polyline
+            positions={triangulationZones.map((z) => z.barycenter)}
+            pathOptions={{ color: '#7e22ce', dashArray: '4 4' }}
+          />
+        )}
         </MapContainer>
 
         <div className="pointer-events-none absolute top-2 left-0 right-0 z-[1000] flex justify-center">
           <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
+            <button
+              onClick={handleTriangulation}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                triangulationZones.length > 0
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Crosshair className="w-4 h-4" />
+              <span>
+                {triangulationZones.length > 0
+                  ? 'Effacer localisation'
+                  : 'Localiser approximativement la personne'}
+              </span>
+            </button>
             {sourceNumbers.length >= 2 && (
               <button
                 onClick={() => setShowSimilar((s) => !s)}
