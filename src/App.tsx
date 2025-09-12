@@ -2027,6 +2027,7 @@ useEffect(() => {
             }
             checked={cdrIncoming}
             onChange={setCdrIncoming}
+            activeColor="peer-checked:bg-green-500 dark:peer-checked:bg-green-500"
           />
           <ToggleSwitch
             label={
@@ -2037,6 +2038,7 @@ useEffect(() => {
             }
             checked={cdrOutgoing}
             onChange={setCdrOutgoing}
+            activeColor="peer-checked:bg-blue-500 dark:peer-checked:bg-blue-500"
           />
           <ToggleSwitch
             label={
@@ -2047,6 +2049,7 @@ useEffect(() => {
             }
             checked={cdrSms}
             onChange={setCdrSms}
+            activeColor="peer-checked:bg-green-500 dark:peer-checked:bg-green-500"
           />
           <ToggleSwitch
             label={
@@ -2057,6 +2060,7 @@ useEffect(() => {
             }
             checked={cdrPosition}
             onChange={setCdrPosition}
+            activeColor="peer-checked:bg-red-500 dark:peer-checked:bg-red-500"
           />
           <ToggleSwitch
             label={
@@ -2067,6 +2071,7 @@ useEffect(() => {
             }
             checked={cdrItinerary}
             onChange={setCdrItinerary}
+            activeColor="peer-checked:bg-indigo-500 dark:peer-checked:bg-indigo-500"
           />
         </div>
         <div className="flex gap-2">
