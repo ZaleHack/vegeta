@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Polygon, CircleMarker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polygon, CircleMarker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import {
   PhoneIncoming,
@@ -285,47 +285,38 @@ interface TriangulationZone {
   polygon: [number, number][]; // [lat, lng]
   cells: [number, number][]; // [lat, lng]
   timestamp: number;
+  source: string;
 }
 
 const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
-  const groups: Record<string, Point[]> = {};
+  const bySource: Record<string, Point[]> = {};
   pts.forEach((p) => {
-    const key = `${p.callDate}-${p.startTime}`;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(p);
+    if (!p.source) return;
+    if (!bySource[p.source]) bySource[p.source] = [];
+    bySource[p.source].push(p);
   });
   const zones: TriangulationZone[] = [];
-  Object.values(groups).forEach((g) => {
-    const unique = new Map<string, Point>();
-    g.forEach((p) => unique.set(`${p.latitude},${p.longitude}`, p));
-    const cells = Array.from(unique.values());
-    if (cells.length === 0) return;
-    const latSum = cells.reduce((s, c) => s + parseFloat(c.latitude), 0);
-    const lngSum = cells.reduce((s, c) => s + parseFloat(c.longitude), 0);
-    const centerLat = latSum / cells.length;
-    const centerLng = lngSum / cells.length;
-    const radius = Math.max(...cells.map((c) => getLocationRadius(c.nom || '')));
-    let poly: [number, number][] = [];
-    if (cells.length >= 3) {
-      const coords: Coord[] = cells.map((c) => [
-        parseFloat(c.longitude),
-        parseFloat(c.latitude)
-      ]);
-      const hull = convexHull(coords);
-      const buff = bufferPolygon(hull, [centerLng, centerLat], radius);
-      poly = buff.map(([lng, lat]) => [lat, lng]);
-      if (poly.length > 0) poly.push(poly[0]);
-    } else {
-      poly = createCircle([centerLat, centerLng], radius);
-    }
+  Object.entries(bySource).forEach(([source, list]) => {
+    const locGroups: Record<string, Point[]> = {};
+    list.forEach((p) => {
+      const key = `${p.latitude},${p.longitude}`;
+      if (!locGroups[key]) locGroups[key] = [];
+      locGroups[key].push(p);
+    });
+    const best = Object.values(locGroups).reduce((a, b) => (b.length > a.length ? b : a), [] as Point[]);
+    if (best.length === 0) return;
+    const lat = parseFloat(best[0].latitude);
+    const lng = parseFloat(best[0].longitude);
+    const radius = getLocationRadius(best[0].nom || '');
     zones.push({
-      barycenter: [centerLat, centerLng],
-      polygon: poly,
-      cells: cells.map((c) => [parseFloat(c.latitude), parseFloat(c.longitude)]),
-      timestamp: new Date(`${cells[0].callDate}T${cells[0].startTime}`).getTime()
+      barycenter: [lat, lng],
+      polygon: createCircle([lat, lng], radius),
+      cells: [[lat, lng]],
+      timestamp: new Date(`${best[0].callDate}T${best[0].startTime}`).getTime(),
+      source
     });
   });
-  return zones.sort((a, b) => a.timestamp - b.timestamp);
+  return zones;
 };
 
 const MeetingPointMarker: React.FC<{
@@ -1417,19 +1408,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#7e22ce')}>
               <Popup>
                 <div className="text-sm">
-                  <p className="font-semibold">Localisation approximative {idx + 1}</p>
-                  <p>Ce point représente la position estimée basée sur les cellules triangulées.</p>
+                  <p className="font-semibold">Localisation approximative</p>
+                  <p>Numéro : {zone.source}</p>
                 </div>
               </Popup>
             </Marker>
           </React.Fragment>
         ))}
-        {triangulationZones.length > 1 && (
-          <Polyline
-            positions={triangulationZones.map((z) => z.barycenter)}
-            pathOptions={{ color: '#7e22ce', dashArray: '4 4' }}
-          />
-        )}
         </MapContainer>
 
         <div className="pointer-events-none absolute top-2 left-0 right-0 z-[1000] flex justify-center">
@@ -1570,6 +1555,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   <MapPin className="w-3 h-3 text-white" />
                 </span>
                 <span>Position</span>
+              </li>
+              <li className="flex items-center space-x-2">
+                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#7e22ce' }}>
+                  <MapPin className="w-3 h-3 text-white" />
+                </span>
+                <span>Localisation approximative</span>
               </li>
               {showSimilar ? (
                 similarNumbers.map((n) => (
