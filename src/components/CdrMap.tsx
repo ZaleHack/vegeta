@@ -1165,7 +1165,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         ))}
         </MapContainer>
 
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000]">
+        <div className="absolute top-2 left-0 right-0 z-[1000] flex justify-center">
           <div className="flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
             {sourceNumbers.length >= 2 && (
               <button
@@ -1374,7 +1374,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         )}
 
         {(showZoneInfo || activeInfo) && (
-          <div className="absolute top-2 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
+          <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
             <p className="font-semibold">Total : {total}</p>
             {sourceNumbers.length > 1 && (
               <div className="flex flex-wrap gap-2">
