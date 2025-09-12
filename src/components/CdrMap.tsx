@@ -422,6 +422,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
     });
   };
 
+  const toggleAllLocations = (list: LocationStat[]) => {
+    setHiddenLocations((prev) => {
+      const next = new Set(prev);
+      const keys = list.map((l) => `${l.latitude},${l.longitude},${l.nom || ''}`);
+      const allHidden = keys.every((k) => next.has(k));
+      if (allHidden) keys.forEach((k) => next.delete(k)); else keys.forEach((k) => next.add(k));
+      return next;
+    });
+  };
+
   const locationMarkers = useMemo<LocationMarker[]>(() => {
     if (activeInfo !== 'popular' && activeInfo !== 'recent') return [];
     if (selectedSource === null && sourceNumbers.length > 1) {
@@ -508,10 +518,35 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
       });
       return adjusted;
     }
-    const base = activeInfo === 'popular' ? topLocations : recentLocations;
-    return base
+    const base = (activeInfo === 'popular' ? topLocations : recentLocations)
       .filter((l) => !hiddenLocations.has(`${l.latitude},${l.longitude},${l.nom || ''}`))
       .map((l) => ({ ...l }));
+    const grouped = new Map<string, LocationMarker[]>();
+    base.forEach((m) => {
+      const key = `${m.latitude},${m.longitude}`;
+      let arr = grouped.get(key);
+      if (!arr) {
+        arr = [];
+        grouped.set(key, arr);
+      }
+      arr.push(m);
+    });
+    const adjusted: LocationMarker[] = [];
+    grouped.forEach((group) => {
+      if (group.length === 1) {
+        adjusted.push(group[0]);
+        return;
+      }
+      const angleStep = (2 * Math.PI) / group.length;
+      const radius = 0.0003;
+      group.forEach((m, idx) => {
+        const angle = idx * angleStep;
+        const lat = parseFloat(m.latitude) + radius * Math.cos(angle);
+        const lng = parseFloat(m.longitude) + radius * Math.sin(angle);
+        adjusted.push({ ...m, latitude: lat.toString(), longitude: lng.toString() });
+      });
+    });
+    return adjusted;
   }, [
     activeInfo,
     selectedSource,
@@ -1339,7 +1374,19 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
             )}
             {(showZoneInfo || activeInfo === 'recent') && recentLocations.length > 0 && (
               <div>
-                <p className="font-semibold mb-2">Localisations récentes</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold">Localisations récentes</p>
+                  <button
+                    className="text-blue-600 hover:underline"
+                    onClick={() => toggleAllLocations(recentLocations)}
+                  >
+                    {recentLocations.every((l) =>
+                      hiddenLocations.has(`${l.latitude},${l.longitude},${l.nom || ''}`)
+                    )
+                      ? 'Tout afficher'
+                      : 'Tout cacher'}
+                  </button>
+                </div>
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="text-left">
@@ -1374,7 +1421,19 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
             )}
             {(showZoneInfo || activeInfo === 'popular') && topLocations.length > 0 && (
               <div>
-                <p className="font-semibold mb-2">Lieux les plus visités</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold">Lieux les plus visités</p>
+                  <button
+                    className="text-blue-600 hover:underline"
+                    onClick={() => toggleAllLocations(topLocations)}
+                  >
+                    {topLocations.every((l) =>
+                      hiddenLocations.has(`${l.latitude},${l.longitude},${l.nom || ''}`)
+                    )
+                      ? 'Tout afficher'
+                      : 'Tout cacher'}
+                  </button>
+                </div>
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="text-left">
