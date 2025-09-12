@@ -3364,6 +3364,7 @@ useEffect(() => {
                       onToggleMeetingPoints={() => setShowMeetingPoints((v) => !v)}
                       zoneMode={zoneMode}
                       onZoneCreated={() => setZoneMode(false)}
+                      onToggleZoneMode={() => setZoneMode((z) => !z)}
                     />
                   </div>
                   <button
@@ -3374,14 +3375,6 @@ useEffect(() => {
                     <X className="w-5 h-5" />
                   </button>
                   {renderCdrSearchForm()}
-                  <div className="fixed bottom-4 left-4 z-[1000] space-y-2">
-                    <button
-                      onClick={() => setZoneMode((z) => !z)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-full shadow"
-                    >
-                      {zoneMode ? 'Annuler' : 'Créer une Zone'}
-                    </button>
-                  </div>
                 </>
               )}
               {linkDiagram && (
