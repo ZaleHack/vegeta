@@ -840,6 +840,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
   const [carIndex, setCarIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
+  const [historyDateFilter, setHistoryDateFilter] = useState('');
 
   const paginatedContacts = useMemo(() => {
     const start = (contactPage - 1) * pageSize;
@@ -860,10 +861,21 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       });
   }, [displayedPoints]);
 
+  const availableHistoryDates = useMemo(() => {
+    return Array.from(new Set(historyEvents.map((h) => h.date))).sort(
+      (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    );
+  }, [historyEvents]);
+
+  const filteredHistoryEvents = useMemo(() => {
+    if (!historyDateFilter) return historyEvents;
+    return historyEvents.filter((h) => h.date === historyDateFilter);
+  }, [historyEvents, historyDateFilter]);
+
   const paginatedHistory = useMemo(() => {
     const start = (historyPage - 1) * pageSize;
-    return historyEvents.slice(start, start + pageSize);
-  }, [historyEvents, historyPage, pageSize]);
+    return filteredHistoryEvents.slice(start, start + pageSize);
+  }, [filteredHistoryEvents, historyPage, pageSize]);
 
 
   useEffect(() => {
@@ -1511,7 +1523,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               }`}
             >
               <History className="w-4 h-4" />
-              <span>Historique</span>
+              <span>Historique des déplacements</span>
             </button>
             {sourceNumbers.length >= 2 && (
               <button
@@ -1887,7 +1899,25 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             )}
             {activeInfo === 'history' && historyEvents.length > 0 && (
               <div>
-                <p className="font-semibold mb-2">Historique des localisations</p>
+                <p className="font-semibold mb-2">Historique des déplacements</p>
+                <div className="mb-2">
+                  <label className="mr-2">Filtrer par date:</label>
+                  <select
+                    value={historyDateFilter}
+                    onChange={(e) => {
+                      setHistoryDateFilter(e.target.value);
+                      setHistoryPage(1);
+                    }}
+                    className="border rounded px-2 py-1"
+                  >
+                    <option value="">Toutes les dates</option>
+                    {availableHistoryDates.map((d) => (
+                      <option key={d} value={d}>
+                        {formatDate(d)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="text-left">
@@ -1915,12 +1945,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                     Précédent
                   </button>
                   <span>
-                    Page {historyPage} / {Math.max(1, Math.ceil(historyEvents.length / pageSize))}
+                    Page {historyPage} / {Math.max(1, Math.ceil(filteredHistoryEvents.length / pageSize))}
                   </span>
                   <button
                     className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
                     onClick={() => setHistoryPage((p) => p + 1)}
-                    disabled={historyPage >= Math.ceil(historyEvents.length / pageSize)}
+                    disabled={historyPage >= Math.ceil(filteredHistoryEvents.length / pageSize)}
                   >
                     Suivant
                   </button>
