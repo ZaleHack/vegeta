@@ -1153,6 +1153,80 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               ) : null
             )
           )}
+        {showSimilar && !showOthers &&
+          points
+            .filter((p) => p.source && visibleSimilar.has(p.source))
+            .map((loc, idx) => (
+              <Marker
+                key={`similar-point-${idx}`}
+                position={[
+                  parseFloat(loc.latitude),
+                  parseFloat(loc.longitude)
+                ]}
+                icon={getIcon(loc.type, loc.direction)}
+              >
+                <Popup>
+                  <div className="space-y-2 text-sm">
+                    <p className="font-semibold text-blue-600">
+                      {loc.nom || 'Localisation'}
+                    </p>
+                    <div className="flex items-center space-x-1">
+                      <PhoneOutgoing
+                        size={16}
+                        className="text-gray-700"
+                      />
+                      <span>Appelant: {loc.caller || 'N/A'}</span>
+                    </div>
+                    {loc.type !== 'web' && (
+                      <div className="flex items-center space-x-1">
+                        <PhoneIncoming
+                          size={16}
+                          className="text-gray-700"
+                        />
+                        <span>Appelé: {loc.callee || 'N/A'}</span>
+                      </div>
+                    )}
+                    {loc.type === 'web' ? (
+                      <>
+                        <p>Type: Position</p>
+                        {loc.callDate === loc.endDate ? (
+                          <p>Date: {formatDate(loc.callDate)}</p>
+                        ) : (
+                          <>
+                            <p>Date début: {formatDate(loc.callDate)}</p>
+                            <p>
+                              Date fin: {loc.endDate && formatDate(loc.endDate)}
+                            </p>
+                          </>
+                        )}
+                        <p>Début: {loc.startTime}</p>
+                        <p>Fin: {loc.endTime}</p>
+                        <p>Durée: {loc.duration || 'N/A'}</p>
+                      </>
+                    ) : loc.type === 'sms' ? (
+                      <>
+                        <p>Type: SMS</p>
+                        <p>Date: {formatDate(loc.callDate)}</p>
+                        <p>Heure: {loc.startTime}</p>
+                      </>
+                    ) : (
+                      <>
+                        <p>
+                          Type:{' '}
+                          {loc.direction === 'outgoing'
+                            ? 'Appel Sortant'
+                            : 'Appel Entrant'}
+                        </p>
+                        <p>Date: {formatDate(loc.callDate)}</p>
+                        <p>Début: {loc.startTime}</p>
+                        <p>Fin: {loc.endTime}</p>
+                        <p>Durée: {loc.duration || 'N/A'}</p>
+                      </>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
         {locationMarkers.map((loc, idx) => (
           <Marker
             key={`stat-${idx}`}
@@ -1252,8 +1326,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             {onToggleZoneMode && (
               <button
                 onClick={onToggleZoneMode}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  zoneMode ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors transform hover:scale-105 ${
+                  zoneMode
+                    ? 'bg-green-700 text-white'
+                    : 'bg-green-600 text-white hover:bg-green-700'
                 }`}
               >
                 <Square className="w-4 h-4" />
