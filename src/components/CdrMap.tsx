@@ -460,7 +460,34 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
               });
         sorted.slice(0, 10).forEach((loc) => markers.push({ ...loc, source: src }));
       });
-      return markers;
+      const grouped = new Map<string, LocationMarker[]>();
+      markers.forEach((m) => {
+        const key = `${m.latitude},${m.longitude}`;
+        let arr = grouped.get(key);
+        if (!arr) {
+          arr = [];
+          grouped.set(key, arr);
+        }
+        arr.push(m);
+      });
+      const adjusted: LocationMarker[] = [];
+      grouped.forEach((group) => {
+        if (group.length === 1) {
+          adjusted.push(group[0]);
+          return;
+        }
+        const angleStep = (2 * Math.PI) / group.length;
+        const radius = 0.0003;
+        group.forEach((m, idx) => {
+          const angle = idx * angleStep;
+          const lat =
+            parseFloat(m.latitude) + radius * Math.cos(angle);
+          const lng =
+            parseFloat(m.longitude) + radius * Math.sin(angle);
+          adjusted.push({ ...m, latitude: lat.toString(), longitude: lng.toString() });
+        });
+      });
+      return adjusted;
     }
     const base = activeInfo === 'popular' ? topLocations : recentLocations;
     return base.map((l) => ({ ...l }));
