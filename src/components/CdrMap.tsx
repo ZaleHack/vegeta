@@ -14,7 +14,8 @@ import {
   Flame,
   Eye,
   EyeOff,
-  Activity
+  Activity,
+  Square
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -81,6 +82,7 @@ interface Props {
   onToggleMeetingPoints?: () => void;
   zoneMode?: boolean;
   onZoneCreated?: () => void;
+  onToggleZoneMode?: () => void;
 }
 
 const getPointColor = (type: string, direction?: string) => {
@@ -260,7 +262,7 @@ const MeetingPointMarker: React.FC<{
   );
 });
 
-const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated }) => {
+const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated, onToggleZoneMode }) => {
   if (!points || points.length === 0) return null;
 
   const first = points[0];
@@ -1245,6 +1247,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               >
                 <MapPin className="w-4 h-4" />
                 <span>Points de rencontre</span>
+              </button>
+            )}
+            {onToggleZoneMode && (
+              <button
+                onClick={onToggleZoneMode}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  zoneMode ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Square className="w-4 h-4" />
+                <span>{zoneMode ? 'Annuler' : 'Créer une zone'}</span>
               </button>
             )}
             {(activeInfo === 'recent' ||
