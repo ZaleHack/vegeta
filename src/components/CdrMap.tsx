@@ -566,9 +566,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
   const showBaseMarkers = useMemo(
     () =>
-      !(activeInfo === 'recent' || activeInfo === 'popular' || showMeetingPoints) ||
+      !(
+        activeInfo === 'recent' ||
+        activeInfo === 'popular' ||
+        showMeetingPoints ||
+        showSimilar
+      ) ||
       showOthers,
-    [activeInfo, showMeetingPoints, showOthers]
+    [activeInfo, showMeetingPoints, showSimilar, showOthers]
   );
 
   const routePositions = useMemo(() => {
@@ -1226,7 +1231,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <span>Points de rencontre</span>
               </button>
             )}
-            {(activeInfo === 'recent' || activeInfo === 'popular' || showMeetingPoints) && (
+            {(activeInfo === 'recent' ||
+              activeInfo === 'popular' ||
+              showMeetingPoints ||
+              showSimilar) && (
               <button
                 onClick={() => setShowOthers((s) => !s)}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
