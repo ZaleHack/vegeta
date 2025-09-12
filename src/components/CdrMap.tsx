@@ -699,6 +699,25 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     });
   };
 
+  const similarPoints = useMemo(
+    () =>
+      points.filter(
+        (p) => p.source && visibleSimilar.has(p.source)
+      ),
+    [points, visibleSimilar]
+  );
+
+  const connectorPoints = useMemo(() => {
+    const coords = new Set(
+      similarSegments.flatMap((seg) =>
+        seg.positions.map((pos) => pos.join(','))
+      )
+    );
+    return similarPoints.filter((p) =>
+      coords.has(`${parseFloat(p.latitude)},${parseFloat(p.longitude)}`)
+    );
+  }, [similarSegments, similarPoints]);
+
   const [carIndex, setCarIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
 
@@ -1153,28 +1172,26 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               ) : null
             )
           )}
-        {showSimilar && !showOthers &&
-          points
-            .filter((p) => p.source && visibleSimilar.has(p.source))
-            .map((loc, idx) => (
-              <Marker
-                key={`similar-point-${idx}`}
-                position={[
-                  parseFloat(loc.latitude),
-                  parseFloat(loc.longitude)
-                ]}
-                icon={getIcon(loc.type, loc.direction)}
-              >
-                <Popup>
-                  <div className="space-y-2 text-sm">
-                    <p className="font-semibold text-blue-600">
-                      {loc.nom || 'Localisation'}
-                    </p>
-                    <div className="flex items-center space-x-1">
-                      <PhoneOutgoing
-                        size={16}
-                        className="text-gray-700"
-                      />
+        {showSimilar &&
+          (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
+            <Marker
+              key={`similar-point-${idx}`}
+              position={[
+                parseFloat(loc.latitude),
+                parseFloat(loc.longitude)
+              ]}
+              icon={getIcon(loc.type, loc.direction)}
+            >
+              <Popup>
+                <div className="space-y-2 text-sm">
+                  <p className="font-semibold text-blue-600">
+                    {loc.nom || 'Localisation'}
+                  </p>
+                  <div className="flex items-center space-x-1">
+                    <PhoneOutgoing
+                      size={16}
+                      className="text-gray-700"
+                    />
                       <span>Appelant: {loc.caller || 'N/A'}</span>
                     </div>
                     {loc.type !== 'web' && (
