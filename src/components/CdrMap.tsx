@@ -52,6 +52,10 @@ interface LocationStat {
   lastTime?: string;
 }
 
+interface LocationMarker extends LocationStat {
+  source?: string;
+}
+
 interface MeetingPoint {
   lat: number;
   lng: number;
@@ -187,6 +191,17 @@ const getGroupIcon = (count: number, type: string, direction: string | undefined
   });
 };
 
+const numberColors = [
+  '#ef4444',
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ec4899',
+  '#14b8a6',
+  '#f43f5e'
+];
+
 const formatDate = (d: string) => {
   const [year, month, day] = d.split('-');
   return `${day}/${month}/${year}`;
@@ -262,6 +277,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
       ),
     [points]
   );
+  const colorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    sourceNumbers.forEach((n, i) => map.set(n, numberColors[i % numberColors.length]));
+    return map;
+  }, [sourceNumbers]);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
 
   useEffect(() => {
@@ -386,11 +406,72 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
     return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: displayedPoints.length };
   }, [displayedPoints]);
 
-  const locationMarkers = useMemo(() => {
-    if (activeInfo === 'popular') return topLocations;
-    if (activeInfo === 'recent') return recentLocations;
-    return [] as LocationStat[];
-  }, [activeInfo, topLocations, recentLocations]);
+  const locationMarkers = useMemo<LocationMarker[]>(() => {
+    if (activeInfo !== 'popular' && activeInfo !== 'recent') return [];
+    if (selectedSource === null && sourceNumbers.length > 1) {
+      const perSource = new Map<string, Map<string, LocationStat>>();
+      displayedPoints.forEach((p) => {
+        const src = p.source || 'unknown';
+        let map = perSource.get(src);
+        if (!map) {
+          map = new Map();
+          perSource.set(src, map);
+        }
+        const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
+        const loc =
+          map.get(key) ||
+          {
+            latitude: p.latitude,
+            longitude: p.longitude,
+            nom: p.nom,
+            count: 0,
+            lastDate: p.callDate,
+            lastTime: p.startTime
+          };
+        loc.count += 1;
+        const current = new Date(`${p.callDate}T${p.startTime}`);
+        const prev =
+          loc.lastDate && loc.lastTime
+            ? new Date(`${loc.lastDate}T${loc.lastTime}`)
+            : null;
+        if (!prev || current > prev) {
+          loc.lastDate = p.callDate;
+          loc.lastTime = p.startTime;
+        }
+        map.set(key, loc);
+      });
+      const markers: LocationMarker[] = [];
+      perSource.forEach((map, src) => {
+        const all = Array.from(map.values()).filter(
+          (loc) =>
+            !isNaN(parseFloat(loc.latitude)) && !isNaN(parseFloat(loc.longitude))
+        );
+        const sorted =
+          activeInfo === 'popular'
+            ? all.sort((a, b) => b.count - a.count)
+            : all.sort((a, b) => {
+                const dateA = new Date(
+                  `${a.lastDate || ''}T${a.lastTime || '00:00:00'}`
+                ).getTime();
+                const dateB = new Date(
+                  `${b.lastDate || ''}T${b.lastTime || '00:00:00'}`
+                ).getTime();
+                return dateB - dateA;
+              });
+        sorted.slice(0, 10).forEach((loc) => markers.push({ ...loc, source: src }));
+      });
+      return markers;
+    }
+    const base = activeInfo === 'popular' ? topLocations : recentLocations;
+    return base.map((l) => ({ ...l }));
+  }, [
+    activeInfo,
+    selectedSource,
+    sourceNumbers,
+    displayedPoints,
+    topLocations,
+    recentLocations
+  ]);
 
   const showBaseMarkers = useMemo(
     () => !(activeInfo === 'recent' || activeInfo === 'popular') || showOthers,
@@ -502,8 +583,19 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
   const carIcon = useMemo(() => {
     const size = 32;
     const icon = (
-      <div style={{ transform: `rotate(${carAngle}deg)` }}>
-        <Car size={size} className="text-blue-600" />
+      <div
+        style={{
+          transform: `rotate(${carAngle}deg)`,
+          backgroundColor: '#2563eb',
+          borderRadius: '9999px',
+          width: size,
+          height: size,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <Car size={16} className="text-white" />
       </div>
     );
     return L.divIcon({
@@ -872,12 +964,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
           <Marker
             key={`stat-${idx}`}
             position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-            icon={
-              createLabelIcon(
-                String(loc.count),
-                activeInfo === 'popular' ? '#9333ea' : '#f97316'
-              )
-            }
+            icon={createLabelIcon(
+              String(loc.count),
+              selectedSource === null &&
+              sourceNumbers.length > 1 &&
+              (activeInfo === 'recent' || activeInfo === 'popular')
+                ? colorMap.get(loc.source || '') || '#f97316'
+                : activeInfo === 'popular'
+                ? '#9333ea'
+                : '#f97316'
+            )}
             zIndexOffset={1000}
           >
             <Popup>
@@ -890,6 +986,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
                     {loc.lastTime && ` à ${loc.lastTime}`}
                   </p>
                 )}
+                {selectedSource === null &&
+                  sourceNumbers.length > 1 &&
+                  loc.source && <p>Numéro : {loc.source}</p>}
               </div>
             </Popup>
           </Marker>
@@ -975,18 +1074,40 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
                 </span>
                 <span>Position</span>
               </li>
-              <li className="flex items-center space-x-2">
-                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#f97316' }}>
-                  <Clock className="w-3 h-3 text-white" />
-                </span>
-                <span>Lieux récents visités</span>
-              </li>
-              <li className="flex items-center space-x-2">
-                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#9333ea' }}>
-                  <Flame className="w-3 h-3 text-white" />
-                </span>
-                <span>Lieux les plus visités</span>
-              </li>
+              {selectedSource === null &&
+              sourceNumbers.length > 1 &&
+              (activeInfo === 'recent' || activeInfo === 'popular') ? (
+                sourceNumbers.map((n) => (
+                  <li key={n} className="flex items-center space-x-2">
+                    <span
+                      className="w-5 h-5 rounded-full"
+                      style={{ backgroundColor: colorMap.get(n) }}
+                    ></span>
+                    <span>{n}</span>
+                  </li>
+                ))
+              ) : (
+                <>
+                  <li className="flex items-center space-x-2">
+                    <span
+                      className="w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: '#f97316' }}
+                    >
+                      <Clock className="w-3 h-3 text-white" />
+                    </span>
+                    <span>Lieux récents visités</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <span
+                      className="w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: '#9333ea' }}
+                    >
+                      <Flame className="w-3 h-3 text-white" />
+                    </span>
+                    <span>Lieux les plus visités</span>
+                  </li>
+                </>
+              )}
             </ul>
           </div>
         </div>
