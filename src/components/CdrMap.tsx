@@ -78,6 +78,7 @@ interface Props {
   points: Point[];
   showRoute?: boolean;
   showMeetingPoints?: boolean;
+  onToggleMeetingPoints?: () => void;
   zoneMode?: boolean;
   onZoneCreated?: () => void;
 }
@@ -259,7 +260,7 @@ const MeetingPointMarker: React.FC<{
   );
 });
 
-const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMode, onZoneCreated }) => {
+const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated }) => {
   if (!points || points.length === 0) return null;
 
   const first = points[0];
@@ -290,6 +291,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
   useEffect(() => {
     if (sourceNumbers.length < 2) setShowSimilar(false);
   }, [sourceNumbers]);
+
+  useEffect(() => {
+    if (sourceNumbers.length < 2 && showMeetingPoints && onToggleMeetingPoints) {
+      onToggleMeetingPoints();
+    }
+  }, [sourceNumbers, showMeetingPoints, onToggleMeetingPoints]);
 
   useEffect(() => {
     if (selectedSource && !sourceNumbers.includes(selectedSource)) {
@@ -558,8 +565,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
   ]);
 
   const showBaseMarkers = useMemo(
-    () => !(activeInfo === 'recent' || activeInfo === 'popular') || showOthers,
-    [activeInfo, showOthers]
+    () =>
+      !(activeInfo === 'recent' || activeInfo === 'popular' || showMeetingPoints) ||
+      showOthers,
+    [activeInfo, showMeetingPoints, showOthers]
   );
 
   const routePositions = useMemo(() => {
@@ -1050,7 +1059,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
             </Marker>
           );
         })}
-        {showBaseMarkers && showMeetingPoints &&
+        {showMeetingPoints &&
           meetingPoints.map((mp, idx) => (
             <MeetingPointMarker
               key={`meeting-${idx}`}
@@ -1168,7 +1177,20 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
               <Flame className="w-4 h-4" />
               <span>Lieux les plus visités</span>
             </button>
-            {(activeInfo === 'recent' || activeInfo === 'popular') && (
+            {sourceNumbers.length >= 2 && (
+              <button
+                onClick={onToggleMeetingPoints}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  showMeetingPoints
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <MapPin className="w-4 h-4" />
+                <span>Points de rencontre</span>
+              </button>
+            )}
+            {(activeInfo === 'recent' || activeInfo === 'popular' || showMeetingPoints) && (
               <button
                 onClick={() => setShowOthers((s) => !s)}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
@@ -1266,7 +1288,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
           </div>
         )}
 
-        {showBaseMarkers && showMeetingPoints && meetingPoints.length > 0 && (
+        {showMeetingPoints && meetingPoints.length > 0 && (
           <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] max-h-48 overflow-y-auto">
             <p className="font-semibold mb-1">Points de rencontre</p>
             <table className="text-xs">
