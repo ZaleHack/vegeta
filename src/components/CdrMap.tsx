@@ -16,7 +16,8 @@ import {
   EyeOff,
   Activity,
   Square,
-  Crosshair
+  Crosshair,
+  History
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -376,10 +377,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const first = points[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
 
-  const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | null>(null);
+  const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | 'history' | null>(null);
   const [showOthers, setShowOthers] = useState(true);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
   const [showZoneInfo, setShowZoneInfo] = useState(false);
   const [hiddenLocations, setHiddenLocations] = useState<Set<string>>(new Set());
   const [showSimilar, setShowSimilar] = useState(false);
@@ -428,10 +430,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       return next;
     });
   };
-  const toggleInfo = (key: 'contacts' | 'recent' | 'popular') => {
+  const toggleInfo = (key: 'contacts' | 'recent' | 'popular' | 'history') => {
     setShowZoneInfo(false);
     setActiveInfo((prev) => (prev === key ? null : key));
     if (key === 'contacts') setContactPage(1);
+    if (key === 'history') setHistoryPage(1);
     if (key !== 'recent' && key !== 'popular') setShowOthers(true);
   };
 
@@ -842,6 +845,25 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     const start = (contactPage - 1) * pageSize;
     return topContacts.slice(start, start + pageSize);
   }, [topContacts, contactPage, pageSize]);
+
+  const historyEvents = useMemo(() => {
+    return displayedPoints
+      .map((p) => ({
+        location: p.nom || `${p.latitude},${p.longitude}`,
+        date: p.callDate,
+        time: p.startTime
+      }))
+      .sort((a, b) => {
+        const da = new Date(`${a.date}T${a.time}`).getTime();
+        const db = new Date(`${b.date}T${b.time}`).getTime();
+        return db - da;
+      });
+  }, [displayedPoints]);
+
+  const paginatedHistory = useMemo(() => {
+    const start = (historyPage - 1) * pageSize;
+    return historyEvents.slice(start, start + pageSize);
+  }, [historyEvents, historyPage, pageSize]);
 
 
   useEffect(() => {
@@ -1480,6 +1502,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               <Flame className="w-4 h-4" />
               <span>Lieux les plus visités</span>
             </button>
+            <button
+              onClick={() => toggleInfo('history')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                activeInfo === 'history'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <History className="w-4 h-4" />
+              <span>Historique</span>
+            </button>
             {sourceNumbers.length >= 2 && (
               <button
                 onClick={onToggleMeetingPoints}
@@ -1850,6 +1883,48 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {activeInfo === 'history' && historyEvents.length > 0 && (
+              <div>
+                <p className="font-semibold mb-2">Historique des localisations</p>
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr className="text-left">
+                      <th className="pr-4">Lieu</th>
+                      <th className="pr-4">Date</th>
+                      <th>Heure</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedHistory.map((h, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="pr-4">{h.location}</td>
+                        <td className="pr-4">{formatDate(h.date)}</td>
+                        <td>{h.time}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="flex justify-center items-center space-x-2 mt-2">
+                  <button
+                    className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                    onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                    disabled={historyPage === 1}
+                  >
+                    Précédent
+                  </button>
+                  <span>
+                    Page {historyPage} / {Math.max(1, Math.ceil(historyEvents.length / pageSize))}
+                  </span>
+                  <button
+                    className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                    onClick={() => setHistoryPage((p) => p + 1)}
+                    disabled={historyPage >= Math.ceil(historyEvents.length / pageSize)}
+                  >
+                    Suivant
+                  </button>
+                </div>
               </div>
             )}
           </div>
