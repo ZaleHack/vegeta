@@ -11,7 +11,9 @@ import {
   Layers,
   Users,
   Clock,
-  Flame
+  Flame,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -163,9 +165,15 @@ const createLabelIcon = (text: string, bgColor: string) => {
 
 const getGroupIcon = (count: number, type: string, direction: string | undefined) => {
   const size = 32;
+  const color = getPointColor(type, direction);
   const icon = (
     <div className="relative">
-      <Layers size={size} style={{ color: getPointColor(type, direction) }} />
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center text-white"
+        style={{ backgroundColor: color }}
+      >
+        <Layers size={16} />
+      </div>
       <span className="absolute -top-1 -right-1 bg-gray-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
         {count}
       </span>
@@ -865,53 +873,55 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
         ))}
         </MapContainer>
 
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] flex space-x-2">
-          <button
-            onClick={() => toggleInfo('contacts')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
-              activeInfo === 'contacts'
-                ? 'bg-blue-600 text-white ring-2 ring-blue-300'
-                : 'bg-white/90 text-gray-600 border border-gray-600 hover:bg-gray-50 dark:bg-white/90 dark:text-gray-600 dark:border-gray-600 dark:hover:bg-gray-50'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Personnes en contact</span>
-          </button>
-          <button
-            onClick={() => toggleInfo('recent')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
-              activeInfo === 'recent'
-                ? 'bg-blue-600 text-white ring-2 ring-blue-300'
-                : 'bg-white/90 text-gray-600 border border-gray-600 hover:bg-gray-50 dark:bg-white/90 dark:text-gray-600 dark:border-gray-600 dark:hover:bg-gray-50'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            <span>Lieux récents visités</span>
-          </button>
-          <button
-            onClick={() => toggleInfo('popular')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow transition-colors ${
-              activeInfo === 'popular'
-                ? 'bg-blue-600 text-white ring-2 ring-blue-300'
-                : 'bg-white/90 text-gray-600 border border-gray-600 hover:bg-gray-50 dark:bg-white/90 dark:text-gray-600 dark:border-gray-600 dark:hover:bg-gray-50'
-            }`}
-          >
-            <Flame className="w-4 h-4" />
-            <span>Lieux les plus visités</span>
-          </button>
-          {(activeInfo === 'recent' || activeInfo === 'popular') && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000]">
+          <div className="flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
             <button
-              onClick={() => setShowOthers((s) => !s)}
-              className={`p-2 rounded-full shadow transition-colors ${
-                showOthers
-                  ? 'bg-white/90 text-gray-600 border border-gray-600 hover:bg-gray-50 dark:bg-white/90 dark:text-gray-600 dark:border-gray-600 dark:hover:bg-gray-50'
-                  : 'bg-gray-600 text-white ring-2 ring-gray-300'
+              onClick={() => toggleInfo('contacts')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                activeInfo === 'contacts'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
               }`}
-              title={showOthers ? 'Masquer autres éléments' : 'Afficher autres éléments'}
             >
-              <Layers className="w-4 h-4" />
+              <Users className="w-4 h-4" />
+              <span>Personnes en contact</span>
             </button>
-          )}
+            <button
+              onClick={() => toggleInfo('recent')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                activeInfo === 'recent'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              <span>Lieux récents visités</span>
+            </button>
+            <button
+              onClick={() => toggleInfo('popular')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                activeInfo === 'popular'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Flame className="w-4 h-4" />
+              <span>Lieux les plus visités</span>
+            </button>
+            {(activeInfo === 'recent' || activeInfo === 'popular') && (
+              <button
+                onClick={() => setShowOthers((s) => !s)}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  showOthers
+                    ? 'text-gray-600 hover:bg-gray-100'
+                    : 'bg-gray-600 text-white'
+                }`}
+                title={showOthers ? 'Masquer autres éléments' : 'Afficher autres éléments'}
+              >
+                {showOthers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="absolute left-2 top-24 z-[1000]">
@@ -919,20 +929,40 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
             <p className="font-bold text-sm mb-2 border-b border-gray-200 pb-1">Légende</p>
             <ul className="space-y-1">
               <li className="flex items-center space-x-2">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#16a34a' }}></span>
+                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
+                  <PhoneIncoming className="w-3 h-3 text-white" />
+                </span>
                 <span>Appel entrant</span>
               </li>
               <li className="flex items-center space-x-2">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#2563eb' }}></span>
+                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#2563eb' }}>
+                  <PhoneOutgoing className="w-3 h-3 text-white" />
+                </span>
                 <span>Appel sortant</span>
               </li>
               <li className="flex items-center space-x-2">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#16a34a' }}></span>
+                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
+                  <MessageSquare className="w-3 h-3 text-white" />
+                </span>
                 <span>SMS</span>
               </li>
               <li className="flex items-center space-x-2">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#dc2626' }}></span>
+                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
+                  <MapPin className="w-3 h-3 text-white" />
+                </span>
                 <span>Position</span>
+              </li>
+              <li className="flex items-center space-x-2">
+                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#f97316' }}>
+                  <Clock className="w-3 h-3 text-white" />
+                </span>
+                <span>Lieux récents visités</span>
+              </li>
+              <li className="flex items-center space-x-2">
+                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#9333ea' }}>
+                  <Flame className="w-3 h-3 text-white" />
+                </span>
+                <span>Lieux les plus visités</span>
               </li>
             </ul>
           </div>
