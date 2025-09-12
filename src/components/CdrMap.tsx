@@ -13,7 +13,8 @@ import {
   Clock,
   Flame,
   Eye,
-  EyeOff
+  EyeOff,
+  Activity
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -269,6 +270,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
   const [showZoneInfo, setShowZoneInfo] = useState(false);
+  const [hiddenLocations, setHiddenLocations] = useState<Set<string>>(new Set());
+  const [showSimilar, setShowSimilar] = useState(false);
 
   const sourceNumbers = useMemo(
     () =>
@@ -283,6 +286,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
     return map;
   }, [sourceNumbers]);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (sourceNumbers.length < 2) setShowSimilar(false);
+  }, [sourceNumbers]);
 
   useEffect(() => {
     if (selectedSource && !sourceNumbers.includes(selectedSource)) {
@@ -406,6 +413,15 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
     return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: displayedPoints.length };
   }, [displayedPoints]);
 
+  const toggleLocationVisibility = (loc: LocationStat) => {
+    const key = `${loc.latitude},${loc.longitude},${loc.nom || ''}`;
+    setHiddenLocations((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
   const locationMarkers = useMemo<LocationMarker[]>(() => {
     if (activeInfo !== 'popular' && activeInfo !== 'recent') return [];
     if (selectedSource === null && sourceNumbers.length > 1) {
@@ -458,7 +474,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
                 ).getTime();
                 return dateB - dateA;
               });
-        sorted.slice(0, 10).forEach((loc) => markers.push({ ...loc, source: src }));
+        sorted.slice(0, 10).forEach((loc) => {
+          const key = `${loc.latitude},${loc.longitude},${loc.nom || ''}`;
+          if (!hiddenLocations.has(key)) markers.push({ ...loc, source: src });
+        });
       });
       const grouped = new Map<string, LocationMarker[]>();
       markers.forEach((m) => {
@@ -490,14 +509,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
       return adjusted;
     }
     const base = activeInfo === 'popular' ? topLocations : recentLocations;
-    return base.map((l) => ({ ...l }));
+    return base
+      .filter((l) => !hiddenLocations.has(`${l.latitude},${l.longitude},${l.nom || ''}`))
+      .map((l) => ({ ...l }));
   }, [
     activeInfo,
     selectedSource,
     sourceNumbers,
     displayedPoints,
     topLocations,
-    recentLocations
+    recentLocations,
+    hiddenLocations
   ]);
 
   const showBaseMarkers = useMemo(
@@ -545,6 +567,43 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
     }
     return markers;
   }, [routePositions, showRoute]);
+
+  const similarSegments = useMemo(() => {
+    if (sourceNumbers.length < 2) return [] as [number, number][][];
+    const segmentMap = new Map<string, { positions: [number, number][]; sources: Set<string> }>();
+    sourceNumbers.forEach((src) => {
+      const pts = points
+        .filter((p) => p.source === src)
+        .sort((a, b) => {
+          const dateA = new Date(`${a.callDate}T${a.startTime}`);
+          const dateB = new Date(`${b.callDate}T${b.startTime}`);
+          return dateA.getTime() - dateB.getTime();
+        });
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1];
+        const b = pts[i];
+        const lat1 = parseFloat(a.latitude);
+        const lng1 = parseFloat(a.longitude);
+        const lat2 = parseFloat(b.latitude);
+        const lng2 = parseFloat(b.longitude);
+        if (isNaN(lat1) || isNaN(lng1) || isNaN(lat2) || isNaN(lng2)) continue;
+        const key = `${lat1},${lng1}|${lat2},${lng2}`;
+        const seg =
+          segmentMap.get(key) || {
+            positions: [
+              [lat1, lng1] as [number, number],
+              [lat2, lng2] as [number, number]
+            ],
+            sources: new Set<string>()
+          };
+        seg.sources.add(src);
+        segmentMap.set(key, seg);
+      }
+    });
+    return Array.from(segmentMap.values())
+      .filter((s) => s.sources.size > 1)
+      .map((s) => s.positions);
+  }, [points, sourceNumbers]);
 
   const [carIndex, setCarIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
@@ -987,6 +1046,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
               interactive={false}
             />
           ))}
+        {showSimilar &&
+          similarSegments.map((seg, idx) => (
+            <Polyline key={`similar-${idx}`} positions={seg} color="#ef4444" weight={4} />
+          ))}
         {locationMarkers.map((loc, idx) => (
           <Marker
             key={`stat-${idx}`}
@@ -1024,6 +1087,19 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
 
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000]">
           <div className="flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
+            {sourceNumbers.length >= 2 && (
+              <button
+                onClick={() => setShowSimilar((s) => !s)}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  showSimilar
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Activity className="w-4 h-4" />
+                <span>Trajectoires similaires</span>
+              </button>
+            )}
             <button
               onClick={() => toggleInfo('contacts')}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
@@ -1044,7 +1120,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
               }`}
             >
               <Clock className="w-4 h-4" />
-              <span>Lieux récents visités</span>
+              <span>Localisations récentes</span>
             </button>
             <button
               onClick={() => toggleInfo('popular')}
@@ -1122,7 +1198,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
                     >
                       <Clock className="w-3 h-3 text-white" />
                     </span>
-                    <span>Lieux récents visités</span>
+                    <span>Localisations récentes</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <span
@@ -1263,10 +1339,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
             )}
             {(showZoneInfo || activeInfo === 'recent') && recentLocations.length > 0 && (
               <div>
-                <p className="font-semibold mb-2">Lieux récents visités</p>
+                <p className="font-semibold mb-2">Localisations récentes</p>
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="text-left">
+                      <th className="pr-4"></th>
                       <th className="pr-4">Lieu</th>
                       <th className="pr-4">Occurrences</th>
                       <th className="pr-4">Dernière visite</th>
@@ -1274,14 +1351,23 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
                     </tr>
                   </thead>
                   <tbody>
-                    {recentLocations.map((l, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
-                        <td className="pr-4 text-gray-800 dark:text-white">{l.count}</td>
-                        <td className="pr-4">{l.lastDate && formatDate(l.lastDate)}</td>
-                        <td>{l.lastTime}</td>
-                      </tr>
-                    ))}
+                    {recentLocations.map((l, i) => {
+                      const key = `${l.latitude},${l.longitude},${l.nom || ''}`;
+                      const hidden = hiddenLocations.has(key);
+                      return (
+                        <tr key={i} className="border-t">
+                          <td className="pr-4">
+                            <button onClick={() => toggleLocationVisibility(l)}>
+                              {hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </td>
+                          <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
+                          <td className="pr-4 text-gray-800 dark:text-white">{l.count}</td>
+                          <td className="pr-4">{l.lastDate && formatDate(l.lastDate)}</td>
+                          <td>{l.lastTime}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1292,17 +1378,27 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="text-left">
+                      <th className="pr-4"></th>
                       <th className="pr-4">Lieu</th>
                       <th>Occurrences</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {topLocations.map((l, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
-                        <td className="text-gray-800 dark:text-white">{l.count}</td>
-                      </tr>
-                    ))}
+                    {topLocations.map((l, i) => {
+                      const key = `${l.latitude},${l.longitude},${l.nom || ''}`;
+                      const hidden = hiddenLocations.has(key);
+                      return (
+                        <tr key={i} className="border-t">
+                          <td className="pr-4">
+                            <button onClick={() => toggleLocationVisibility(l)}>
+                              {hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </td>
+                          <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
+                          <td className="text-gray-800 dark:text-white">{l.count}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
