@@ -1414,7 +1414,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 pathOptions={{ color: '#7e22ce' }}
               />
             ))}
-            <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#7e22ce')} />
+            <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#7e22ce')}>
+              <Popup>
+                <div className="text-sm">
+                  <p className="font-semibold">Localisation approximative {idx + 1}</p>
+                  <p>Ce point représente la position estimée basée sur les cellules triangulées.</p>
+                </div>
+              </Popup>
+            </Marker>
           </React.Fragment>
         ))}
         {triangulationZones.length > 1 && (
