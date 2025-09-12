@@ -37,7 +37,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  Bell
+  Bell,
+  PhoneIncoming,
+  PhoneOutgoing,
+  MessageSquare,
+  MapPin
 } from 'lucide-react';
 import ToggleSwitch from './components/ToggleSwitch';
 
@@ -2015,22 +2019,42 @@ useEffect(() => {
         </div>
         <div className="space-y-2">
           <ToggleSwitch
-            label="Appels entrants"
+            label={
+              <>
+                <PhoneIncoming className="w-4 h-4 text-green-600" />
+                <span>Appels entrants</span>
+              </>
+            }
             checked={cdrIncoming}
             onChange={setCdrIncoming}
           />
           <ToggleSwitch
-            label="Appels sortants"
+            label={
+              <>
+                <PhoneOutgoing className="w-4 h-4 text-blue-600" />
+                <span>Appels sortants</span>
+              </>
+            }
             checked={cdrOutgoing}
             onChange={setCdrOutgoing}
           />
           <ToggleSwitch
-            label="SMS"
+            label={
+              <>
+                <MessageSquare className="w-4 h-4 text-green-600" />
+                <span>SMS</span>
+              </>
+            }
             checked={cdrSms}
             onChange={setCdrSms}
           />
           <ToggleSwitch
-            label="Position"
+            label={
+              <>
+                <MapPin className="w-4 h-4 text-red-600" />
+                <span>Position</span>
+              </>
+            }
             checked={cdrPosition}
             onChange={setCdrPosition}
           />
@@ -2062,7 +2086,7 @@ useEffect(() => {
               Diagramme des liens
             </button>
           )}
-          {cdrResult && cdrResult.total > 0 && (
+          {caseFiles.filter((f) => f.cdr_number).length >= 2 && cdrResult && cdrResult.total > 0 && (
             <button
               type="button"
               className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
