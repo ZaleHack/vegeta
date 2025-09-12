@@ -254,6 +254,21 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
   const [showZoneInfo, setShowZoneInfo] = useState(false);
+
+  const sourceNumbers = useMemo(
+    () =>
+      Array.from(
+        new Set(points.map((p) => p.source).filter((n): n is string => Boolean(n)))
+      ),
+    [points]
+  );
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedSource && !sourceNumbers.includes(selectedSource)) {
+      setSelectedSource(null);
+    }
+  }, [sourceNumbers, selectedSource]);
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular') => {
     setShowZoneInfo(false);
     setActiveInfo((prev) => (prev === key ? null : key));
@@ -264,6 +279,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
   const [zoneShape, setZoneShape] = useState<L.LatLng[] | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [currentPoints, setCurrentPoints] = useState<L.LatLng[]>([]);
+
+  useEffect(() => {
+    setContactPage(1);
+  }, [selectedSource]);
 
   useEffect(() => {
     if (zoneMode) {
@@ -291,14 +310,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
   };
 
   const displayedPoints = useMemo(() => {
-    if (!zoneShape || zoneShape.length < 3) return points;
-    return points.filter((p) => {
+    let filtered = points;
+    if (selectedSource) {
+      filtered = filtered.filter((p) => p.source === selectedSource);
+    }
+    if (!zoneShape || zoneShape.length < 3) return filtered;
+    return filtered.filter((p) => {
       const lat = parseFloat(p.latitude);
       const lng = parseFloat(p.longitude);
       if (isNaN(lat) || isNaN(lng)) return false;
       return pointInPolygon(L.latLng(lat, lng), zoneShape);
     });
-  }, [points, zoneShape]);
+  }, [points, zoneShape, selectedSource]);
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
     const contactMap = new Map<string, { callCount: number; smsCount: number }>();
@@ -1011,6 +1034,33 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, zoneMod
         {(showZoneInfo || activeInfo) && (
           <div className="absolute top-2 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
             <p className="font-semibold">Total : {total}</p>
+            {sourceNumbers.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setSelectedSource(null)}
+                  className={`px-2 py-1 rounded ${
+                    selectedSource === null
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-800'
+                  }`}
+                >
+                  Tous
+                </button>
+                {sourceNumbers.map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setSelectedSource(n)}
+                    className={`px-2 py-1 rounded ${
+                      selectedSource === n
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-800'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
             {(showZoneInfo || activeInfo === 'contacts') && topContacts.length > 0 && (
               <div>
                 <p className="font-semibold mb-2">Personnes en contact</p>
