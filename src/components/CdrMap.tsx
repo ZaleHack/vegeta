@@ -613,8 +613,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   }, [routePositions, showRoute]);
 
   const similarSegments = useMemo(() => {
-    if (sourceNumbers.length < 2) return [] as [number, number][][];
-    const segmentMap = new Map<string, { positions: [number, number][]; sources: Set<string> }>();
+    if (sourceNumbers.length < 2)
+      return [] as { positions: [number, number][]; sources: string[] }[];
+    const segmentMap = new Map<
+      string,
+      { positions: [number, number][]; sources: Set<string> }
+    >();
     sourceNumbers.forEach((src) => {
       const pts = points
         .filter((p) => p.source === src)
@@ -646,8 +650,31 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     });
     return Array.from(segmentMap.values())
       .filter((s) => s.sources.size > 1)
-      .map((s) => s.positions);
+      .map((s) => ({ positions: s.positions, sources: Array.from(s.sources) }));
   }, [points, sourceNumbers]);
+
+  const similarNumbers = useMemo(() => {
+    const set = new Set<string>();
+    similarSegments.forEach((s) => s.sources.forEach((src) => set.add(src)));
+    return Array.from(set);
+  }, [similarSegments]);
+
+  const [visibleSimilar, setVisibleSimilar] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (showSimilar) {
+      setVisibleSimilar(new Set(similarNumbers));
+    }
+  }, [showSimilar, similarNumbers]);
+
+  const toggleSimilarVisibility = (src: string) => {
+    setVisibleSimilar((prev) => {
+      const next = new Set(prev);
+      if (next.has(src)) next.delete(src);
+      else next.add(src);
+      return next;
+    });
+  };
 
   const [carIndex, setCarIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
@@ -1091,9 +1118,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             />
           ))}
         {showSimilar &&
-          similarSegments.map((seg, idx) => (
-            <Polyline key={`similar-${idx}`} positions={seg} color="#ef4444" weight={4} />
-          ))}
+          similarSegments.flatMap((seg, idx) =>
+            seg.sources.map((src) =>
+              visibleSimilar.has(src) ? (
+                <Polyline
+                  key={`similar-${idx}-${src}`}
+                  positions={seg.positions}
+                  color={colorMap.get(src) || '#ef4444'}
+                  weight={4}
+                />
+              ) : null
+            )
+          )}
         {locationMarkers.map((loc, idx) => (
           <Marker
             key={`stat-${idx}`}
@@ -1234,9 +1270,34 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 </span>
                 <span>Position</span>
               </li>
-              {selectedSource === null &&
-              sourceNumbers.length > 1 &&
-              (activeInfo === 'recent' || activeInfo === 'popular') ? (
+              {showSimilar ? (
+                similarNumbers.map((n) => (
+                  <li key={n} className="flex items-center space-x-2">
+                    <span
+                      className="w-5 h-5 rounded-full"
+                      style={{
+                        backgroundColor: colorMap.get(n),
+                        opacity: visibleSimilar.has(n) ? 1 : 0.3
+                      }}
+                    ></span>
+                    <span className={visibleSimilar.has(n) ? '' : 'line-through'}>
+                      {n}
+                    </span>
+                    <button
+                      className="ml-1"
+                      onClick={() => toggleSimilarVisibility(n)}
+                    >
+                      {visibleSimilar.has(n) ? (
+                        <Eye className="w-4 h-4 text-gray-600" />
+                      ) : (
+                        <EyeOff className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
+                  </li>
+                ))
+              ) : selectedSource === null &&
+                sourceNumbers.length > 1 &&
+                (activeInfo === 'recent' || activeInfo === 'popular') ? (
                 sourceNumbers.map((n) => (
                   <li key={n} className="flex items-center space-x-2">
                     <span
