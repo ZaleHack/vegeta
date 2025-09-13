@@ -9,18 +9,18 @@ const MapLegend: React.FC = () => {
     { icon: MapPin, label: 'Position web', color: 'bg-red-600' }
   ];
 
-  return (
-    <div className="absolute top-4 right-4 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md px-4 py-2 rounded-lg shadow-lg flex flex-col space-y-2 text-gray-800 dark:text-gray-200 text-sm md:text-base max-h-60 overflow-y-auto">
-      {legendItems.map(({ icon: Icon, label, color }) => (
-        <div key={label} className="flex items-center space-x-2">
-          <div className={`w-5 h-5 rounded-full flex items-center justify-center ${color} text-white`}>
-            <Icon size={14} />
+    return (
+      <div className="pointer-events-auto absolute bottom-4 left-1/2 -translate-x-1/2 transform bg-white/80 dark:bg-gray-900/80 backdrop-blur-md px-6 py-3 rounded-full shadow-lg flex flex-wrap items-center justify-center gap-4 text-gray-800 dark:text-gray-200 text-sm md:text-base">
+        {legendItems.map(({ icon: Icon, label, color }) => (
+          <div key={label} className="flex items-center gap-2">
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${color} text-white`}>
+              <Icon size={14} />
+            </div>
+            <span className="whitespace-nowrap font-medium">{label}</span>
           </div>
-          <span className="whitespace-nowrap font-medium">{label}</span>
-        </div>
-      ))}
-    </div>
-  );
+        ))}
+      </div>
+    );
 };
 
 export default MapLegend;
