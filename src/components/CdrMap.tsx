@@ -25,7 +25,6 @@ import {
   Eye,
   EyeOff,
   Activity,
-  Square,
   Crosshair,
   History,
   Plus,
@@ -490,10 +489,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     });
   };
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular' | 'history') => {
+    if (showMeetingPoints) onToggleMeetingPoints?.();
     setShowZoneInfo(false);
     setActiveInfo((prev) => (prev === key ? null : key));
     if (key === 'contacts') setContactPage(1);
     if (key !== 'recent' && key !== 'popular') setShowOthers(true);
+  };
+
+  const handleMeetingPointsClick = () => {
+    setShowZoneInfo(false);
+    setActiveInfo(null);
+    onToggleMeetingPoints?.();
   };
 
   const [zoneShape, setZoneShape] = useState<L.LatLng[] | null>(null);
@@ -1184,6 +1190,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       if (!showMeetingPoints) {
         onToggleMeetingPoints?.();
       }
+      setActiveInfo(null);
+      setShowZoneInfo(false);
       mapRef.current?.flyTo([mp.lat, mp.lng], 16);
     }
   };
@@ -1597,19 +1605,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           >
             <Layers className="w-5 h-5" />
           </button>
-          {onToggleZoneMode && (
-            <button
-              onClick={onToggleZoneMode}
-              className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
-                zoneMode
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-white/90 text-gray-700 hover:bg-gray-100'
-              }`}
-              title={zoneMode ? 'Annuler la zone' : 'Créer une zone'}
-            >
-              <Square className="w-5 h-5" />
-            </button>
-          )}
           {sourceNumbers.length > 0 && (
             <button
               onClick={() => setShowSimilar((s) => !s)}
@@ -1639,7 +1634,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </button>
         </div>
 
-        <div className="pointer-events-none absolute top-2 left-2 right-2 z-[1000] flex justify-center">
+        <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
           <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
             <button
               onClick={() => toggleInfo('contacts')}
@@ -1687,7 +1682,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             </button>
             {sourceNumbers.length >= 2 && (
               <button
-                onClick={onToggleMeetingPoints}
+                onClick={handleMeetingPointsClick}
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
                   showMeetingPoints
                     ? 'bg-blue-600 text-white'
@@ -1698,22 +1693,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <span>Points de rencontre</span>
               </button>
             )}
-            {(activeInfo === 'recent' ||
-              activeInfo === 'popular' ||
-              showMeetingPoints ||
-              showSimilar) && (
-              <button
-                onClick={() => setShowOthers((s) => !s)}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  showOthers
-                    ? 'text-gray-600 hover:bg-gray-100'
-                    : 'bg-gray-600 text-white'
-                }`}
-                title={showOthers ? 'Masquer autres éléments' : 'Afficher autres éléments'}
-              >
-                {showOthers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              </button>
-            )}
+            <button
+              onClick={() => setShowOthers((s) => !s)}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                showOthers
+                  ? 'text-gray-600 hover:bg-gray-100'
+                  : 'bg-gray-600 text-white'
+              }`}
+              title={showOthers ? 'Masquer autres éléments' : 'Afficher tous les éléments'}
+            >
+              {showOthers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
           </div>
         </div>
 
@@ -1734,6 +1724,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 className="w-24"
               />
             </div>
+          </div>
+        )}
+
+        {onToggleZoneMode && (
+          <div className="pointer-events-none absolute bottom-4 left-1/2 transform -translate-x-1/2 z-[1000]">
+            <button
+              onClick={onToggleZoneMode}
+              className="pointer-events-auto px-4 py-2 bg-white/90 backdrop-blur rounded-full shadow border border-gray-300 text-sm font-medium hover:bg-gray-100 transition-colors"
+            >
+              {zoneMode ? 'Annuler' : 'Créer zone'}
+            </button>
           </div>
         )}
 
@@ -1851,7 +1852,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
 
         {showMeetingPoints && meetingPoints.length > 0 && (
-          <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] max-h-48 overflow-y-auto">
+          <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-48 overflow-y-auto">
             <p className="font-semibold mb-1">Points de rencontre</p>
             <table className="text-xs">
               <thead>
