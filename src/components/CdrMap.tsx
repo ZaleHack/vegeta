@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polygon, CircleMarker, Polyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import {
@@ -44,6 +44,7 @@ interface Contact {
   number: string;
   callCount: number;
   smsCount: number;
+  callMinutes: number;
   total: number;
 }
 
@@ -86,6 +87,15 @@ interface Props {
   onZoneCreated?: () => void;
   onToggleZoneMode?: () => void;
 }
+
+const parseDurationToMinutes = (duration: string): number => {
+  const parts = duration.split(':').map(Number);
+  if (parts.length === 3 && !parts.some(isNaN)) {
+    const [h, m, s] = parts;
+    return h * 60 + m + s / 60;
+  }
+  return 0;
+};
 
 const getPointColor = (type: string, direction?: string) => {
   if (type === 'web') return '#dc2626';
@@ -376,6 +386,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
   const first = points[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
+  const mapRef = useRef<L.Map | null>(null);
 
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | 'history' | null>(null);
   const [showOthers, setShowOthers] = useState(true);
@@ -494,13 +505,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   };
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
-    const contactMap = new Map<string, { callCount: number; smsCount: number }>();
+    const contactMap = new Map<string, { callCount: number; smsCount: number; callDuration: number }>();
     const locationMap = new Map<string, LocationStat>();
 
     displayedPoints.forEach((p) => {
       if (p.number) {
-        const entry = contactMap.get(p.number) || { callCount: 0, smsCount: 0 };
-        if (p.type === 'sms') entry.smsCount += 1; else entry.callCount += 1;
+        const entry = contactMap.get(p.number) || { callCount: 0, smsCount: 0, callDuration: 0 };
+        if (p.type === 'sms') {
+          entry.smsCount += 1;
+        } else {
+          entry.callCount += 1;
+          if (p.duration) entry.callDuration += parseDurationToMinutes(p.duration);
+        }
         contactMap.set(p.number, entry);
       }
 
@@ -530,6 +546,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         number,
         callCount: c.callCount,
         smsCount: c.smsCount,
+        callMinutes: Math.round(c.callDuration),
         total: c.callCount + c.smsCount
       }))
       .sort((a, b) => b.total - a.total);
@@ -1103,6 +1120,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     return result;
   }, [displayedPoints]);
 
+  const handleShowMeetingPoint = (number: string) => {
+    const mp = meetingPoints.find((m) => m.numbers.includes(number));
+    if (mp) {
+      if (!showMeetingPoints && onToggleMeetingPoints) onToggleMeetingPoints();
+      mapRef.current?.flyTo([mp.lat, mp.lng], 16);
+    }
+  };
+
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
   const groupedPoints = useMemo(() => {
@@ -1129,6 +1154,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           zoom={13}
           className="w-full h-full"
           style={{ cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined }}
+          whenCreated={(map) => (mapRef.current = map)}
         >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -1157,15 +1183,25 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <Popup>
                   <div className="space-y-2 text-sm">
                     <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
-                    <div className="flex items-center space-x-1">
-                      <PhoneOutgoing size={16} className="text-gray-700" />
-                      <span>Appelant: {loc.caller || 'N/A'}</span>
-                    </div>
-                    {loc.type !== 'web' && (
+                    {loc.type === 'sms' ? (
                       <div className="flex items-center space-x-1">
-                        <PhoneIncoming size={16} className="text-gray-700" />
-                        <span>Appelé: {loc.callee || 'N/A'}</span>
+                        <span>{loc.caller || 'N/A'}</span>
+                        <MessageSquare size={16} className="text-gray-700" />
+                        <span>{loc.callee || 'N/A'}</span>
                       </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center space-x-1">
+                          <PhoneOutgoing size={16} className="text-gray-700" />
+                          <span>Appelant: {loc.caller || 'N/A'}</span>
+                        </div>
+                        {loc.type !== 'web' && (
+                          <div className="flex items-center space-x-1">
+                            <PhoneIncoming size={16} className="text-gray-700" />
+                            <span>Appelé: {loc.callee || 'N/A'}</span>
+                          </div>
+                        )}
+                      </>
                     )}
                     {loc.type === 'web' ? (
                       <>
@@ -1224,15 +1260,25 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   {group.events.map((loc, i) => (
                     <div key={i} className="mt-2 p-2 bg-white dark:!bg-white rounded-lg shadow text-gray-900 dark:!text-gray-900">
                       <p className="font-semibold">{loc.source || 'N/A'}</p>
-                      <div className="flex items-center space-x-1">
-                        <PhoneOutgoing size={16} className="text-gray-700 dark:!text-gray-700" />
-                        <span>Appelant: {loc.caller || 'N/A'}</span>
-                      </div>
-                      {loc.type !== 'web' && (
+                      {loc.type === 'sms' ? (
                         <div className="flex items-center space-x-1">
-                          <PhoneIncoming size={16} className="text-gray-700 dark:!text-gray-700" />
-                          <span>Appelé: {loc.callee || 'N/A'}</span>
+                          <span>{loc.caller || 'N/A'}</span>
+                          <MessageSquare size={16} className="text-gray-700 dark:!text-gray-700" />
+                          <span>{loc.callee || 'N/A'}</span>
                         </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center space-x-1">
+                            <PhoneOutgoing size={16} className="text-gray-700 dark:!text-gray-700" />
+                            <span>Appelant: {loc.caller || 'N/A'}</span>
+                          </div>
+                          {loc.type !== 'web' && (
+                            <div className="flex items-center space-x-1">
+                              <PhoneIncoming size={16} className="text-gray-700 dark:!text-gray-700" />
+                              <span>Appelé: {loc.callee || 'N/A'}</span>
+                            </div>
+                          )}
+                        </>
                       )}
                       {loc.type === 'web' ? (
                         <>
@@ -1335,23 +1381,27 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   <p className="font-semibold text-blue-600">
                     {loc.nom || 'Localisation'}
                   </p>
-                  <div className="flex items-center space-x-1">
-                    <PhoneOutgoing
-                      size={16}
-                      className="text-gray-700"
-                    />
-                      <span>Appelant: {loc.caller || 'N/A'}</span>
+                  {loc.type === 'sms' ? (
+                    <div className="flex items-center space-x-1">
+                      <span>{loc.caller || 'N/A'}</span>
+                      <MessageSquare size={16} className="text-gray-700" />
+                      <span>{loc.callee || 'N/A'}</span>
                     </div>
-                    {loc.type !== 'web' && (
+                  ) : (
+                    <>
                       <div className="flex items-center space-x-1">
-                        <PhoneIncoming
-                          size={16}
-                          className="text-gray-700"
-                        />
-                        <span>Appelé: {loc.callee || 'N/A'}</span>
+                        <PhoneOutgoing size={16} className="text-gray-700" />
+                        <span>Appelant: {loc.caller || 'N/A'}</span>
                       </div>
-                    )}
-                    {loc.type === 'web' ? (
+                      {loc.type !== 'web' && (
+                        <div className="flex items-center space-x-1">
+                          <PhoneIncoming size={16} className="text-gray-700" />
+                          <span>Appelé: {loc.callee || 'N/A'}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {loc.type === 'web' ? (
                       <>
                         <p>Type: Position</p>
                         {loc.callDate === loc.endDate ? (
@@ -1760,6 +1810,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                     <tr className="text-left">
                       <th className="pr-4">Numéro</th>
                       <th className="pr-4">Appels</th>
+                      <th className="pr-4">Minutes</th>
                       <th className="pr-4">SMS</th>
                       <th className="pr-4">Rencontres</th>
                       <th>Total</th>
@@ -1768,6 +1819,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   <tbody>
                     {paginatedContacts.map((c, i) => {
                       const idx = (contactPage - 1) * pageSize + i;
+                      const meetingCount = meetingPoints.filter((m) => m.numbers.includes(c.number)).length;
                       return (
                         <tr
                           key={c.number}
@@ -1775,8 +1827,19 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                         >
                           <td className="pr-4">{c.number}</td>
                           <td className="pr-4">{c.callCount}</td>
+                          <td className="pr-4">{c.callMinutes}</td>
                           <td className="pr-4">{c.smsCount}</td>
-                          <td className="pr-4">{meetingPoints.filter((m) => m.numbers.includes(c.number)).length}</td>
+                          <td className="pr-4">
+                            {meetingCount}
+                            {meetingCount > 0 && (
+                              <button
+                                className="ml-1 text-blue-600"
+                                onClick={() => handleShowMeetingPoint(c.number)}
+                              >
+                                <Eye size={16} />
+                              </button>
+                            )}
+                          </td>
                           <td>{c.total}</td>
                         </tr>
                       );
