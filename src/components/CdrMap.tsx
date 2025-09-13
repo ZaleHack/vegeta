@@ -1737,7 +1737,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </div>
         )}
 
-        <div className="pointer-events-none absolute bottom-4 right-4 z-[1000] max-h-[50vh]">
+        <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
           <div className="pointer-events-auto max-h-full overflow-y-auto bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
             <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
             <ul className="space-y-2">
