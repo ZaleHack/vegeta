@@ -33,6 +33,7 @@
     "pdfkit": "^0.13.0",
     "leaflet": "^1.9.4",
     "react-leaflet": "^4.2.1",
+    "react-leaflet-cluster": "^4.0.0",
     "xlsx": "^0.18.5",
     "force-graph": "^1.45.0",
     "react-force-graph-2d": "^1.25.0"
