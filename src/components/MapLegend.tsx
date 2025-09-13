@@ -10,7 +10,7 @@ const MapLegend: React.FC = () => {
   ];
 
   return (
-    <div className="absolute bottom-4 right-4 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md px-4 py-2 rounded-lg shadow-lg flex items-center space-x-4 text-gray-800 dark:text-gray-200 text-sm md:text-base">
+    <div className="absolute top-4 right-4 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md px-4 py-2 rounded-lg shadow-lg flex flex-col space-y-2 text-gray-800 dark:text-gray-200 text-sm md:text-base max-h-60 overflow-y-auto">
       {legendItems.map(({ icon: Icon, label, color }) => (
         <div key={label} className="flex items-center space-x-2">
           <div className={`w-5 h-5 rounded-full flex items-center justify-center ${color} text-white`}>
