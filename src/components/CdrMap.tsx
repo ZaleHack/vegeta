@@ -1153,6 +1153,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     const isActive = showMeetingPoints && activeMeetingNumber === number;
     if (isActive) {
       setActiveMeetingNumber(null);
+      onToggleMeetingPoints?.();
     } else {
       setActiveMeetingNumber(number);
       if (!showMeetingPoints) {
