@@ -597,7 +597,6 @@ const App: React.FC = () => {
     }
   }, [casePage, totalCasePages]);
   const [showCdrMap, setShowCdrMap] = useState(false);
-  const [mapPanelOpen, setMapPanelOpen] = useState(true);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
   const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
@@ -2097,23 +2096,9 @@ useEffect(() => {
     );
     if (showCdrMap) {
       return (
-        <aside
-          className={`fixed top-0 left-0 z-[1000] w-80 h-full bg-white/90 backdrop-blur shadow-lg transform transition-transform duration-300 ${
-            mapPanelOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <div className="relative h-full overflow-y-auto p-4 space-y-4">
-            <button
-              type="button"
-              onClick={() => setMapPanelOpen(false)}
-              className="absolute top-2 right-2 p-2 bg-white rounded-full shadow"
-              aria-label="Replier le panneau"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            {formContent}
-          </div>
-        </aside>
+        <div className="fixed bottom-4 left-4 z-[1000] w-80 max-h-[80vh] overflow-y-auto bg-white/90 backdrop-blur rounded-lg shadow-lg p-4 space-y-4">
+          {formContent}
+        </div>
       );
     }
     return (
@@ -3409,15 +3394,7 @@ useEffect(() => {
                   >
                     <X className="w-5 h-5" />
                   </button>
-                  {!mapPanelOpen && (
-                    <button
-                      onClick={() => setMapPanelOpen(true)}
-                      className="fixed top-4 left-4 z-[1000] bg-white/90 backdrop-blur rounded-full p-2 shadow"
-                      aria-label="Ouvrir le panneau de recherche"
-                    >
-                      <Menu className="w-5 h-5" />
-                    </button>
-                  )}
+                  
                 </>
               )}
               {linkDiagram && (

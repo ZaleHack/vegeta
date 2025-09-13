@@ -1561,10 +1561,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         ))}
         </MapContainer>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] flex flex-col gap-2">
+        <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-2">
           <button
             onClick={handleTriangulation}
-            className={`pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors ${
+            className={`pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300 ${
               triangulationZones.length > 0 ? 'text-blue-600' : 'text-gray-700'
             }`}
             title="Localisation approximative de la personne"
@@ -1573,7 +1573,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </button>
           <button
             onClick={() => setIsSatellite((s) => !s)}
-            className={`pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors ${
+            className={`pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300 ${
               isSatellite ? 'text-blue-600' : 'text-gray-700'
             }`}
             title="Changer l'affichage"
@@ -1582,14 +1582,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </button>
           <button
             onClick={() => mapRef.current?.zoomIn()}
-            className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors"
+            className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300"
             title="Zoomer"
           >
             <Plus className="w-5 h-5" />
           </button>
           <button
             onClick={() => mapRef.current?.zoomOut()}
-            className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors"
+            className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300"
             title="Dézoomer"
           >
             <Minus className="w-5 h-5" />
