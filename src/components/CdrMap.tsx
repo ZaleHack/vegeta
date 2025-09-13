@@ -406,7 +406,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   }, [sourceNumbers]);
 
   useEffect(() => {
-    if (sourceNumbers.length < 2) setShowSimilar(false);
+    if (sourceNumbers.length < 1) setShowSimilar(false);
   }, [sourceNumbers]);
 
   useEffect(() => {
@@ -754,11 +754,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   }, [routePositions, showRoute]);
 
   const similarSegments = useMemo(() => {
-    if (sourceNumbers.length < 2)
-      return [] as { positions: [number, number][]; sources: string[] }[];
     const segmentMap = new Map<
       string,
-      { positions: [number, number][]; sources: Set<string> }
+      { positions: [number, number][]; counts: Map<string, number> }
     >();
     sourceNumbers.forEach((src) => {
       const pts = points
@@ -783,15 +781,21 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               [lat1, lng1] as [number, number],
               [lat2, lng2] as [number, number]
             ],
-            sources: new Set<string>()
+            counts: new Map<string, number>()
           };
-        seg.sources.add(src);
+        seg.counts.set(src, (seg.counts.get(src) || 0) + 1);
         segmentMap.set(key, seg);
       }
     });
     return Array.from(segmentMap.values())
-      .filter((s) => s.sources.size > 1)
-      .map((s) => ({ positions: s.positions, sources: Array.from(s.sources) }));
+      .filter((s) => {
+        if (sourceNumbers.length > 1) {
+          return s.counts.size > 1;
+        }
+        const firstCount = Array.from(s.counts.values())[0] || 0;
+        return firstCount > 1;
+      })
+      .map((s) => ({ positions: s.positions, sources: Array.from(s.counts.keys()) }));
   }, [points, sourceNumbers]);
 
   const similarNumbers = useMemo(() => {
@@ -1461,7 +1465,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   : 'Localiser approximativement la personne'}
               </span>
             </button>
-            {sourceNumbers.length >= 2 && (
+            {sourceNumbers.length > 0 && (
               <button
                 onClick={() => setShowSimilar((s) => !s)}
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
