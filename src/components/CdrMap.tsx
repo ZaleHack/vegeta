@@ -90,11 +90,21 @@ interface Props {
 
 const parseDurationToSeconds = (duration: string): number => {
   const parts = duration.split(':').map(Number);
-  if (parts.length === 3 && !parts.some(isNaN)) {
-    const [h, m, s] = parts;
-    return h * 3600 + m * 60 + s;
+  if (!parts.some(isNaN)) {
+    if (parts.length === 3) {
+      const [h, m, s] = parts;
+      return h * 3600 + m * 60 + s;
+    }
+    if (parts.length === 2) {
+      const [m, s] = parts;
+      return m * 60 + s;
+    }
+    if (parts.length === 1) {
+      return parts[0];
+    }
   }
-  return 0;
+  const asNumber = Number(duration);
+  return isNaN(asNumber) ? 0 : asNumber;
 };
 
 const getPointColor = (type: string, direction?: string) => {
@@ -396,6 +406,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const [hiddenLocations, setHiddenLocations] = useState<Set<string>>(new Set());
   const [showSimilar, setShowSimilar] = useState(false);
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
+  const [activeMeetingNumber, setActiveMeetingNumber] = useState<string | null>(null);
 
   const sourceNumbers = useMemo(
     () =>
@@ -423,8 +434,15 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   useEffect(() => {
     if (sourceNumbers.length < 2 && showMeetingPoints && onToggleMeetingPoints) {
       onToggleMeetingPoints();
+      setActiveMeetingNumber(null);
     }
   }, [sourceNumbers, showMeetingPoints, onToggleMeetingPoints]);
+
+  useEffect(() => {
+    if (!showMeetingPoints) {
+      setActiveMeetingNumber(null);
+    }
+  }, [showMeetingPoints]);
 
   useEffect(() => {
     if (selectedSource && !sourceNumbers.includes(selectedSource)) {
@@ -1126,10 +1144,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const handleToggleMeetingPoint = (number: string) => {
     const mp = meetingPoints.find((m) => m.numbers.includes(number));
     if (!mp) return;
-    if (showMeetingPoints) {
-      onToggleMeetingPoints?.();
+    const isActive = showMeetingPoints && activeMeetingNumber === number;
+    if (isActive) {
+      setActiveMeetingNumber(null);
     } else {
-      onToggleMeetingPoints?.();
+      setActiveMeetingNumber(number);
+      if (!showMeetingPoints) {
+        onToggleMeetingPoints?.();
+      }
       mapRef.current?.flyTo([mp.lat, mp.lng], 16);
     }
   };
@@ -1329,12 +1351,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           );
         })}
         {showMeetingPoints &&
-          meetingPoints.map((mp, idx) => (
-            <MeetingPointMarker
-              key={`meeting-${idx}`}
-              mp={mp}
-            />
-          ))}
+          meetingPoints
+            .filter(
+              (mp) => !activeMeetingNumber || mp.numbers.includes(activeMeetingNumber)
+            )
+            .map((mp, idx) => (
+              <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
+            ))}
         {showBaseMarkers && showRoute && routePositions.length > 1 && (
           <Polyline positions={routePositions} color="black" />
         )}
@@ -1766,13 +1789,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 </tr>
               </thead>
               <tbody>
-                {meetingPoints.map((m, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="pr-2">{m.nom || `${m.lat},${m.lng}`}</td>
-                    <td className="pr-2">{m.numbers.join(', ')}</td>
-                    <td className="pr-2">{m.events.length}</td>
-                  </tr>
-                ))}
+                {meetingPoints
+                  .filter(
+                    (m) => !activeMeetingNumber || m.numbers.includes(activeMeetingNumber)
+                  )
+                  .map((m, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="pr-2">{m.nom || `${m.lat},${m.lng}`}</td>
+                      <td className="pr-2">{m.numbers.join(', ')}</td>
+                      <td className="pr-2">{m.events.length}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -1842,7 +1869,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                                 className="ml-1 text-blue-600"
                                 onClick={() => handleToggleMeetingPoint(c.number)}
                               >
-                                {showMeetingPoints ? <EyeOff size={16} /> : <Eye size={16} />}
+                                {showMeetingPoints && activeMeetingNumber === c.number ? (
+                                  <EyeOff size={16} />
+                                ) : (
+                                  <Eye size={16} />
+                                )}
                               </button>
                             )}
                           </td>
