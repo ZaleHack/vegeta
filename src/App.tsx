@@ -624,10 +624,6 @@ const App: React.FC = () => {
     setCdrIdentifiers(cdrIdentifiers.filter((_, i) => i !== index));
   };
 
-  useEffect(() => {
-    if (showCdrMap) setMapPanelOpen(true);
-  }, [showCdrMap]);
-
   // Vérification de l'authentification au démarrage
   useEffect(() => {
     const token = localStorage.getItem('token');
