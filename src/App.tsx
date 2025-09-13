@@ -2098,7 +2098,7 @@ useEffect(() => {
     if (showCdrMap) {
       return (
         <aside
-          className={`z-[1000] w-80 h-full bg-white/90 backdrop-blur shadow-lg transform transition-transform duration-300 ${
+          className={`fixed top-0 left-0 z-[1000] w-80 h-full bg-white/90 backdrop-blur shadow-lg transform transition-transform duration-300 ${
             mapPanelOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
