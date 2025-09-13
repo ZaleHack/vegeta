@@ -1221,8 +1221,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             center={center}
             zoom={13}
             zoomControl={false}
-            className="relative w-full h-full"
-            style={{ cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined }}
+            className="w-full h-full"
+            style={{
+              position: 'relative',
+              cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined
+            }}
             whenCreated={(map) => (mapRef.current = map)}
             ref={mapRef}
           >

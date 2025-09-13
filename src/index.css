@@ -153,3 +153,10 @@
   margin-top: 0;
   margin-right: 0.5rem;
 }
+
+/* Ensure the Leaflet map fills the available space */
+.leaflet-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
