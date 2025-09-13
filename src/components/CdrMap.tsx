@@ -381,7 +381,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const [showOthers, setShowOthers] = useState(true);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
-  const [historyPage, setHistoryPage] = useState(1);
   const [showZoneInfo, setShowZoneInfo] = useState(false);
   const [hiddenLocations, setHiddenLocations] = useState<Set<string>>(new Set());
   const [showSimilar, setShowSimilar] = useState(false);
@@ -434,7 +433,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     setShowZoneInfo(false);
     setActiveInfo((prev) => (prev === key ? null : key));
     if (key === 'contacts') setContactPage(1);
-    if (key === 'history') setHistoryPage(1);
     if (key !== 'recent' && key !== 'popular') setShowOthers(true);
   };
 
@@ -871,11 +869,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     if (!historyDateFilter) return historyEvents;
     return historyEvents.filter((h) => h.date === historyDateFilter);
   }, [historyEvents, historyDateFilter]);
-
-  const paginatedHistory = useMemo(() => {
-    const start = (historyPage - 1) * pageSize;
-    return filteredHistoryEvents.slice(start, start + pageSize);
-  }, [filteredHistoryEvents, historyPage, pageSize]);
 
 
   useEffect(() => {
@@ -1906,7 +1899,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                     value={historyDateFilter}
                     onChange={(e) => {
                       setHistoryDateFilter(e.target.value);
-                      setHistoryPage(1);
                     }}
                     className="border rounded px-2 py-1"
                   >
@@ -1918,42 +1910,25 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                     ))}
                   </select>
                 </div>
-                <table className="min-w-full border-collapse">
-                  <thead>
-                    <tr className="text-left">
-                      <th className="pr-4">Lieu</th>
-                      <th className="pr-4">Date</th>
-                      <th>Heure</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedHistory.map((h, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="pr-4">{h.location}</td>
-                        <td className="pr-4">{formatDate(h.date)}</td>
-                        <td>{h.time}</td>
+                <div className="max-h-60 overflow-y-auto">
+                  <table className="min-w-full border-collapse">
+                    <thead>
+                      <tr className="text-left">
+                        <th className="pr-4">Lieu</th>
+                        <th className="pr-4">Date</th>
+                        <th>Heure</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="flex justify-center items-center space-x-2 mt-2">
-                  <button
-                    className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
-                    onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
-                    disabled={historyPage === 1}
-                  >
-                    Précédent
-                  </button>
-                  <span>
-                    Page {historyPage} / {Math.max(1, Math.ceil(filteredHistoryEvents.length / pageSize))}
-                  </span>
-                  <button
-                    className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
-                    onClick={() => setHistoryPage((p) => p + 1)}
-                    disabled={historyPage >= Math.ceil(filteredHistoryEvents.length / pageSize)}
-                  >
-                    Suivant
-                  </button>
+                    </thead>
+                    <tbody>
+                      {filteredHistoryEvents.map((h, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="pr-4">{h.location}</td>
+                          <td className="pr-4">{formatDate(h.date)}</td>
+                          <td>{h.time}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
