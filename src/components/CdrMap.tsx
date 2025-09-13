@@ -1,5 +1,16 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polygon, CircleMarker, Polyline, useMapEvents } from 'react-leaflet';
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polygon,
+  CircleMarker,
+  Polyline,
+  useMapEvents,
+  LayersControl
+} from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import {
   PhoneIncoming,
@@ -20,6 +31,7 @@ import {
   History
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import MapLegend from './MapLegend';
 
 interface Point {
   latitude: string;
@@ -1191,10 +1203,20 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           style={{ cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined }}
           whenCreated={(map) => (mapRef.current = map)}
         >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <LayersControl position="topright">
+          <LayersControl.BaseLayer checked name="OpenStreetMap">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          </LayersControl.BaseLayer>
+          <LayersControl.BaseLayer name="Satellite">
+            <TileLayer
+              attribution='&copy; Esri &mdash; Sources: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+              url={import.meta.env.VITE_SATELLITE_TILE_URL || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'}
+            />
+          </LayersControl.BaseLayer>
+        </LayersControl>
         <ZoneSelector />
         {drawing && currentPoints.length > 0 && (
           <Polyline positions={currentPoints} pathOptions={{ color: 'blue' }} />
@@ -1202,8 +1224,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         {zoneShape && (
           <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
         )}
-        {showBaseMarkers &&
-          groupedPoints.map((group, idx) => {
+        {showBaseMarkers && (
+          <MarkerClusterGroup>
+            {groupedPoints.map((group, idx) => {
           if (group.events.length === 1) {
             const loc = group.events[0];
             return (
@@ -1357,6 +1380,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             </Marker>
           );
         })}
+          </MarkerClusterGroup>
+        )}
         {showMeetingPoints &&
           meetingPoints
             .filter(
@@ -1533,6 +1558,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </React.Fragment>
         ))}
         </MapContainer>
+        <MapLegend />
 
         <div className="pointer-events-none absolute top-2 left-0 right-0 z-[1000] flex justify-center">
           <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">

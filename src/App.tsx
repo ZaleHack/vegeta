@@ -597,6 +597,7 @@ const App: React.FC = () => {
     }
   }, [casePage, totalCasePages]);
   const [showCdrMap, setShowCdrMap] = useState(false);
+  const [mapPanelOpen, setMapPanelOpen] = useState(true);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
   const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
@@ -623,6 +624,10 @@ const App: React.FC = () => {
   const removeCdrIdentifier = (index: number) => {
     setCdrIdentifiers(cdrIdentifiers.filter((_, i) => i !== index));
   };
+
+  useEffect(() => {
+    if (showCdrMap) setMapPanelOpen(true);
+  }, [showCdrMap]);
 
   // Vérification de l'authentification au démarrage
   useEffect(() => {
@@ -1949,16 +1954,11 @@ useEffect(() => {
     );
   }
 
-  const renderCdrSearchForm = () => (
-    <div
-      className={`${
-        showCdrMap
-          ? 'fixed bottom-24 left-4 z-[1000] w-full max-w-md bg-white/90 backdrop-blur rounded-lg shadow p-4 space-y-4'
-          : 'bg-white rounded-lg shadow p-6 space-y-4 max-h-[60vh] overflow-y-auto'
-      }`}
-    >
-      <h3 className="text-lg font-semibold text-gray-700">Recherche</h3>
-      <form onSubmit={handleCdrSearch} className="space-y-4">
+  const renderCdrSearchForm = () => {
+    const formContent = (
+      <>
+        <h3 className="text-lg font-semibold text-gray-700">Recherche</h3>
+        <form onSubmit={handleCdrSearch} className="space-y-4">
         <div className="w-full px-4 py-2 border border-gray-300 rounded-md flex flex-wrap gap-2">
           {cdrIdentifiers.map((id, idx) => (
             <span
@@ -2092,9 +2092,36 @@ useEffect(() => {
             </button>
           )}
         </div>
-      </form>
-    </div>
-  );
+        </form>
+      </>
+    );
+    if (showCdrMap) {
+      return (
+        <aside
+          className={`z-[1000] w-80 h-full bg-white/90 backdrop-blur shadow-lg transform transition-transform duration-300 ${
+            mapPanelOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <div className="relative h-full overflow-y-auto p-4 space-y-4">
+            <button
+              type="button"
+              onClick={() => setMapPanelOpen(false)}
+              className="absolute top-2 right-2 p-2 bg-white rounded-full shadow"
+              aria-label="Replier le panneau"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {formContent}
+          </div>
+        </aside>
+      );
+    }
+    return (
+      <div className="bg-white rounded-lg shadow p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+        {formContent}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -3361,16 +3388,19 @@ useEffect(() => {
               {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
               {showCdrMap && cdrResult && !cdrLoading && cdrResult.total > 0 && (
                 <>
-                  <div className="fixed inset-0 z-0">
-                    <CdrMap
-                      points={cdrResult.path}
-                      showRoute={cdrItinerary}
-                      showMeetingPoints={showMeetingPoints}
-                      onToggleMeetingPoints={() => setShowMeetingPoints((v) => !v)}
-                      zoneMode={zoneMode}
-                      onZoneCreated={() => setZoneMode(false)}
-                      onToggleZoneMode={() => setZoneMode((z) => !z)}
-                    />
+                  <div className="fixed inset-0 z-0 flex">
+                    {renderCdrSearchForm()}
+                    <div className="flex-1 relative">
+                      <CdrMap
+                        points={cdrResult.path}
+                        showRoute={cdrItinerary}
+                        showMeetingPoints={showMeetingPoints}
+                        onToggleMeetingPoints={() => setShowMeetingPoints((v) => !v)}
+                        zoneMode={zoneMode}
+                        onZoneCreated={() => setZoneMode(false)}
+                        onToggleZoneMode={() => setZoneMode((z) => !z)}
+                      />
+                    </div>
                   </div>
                   <button
                     onClick={() => setShowCdrMap(false)}
@@ -3379,7 +3409,15 @@ useEffect(() => {
                   >
                     <X className="w-5 h-5" />
                   </button>
-                  {renderCdrSearchForm()}
+                  {!mapPanelOpen && (
+                    <button
+                      onClick={() => setMapPanelOpen(true)}
+                      className="fixed top-4 left-4 z-[1000] bg-white/90 backdrop-blur rounded-full p-2 shadow"
+                      aria-label="Ouvrir le panneau de recherche"
+                    >
+                      <Menu className="w-5 h-5" />
+                    </button>
+                  )}
                 </>
               )}
               {linkDiagram && (
