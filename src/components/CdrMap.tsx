@@ -8,7 +8,8 @@ import {
   CircleMarker,
   Polyline,
   useMapEvents,
-  LayersControl
+  LayersControl,
+  ZoomControl
 } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
@@ -31,7 +32,6 @@ import {
   History
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import MapLegend from './MapLegend';
 
 interface Point {
   latitude: string;
@@ -1199,10 +1199,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         <MapContainer
           center={center}
           zoom={13}
+          zoomControl={false}
           className="w-full h-full"
           style={{ cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined }}
           whenCreated={(map) => (mapRef.current = map)}
         >
+        <ZoomControl position="bottomleft" />
         <LayersControl position="topright">
           <LayersControl.BaseLayer checked name="OpenStreetMap">
             <TileLayer
@@ -1558,9 +1560,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </React.Fragment>
         ))}
         </MapContainer>
-        <MapLegend />
 
-        <div className="pointer-events-none absolute top-2 left-0 right-0 z-[1000] flex justify-center">
+        <div className="pointer-events-none absolute top-2 left-2 right-2 z-[1000] flex justify-center">
           <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
             <button
               onClick={handleTriangulation}
@@ -1666,53 +1667,72 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </div>
         </div>
 
-        {onToggleZoneMode && (
-          <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-[1000] flex justify-center">
-            <button
-              onClick={onToggleZoneMode}
-              className={`pointer-events-auto flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors transform hover:scale-105 ${
-                zoneMode
-                  ? 'bg-green-700 text-white'
-                  : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
-            >
-              <Square className="w-4 h-4" />
-              <span>{zoneMode ? 'Annuler' : 'Créer une zone'}</span>
-            </button>
+        {(onToggleZoneMode || (showBaseMarkers && showRoute)) && (
+          <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-[1000] flex justify-center gap-4">
+            {showBaseMarkers && showRoute && (
+              <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
+                <Car className="w-4 h-4 text-blue-600" />
+                <label htmlFor="speed" className="font-semibold text-sm">
+                  {speed}x
+                </label>
+                <input
+                  id="speed"
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={speed}
+                  onChange={(e) => setSpeed(Number(e.target.value))}
+                  className="w-24"
+                />
+              </div>
+            )}
+            {onToggleZoneMode && (
+              <button
+                onClick={onToggleZoneMode}
+                className={`pointer-events-auto flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors transform hover:scale-105 ${
+                  zoneMode
+                    ? 'bg-green-700 text-white'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                <Square className="w-4 h-4" />
+                <span>{zoneMode ? 'Annuler' : 'Créer une zone'}</span>
+              </button>
+            )}
           </div>
         )}
 
-        <div className="absolute left-2 top-24 z-[1000]">
-          <div className="bg-white/80 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-3 text-xs text-gray-700">
-            <p className="font-bold text-sm mb-2 border-b border-gray-200 pb-1">Légende</p>
-            <ul className="space-y-1">
+        <div className="absolute bottom-4 right-4 z-[1000]">
+          <div className="bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
+            <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
+            <ul className="space-y-2">
               <li className="flex items-center space-x-2">
-                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
-                  <PhoneIncoming className="w-3 h-3 text-white" />
+                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
+                  <PhoneIncoming className="w-4 h-4 text-white" />
                 </span>
                 <span>Appel entrant</span>
               </li>
               <li className="flex items-center space-x-2">
-                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#2563eb' }}>
-                  <PhoneOutgoing className="w-3 h-3 text-white" />
+                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#2563eb' }}>
+                  <PhoneOutgoing className="w-4 h-4 text-white" />
                 </span>
                 <span>Appel sortant</span>
               </li>
               <li className="flex items-center space-x-2">
-                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
-                  <MessageSquare className="w-3 h-3 text-white" />
+                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
+                  <MessageSquare className="w-4 h-4 text-white" />
                 </span>
                 <span>SMS</span>
               </li>
               <li className="flex items-center space-x-2">
-                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
-                  <MapPin className="w-3 h-3 text-white" />
+                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
+                  <MapPin className="w-4 h-4 text-white" />
                 </span>
                 <span>Position</span>
               </li>
               <li className="flex items-center space-x-2">
-                <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#7e22ce' }}>
-                  <MapPin className="w-3 h-3 text-white" />
+                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#7e22ce' }}>
+                  <MapPin className="w-4 h-4 text-white" />
                 </span>
                 <span>Localisation approximative</span>
               </li>
@@ -1720,7 +1740,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 similarNumbers.map((n) => (
                   <li key={n} className="flex items-center space-x-2">
                     <span
-                      className="w-5 h-5 rounded-full"
+                      className="w-6 h-6 rounded-full"
                       style={{
                         backgroundColor: colorMap.get(n),
                         opacity: visibleSimilar.has(n) ? 1 : 0.3
@@ -1747,7 +1767,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 sourceNumbers.map((n) => (
                   <li key={n} className="flex items-center space-x-2">
                     <span
-                      className="w-5 h-5 rounded-full"
+                      className="w-6 h-6 rounded-full"
                       style={{
                         backgroundColor: colorMap.get(n),
                         opacity: visibleSources.has(n) ? 1 : 0.3
@@ -1772,19 +1792,19 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <>
                   <li className="flex items-center space-x-2">
                     <span
-                      className="w-5 h-5 rounded-full flex items-center justify-center"
+                      className="w-6 h-6 rounded-full flex items-center justify-center"
                       style={{ backgroundColor: '#f97316' }}
                     >
-                      <Clock className="w-3 h-3 text-white" />
+                      <Clock className="w-4 h-4 text-white" />
                     </span>
                     <span>Localisations récentes</span>
                   </li>
                   <li className="flex items-center space-x-2">
                     <span
-                      className="w-5 h-5 rounded-full flex items-center justify-center"
+                      className="w-6 h-6 rounded-full flex items-center justify-center"
                       style={{ backgroundColor: '#9333ea' }}
                     >
-                      <Flame className="w-3 h-3 text-white" />
+                      <Flame className="w-4 h-4 text-white" />
                     </span>
                     <span>Lieux les plus visités</span>
                   </li>
@@ -1794,21 +1814,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </div>
         </div>
 
-        {showBaseMarkers && showRoute && (
-          <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000]">
-            <label htmlFor="speed" className="block font-semibold mb-1">
-              Vitesse : {speed}x
-            </label>
-            <input
-            id="speed"
-            type="range"
-            min={1}
-            max={10}
-            value={speed}
-            onChange={(e) => setSpeed(Number(e.target.value))}
-          />
-          </div>
-        )}
 
         {showMeetingPoints && meetingPoints.length > 0 && (
           <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur rounded-lg shadow-md p-2 text-sm z-[1000] max-h-48 overflow-y-auto">

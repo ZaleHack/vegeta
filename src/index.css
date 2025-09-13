@@ -147,3 +147,9 @@
   background-color: #fff !important;
   color: #111827 !important;
 }
+
+/* Offset layer control from close button */
+.leaflet-top.leaflet-right {
+  margin-top: 3rem;
+  margin-right: 0.5rem;
+}
