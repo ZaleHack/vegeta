@@ -44,7 +44,7 @@ interface Contact {
   number: string;
   callCount: number;
   smsCount: number;
-  callMinutes: number;
+  callDuration: string;
   total: number;
 }
 
@@ -88,11 +88,11 @@ interface Props {
   onToggleZoneMode?: () => void;
 }
 
-const parseDurationToMinutes = (duration: string): number => {
+const parseDurationToSeconds = (duration: string): number => {
   const parts = duration.split(':').map(Number);
   if (parts.length === 3 && !parts.some(isNaN)) {
     const [h, m, s] = parts;
-    return h * 60 + m + s / 60;
+    return h * 3600 + m * 60 + s;
   }
   return 0;
 };
@@ -515,7 +515,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           entry.smsCount += 1;
         } else {
           entry.callCount += 1;
-          if (p.duration) entry.callDuration += parseDurationToMinutes(p.duration);
+          if (p.duration) entry.callDuration += parseDurationToSeconds(p.duration);
         }
         contactMap.set(p.number, entry);
       }
@@ -546,7 +546,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         number,
         callCount: c.callCount,
         smsCount: c.smsCount,
-        callMinutes: Math.round(c.callDuration),
+        callDuration:
+          c.callDuration >= 60
+            ? `${Math.floor(c.callDuration / 60)}m`
+            : `${Math.round(c.callDuration)}s`,
         total: c.callCount + c.smsCount
       }))
       .sort((a, b) => b.total - a.total);
@@ -1120,10 +1123,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     return result;
   }, [displayedPoints]);
 
-  const handleShowMeetingPoint = (number: string) => {
+  const handleToggleMeetingPoint = (number: string) => {
     const mp = meetingPoints.find((m) => m.numbers.includes(number));
-    if (mp) {
-      if (!showMeetingPoints && onToggleMeetingPoints) onToggleMeetingPoints();
+    if (!mp) return;
+    if (showMeetingPoints) {
+      onToggleMeetingPoints?.();
+    } else {
+      onToggleMeetingPoints?.();
       mapRef.current?.flyTo([mp.lat, mp.lng], 16);
     }
   };
@@ -1810,7 +1816,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                     <tr className="text-left">
                       <th className="pr-4">Numéro</th>
                       <th className="pr-4">Appels</th>
-                      <th className="pr-4">Minutes</th>
+                      <th className="pr-4">Durée</th>
                       <th className="pr-4">SMS</th>
                       <th className="pr-4">Rencontres</th>
                       <th>Total</th>
@@ -1827,16 +1833,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                         >
                           <td className="pr-4">{c.number}</td>
                           <td className="pr-4">{c.callCount}</td>
-                          <td className="pr-4">{c.callMinutes}</td>
+                          <td className="pr-4">{c.callDuration}</td>
                           <td className="pr-4">{c.smsCount}</td>
                           <td className="pr-4">
                             {meetingCount}
                             {meetingCount > 0 && (
                               <button
                                 className="ml-1 text-blue-600"
-                                onClick={() => handleShowMeetingPoint(c.number)}
+                                onClick={() => handleToggleMeetingPoint(c.number)}
                               >
-                                <Eye size={16} />
+                                {showMeetingPoints ? <EyeOff size={16} /> : <Eye size={16} />}
                               </button>
                             )}
                           </td>
