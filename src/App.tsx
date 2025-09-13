@@ -3390,7 +3390,7 @@ useEffect(() => {
                 <>
                   <div className="fixed inset-0 z-0 flex">
                     {renderCdrSearchForm()}
-                    <div className="flex-1 relative">
+                    <div className="flex-1 relative h-screen">
                       <CdrMap
                         points={cdrResult.path}
                         showRoute={cdrItinerary}

@@ -7,9 +7,7 @@ import {
   Polygon,
   CircleMarker,
   Polyline,
-  useMapEvents,
-  LayersControl,
-  ZoomControl
+  useMapEvents
 } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
@@ -29,7 +27,9 @@ import {
   Activity,
   Square,
   Crosshair,
-  History
+  History,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -425,6 +425,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const [showSimilar, setShowSimilar] = useState(false);
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
   const [activeMeetingNumber, setActiveMeetingNumber] = useState<string | null>(null);
+  const [isSatellite, setIsSatellite] = useState(false);
 
   const sourceNumbers = useMemo(
     () =>
@@ -1195,31 +1196,30 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   }, [displayedPoints]);
   return (
     <>
-      <div className="relative w-full h-full">
-        <MapContainer
-          center={center}
-          zoom={13}
-          zoomControl={false}
-          className="w-full h-full"
-          style={{ cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined }}
-          whenCreated={(map) => (mapRef.current = map)}
-        >
-        <ZoomControl position="bottomleft" />
-        <LayersControl position="topright">
-          <LayersControl.BaseLayer checked name="OpenStreetMap">
+        <div className="relative w-full h-screen">
+          <MapContainer
+            center={center}
+            zoom={13}
+            zoomControl={false}
+            className="w-full h-full"
+            style={{ cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined }}
+            whenCreated={(map) => (mapRef.current = map)}
+          >
+          {isSatellite ? (
+            <TileLayer
+              attribution='&copy; Esri &mdash; Sources: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+              url={
+                import.meta.env.VITE_SATELLITE_TILE_URL ||
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+              }
+            />
+          ) : (
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Satellite">
-            <TileLayer
-              attribution='&copy; Esri &mdash; Sources: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-              url={import.meta.env.VITE_SATELLITE_TILE_URL || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'}
-            />
-          </LayersControl.BaseLayer>
-        </LayersControl>
-        <ZoneSelector />
+          )}
+          <ZoneSelector />
         {drawing && currentPoints.length > 0 && (
           <Polyline positions={currentPoints} pathOptions={{ color: 'blue' }} />
         )}
@@ -1561,23 +1561,43 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         ))}
         </MapContainer>
 
+        <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] flex flex-col gap-2">
+          <button
+            onClick={handleTriangulation}
+            className={`pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors ${
+              triangulationZones.length > 0 ? 'text-blue-600' : 'text-gray-700'
+            }`}
+            title="Localisation approximative de la personne"
+          >
+            <Crosshair className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setIsSatellite((s) => !s)}
+            className={`pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors ${
+              isSatellite ? 'text-blue-600' : 'text-gray-700'
+            }`}
+            title="Changer l'affichage"
+          >
+            <Layers className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => mapRef.current?.zoomIn()}
+            className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors"
+            title="Zoomer"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => mapRef.current?.zoomOut()}
+            className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors"
+            title="Dézoomer"
+          >
+            <Minus className="w-5 h-5" />
+          </button>
+        </div>
+
         <div className="pointer-events-none absolute top-2 left-2 right-2 z-[1000] flex justify-center">
           <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
-            <button
-              onClick={handleTriangulation}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                triangulationZones.length > 0
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <Crosshair className="w-4 h-4" />
-              <span>
-                {triangulationZones.length > 0
-                  ? 'Effacer localisation'
-                  : 'Localiser approximativement la personne'}
-              </span>
-            </button>
             {sourceNumbers.length > 0 && (
               <button
                 onClick={() => setShowSimilar((s) => !s)}
@@ -1702,7 +1722,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </div>
         )}
 
-        <div className="absolute bottom-4 right-4 z-[1000]">
+        <div className="absolute bottom-20 right-4 z-[1000]">
           <div className="bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
             <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
             <ul className="space-y-2">
