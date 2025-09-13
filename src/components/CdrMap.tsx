@@ -416,6 +416,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const mapRef = useRef<L.Map | null>(null);
 
+  const handleZoomIn = () => {
+    if (mapRef.current) {
+      mapRef.current.setZoom(mapRef.current.getZoom() + 1);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (mapRef.current) {
+      mapRef.current.setZoom(mapRef.current.getZoom() - 1);
+    }
+  };
+
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | 'history' | null>(null);
   const [showOthers, setShowOthers] = useState(true);
   const pageSize = 20;
@@ -1204,6 +1216,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             className="w-full h-full"
             style={{ cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined }}
             whenCreated={(map) => (mapRef.current = map)}
+            ref={mapRef}
           >
           {isSatellite ? (
             <TileLayer
@@ -1227,7 +1240,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
         )}
         {showBaseMarkers && (
-          <MarkerClusterGroup>
+          <MarkerClusterGroup maxClusterRadius={0}>
             {groupedPoints.map((group, idx) => {
           if (group.events.length === 1) {
             const loc = group.events[0];
@@ -1564,8 +1577,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-2">
           <button
             onClick={handleTriangulation}
-            className={`pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300 ${
-              triangulationZones.length > 0 ? 'text-blue-600' : 'text-gray-700'
+            className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
+              triangulationZones.length > 0
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-white/90 text-gray-700 hover:bg-gray-100'
             }`}
             title="Localisation approximative de la personne"
           >
@@ -1573,22 +1588,24 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </button>
           <button
             onClick={() => setIsSatellite((s) => !s)}
-            className={`pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300 ${
-              isSatellite ? 'text-blue-600' : 'text-gray-700'
+            className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
+              isSatellite
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-white/90 text-gray-700 hover:bg-gray-100'
             }`}
             title="Changer l'affichage"
           >
             <Layers className="w-5 h-5" />
           </button>
           <button
-            onClick={() => mapRef.current?.zoomIn()}
+            onClick={handleZoomIn}
             className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300"
             title="Zoomer"
           >
             <Plus className="w-5 h-5" />
           </button>
           <button
-            onClick={() => mapRef.current?.zoomOut()}
+            onClick={handleZoomOut}
             className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300"
             title="Dézoomer"
           >
@@ -1688,7 +1705,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         </div>
 
         {(onToggleZoneMode || (showBaseMarkers && showRoute)) && (
-          <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-[1000] flex justify-center gap-4">
+          <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center gap-4">
             {showBaseMarkers && showRoute && (
               <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
                 <Car className="w-4 h-4 text-blue-600" />
