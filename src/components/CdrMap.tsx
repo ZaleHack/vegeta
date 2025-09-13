@@ -96,8 +96,14 @@ const parseDurationToSeconds = (duration: string): number => {
       return h * 3600 + m * 60 + s;
     }
     if (parts.length === 2) {
-      const [m, s] = parts;
-      return m * 60 + s;
+      const [first, second] = parts;
+      // Support both HH:MM and MM:SS formats. Values with an hour field
+      // (either <= 23 or >= 60) are treated as hours:minutes; otherwise
+      // assume minutes:seconds.
+      if (first >= 60 || first <= 23) {
+        return first * 3600 + second * 60;
+      }
+      return first * 60 + second;
     }
     if (parts.length === 1) {
       return parts[0];
