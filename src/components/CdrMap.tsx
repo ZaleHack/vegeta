@@ -1597,6 +1597,32 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           >
             <Layers className="w-5 h-5" />
           </button>
+          {onToggleZoneMode && (
+            <button
+              onClick={onToggleZoneMode}
+              className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
+                zoneMode
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-white/90 text-gray-700 hover:bg-gray-100'
+              }`}
+              title={zoneMode ? 'Annuler la zone' : 'Créer une zone'}
+            >
+              <Square className="w-5 h-5" />
+            </button>
+          )}
+          {sourceNumbers.length > 0 && (
+            <button
+              onClick={() => setShowSimilar((s) => !s)}
+              className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
+                showSimilar
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-white/90 text-gray-700 hover:bg-gray-100'
+              }`}
+              title="Trajectoires similaires"
+            >
+              <Activity className="w-5 h-5" />
+            </button>
+          )}
           <button
             onClick={handleZoomIn}
             className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300"
@@ -1615,19 +1641,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
         <div className="pointer-events-none absolute top-2 left-2 right-2 z-[1000] flex justify-center">
           <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
-            {sourceNumbers.length > 0 && (
-              <button
-                onClick={() => setShowSimilar((s) => !s)}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  showSimilar
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Activity className="w-4 h-4" />
-                <span>Trajectoires similaires</span>
-              </button>
-            )}
             <button
               onClick={() => toggleInfo('contacts')}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
@@ -1704,43 +1717,28 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           </div>
         </div>
 
-        {(onToggleZoneMode || (showBaseMarkers && showRoute)) && (
-          <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center gap-4">
-            {showBaseMarkers && showRoute && (
-              <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
-                <Car className="w-4 h-4 text-blue-600" />
-                <label htmlFor="speed" className="font-semibold text-sm">
-                  {speed}x
-                </label>
-                <input
-                  id="speed"
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={speed}
-                  onChange={(e) => setSpeed(Number(e.target.value))}
-                  className="w-24"
-                />
-              </div>
-            )}
-            {onToggleZoneMode && (
-              <button
-                onClick={onToggleZoneMode}
-                className={`pointer-events-auto flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors transform hover:scale-105 ${
-                  zoneMode
-                    ? 'bg-green-700 text-white'
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
-              >
-                <Square className="w-4 h-4" />
-                <span>{zoneMode ? 'Annuler' : 'Créer une zone'}</span>
-              </button>
-            )}
+        {showBaseMarkers && showRoute && (
+          <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
+            <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
+              <Car className="w-4 h-4 text-blue-600" />
+              <label htmlFor="speed" className="font-semibold text-sm">
+                {speed}x
+              </label>
+              <input
+                id="speed"
+                type="range"
+                min={1}
+                max={10}
+                value={speed}
+                onChange={(e) => setSpeed(Number(e.target.value))}
+                className="w-24"
+              />
+            </div>
           </div>
         )}
 
-        <div className="absolute bottom-20 right-4 z-[1000]">
-          <div className="bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
+        <div className="pointer-events-none absolute bottom-4 right-4 z-[1000] max-h-[50vh]">
+          <div className="pointer-events-auto max-h-full overflow-y-auto bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
             <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
             <ul className="space-y-2">
               <li className="flex items-center space-x-2">
