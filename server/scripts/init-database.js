@@ -23,8 +23,8 @@ async function initDatabase() {
     const hashedPassword = await bcrypt.hash('admin123', 12);
     
     await database.query(
-      'INSERT INTO autres.users (login, mdp, admin) VALUES (?, ?, ?)',
-      ['admin', hashedPassword, 1]
+      'INSERT INTO autres.users (login, mdp, admin, active) VALUES (?, ?, ?, ?)',
+      ['admin', hashedPassword, 1, 1]
     );
     
     console.log('✅ Utilisateur admin créé avec succès');
