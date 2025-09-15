@@ -101,10 +101,11 @@ class ProfileService {
         const innerWidth = pageWidth - margin * 2;
 
         const addFooter = () => {
+          const footerY = doc.page.height - doc.page.margins.bottom - 10;
           doc
             .fontSize(10)
             .fillColor('#4F46E5')
-            .text('SORA', 0, doc.page.height - 40, {
+            .text('SORA', 0, footerY, {
               width: pageWidth,
               align: 'center',
               lineBreak: false
