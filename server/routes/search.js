@@ -30,7 +30,7 @@ router.post('/', authenticate, async (req, res) => {
 
     const trimmed = query.trim();
     if (await Blacklist.exists(trimmed)) {
-      return res.status(403).json({ error: 'Numéro blacklisté' });
+      return res.status(403).json({ error: "Numéro blacklisté. Contacter l'administration pour plus d'informations." });
     }
 
     if (page < 1) {

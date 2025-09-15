@@ -81,7 +81,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Paramètre phone ou imei requis' });
     }
     if (await Blacklist.exists(String(identifier).trim())) {
-      return res.status(403).json({ error: 'Numéro blacklisté' });
+      return res.status(403).json({ error: "Numéro blacklisté. Contacter l'administration pour plus d'informations." });
     }
     const { start, end, startTime, endTime, direction = 'both', type = 'both', location } = req.query;
     const isValidDate = (str) => {
