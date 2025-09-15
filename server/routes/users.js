@@ -44,7 +44,7 @@ router.get('/:id', authenticate, requireAdmin, async (req, res) => {
 // Créer un nouvel utilisateur (ADMIN seulement)
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { login, password, role = 'USER' } = req.body;
+    const { login, password, role = 'USER', active = true } = req.body;
 
     if (!login || !password) {
       return res.status(400).json({ error: 'Login et mot de passe requis' });
@@ -67,7 +67,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 
     // Créer l'utilisateur
     const admin = role === 'ADMIN' ? 1 : 0;
-    const newUser = await User.create({ login, mdp: password, admin });
+    const newUser = await User.create({ login, mdp: password, admin, active: active ? 1 : 0 });
     
     const { mdp, ...userResponse } = newUser;
     res.status(201).json({ 
