@@ -107,8 +107,9 @@ class ProfileService {
           doc.fontSize(10).fillColor('#4F46E5');
           const footerY =
             doc.page.height - doc.page.margins.bottom - doc.currentLineHeight();
-          doc.text('SORA', 0, footerY, {
-            width: pageWidth,
+          // Draw footer text within page margins to avoid triggering a new page
+          doc.text('SORA', margin, footerY, {
+            width: innerWidth,
             align: 'center',
             lineBreak: false
           });
@@ -236,7 +237,6 @@ class ProfileService {
             .text(String(profile.comment), textX, y, { width: textWidth });
         }
 
-        addFooter();
         doc.end();
       });
     } catch (error) {
