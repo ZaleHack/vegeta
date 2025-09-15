@@ -57,8 +57,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
 
   const addCategory = () =>
     setCategories(prev => [...prev, { title: '', fields: [{ key: '', value: '' }] }]);
-  const removeCategory = (idx: number) =>
+  const removeCategory = (idx: number) => {
+    if (!window.confirm('Supprimer cette catégorie ?')) return;
     setCategories(prev => prev.filter((_, i) => i !== idx));
+  };
   const updateCategoryTitle = (idx: number, title: string) => {
     setCategories(prev => {
       const updated = [...prev];
@@ -75,6 +77,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     });
   };
   const removeField = (catIdx: number, fieldIdx: number) => {
+    if (!window.confirm('Supprimer ce champ ?')) return;
     setCategories(prev => {
       const updated = [...prev];
       updated[catIdx].fields = updated[catIdx].fields.filter((_, i) => i !== fieldIdx);

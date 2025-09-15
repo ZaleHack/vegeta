@@ -17,6 +17,22 @@ router.get('/', authenticate, async (req, res) => {
   res.json({ logs: rows, total });
 });
 
+router.post('/', authenticate, async (req, res) => {
+  const { action, details, duration_ms } = req.body;
+  try {
+    await UserLog.create({
+      user_id: req.user.id,
+      action,
+      details: details ? JSON.stringify(details) : null,
+      duration_ms: duration_ms || null
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Erreur création log:', err);
+    res.status(500).json({ error: 'Erreur création log' });
+  }
+});
+
 router.get('/export', authenticate, async (req, res) => {
   const isAdmin = req.user?.admin === 1 || req.user?.admin === '1' || req.user?.admin === true;
   if (!isAdmin) return res.status(403).json({ error: 'Accès refusé' });

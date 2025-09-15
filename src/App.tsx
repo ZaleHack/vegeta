@@ -513,6 +513,7 @@ const App: React.FC = () => {
       setEditingProfileId(id);
       setShowProfileForm(true);
       setCurrentPage('profiles');
+      logPageVisit('profile', { profile_id: id });
     }
   };
   const [uploadHistory, setUploadHistory] = useState<any[]>([]);
@@ -804,6 +805,28 @@ const App: React.FC = () => {
       console.error('Erreur export logs:', err);
     }
   };
+
+  const logPageVisit = useCallback(async (page: string, extra: Record<string, any> = {}) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch('/api/logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ action: 'page_view', details: { page, ...extra } })
+      });
+    } catch (err) {
+      console.error('Erreur log page:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentUser && currentPage !== 'login') {
+      logPageVisit(currentPage);
+    }
+  }, [currentPage, currentUser, logPageVisit]);
 
   const handleSearch = async (e?: React.FormEvent, forcedQuery?: string) => {
     e?.preventDefault();
@@ -3803,22 +3826,43 @@ useEffect(() => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Page</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profil</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durée (min)</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {logsData.map((log: any) => (
-                      <tr key={log.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.username || 'Inconnu'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.action}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.details || '-'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.duration_ms ? Math.round(log.duration_ms / 60000) : '-'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {log.created_at ? format(parseISO(log.created_at), 'Pp', { locale: fr }) : '-'}
-                        </td>
-                      </tr>
-                    ))}
+                    {logsData.map((log: any) => {
+                      let details: any = {};
+                      try {
+                        details = log.details ? JSON.parse(log.details) : {};
+                      } catch {}
+                      return (
+                        <tr key={log.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.username || 'Inconnu'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.action}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.details || '-'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{details.page || '-'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {details.profile_id ? (
+                              <button
+                                className="text-blue-600 hover:underline"
+                                onClick={() => openEditProfile(details.profile_id)}
+                              >
+                                Voir
+                              </button>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.duration_ms ? Math.round(log.duration_ms / 60000) : '-'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {log.created_at ? format(parseISO(log.created_at), 'Pp', { locale: fr }) : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
                 <div className="flex justify-between items-center mt-4">
