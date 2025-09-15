@@ -104,7 +104,10 @@ class ProfileService {
           doc
             .fontSize(10)
             .fillColor('#6B7280')
-            .text('Vegeta', 0, doc.page.height - 40, { align: 'center' });
+            .text('SORA', 0, doc.page.height - 40, {
+              align: 'center',
+              lineBreak: false
+            });
           doc.fillColor('black');
         };
         addFooter();

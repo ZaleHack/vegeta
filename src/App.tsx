@@ -749,6 +749,9 @@ const App: React.FC = () => {
   };
 
   const handleDeleteBlacklist = async (id: number) => {
+    if (!window.confirm('Confirmer la suppression de ce numéro blacklisté ?')) {
+      return;
+    }
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/blacklist/${id}`, {
@@ -990,7 +993,7 @@ const App: React.FC = () => {
       
       const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
       const searchTerm = searchQuery.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_');
-      link.setAttribute('download', `vegeta-export-${searchTerm}-${timestamp}.csv`);
+      link.setAttribute('download', `sora-export-${searchTerm}-${timestamp}.csv`);
       
       document.body.appendChild(link);
       link.click();
@@ -2029,8 +2032,8 @@ useEffect(() => {
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
                   <Database className="h-8 w-8 text-white" />
                 </div>
-                <h2 className="text-2xl font-bold text-white">VEGETA</h2>
-                <p className="text-blue-100 mt-1">Plateforme de recherche professionnelle</p>
+                <h2 className="text-2xl font-bold text-white">SORA</h2>
+                <p className="text-blue-100 mt-1">Solution d'Observation et de Recherche Avancée</p>
               </div>
             </div>
             
@@ -2267,8 +2270,8 @@ useEffect(() => {
               </div>
               {sidebarOpen && (
                 <div className="ml-3">
-                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">VEGETA</h1>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Recherche Pro</p>
+                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">SORA</h1>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Solution d'Observation et de Recherche Avancée</p>
                 </div>
               )}
             </div>
@@ -4011,7 +4014,7 @@ useEffect(() => {
           {currentPage === 'dashboard' && (
             <div className="space-y-8">
               {/* Header */}
-              <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme VEGETA" />
+              <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme SORA" />
 
               {loadingStats ? (
                 <div className="flex items-center justify-center py-16">

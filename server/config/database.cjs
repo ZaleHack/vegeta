@@ -4,7 +4,7 @@ const fs = require('fs');
 
 class DatabaseManager {
   constructor() {
-    this.dbPath = path.join(__dirname, '../../data/vegeta.db');
+    this.dbPath = path.join(__dirname, '../../data/sora.db');
     this.db = null;
     this.init();
   }
