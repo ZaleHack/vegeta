@@ -1789,8 +1789,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   </li>
                 ))
               ) : selectedSource === null &&
-                sourceNumbers.length > 1 &&
-                (activeInfo === 'recent' || activeInfo === 'popular') ? (
+                sourceNumbers.length > 1 ? (
                 sourceNumbers.map((n) => (
                   <li key={n} className="flex items-center space-x-2">
                     <span
