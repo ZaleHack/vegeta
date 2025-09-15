@@ -100,25 +100,35 @@ class ProfileService {
         const margin = doc.page.margins.left;
         const innerWidth = pageWidth - margin * 2;
 
-        const addFooter = () => {
+        const addSignature = () => {
           const { x, y } = doc;
           const size = doc._fontSize;
           const color = doc._fillColor;
-          doc.fontSize(10).fillColor('#4F46E5');
-          const footerY =
-            doc.page.height - doc.page.margins.bottom - doc.currentLineHeight();
-          // Draw footer text within page margins to avoid triggering a new page
-          doc.text('SORA', margin, footerY, {
-            width: innerWidth,
-            align: 'center',
-            lineBreak: false
-          });
+
+          const signatureWidth = 100;
+          const signatureX = pageWidth - margin - signatureWidth;
+          const signatureY = doc.page.height - doc.page.margins.bottom - 40;
+
+          doc
+            .moveTo(signatureX, signatureY)
+            .lineTo(pageWidth - margin, signatureY)
+            .stroke('#E5E7EB');
+
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(12)
+            .fillColor('#4F46E5')
+            .text('SORA', signatureX, signatureY + 6, {
+              width: signatureWidth,
+              align: 'right'
+            });
+
           doc.fontSize(size).fillColor(color);
           doc.x = x;
           doc.y = y;
         };
-        addFooter();
-        doc.on('pageAdded', addFooter);
+        addSignature();
+        doc.on('pageAdded', addSignature);
 
         doc.rect(0, 0, pageWidth, headerHeight).fill('#4F46E5');
         doc
