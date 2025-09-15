@@ -162,6 +162,14 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.blacklist (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          number VARCHAR(50) NOT NULL UNIQUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
       // Table des dossiers CDR
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_cases (

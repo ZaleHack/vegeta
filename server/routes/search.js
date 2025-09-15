@@ -2,6 +2,7 @@ import express from 'express';
 import SearchService from '../services/SearchService.js';
 import ElasticSearchService from '../services/ElasticSearchService.js';
 import { authenticate } from '../middleware/auth.js';
+import Blacklist from '../models/Blacklist.js';
 
 const router = express.Router();
 const searchService = new SearchService();
@@ -27,6 +28,11 @@ router.post('/', authenticate, async (req, res) => {
       });
     }
 
+    const trimmed = query.trim();
+    if (await Blacklist.exists(trimmed)) {
+      return res.status(403).json({ error: 'Numéro blacklisté' });
+    }
+
     if (page < 1) {
       return res.status(400).json({ error: 'La page doit être >= 1' });
     }
@@ -46,7 +52,7 @@ router.post('/', authenticate, async (req, res) => {
     let results;
     if (useElastic) {
       const es = await elasticService.search(
-        query.trim(),
+        trimmed,
         parseInt(page),
         parseInt(limit)
       );
@@ -61,7 +67,7 @@ router.post('/', authenticate, async (req, res) => {
       };
     } else {
       results = await searchService.search(
-        query.trim(),
+        trimmed,
         filters,
         parseInt(page),
         parseInt(limit),

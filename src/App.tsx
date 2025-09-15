@@ -29,8 +29,7 @@ import {
   Building2,
   Globe,
   Car,
-  Link as LinkIcon,
-  ExternalLink,
+  Ban,
   UserCircle,
   List,
   Loader2,
@@ -300,32 +299,11 @@ interface LinkDiagramData {
   links: GraphLink[];
 }
 
-const usefulLinks = [
-  {
-    title: 'INTERPOL',
-    url: 'https://www.interpol.int/en/How-we-work/Notices/View-UN-Notices-Entities'
-  },
-  {
-    title: 'Jordan AMLU',
-    url: 'https://sanctions.amlu.gov.jo/EN/CustomePages/Sanctions'
-  },
-  {
-    title: 'UK sanction List',
-    url: 'https://search-uk-sanctions-list.service.gov.uk/'
-  },
-  {
-    title: 'Liste Rouge Interpol',
-    url: 'https://www.interpol.int/fr/Notre-action/Notices/Notices-rouges/Voir-les-notices-rouges'
-  },
-  {
-    title: 'search Compagnie UK',
-    url: 'https://find-and-update.company-information.service.gov.uk/'
-  },
-  {
-    title: "recherche d'entreprise en France",
-    url: 'https://data.inpi.fr/'
-  }
-];
+interface BlacklistEntry {
+  id: number;
+  number: string;
+  created_at: string;
+}
 
 const App: React.FC = () => {
   // États principaux
@@ -351,6 +329,9 @@ const App: React.FC = () => {
   const lastQueryRef = useRef<{ query: string; page: number; limit: number } | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'profile'>('list');
   const [showProfileForm, setShowProfileForm] = useState(false);
+  const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
+  const [blacklistNumber, setBlacklistNumber] = useState('');
+  const [blacklistError, setBlacklistError] = useState('');
   interface ExtraField {
     key: string;
     value: string;
@@ -694,6 +675,64 @@ const App: React.FC = () => {
     setSearchResults(null);
   };
 
+  const fetchBlacklist = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/blacklist', {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBlacklist(data);
+      }
+    } catch (err) {
+      console.error('Erreur chargement blacklist:', err);
+    }
+  };
+
+  const handleAddBlacklist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const num = blacklistNumber.trim();
+    if (!num) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/blacklist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ number: num })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBlacklist(data);
+        setBlacklistNumber('');
+        setBlacklistError('');
+      } else {
+        setBlacklistError(data.error || 'Erreur lors de l\'ajout');
+      }
+    } catch (err) {
+      setBlacklistError('Erreur de connexion');
+    }
+  };
+
+  const handleDeleteBlacklist = async (id: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/blacklist/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBlacklist(data);
+      }
+    } catch (err) {
+      console.error('Erreur suppression blacklist:', err);
+    }
+  };
+
   const handleSearch = async (e?: React.FormEvent, forcedQuery?: string) => {
     e?.preventDefault();
     if (loading) return;
@@ -833,14 +872,12 @@ const App: React.FC = () => {
         Object.keys(hit.preview).forEach(field => allFields.add(field));
       });
 
-      const fields = ['Source', 'Base', 'Score', ...Array.from(allFields)];
-      
+      const fields = ['Score', ...Array.from(allFields)];
+
       let csvContent = fields.map(field => `"${field}"`).join(',') + '\n';
-      
+
       searchResults.hits.forEach(hit => {
         const row = [
-          `"${hit.table || ''}"`,
-          `"${hit.database || ''}"`,
           `"${hit.score || 0}"`,
           ...Array.from(allFields).map(field => {
             const value = hit.preview[field];
@@ -1630,20 +1667,20 @@ useEffect(() => {
       });
       const data = await res.json();
       if (res.ok) {
-        setCdrCaseMessage('CASE créé');
+        setCdrCaseMessage('Opération créée');
         setCdrCaseName('');
         fetchCases();
       } else {
-        setCdrCaseMessage(data.error || 'Erreur création CASE');
+        setCdrCaseMessage(data.error || 'Erreur création d\'opération');
       }
     } catch (err) {
-      console.error('Erreur création CASE:', err);
-      setCdrCaseMessage('Erreur création CASE');
+      console.error('Erreur création opération:', err);
+      setCdrCaseMessage('Erreur création d\'opération');
     }
   };
 
   const handleDeleteCase = async (id: number) => {
-    if (!window.confirm('Supprimer ce CASE ?')) return;
+    if (!window.confirm('Supprimer cette opération ?')) return;
     try {
       const token = localStorage.getItem('token');
       await fetch(`/api/cases/${id}`, {
@@ -1652,7 +1689,7 @@ useEffect(() => {
       });
       fetchCases();
     } catch (err) {
-      console.error('Erreur suppression CASE:', err);
+      console.error('Erreur suppression opération:', err);
     }
   };
 
@@ -1722,6 +1759,12 @@ useEffect(() => {
 
   // Vérifier si l'utilisateur est admin
   const isAdmin = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
+
+  useEffect(() => {
+    if (currentPage === 'blacklist' && isAdmin) {
+      fetchBlacklist();
+    }
+  }, [currentPage, isAdmin]);
 
   const identifiedRequests = requests.filter(r => r.status === 'identified');
   const lastNotifications = identifiedRequests.slice(0, 20);
@@ -2266,17 +2309,19 @@ useEffect(() => {
               {sidebarOpen && <span className="ml-3">Fiches de profil</span>}
             </button>
 
-            <button
-              onClick={() => setCurrentPage('links')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                currentPage === 'links'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
-            >
-              <LinkIcon className="h-5 w-5" />
-              {sidebarOpen && <span className="ml-3">Liens Utiles</span>}
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setCurrentPage('blacklist')}
+                className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                  currentPage === 'blacklist'
+                    ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
+                } ${!sidebarOpen && 'justify-center'}`}
+              >
+                <Ban className="h-5 w-5" />
+                {sidebarOpen && <span className="ml-3">Black List</span>}
+              </button>
+            )}
 
             {isAdmin && (
               <button
@@ -2529,8 +2574,7 @@ useEffect(() => {
                                     <Database className="w-5 h-5" />
                                   </div>
                                   <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{result.table}</h3>
-                                    <p className="text-sm text-gray-500">Base: {result.database}</p>
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Résultat {index + 1}</h3>
                                   </div>
                                 </div>
                                 <div className="flex items-center space-x-2">
@@ -3198,7 +3242,7 @@ useEffect(() => {
               <form onSubmit={handleCreateCase} className="flex items-center space-x-2">
                 <input
                   type="text"
-                  placeholder="Nom du CASE"
+                  placeholder="Nom de l'opération"
                   value={cdrCaseName}
                   onChange={(e) => setCdrCaseName(e.target.value)}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -3213,7 +3257,7 @@ useEffect(() => {
               {cdrCaseMessage && <p className="text-green-600">{cdrCaseMessage}</p>}
 
               <div>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Liste des CASES</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Liste des opérations</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
                   {paginatedCases.map((c) => (
                     <div
@@ -3576,32 +3620,51 @@ useEffect(() => {
           </div>
         )}
 
-        {currentPage === 'links' && (
+        {currentPage === 'blacklist' && isAdmin && (
           <div className="space-y-6">
-            <PageHeader icon={<LinkIcon className="h-6 w-6" />} title="Liens Utiles" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {usefulLinks.map((link) => (
-                  <a
-                    key={link.url}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group p-6 bg-white rounded-xl shadow hover:shadow-lg transition-shadow border border-gray-100"
-                  >
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600">
-                        {link.title}
-                      </h2>
-                      <ExternalLink className="h-5 w-5 text-gray-400 group-hover:text-blue-600" />
-                    </div>
-                    <p className="mt-2 text-sm text-gray-500 break-all">{link.url}</p>
-                  </a>
-                ))}
-              </div>
+            <PageHeader icon={<Ban className="h-6 w-6" />} title="Black List" />
+            <form onSubmit={handleAddBlacklist} className="flex space-x-2">
+              <input
+                type="text"
+                placeholder="Numéro"
+                value={blacklistNumber}
+                onChange={(e) => setBlacklistNumber(e.target.value)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                Ajouter
+              </button>
+            </form>
+            {blacklistError && <p className="text-red-600">{blacklistError}</p>}
+            <div className="overflow-x-auto bg-white rounded-lg shadow">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numéro</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {blacklist.map((b) => (
+                    <tr key={b.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{b.number}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                        <button
+                          onClick={() => handleDeleteBlacklist(b.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Supprimer
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
+        )}
 
-          {currentPage === 'users' && isAdmin && (
+        {currentPage === 'users' && isAdmin && (
             <div className="space-y-8">
               {/* Header */}
               <div className="flex justify-between items-center">

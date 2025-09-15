@@ -86,8 +86,6 @@ class ProfileService {
       const doc = new PDFDocument({ margin: 50 });
       const chunks = [];
 
-      // Removed application name footer to keep PDF layout clean
-
       return await new Promise(async (resolve, reject) => {
         doc.on('data', chunk => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -98,6 +96,17 @@ class ProfileService {
         const headerHeight = 80;
         const margin = doc.page.margins.left;
         const innerWidth = pageWidth - margin * 2;
+
+        const addFooter = () => {
+          doc
+            .fontSize(10)
+            .fillColor('#6B7280')
+            .text('Vegeta', 0, doc.page.height - 40, { align: 'center' });
+          doc.fillColor('black');
+        };
+        addFooter();
+        doc.on('pageAdded', addFooter);
+
         doc.rect(0, 0, pageWidth, headerHeight).fill('#4F46E5');
         doc
           .fillColor('white')
@@ -215,6 +224,7 @@ class ProfileService {
             .text(String(profile.comment), textX, y, { width: textWidth });
         }
 
+        addFooter();
         doc.end();
       });
     } catch (error) {
