@@ -332,6 +332,8 @@ const App: React.FC = () => {
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [blacklistNumber, setBlacklistNumber] = useState('');
   const [blacklistError, setBlacklistError] = useState('');
+  const [blacklistFile, setBlacklistFile] = useState<File | null>(null);
+  const [logsData, setLogsData] = useState<any[]>([]);
   interface ExtraField {
     key: string;
     value: string;
@@ -717,6 +719,31 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUploadBlacklist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blacklistFile) return;
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', blacklistFile);
+      const res = await fetch('/api/blacklist/upload', {
+        method: 'POST',
+        headers: { Authorization: token ? `Bearer ${token}` : '' },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBlacklist(data);
+        setBlacklistFile(null);
+        setBlacklistError('');
+      } else {
+        setBlacklistError(data.error || "Erreur lors de l'import");
+      }
+    } catch (err) {
+      setBlacklistError('Erreur de connexion');
+    }
+  };
+
   const handleDeleteBlacklist = async (id: number) => {
     try {
       const token = localStorage.getItem('token');
@@ -730,6 +757,43 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error('Erreur suppression blacklist:', err);
+    }
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const query = logUserFilter ? `?username=${encodeURIComponent(logUserFilter)}` : '';
+      const res = await fetch(`/api/logs${query}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLogsData(data.logs || []);
+      }
+    } catch (err) {
+      console.error('Erreur chargement logs:', err);
+    }
+  };
+
+  const exportLogs = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const query = logUserFilter ? `?username=${encodeURIComponent(logUserFilter)}` : '';
+      const res = await fetch(`/api/logs/export${query}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'logs.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error('Erreur export logs:', err);
     }
   };
 
@@ -1766,6 +1830,12 @@ useEffect(() => {
     }
   }, [currentPage, isAdmin]);
 
+  useEffect(() => {
+    if (currentPage === 'logs' && isAdmin) {
+      fetchLogs();
+    }
+  }, [currentPage, isAdmin]);
+
   const identifiedRequests = requests.filter(r => r.status === 'identified');
   const lastNotifications = identifiedRequests.slice(0, 20);
   const notificationCount = lastNotifications.filter(
@@ -2320,6 +2390,20 @@ useEffect(() => {
               >
                 <Ban className="h-5 w-5" />
                 {sidebarOpen && <span className="ml-3">Black List</span>}
+              </button>
+            )}
+
+            {isAdmin && (
+              <button
+                onClick={() => setCurrentPage('logs')}
+                className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                  currentPage === 'logs'
+                    ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
+                } ${!sidebarOpen && 'justify-center'}`}
+              >
+                <List className="h-5 w-5" />
+                {sidebarOpen && <span className="ml-3">Logs</span>}
               </button>
             )}
 
@@ -3623,43 +3707,109 @@ useEffect(() => {
         {currentPage === 'blacklist' && isAdmin && (
           <div className="space-y-6">
             <PageHeader icon={<Ban className="h-6 w-6" />} title="Black List" />
-            <form onSubmit={handleAddBlacklist} className="flex space-x-2">
-              <input
-                type="text"
-                placeholder="Numéro"
-                value={blacklistNumber}
-                onChange={(e) => setBlacklistNumber(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                Ajouter
-              </button>
-            </form>
-            {blacklistError && <p className="text-red-600">{blacklistError}</p>}
-            <div className="overflow-x-auto bg-white rounded-lg shadow">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numéro</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {blacklist.map((b) => (
-                    <tr key={b.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{b.number}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <button
-                          onClick={() => handleDeleteBlacklist(b.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Supprimer
-                        </button>
-                      </td>
+            <div className="bg-white shadow rounded-lg p-6 space-y-4">
+              <div className="flex flex-col md:flex-row gap-4">
+                <form onSubmit={handleAddBlacklist} className="flex flex-1 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Numéro"
+                    value={blacklistNumber}
+                    onChange={(e) => setBlacklistNumber(e.target.value)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Ajouter
+                  </button>
+                </form>
+                <form onSubmit={handleUploadBlacklist} className="flex gap-2 items-center">
+                  <input
+                    type="file"
+                    accept=".txt,.csv"
+                    onChange={(e) => setBlacklistFile(e.target.files?.[0] || null)}
+                    className="flex-1 text-sm"
+                  />
+                  <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    Importer
+                  </button>
+                </form>
+              </div>
+              {blacklistError && <p className="text-red-600">{blacklistError}</p>}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numéro</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {blacklist.map((b) => (
+                      <tr key={b.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{b.number}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                          <button
+                            onClick={() => handleDeleteBlacklist(b.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Supprimer
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentPage === 'logs' && isAdmin && (
+          <div className="space-y-6">
+            <PageHeader icon={<List className="h-6 w-6" />} title="Logs" />
+            <div className="bg-white shadow rounded-lg p-6">
+              <div className="mb-4 flex">
+                <input
+                  type="text"
+                  value={logUserFilter}
+                  onChange={(e) => setLogUserFilter(e.target.value)}
+                  placeholder="Filtrer par utilisateur"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={fetchLogs}
+                  className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Rechercher
+                </button>
+                <button
+                  onClick={exportLogs}
+                  className="ml-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Exporter
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {logsData.map((log: any) => (
+                      <tr key={log.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.username || 'Inconnu'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.search_term || log.search_type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {format(parseISO(log.search_date), 'Pp', { locale: fr })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
