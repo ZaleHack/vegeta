@@ -62,6 +62,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
   }, [load]);
 
   const remove = async (id: number) => {
+    if (!window.confirm('Supprimer ce profil ?')) return;
     const token = localStorage.getItem('token');
     await fetch(`/api/profiles/${id}`, {
       method: 'DELETE',
