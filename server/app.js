@@ -20,6 +20,7 @@ import profilesRoutes from './routes/profiles.js';
 import casesRoutes from './routes/cases.js';
 import requestsRoutes from './routes/requests.js';
 import identifiedNumbersRoutes from './routes/identified-numbers.js';
+import blacklistRoutes from './routes/blacklist.js';
 
 // Initialisation de la base de données
 import database from './config/database.js';
@@ -56,6 +57,7 @@ app.use('/api/profiles', profilesRoutes);
 app.use('/api/cases', casesRoutes);
 app.use('/api/requests', requestsRoutes);
 app.use('/api/identified-numbers', identifiedNumbersRoutes);
+app.use('/api/blacklist', blacklistRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {

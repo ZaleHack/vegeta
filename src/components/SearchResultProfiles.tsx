@@ -32,8 +32,7 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
           <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-4 flex items-center">
             <User className="w-8 h-8 text-white mr-3" />
             <div>
-              <h3 className="text-xl font-semibold text-white">{hit.table}</h3>
-              <p className="text-blue-100 text-sm">{hit.database}</p>
+              <h3 className="text-xl font-semibold text-white">Résultat {idx + 1}</h3>
             </div>
             <span className="ml-auto inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white">
               <Activity className="w-3 h-3 mr-1" />
