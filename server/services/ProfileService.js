@@ -103,8 +103,9 @@ class ProfileService {
         const addFooter = () => {
           doc
             .fontSize(10)
-            .fillColor('#6B7280')
+            .fillColor('#4F46E5')
             .text('SORA', 0, doc.page.height - 40, {
+              width: pageWidth,
               align: 'center',
               lineBreak: false
             });
