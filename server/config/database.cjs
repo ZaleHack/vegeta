@@ -4,7 +4,20 @@ const fs = require('fs');
 
 class DatabaseManager {
   constructor() {
-    this.dbPath = path.join(__dirname, '../../data/sora.db');
+    const dataDir = path.join(__dirname, '../../data');
+    const newDbPath = path.join(dataDir, 'sora.db');
+    const oldDbPath = path.join(dataDir, 'vegeta.db');
+
+    // Preserve existing data by migrating the old database file if needed
+    if (fs.existsSync(oldDbPath) && !fs.existsSync(newDbPath)) {
+      try {
+        fs.renameSync(oldDbPath, newDbPath);
+      } catch (err) {
+        console.error('❌ Erreur lors de la migration de la base de données:', err);
+      }
+    }
+
+    this.dbPath = newDbPath;
     this.db = null;
     this.init();
   }
