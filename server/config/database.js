@@ -65,10 +65,16 @@ class DatabaseManager {
       `);
 
       if (!hasActive) {
-        await this.query(`
-          ALTER TABLE autres.users
-          ADD COLUMN active TINYINT(1) DEFAULT 1 AFTER admin
-        `);
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD COLUMN active TINYINT(1) DEFAULT 1 AFTER admin
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+          }
+        }
       }
 
       // Créer la table search_logs
