@@ -59,11 +59,18 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
-        ALTER TABLE autres.users
-        ADD COLUMN IF NOT EXISTS active TINYINT(1) DEFAULT 1 AFTER admin
+      const hasActive = await this.queryOne(`
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'active'
       `);
-      
+
+      if (!hasActive) {
+        await this.query(`
+          ALTER TABLE autres.users
+          ADD COLUMN active TINYINT(1) DEFAULT 1 AFTER admin
+        `);
+      }
+
       // Créer la table search_logs
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.search_logs (
