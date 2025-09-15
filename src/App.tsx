@@ -89,6 +89,7 @@ interface User {
   login: string;
   admin: number;
   created_at: string;
+  active: number;
 }
 
 interface SearchResult {
@@ -429,7 +430,8 @@ const App: React.FC = () => {
   const [userFormData, setUserFormData] = useState({
     login: '',
     password: '',
-    admin: 0
+    admin: 0,
+    active: 1
   });
   const [passwordFormData, setPasswordFormData] = useState({
     currentPassword: '',
@@ -1204,7 +1206,8 @@ useEffect(() => {
         body: JSON.stringify({
           login: userFormData.login,
           password: userFormData.password,
-          role: userFormData.admin === 1 ? 'ADMIN' : 'USER'
+          role: userFormData.admin === 1 ? 'ADMIN' : 'USER',
+          active: userFormData.active === 1 ? 1 : 0
         })
       });
 
@@ -1214,7 +1217,7 @@ useEffect(() => {
       if (response.ok) {
         alert('Utilisateur créé avec succès');
         setShowUserModal(false);
-        setUserFormData({ login: '', password: '', admin: 0 });
+        setUserFormData({ login: '', password: '', admin: 0, active: 1 });
         setEditingUser(null);
         loadUsers();
       } else {
@@ -1245,7 +1248,8 @@ useEffect(() => {
         },
         body: JSON.stringify({
           login: userFormData.login,
-          admin: userFormData.admin
+          admin: userFormData.admin,
+          active: userFormData.active === 1 ? 1 : 0
         })
       });
 
@@ -1254,7 +1258,7 @@ useEffect(() => {
       if (response.ok) {
         alert('Utilisateur modifié avec succès');
         setShowUserModal(false);
-        setUserFormData({ login: '', password: '', admin: 0 });
+        setUserFormData({ login: '', password: '', admin: 0, active: 1 });
         setEditingUser(null);
         loadUsers();
       } else {
@@ -1361,14 +1365,15 @@ useEffect(() => {
     setUserFormData({
       login: user.login,
       password: '',
-      admin: user.admin
+      admin: user.admin,
+      active: user.active
     });
     setShowUserModal(true);
   };
 
   const openCreateModal = () => {
     setEditingUser(null);
-    setUserFormData({ login: '', password: '', admin: 0 });
+    setUserFormData({ login: '', password: '', admin: 0, active: 1 });
     setShowUserModal(true);
   };
 
@@ -3933,6 +3938,9 @@ useEffect(() => {
                             Rôle
                           </th>
                           <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Statut
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Créé le
                           </th>
                           <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -3964,6 +3972,17 @@ useEffect(() => {
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                   <UserCheck className="w-3 h-3 mr-1" />
                                   Utilisateur
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {user.active === 1 ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  Actif
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                  Désactivé
                                 </span>
                               )}
                             </td>
@@ -4460,13 +4479,25 @@ useEffect(() => {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
+                <select
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={userFormData.active}
+                  onChange={(e) => setUserFormData({ ...userFormData, active: parseInt(e.target.value) })}
+                >
+                  <option value={1}>Actif</option>
+                  <option value={0}>Désactivé</option>
+                </select>
+              </div>
+
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
                   onClick={() => {
                     setShowUserModal(false);
                     setEditingUser(null);
-                    setUserFormData({ login: '', password: '', admin: 0 });
+                    setUserFormData({ login: '', password: '', admin: 0, active: 1 });
                   }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >
