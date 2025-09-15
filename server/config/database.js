@@ -77,6 +77,21 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      // Table de journalisation des actions utilisateur
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.user_logs (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT,
+          action VARCHAR(50) NOT NULL,
+          details TEXT,
+          duration_ms INT DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_user_id (user_id),
+          INDEX idx_created_at (created_at),
+          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.annuaire_gendarmerie (
           id INT AUTO_INCREMENT PRIMARY KEY,

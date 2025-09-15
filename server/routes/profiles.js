@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import ProfileService from '../services/ProfileService.js';
 import { authenticate } from '../middleware/auth.js';
+import UserLog from '../models/UserLog.js';
 
 const router = express.Router();
 const service = new ProfileService();
@@ -30,18 +31,21 @@ const upload = multer({ storage });
 
 router.use(authenticate);
 
-router.post('/', upload.single('photo'), async (req, res) => {
-  try {
-    const data = { ...req.body };
-    if (data.extra_fields && typeof data.extra_fields === 'string') {
-      try { data.extra_fields = JSON.parse(data.extra_fields); } catch (_) {}
+  router.post('/', upload.single('photo'), async (req, res) => {
+    try {
+      const data = { ...req.body };
+      if (data.extra_fields && typeof data.extra_fields === 'string') {
+        try { data.extra_fields = JSON.parse(data.extra_fields); } catch (_) {}
+      }
+      const profile = await service.create(data, req.user.id, req.file);
+      try {
+        await UserLog.create({ user_id: req.user.id, action: 'create_profile', details: JSON.stringify({ profile_id: profile.id }) });
+      } catch (_) {}
+      res.json({ profile });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
     }
-    const profile = await service.create(data, req.user.id, req.file);
-    res.json({ profile });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+  });
 
 router.get('/', async (req, res) => {
   try {
@@ -86,17 +90,20 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-router.get('/:id/pdf', async (req, res) => {
-  try {
-    const profile = await service.get(parseInt(req.params.id), req.user);
-    if (!profile) return res.status(404).json({ error: 'Profil non trouvé' });
-    const pdf = await service.generatePDF(profile);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=profile-${profile.id}.pdf`);
-    res.send(pdf);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+  router.get('/:id/pdf', async (req, res) => {
+    try {
+      const profile = await service.get(parseInt(req.params.id), req.user);
+      if (!profile) return res.status(404).json({ error: 'Profil non trouvé' });
+      const pdf = await service.generatePDF(profile);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=profile-${profile.id}.pdf`);
+      res.send(pdf);
+      try {
+        await UserLog.create({ user_id: req.user.id, action: 'export_profile', details: JSON.stringify({ profile_id: profile.id }) });
+      } catch (_) {}
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
 export default router;

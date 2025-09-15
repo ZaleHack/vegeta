@@ -334,6 +334,9 @@ const App: React.FC = () => {
   const [blacklistError, setBlacklistError] = useState('');
   const [blacklistFile, setBlacklistFile] = useState<File | null>(null);
   const [logsData, setLogsData] = useState<any[]>([]);
+  const [logPage, setLogPage] = useState(1);
+  const [logTotal, setLogTotal] = useState(0);
+  const LOGS_LIMIT = 20;
   interface ExtraField {
     key: string;
     value: string;
@@ -760,16 +763,21 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (page = 1) => {
     try {
       const token = localStorage.getItem('token');
-      const query = logUserFilter ? `?username=${encodeURIComponent(logUserFilter)}` : '';
-      const res = await fetch(`/api/logs${query}`, {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', String(LOGS_LIMIT));
+      if (logUserFilter) params.set('username', logUserFilter);
+      const res = await fetch(`/api/logs?${params.toString()}`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
       if (res.ok) {
         const data = await res.json();
         setLogsData(data.logs || []);
+        setLogTotal(data.total || 0);
+        setLogPage(page);
       }
     } catch (err) {
       console.error('Erreur chargement logs:', err);
@@ -1832,7 +1840,7 @@ useEffect(() => {
 
   useEffect(() => {
     if (currentPage === 'logs' && isAdmin) {
-      fetchLogs();
+      fetchLogs(1);
     }
   }, [currentPage, isAdmin]);
 
@@ -3776,7 +3784,7 @@ useEffect(() => {
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
-                  onClick={fetchLogs}
+                  onClick={() => fetchLogs(1)}
                   className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Rechercher
@@ -3794,6 +3802,8 @@ useEffect(() => {
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durée (min)</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     </tr>
                   </thead>
@@ -3801,14 +3811,33 @@ useEffect(() => {
                     {logsData.map((log: any) => (
                       <tr key={log.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.username || 'Inconnu'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.search_term || log.search_type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.action}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.details || '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.duration_ms ? Math.round(log.duration_ms / 60000) : '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {format(parseISO(log.search_date), 'Pp', { locale: fr })}
+                          {log.created_at ? format(parseISO(log.created_at), 'Pp', { locale: fr }) : '-'}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                <div className="flex justify-between items-center mt-4">
+                  <button
+                    onClick={() => fetchLogs(logPage - 1)}
+                    disabled={logPage <= 1}
+                    className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+                  >
+                    Précédent
+                  </button>
+                  <span className="text-sm text-gray-700">Page {logPage} / {Math.max(1, Math.ceil(logTotal / LOGS_LIMIT))}</span>
+                  <button
+                    onClick={() => fetchLogs(logPage + 1)}
+                    disabled={logPage >= Math.ceil(logTotal / LOGS_LIMIT)}
+                    className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+                  >
+                    Suivant
+                  </button>
+                </div>
               </div>
             </div>
           </div>

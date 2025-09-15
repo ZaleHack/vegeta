@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { PassThrough } from 'stream';
 import Profile from '../models/Profile.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -84,11 +85,13 @@ class ProfileService {
     try {
       const { default: PDFDocument } = await import('pdfkit');
       const doc = new PDFDocument({ margin: 50 });
+      const stream = new PassThrough();
       const chunks = [];
+      doc.pipe(stream);
 
       return await new Promise(async (resolve, reject) => {
-        doc.on('data', chunk => chunks.push(chunk));
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        stream.on('data', chunk => chunks.push(chunk));
+        stream.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
         // Header block
