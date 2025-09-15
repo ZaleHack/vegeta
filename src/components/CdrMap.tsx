@@ -96,7 +96,6 @@ interface Props {
   onToggleMeetingPoints?: () => void;
   zoneMode?: boolean;
   onZoneCreated?: () => void;
-  onToggleZoneMode?: () => void;
 }
 
 const parseDurationToSeconds = (duration: string): number => {
@@ -408,7 +407,7 @@ const MeetingPointMarker: React.FC<{
   );
 });
 
-const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated, onToggleZoneMode }) => {
+const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated }) => {
   if (!points || points.length === 0) return null;
 
   const first = points[0];
@@ -1727,17 +1726,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 className="w-24"
               />
             </div>
-          </div>
-        )}
-
-        {onToggleZoneMode && (
-          <div className="pointer-events-none absolute bottom-4 left-1/2 transform -translate-x-1/2 z-[1000]">
-            <button
-              onClick={onToggleZoneMode}
-              className="pointer-events-auto px-4 py-2 bg-white/90 backdrop-blur rounded-full shadow border border-gray-300 text-sm font-medium hover:bg-gray-100 transition-colors"
-            >
-              {zoneMode ? 'Annuler' : 'Créer zone'}
-            </button>
           </div>
         )}
 
