@@ -87,7 +87,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const { login, admin } = req.body;
+    const { login, admin, password, active } = req.body;
 
     if (isNaN(userId)) {
       return res.status(400).json({ error: 'ID utilisateur invalide' });
@@ -96,6 +96,13 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
     const updates = {};
     if (login !== undefined) updates.login = login;
     if (admin !== undefined) updates.admin = admin;
+    if (active !== undefined) updates.active = active ? 1 : 0;
+    if (password !== undefined) {
+      if (password.length < 8) {
+        return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+      }
+      updates.mdp = password;
+    }
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'Aucune mise à jour fournie' });

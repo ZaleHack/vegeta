@@ -20,6 +20,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
 
+    if (user.active !== 1) {
+      return res.status(403).json({ error: 'Compte désactivé' });
+    }
+
     const isValidPassword = await User.validatePassword(password, user.mdp);
 
     if (!isValidPassword) {
@@ -75,7 +79,7 @@ router.get('/verify', async (req, res) => {
     const decoded = User.verifyToken(token);
     const user = await User.findById(decoded.id);
 
-    if (!user) {
+    if (!user || user.active !== 1) {
       return res.status(401).json({ error: 'Utilisateur non trouvé' });
     }
 

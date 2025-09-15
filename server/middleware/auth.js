@@ -10,9 +10,9 @@ export const authenticate = async (req, res, next) => {
   try {
     const decoded = User.verifyToken(token);
     const user = await User.findById(decoded.id);
-    
-    if (!user) {
-      return res.status(401).json({ error: 'Utilisateur non trouvé' });
+
+    if (!user || user.active !== 1) {
+      return res.status(401).json({ error: 'Utilisateur non trouvé ou désactivé' });
     }
 
     req.user = user;
