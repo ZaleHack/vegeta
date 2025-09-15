@@ -1,5 +1,7 @@
 import express from 'express';
 import User from '../models/User.js';
+import { authenticate } from '../middleware/auth.js';
+import UserLog from '../models/UserLog.js';
 
 const router = express.Router();
 
@@ -24,27 +26,42 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
 
-    const token = User.generateToken(user);
-    const { mdp, ...userResponse } = user;
+      const token = User.generateToken(user);
+      const { mdp, ...userResponse } = user;
 
-    res.json({
-      message: 'Connexion réussie',
+      res.json({
+        message: 'Connexion réussie',
       user: {
         ...userResponse,
         role: user.admin === 1 ? 'ADMIN' : 'USER'
-      },
-      token
-    });
-  } catch (error) {
+        },
+        token
+      });
+
+      // Journaliser la connexion
+      try {
+        await UserLog.create({ user_id: user.id, action: 'login' });
+      } catch (_) {}
+    } catch (error) {
     console.error('Erreur lors de la connexion:', error);
     res.status(500).json({ error: 'Erreur serveur: ' + error.message });
   }
 });
 
-// Route de déconnexion
-router.post('/logout', (req, res) => {
-  res.json({ message: 'Déconnexion réussie' });
-});
+  // Route de déconnexion
+  router.post('/logout', authenticate, async (req, res) => {
+    try {
+      let duration = null;
+      try {
+        const lastLogin = await UserLog.getLastAction(req.user.id, 'login');
+        if (lastLogin) {
+          duration = Date.now() - new Date(lastLogin.created_at).getTime();
+        }
+      } catch (_) {}
+      await UserLog.create({ user_id: req.user.id, action: 'logout', duration_ms: duration });
+    } catch (_) {}
+    res.json({ message: 'Déconnexion réussie' });
+  });
 
 // Vérification du token
 router.get('/verify', async (req, res) => {
