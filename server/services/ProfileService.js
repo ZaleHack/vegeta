@@ -101,16 +101,20 @@ class ProfileService {
         const innerWidth = pageWidth - margin * 2;
 
         const addFooter = () => {
-          const footerY = doc.page.height - doc.page.margins.bottom - 10;
-          doc
-            .fontSize(10)
-            .fillColor('#4F46E5')
-            .text('SORA', 0, footerY, {
-              width: pageWidth,
-              align: 'center',
-              lineBreak: false
-            });
-          doc.fillColor('black');
+          const { x, y } = doc;
+          const size = doc._fontSize;
+          const color = doc._fillColor;
+          doc.fontSize(10).fillColor('#4F46E5');
+          const footerY =
+            doc.page.height - doc.page.margins.bottom - doc.currentLineHeight();
+          doc.text('SORA', 0, footerY, {
+            width: pageWidth,
+            align: 'center',
+            lineBreak: false
+          });
+          doc.fontSize(size).fillColor(color);
+          doc.x = x;
+          doc.y = y;
         };
         addFooter();
         doc.on('pageAdded', addFooter);
