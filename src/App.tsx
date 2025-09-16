@@ -2067,7 +2067,6 @@ useEffect(() => {
                   <SoraLogo className="h-10 w-10" />
                 </div>
                 <h2 className="text-2xl font-bold text-white">SORA</h2>
-                <p className="text-blue-100 mt-1">Solution Opérationnelle de Recherche Avancée</p>
               </div>
             </div>
             
@@ -2305,7 +2304,6 @@ useEffect(() => {
               {sidebarOpen && (
                 <div className="ml-3">
                   <h1 className="text-xl font-extrabold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">SORA</h1>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Solution Opérationnelle de Recherche Avancée</p>
                 </div>
               )}
             </div>
