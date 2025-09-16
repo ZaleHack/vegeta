@@ -40,7 +40,8 @@ import {
   PhoneIncoming,
   PhoneOutgoing,
   MessageSquare,
-  MapPin
+  MapPin,
+  AlertTriangle
 } from 'lucide-react';
 import ToggleSwitch from './components/ToggleSwitch';
 
@@ -3886,17 +3887,38 @@ useEffect(() => {
                       const isAlertLog =
                         log.action === 'blacklist_search_attempt' || details.alert === true;
                       const alertNumber = details.number || details.phone || details.search_term;
+                      const baseAlertMessage =
+                        typeof details.message === 'string' && details.message.trim() !== ''
+                          ? details.message.trim()
+                          : 'Numéro blacklisté détecté';
+                      const alertMessage = isAlertLog
+                        ? alertNumber
+                          ? `${baseAlertMessage} : ${alertNumber}`
+                          : baseAlertMessage
+                        : '';
+                      const alertContext =
+                        isAlertLog && typeof details.context === 'string' && details.context.trim() !== ''
+                          ? details.context.trim()
+                          : '';
+
                       const detailContent = (() => {
                         if (isAlertLog) {
-                          const message =
-                            typeof details.message === 'string' && details.message.trim() !== ''
-                              ? details.message.trim()
-                              : 'Numéro blacklisté détecté';
-                          const fullMessage = alertNumber ? `${message} : ${alertNumber}` : message;
                           return (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                              {fullMessage}
-                            </span>
+                            <div className="flex items-start gap-3 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-red-400 px-4 py-3 text-white shadow-lg shadow-red-200/60">
+                              <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+                              <div className="space-y-1">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-red-100">
+                                  Alerte prioritaire
+                                </p>
+                                <p className="text-sm font-medium leading-tight">{alertMessage}</p>
+                                {alertContext && (
+                                  <p className="text-xs text-red-100/90">{alertContext}</p>
+                                )}
+                                {alertNumber && (
+                                  <p className="text-xs text-red-100/90">Cible : {alertNumber}</p>
+                                )}
+                              </div>
+                            </div>
                           );
                         }
                         if (hasPageName) {
@@ -3912,18 +3934,37 @@ useEffect(() => {
                       })();
 
                       return (
-                        <tr key={log.id} className={isAlertLog ? 'bg-red-50' : ''}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.username || 'Inconnu'}</td>
+                        <tr
+                          key={log.id}
+                          className={`transition ${
+                            isAlertLog ? 'bg-red-50/80 hover:bg-red-100/70' : 'hover:bg-gray-50'
+                          }`}
+                        >
                           <td
                             className={`px-6 py-4 whitespace-nowrap text-sm ${
-                              isAlertLog ? 'text-red-700 font-semibold' : 'text-gray-900'
+                              isAlertLog
+                                ? 'border-l-4 border-red-500 bg-red-50/70 font-semibold text-red-900'
+                                : 'text-gray-900'
                             }`}
                           >
-                            {log.action}
+                            {log.username || 'Inconnu'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {isAlertLog ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-flex items-center gap-2 rounded-full bg-red-600 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-sm shadow-red-300/60">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  Alerte Blacklist
+                                </span>
+                                <span className="text-sm font-medium text-red-700">{log.action}</span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-900">{log.action}</span>
+                            )}
                           </td>
                           <td
-                            className={`px-6 py-4 whitespace-nowrap text-sm ${
-                              isAlertLog ? 'text-red-700 font-semibold' : 'text-gray-900'
+                            className={`px-6 py-4 text-sm ${
+                              isAlertLog ? 'align-top text-red-800' : 'text-gray-900'
                             }`}
                           >
                             {detailContent}
