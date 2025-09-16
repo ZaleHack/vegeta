@@ -774,17 +774,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(
-    () =>
-      !(
-        activeInfo === 'recent' ||
-        activeInfo === 'popular' ||
-        showMeetingPoints ||
-        showSimilar
-      ) ||
-      showOthers,
-    [activeInfo, showMeetingPoints, showSimilar, showOthers]
-  );
+  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
