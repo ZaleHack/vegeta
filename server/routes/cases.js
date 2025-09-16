@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { authenticate } from '../middleware/auth.js';
 import CaseService from '../services/CaseService.js';
 import Blacklist from '../models/Blacklist.js';
+import UserLog from '../models/UserLog.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,7 +81,23 @@ router.get('/:id/search', authenticate, async (req, res) => {
     if (!identifier) {
       return res.status(400).json({ error: 'Paramètre phone ou imei requis' });
     }
-    if (await Blacklist.exists(String(identifier).trim())) {
+    const sanitizedIdentifier = String(identifier).trim();
+    if (await Blacklist.exists(sanitizedIdentifier)) {
+      try {
+        await UserLog.create({
+          user_id: req.user.id,
+          action: 'blacklist_search_attempt',
+          details: JSON.stringify({
+            alert: true,
+            number: sanitizedIdentifier,
+            case_id: caseId,
+            page: 'cdr-case',
+            message: 'Tentative de recherche sur un numéro blacklisté'
+          })
+        });
+      } catch (logError) {
+        console.error('Erreur log blacklist:', logError);
+      }
       return res.status(403).json({ error: "Numéro blacklisté. Contacter l'administration pour plus d'informations." });
     }
     const { start, end, startTime, endTime, direction = 'both', type = 'both', location } = req.query;
@@ -181,6 +198,25 @@ router.delete('/:id', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Erreur suppression case:', err);
     res.status(500).json({ error: 'Erreur suppression case' });
+  }
+});
+
+router.get('/:id/report', authenticate, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(caseId)) {
+      return res.status(400).json({ error: 'ID de dossier invalide' });
+    }
+    const pdf = await caseService.generateReport(caseId, req.user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="operation-${caseId}.pdf"`);
+    res.send(pdf);
+  } catch (err) {
+    if (err.status === 404) {
+      return res.status(404).json({ error: 'Opération introuvable' });
+    }
+    console.error('Erreur export rapport case:', err);
+    res.status(500).json({ error: 'Erreur export rapport' });
   }
 });
 

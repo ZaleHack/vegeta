@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { PassThrough } from 'stream';
 import Case from '../models/Case.js';
 import CdrService from './CdrService.js';
 import User from '../models/User.js';
@@ -113,6 +114,147 @@ class CaseService {
     }
     await Case.deleteFile(caseId, fileId);
     await this.cdrService.deleteByFile(fileId, existingCase.name);
+  }
+
+  async generateReport(caseId, user) {
+    const existingCase = await this.getCaseById(caseId, user);
+    if (!existingCase) {
+      const error = new Error('Case not found');
+      error.status = 404;
+      throw error;
+    }
+
+    const [files, owner] = await Promise.all([
+      Case.listFiles(caseId),
+      User.findById(existingCase.user_id)
+    ]);
+
+    const { default: PDFDocument } = await import('pdfkit');
+    const doc = new PDFDocument({ margin: 50 });
+    const stream = new PassThrough();
+    const chunks = [];
+
+    doc.pipe(stream);
+
+    const formatDate = (value) => {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '-';
+      return date.toLocaleString('fr-FR');
+    };
+
+    return await new Promise((resolve, reject) => {
+      stream.on('data', (chunk) => chunks.push(chunk));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const titleColor = '#1F2937';
+      const textColor = '#4B5563';
+      const accentColor = '#2563EB';
+
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(22)
+        .fillColor(titleColor)
+        .text("Rapport d'opération", { align: 'center' });
+
+      doc.moveDown(1.5);
+
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(14)
+        .fillColor(accentColor)
+        .text('Informations générales');
+
+      doc.moveDown(0.75);
+
+      const infoEntries = [
+        ["Nom de l'opération", existingCase.name],
+        ['Créée le', formatDate(existingCase.created_at)],
+        ['Responsable', owner?.login || 'Inconnu'],
+        ['Date du rapport', formatDate(new Date())],
+        ['Nombre de fichiers importés', files.length.toString()]
+      ];
+
+      doc
+        .font('Helvetica')
+        .fontSize(12)
+        .fillColor(textColor);
+
+      infoEntries.forEach(([label, value]) => {
+        doc
+          .font('Helvetica-Bold')
+          .fillColor(titleColor)
+          .text(`${label} : `, { continued: true })
+          .font('Helvetica')
+          .fillColor(textColor)
+          .text(value)
+          .moveDown(0.3);
+      });
+
+      doc.moveDown(1);
+
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(14)
+        .fillColor(accentColor)
+        .text('Historique des fichiers importés');
+
+      doc.moveDown(0.75);
+
+      if (!files.length) {
+        doc
+          .font('Helvetica')
+          .fontSize(12)
+          .fillColor(textColor)
+          .text('Aucun fichier importé pour cette opération.');
+      } else {
+        const columnWidths = [200, 120, 70, 120];
+        const headers = ['Fichier', 'Numéro associé', 'Lignes', 'Importé le'];
+
+        const tableStartX = doc.page.margins.left;
+
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(11)
+          .fillColor(titleColor);
+
+        const headerY = doc.y;
+        headers.forEach((header, index) => {
+          const x = tableStartX + columnWidths.slice(0, index).reduce((a, b) => a + b, 0);
+          doc.text(header, x, headerY, { width: columnWidths[index] });
+        });
+
+        doc.moveDown(0.8);
+
+        doc
+          .font('Helvetica')
+          .fontSize(11)
+          .fillColor(textColor);
+
+        files.forEach((file) => {
+          const rowY = doc.y;
+          const values = [
+            file.filename,
+            file.cdr_number || '-',
+            file.line_count ? String(file.line_count) : '-',
+            formatDate(file.uploaded_at)
+          ];
+
+          values.forEach((value, index) => {
+            const x = tableStartX + columnWidths.slice(0, index).reduce((a, b) => a + b, 0);
+            const options = index === 2
+              ? { width: columnWidths[index], align: 'center' }
+              : { width: columnWidths[index] };
+            doc.text(value, x, rowY, options);
+          });
+
+          doc.moveDown(0.6);
+        });
+      }
+
+      doc.end();
+    });
   }
 }
 
