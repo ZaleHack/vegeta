@@ -80,6 +80,7 @@ import ProfileList from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
 import CdrMap from './components/CdrMap';
 import LinkDiagram from './components/LinkDiagram';
+import SoraLogo from './components/SoraLogo';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -2062,8 +2063,8 @@ useEffect(() => {
           <div className="bg-white shadow-2xl rounded-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
-                  <Database className="h-8 w-8 text-white" />
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4 text-white">
+                  <SoraLogo className="h-10 w-10" />
                 </div>
                 <h2 className="text-2xl font-bold text-white">SORA</h2>
                 <p className="text-blue-100 mt-1">Solution Opérationnelle de Recherche Avancée</p>
@@ -2298,8 +2299,8 @@ useEffect(() => {
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div className={`flex items-center ${!sidebarOpen && 'justify-center'}`}>
-              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg">
-                <Database className="h-6 w-6 text-white" />
+              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg text-white">
+                <SoraLogo className="h-7 w-7" />
               </div>
               {sidebarOpen && (
                 <div className="ml-3">
@@ -3755,7 +3756,6 @@ useEffect(() => {
                 <h2 className="text-2xl font-bold text-center text-gray-800">
                   {editingProfileId ? 'Modifier la fiche de profil' : 'Créer une fiche de profil'}
                 </h2>
-                <p className="mb-6 text-center text-gray-500">Vegata</p>
                 <ProfileForm
                   initialValues={profileDefaults}
                   profileId={editingProfileId || undefined}
