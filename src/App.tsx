@@ -1796,6 +1796,33 @@ useEffect(() => {
     }
   };
 
+  const handleExportCaseReport = async (cdrCase: CdrCase) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/cases/${cdrCase.id}/report`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      if (!res.ok) {
+        throw new Error('Export failed');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const sanitizedName = cdrCase.name
+        ? cdrCase.name.trim().replace(/[^a-zA-Z0-9_-]+/g, '_')
+        : `operation_${cdrCase.id}`;
+      link.download = `${sanitizedName || 'operation'}_rapport.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Erreur export rapport opération:', error);
+      alert("Impossible d'exporter le rapport PDF de l'opération.");
+    }
+  };
+
   const handleCdrUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cdrFile || !selectedCase || !cdrNumber.trim()) return;
@@ -3392,7 +3419,7 @@ useEffect(() => {
                           <p className="text-sm text-gray-500 mb-2">Utilisateur : {c.user_login}</p>
                         )}
                         <h4 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{c.name}</h4>
-                        <div className="mt-auto flex space-x-2">
+                        <div className="mt-auto flex flex-col sm:flex-row gap-2">
                           <button
                             className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                             onClick={() => {
@@ -3405,6 +3432,13 @@ useEffect(() => {
                             }}
                           >
                             Traiter
+                          </button>
+                          <button
+                            className="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center space-x-2"
+                            onClick={() => handleExportCaseReport(c)}
+                          >
+                            <Download className="w-4 h-4" />
+                            <span>Exporter rapport en PDF</span>
                           </button>
                           <button
                             className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
@@ -3846,12 +3880,55 @@ useEffect(() => {
                       try {
                         details = log.details ? JSON.parse(log.details) : {};
                       } catch {}
+
+                      const hasPageName = typeof details.page === 'string' && details.page.trim() !== '';
+                      const pageName = hasPageName ? details.page.trim() : '';
+                      const isAlertLog =
+                        log.action === 'blacklist_search_attempt' || details.alert === true;
+                      const alertNumber = details.number || details.phone || details.search_term;
+                      const detailContent = (() => {
+                        if (isAlertLog) {
+                          const message =
+                            typeof details.message === 'string' && details.message.trim() !== ''
+                              ? details.message.trim()
+                              : 'Numéro blacklisté détecté';
+                          const fullMessage = alertNumber ? `${message} : ${alertNumber}` : message;
+                          return (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              {fullMessage}
+                            </span>
+                          );
+                        }
+                        if (hasPageName) {
+                          return pageName;
+                        }
+                        if (typeof details.description === 'string' && details.description.trim() !== '') {
+                          return details.description;
+                        }
+                        if (typeof log.details === 'string' && log.details.trim() !== '') {
+                          return log.details;
+                        }
+                        return '-';
+                      })();
+
                       return (
-                        <tr key={log.id}>
+                        <tr key={log.id} className={isAlertLog ? 'bg-red-50' : ''}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.username || 'Inconnu'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.action}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.details || '-'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{details.page || '-'}</td>
+                          <td
+                            className={`px-6 py-4 whitespace-nowrap text-sm ${
+                              isAlertLog ? 'text-red-700 font-semibold' : 'text-gray-900'
+                            }`}
+                          >
+                            {log.action}
+                          </td>
+                          <td
+                            className={`px-6 py-4 whitespace-nowrap text-sm ${
+                              isAlertLog ? 'text-red-700 font-semibold' : 'text-gray-900'
+                            }`}
+                          >
+                            {detailContent}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{pageName || '-'}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {details.profile_id ? (
                               <button
