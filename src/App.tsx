@@ -177,6 +177,17 @@ interface IdentificationRequest {
   status: string;
   user_login?: string;
   profile?: ProfileData | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface NotificationItem {
+  id: string;
+  requestId: number;
+  phone: string;
+  status: 'pending' | 'identified';
+  message: string;
+  description: string;
 }
 
 interface OngEntry {
@@ -360,23 +371,40 @@ const App: React.FC = () => {
   const [requests, setRequests] = useState<IdentificationRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [identifyingRequest, setIdentifyingRequest] = useState<IdentificationRequest | null>(null);
-  const [readNotifications, setReadNotifications] = useState<number[]>(() => {
-    try {
-      const saved = localStorage.getItem('readNotifications');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [readNotifications, setReadNotifications] = useState<string[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [highlightedRequestId, setHighlightedRequestId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (!currentUser) {
+      setReadNotifications([]);
+      return;
+    }
     try {
-      localStorage.setItem('readNotifications', JSON.stringify(readNotifications));
+      const stored = localStorage.getItem(`readNotifications_${currentUser.login}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setReadNotifications(parsed.map((value: string | number) => String(value)));
+        } else {
+          setReadNotifications([]);
+        }
+      } else {
+        setReadNotifications([]);
+      }
+    } catch {
+      setReadNotifications([]);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    try {
+      localStorage.setItem(`readNotifications_${currentUser.login}`, JSON.stringify(readNotifications));
     } catch {
       // Ignore write errors (e.g., private browsing)
     }
-  }, [readNotifications]);
+  }, [readNotifications, currentUser]);
 
   const [requestSearchInput, setRequestSearchInput] = useState('');
   const [requestSearch, setRequestSearch] = useState('');
@@ -684,6 +712,9 @@ const App: React.FC = () => {
     setIsAuthenticated(false);
     setCurrentPage('login');
     setSearchResults(null);
+    setShowNotifications(false);
+    setReadNotifications([]);
+    setHighlightedRequestId(null);
   };
 
   const fetchBlacklist = async () => {
@@ -1905,20 +1936,49 @@ useEffect(() => {
     }
   }, [currentPage, isAdmin]);
 
-  const identifiedRequests = requests.filter(r => r.status === 'identified');
-  const lastNotifications = identifiedRequests.slice(0, 20);
-  const notificationCount = lastNotifications.filter(
-    (r) => !readNotifications.includes(r.id)
-  ).length;
-  const totalNotifications = lastNotifications.length;
-
-  useEffect(() => {
-    if (currentPage === 'requests') {
-      const ids = lastNotifications.map(r => r.id);
-      setReadNotifications(prev => Array.from(new Set([...prev, ...ids])));
-      setShowNotifications(false);
+  const notifications = useMemo<NotificationItem[]>(() => {
+    if (!currentUser) {
+      return [];
     }
-  }, [currentPage, lastNotifications]);
+
+    const items: NotificationItem[] = [];
+    const isCurrentAdmin = currentUser.admin === 1 || currentUser.admin === "1";
+
+    requests.forEach((request) => {
+      if (isCurrentAdmin && request.status !== 'identified') {
+        items.push({
+          id: `admin-${request.id}`,
+          requestId: request.id,
+          phone: request.phone,
+          status: 'pending',
+          message: 'Nouvelle demande d\'identification',
+          description: request.user_login
+            ? `Envoyée par ${request.user_login}`
+            : 'Demande en attente de traitement'
+        });
+      }
+
+      if (!isCurrentAdmin && request.user_login === currentUser.login && request.status === 'identified') {
+        items.push({
+          id: `user-${request.id}`,
+          requestId: request.id,
+          phone: request.phone,
+          status: 'identified',
+          message: 'Identification terminée',
+          description: `Le numéro ${request.phone} a été identifié`
+        });
+      }
+    });
+
+    return items
+      .sort((a, b) => b.requestId - a.requestId)
+      .slice(0, 20);
+  }, [currentUser, requests]);
+
+  const notificationCount = notifications.filter(
+    (notification) => !readNotifications.includes(notification.id)
+  ).length;
+  const totalNotifications = notifications.length;
 
   useEffect(() => {
     if (!currentUser) return;
@@ -1929,13 +1989,35 @@ useEffect(() => {
   }, [currentUser, fetchRequests]);
 
   const handleNotificationClick = () => {
-    const nextState = !showNotifications;
-    setShowNotifications(nextState);
-    if (nextState) {
-      const ids = lastNotifications.map(r => r.id);
-      setReadNotifications(prev => Array.from(new Set([...prev, ...ids])));
-    }
+    setShowNotifications(prev => !prev);
   };
+
+  const handleNotificationSelect = (notification: NotificationItem) => {
+    setReadNotifications(prev =>
+      prev.includes(notification.id) ? prev : [...prev, notification.id]
+    );
+    setShowNotifications(false);
+    setCurrentPage('requests');
+    setHighlightedRequestId(notification.requestId);
+  };
+
+  useEffect(() => {
+    if (!highlightedRequestId || currentPage !== 'requests') return;
+    const timeout = setTimeout(() => {
+      const element = document.getElementById(`request-${highlightedRequestId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 150);
+
+    return () => clearTimeout(timeout);
+  }, [highlightedRequestId, currentPage, requests]);
+
+  useEffect(() => {
+    if (!highlightedRequestId) return;
+    const timeout = setTimeout(() => setHighlightedRequestId(null), 5000);
+    return () => clearTimeout(timeout);
+  }, [highlightedRequestId]);
 
   const numericSearch = searchQuery.replace(/\D/g, '');
   const canRequestIdentification =
@@ -2559,40 +2641,83 @@ useEffect(() => {
               <div className="flex justify-end mb-4 relative">
                 <button
                   onClick={handleNotificationClick}
-                  className="relative p-2 rounded-full hover:bg-blue-50 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                  className="relative p-2 rounded-full bg-white shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-200 text-gray-600 hover:text-blue-600 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200 dark:hover:text-white"
                 >
                   <Bell className="h-6 w-6" />
                   {notificationCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center shadow">
+                    <span className="absolute -top-1 -right-1 min-w-[1.75rem] px-1 h-5 bg-gradient-to-r from-pink-500 to-red-500 text-white rounded-full text-xs font-semibold flex items-center justify-center shadow-lg">
                       {notificationCount}
                     </span>
                   )}
                 </button>
                 {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-xl ring-1 ring-black ring-opacity-5 z-50 overflow-hidden">
-                    <div className="px-4 py-2 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700">
-                      <span>Notifications ({totalNotifications})</span>
+                  <div className="absolute right-0 mt-3 w-80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl ring-1 ring-black/5 z-50 overflow-hidden border border-gray-100/50 dark:border-gray-700/50">
+                    <div className="px-4 py-3 flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                      <div>
+                        <div className="text-xs uppercase tracking-wide opacity-80">Centre de notifications</div>
+                        <div className="text-sm font-semibold">{totalNotifications} notification{totalNotifications > 1 ? 's' : ''}</div>
+                      </div>
                       <button
                         onClick={() => setShowNotifications(false)}
-                        className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none"
+                        className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
                       >
                         <X className="h-4 w-4" />
                       </button>
                     </div>
-                    <div className="max-h-60 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+                    <div className="max-h-72 overflow-y-auto divide-y divide-gray-100/70 dark:divide-gray-800/80">
                       {totalNotifications === 0 ? (
-                        <div className="p-4 text-sm text-gray-500 dark:text-gray-400">Aucune notification</div>
+                        <div className="p-6 text-sm text-center text-gray-500 dark:text-gray-400">
+                          Aucune notification disponible pour le moment.
+                        </div>
                       ) : (
-                        lastNotifications.map(r => {
-                          const isUnread = !readNotifications.includes(r.id);
+                        notifications.map(notification => {
+                          const isUnread = !readNotifications.includes(notification.id);
                           return (
-                            <div
-                              key={r.id}
-                              className={`p-4 text-sm flex items-center hover:bg-gray-50 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white ${isUnread ? 'font-medium' : 'text-gray-500 dark:text-gray-400'}`}
+                            <button
+                              key={notification.id}
+                              onClick={() => handleNotificationSelect(notification)}
+                              className={`w-full text-left p-4 transition-all duration-200 flex items-start gap-3 focus:outline-none ${
+                                isUnread
+                                  ? 'bg-blue-50/70 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60'
+                                  : 'hover:bg-gray-50 dark:hover:bg-gray-800/60'
+                              }`}
                             >
-                              <span className={`w-2 h-2 rounded-full mr-2 ${isUnread ? 'bg-blue-600' : 'bg-transparent'}`}></span>
-                              <span>{r.phone} a été identifié par l'administrateur</span>
-                            </div>
+                              <div
+                                className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-inner ${
+                                  notification.status === 'pending'
+                                    ? 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300'
+                                    : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300'
+                                }`}
+                              >
+                                {notification.status === 'pending' ? (
+                                  <Clock className="h-5 w-5" />
+                                ) : (
+                                  <UserCheck className="h-5 w-5" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                    {notification.message}
+                                  </span>
+                                  <span
+                                    className={`text-xs font-medium ${
+                                      isUnread ? 'text-blue-600 dark:text-blue-300' : 'text-gray-400 dark:text-gray-500'
+                                    }`}
+                                  >
+                                    {isUnread ? 'Non lu' : 'Lu'}
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                                  {notification.description}
+                                </div>
+                                <div className="mt-2 inline-flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                                  <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                                    {notification.phone}
+                                  </span>
+                                </div>
+                              </div>
+                            </button>
                           );
                         })
                       )}
@@ -3647,11 +3772,18 @@ useEffect(() => {
               ) : (
                 <>
                   <div className="grid gap-4">
-                    {paginatedRequests.map(r => (
-                      <div
-                        key={r.id}
-                        className="bg-white rounded-2xl shadow-md p-6 flex flex-col md:flex-row md:items-center md:justify-between hover:shadow-lg transition-shadow"
-                      >
+                    {paginatedRequests.map(r => {
+                      const isHighlighted = highlightedRequestId === r.id;
+                      return (
+                        <div
+                          id={`request-${r.id}`}
+                          key={r.id}
+                          className={`bg-white rounded-2xl border border-gray-100 shadow-md p-6 flex flex-col md:flex-row md:items-center md:justify-between transition-all duration-200 ${
+                            isHighlighted
+                              ? 'ring-2 ring-blue-500/70 shadow-xl bg-blue-50/60 dark:bg-blue-950/30 dark:ring-blue-400/40'
+                              : 'hover:shadow-lg hover:-translate-y-0.5'
+                          }`}
+                        >
                         <div className="space-y-1">
                           <div className="text-lg font-semibold">{r.phone}</div>
                           {isAdmin && <div className="text-sm text-gray-500">{r.user_login}</div>}
@@ -3721,7 +3853,8 @@ useEffect(() => {
                           </button>
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                   {totalRequestPages > 1 && (
                     <div className="flex justify-center items-center space-x-2 mt-4">
