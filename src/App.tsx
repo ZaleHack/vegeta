@@ -28,7 +28,7 @@ import {
   Phone,
   Building2,
   Globe,
-  CarFront,
+  Car,
   Ban,
   UserCircle,
   List,
@@ -2241,7 +2241,7 @@ useEffect(() => {
           <ToggleSwitch
             label={
               <>
-                <CarFront className="w-4 h-4 text-indigo-500" />
+                <Car className="w-4 h-4 text-indigo-500" />
                 <span>Itinéraire</span>
               </>
             }
@@ -2405,7 +2405,7 @@ useEffect(() => {
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
-              <CarFront className="h-5 w-5" />
+              <Car className="h-5 w-5" />
               {sidebarOpen && <span className="ml-3">Véhicules</span>}
             </button>
 
@@ -3242,7 +3242,7 @@ useEffect(() => {
 
           {currentPage === 'vehicules' && (
             <div className="space-y-6">
-              <PageHeader icon={<CarFront className="h-6 w-6" />} title="Véhicules" />
+              <PageHeader icon={<Car className="h-6 w-6" />} title="Véhicules" />
               <input
                 type="text"
                 placeholder="Rechercher..."

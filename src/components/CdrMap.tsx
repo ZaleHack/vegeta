@@ -17,7 +17,7 @@ import {
   MessageSquare,
   MapPin,
   ArrowRight,
-  CarFront,
+  Car,
   Layers,
   Users,
   Clock,
@@ -1007,7 +1007,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           boxShadow: '0 12px 24px rgba(79, 70, 229, 0.3)'
         }}
       >
-        <CarFront size={18} className="text-white" />
+        <Car size={18} className="text-white" />
       </div>
     );
     return L.divIcon({
@@ -1727,7 +1727,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         {showBaseMarkers && showRoute && (
           <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
             <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
-              <CarFront className="w-4 h-4 text-indigo-500" />
+              <Car className="w-4 h-4 text-indigo-500" />
               <label htmlFor="speed" className="font-semibold text-sm">
                 {speed}x
               </label>
