@@ -17,7 +17,7 @@ import {
   MessageSquare,
   MapPin,
   ArrowRight,
-  Car,
+  CarFront,
   Layers,
   Users,
   Clock,
@@ -175,7 +175,7 @@ const getArrowIcon = (angle: number) => {
   const size = 16;
   const icon = (
     <div style={{ transform: `rotate(${angle}deg)` }}>
-      <ArrowRight size={size} className="text-blue-600" />
+      <ArrowRight size={size} className="text-indigo-500" />
     </div>
   );
   return L.divIcon({
@@ -992,21 +992,22 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   };
 
   const carIcon = useMemo(() => {
-    const size = 32;
+    const size = 36;
     const icon = (
       <div
         style={{
           transform: `rotate(${carAngle}deg)`,
-          backgroundColor: '#2563eb',
-          borderRadius: '9999px',
+          background: 'linear-gradient(135deg, #312e81, #2563eb, #0ea5e9)',
+          borderRadius: '14px',
           width: size,
           height: size,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          boxShadow: '0 12px 24px rgba(79, 70, 229, 0.3)'
         }}
       >
-        <Car size={16} className="text-white" />
+        <CarFront size={18} className="text-white" />
       </div>
     );
     return L.divIcon({
@@ -1234,7 +1235,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           )}
           <ZoneSelector />
         {drawing && currentPoints.length > 0 && (
-          <Polyline positions={currentPoints} pathOptions={{ color: 'blue' }} />
+          <Polyline
+            positions={currentPoints}
+            pathOptions={{
+              color: '#6366f1',
+              weight: 2,
+              opacity: 0.75,
+              dashArray: '6 3',
+              lineCap: 'round'
+            }}
+          />
         )}
         {zoneShape && (
           <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
@@ -1406,7 +1416,17 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
             ))}
         {showBaseMarkers && showRoute && routePositions.length > 1 && (
-          <Polyline positions={routePositions} color="black" />
+          <Polyline
+            positions={routePositions}
+            pathOptions={{
+              color: '#4f46e5',
+              weight: 2.5,
+              opacity: 0.85,
+              dashArray: '10 6',
+              lineJoin: 'round',
+              lineCap: 'round'
+            }}
+          />
         )}
         {showBaseMarkers && showRoute && routePositions.length > 0 && (
           <Marker position={routePositions[0]} icon={startIcon} />
@@ -1436,8 +1456,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <Polyline
                   key={`similar-${idx}-${src}`}
                   positions={seg.positions}
-                  color={colorMap.get(src) || '#ef4444'}
-                  weight={4}
+                  pathOptions={{
+                    color: colorMap.get(src) || '#8b5cf6',
+                    weight: 2.5,
+                    opacity: 0.7,
+                    dashArray: '4 8',
+                    lineCap: 'round'
+                  }}
                 />
               ) : null
             )
@@ -1702,7 +1727,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         {showBaseMarkers && showRoute && (
           <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
             <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
-              <Car className="w-4 h-4 text-blue-600" />
+              <CarFront className="w-4 h-4 text-indigo-500" />
               <label htmlFor="speed" className="font-semibold text-sm">
                 {speed}x
               </label>

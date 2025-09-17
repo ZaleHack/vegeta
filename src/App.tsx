@@ -28,7 +28,7 @@ import {
   Phone,
   Building2,
   Globe,
-  Car,
+  CarFront,
   Ban,
   UserCircle,
   List,
@@ -41,7 +41,8 @@ import {
   PhoneOutgoing,
   MessageSquare,
   MapPin,
-  AlertTriangle
+  AlertTriangle,
+  Share2
 } from 'lucide-react';
 import ToggleSwitch from './components/ToggleSwitch';
 
@@ -2240,7 +2241,7 @@ useEffect(() => {
           <ToggleSwitch
             label={
               <>
-                <Car className="w-4 h-4" />
+                <CarFront className="w-4 h-4 text-indigo-500" />
                 <span>Itinéraire</span>
               </>
             }
@@ -2249,21 +2250,23 @@ useEffect(() => {
             activeColor="peer-checked:bg-indigo-500 dark:peer-checked:bg-indigo-500"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button
             type="submit"
             disabled={cdrLoading}
-            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-transform transform hover:scale-105 active:scale-95"
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Rechercher
+            <Search className="h-4 w-4" />
+            <span>Rechercher</span>
           </button>
           {caseFiles.filter((f) => f.cdr_number).length >= 2 && (
             <button
               type="button"
-              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform transform hover:scale-105 active:scale-95"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500"
               onClick={handleLinkDiagram}
             >
-              Diagramme des liens
+              <Share2 className="h-4 w-4" />
+              <span>Diagramme des liens</span>
             </button>
           )}
         </div>
@@ -2402,7 +2405,7 @@ useEffect(() => {
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
               } ${!sidebarOpen && 'justify-center'}`}
             >
-              <Car className="h-5 w-5" />
+              <CarFront className="h-5 w-5" />
               {sidebarOpen && <span className="ml-3">Véhicules</span>}
             </button>
 
@@ -3239,7 +3242,7 @@ useEffect(() => {
 
           {currentPage === 'vehicules' && (
             <div className="space-y-6">
-              <PageHeader icon={<Car className="h-6 w-6" />} title="Véhicules" />
+              <PageHeader icon={<CarFront className="h-6 w-6" />} title="Véhicules" />
               <input
                 type="text"
                 placeholder="Rechercher..."
