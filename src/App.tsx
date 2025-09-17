@@ -2754,6 +2754,20 @@ useEffect(() => {
     <div
       className="min-h-screen flex bg-gray-50 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100"
     >
+      {!sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="group fixed left-4 top-4 z-[1100] flex h-11 w-11 items-center justify-center rounded-2xl border border-white/60 bg-white/80 text-gray-700 shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:shadow-xl dark:border-gray-700/70 dark:bg-gray-900/70 dark:text-gray-200"
+          title="Déployer le menu"
+          aria-label="Déployer le menu"
+        >
+          <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 opacity-0 transition-opacity group-hover:opacity-100" />
+          <span className="relative">
+            <ChevronRight className="h-5 w-5" />
+          </span>
+        </button>
+      )}
       {/* Sidebar */}
       <div
         className={`${
