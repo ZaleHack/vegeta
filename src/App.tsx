@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Search,
+  ArrowUp,
   Database,
   Users,
   Settings,
@@ -41,7 +42,6 @@ import {
   MapPin,
   AlertTriangle,
   Share2,
-  LayoutDashboard,
   GripVertical,
   X
 } from 'lucide-react';
@@ -390,6 +390,8 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState('login');
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const mainContentRef = useRef<HTMLDivElement | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
   );
@@ -398,6 +400,38 @@ const App: React.FC = () => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setShowScrollTop(false);
+      return;
+    }
+
+    const element = mainContentRef.current;
+    if (!element) return;
+
+    const handleScroll = () => {
+      setShowScrollTop(element.scrollTop > 320);
+    };
+
+    handleScroll();
+    element.addEventListener('scroll', handleScroll);
+
+    return () => {
+      element.removeEventListener('scroll', handleScroll);
+    };
+  }, [isAuthenticated, currentPage]);
+
+  const handleScrollToTop = useCallback(() => {
+    const element = mainContentRef.current;
+    if (element) {
+      element.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
 
   // États de recherche
   const [searchQuery, setSearchQuery] = useState('');
@@ -2758,7 +2792,7 @@ useEffect(() => {
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="group fixed left-4 top-4 z-[1100] flex h-11 w-11 items-center justify-center rounded-2xl border border-white/60 bg-white/80 text-gray-700 shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:shadow-xl dark:border-gray-700/70 dark:bg-gray-900/70 dark:text-gray-200"
+          className="group fixed top-4 left-6 sm:left-12 z-[1100] flex h-11 w-11 items-center justify-center rounded-2xl border border-white/60 bg-white/80 text-gray-700 shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:shadow-xl dark:border-gray-700/70 dark:bg-gray-900/70 dark:text-gray-200"
           title="Déployer le menu"
           aria-label="Déployer le menu"
         >
@@ -3003,29 +3037,6 @@ useEffect(() => {
             )}
           </div>
 
-          {sidebarOpen && (
-            <div className="mt-8">
-              <div className="relative overflow-hidden rounded-2xl border border-blue-100/60 bg-gradient-to-br from-blue-50 via-white to-white shadow-lg shadow-blue-500/10 dark:border-blue-500/30 dark:from-blue-900/40 dark:via-gray-900/40 dark:to-gray-900/30">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.25),transparent)] dark:bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.35),transparent)]" />
-                <div className="relative flex items-center gap-3 p-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30">
-                    <LayoutDashboard className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Menu compact</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-300">Cache les libellés pour une navigation épurée.</p>
-                  </div>
-                  <div className="-mr-1">
-                    <ToggleSwitch
-                      label={<span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-200">Icônes</span>}
-                      checked={!sidebarOpen}
-                      onChange={(checked) => setSidebarOpen(!checked)}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </nav>
 
         {/* User info */}
@@ -3076,7 +3087,7 @@ useEffect(() => {
       </div>
 
       {/* Main content */}
-        <div className="flex-1 overflow-auto">
+        <div ref={mainContentRef} className="flex-1 overflow-auto scroll-smooth">
           <div className="p-8">
               <div className="flex justify-end mb-4 relative">
                 <button
@@ -5225,6 +5236,18 @@ useEffect(() => {
           )}
         </div>
       </div>
+
+      {showScrollTop && !showUserModal && !showPasswordModal && (
+        <button
+          type="button"
+          onClick={handleScrollToTop}
+          className="group fixed bottom-6 right-6 z-[1000] flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 text-white shadow-[0_15px_40px_rgba(79,70,229,0.35)] transition-all hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative"
+          aria-label="Revenir en haut de la page"
+        >
+          <span className="absolute inset-0 bg-white/20 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+          <ArrowUp className="relative h-5 w-5 transition-transform duration-300 group-hover:-translate-y-1" />
+        </button>
+      )}
 
       {/* Modal utilisateur */}
       {showUserModal && (
