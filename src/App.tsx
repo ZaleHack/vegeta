@@ -375,6 +375,11 @@ const App: React.FC = () => {
   const [readNotifications, setReadNotifications] = useState<string[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [highlightedRequestId, setHighlightedRequestId] = useState<number | null>(null);
+  const isAdmin = useMemo(
+    () => (currentUser ? currentUser.admin === 1 || currentUser.admin === "1" : false),
+    [currentUser]
+  );
+  const [hiddenRequestIds, setHiddenRequestIds] = useState<number[]>([]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -407,28 +412,86 @@ const App: React.FC = () => {
     }
   }, [readNotifications, currentUser]);
 
+  useEffect(() => {
+    if (!isAdmin || !currentUser) {
+      setHiddenRequestIds([]);
+      return;
+    }
+    try {
+      const stored = localStorage.getItem(`hiddenRequests_${currentUser.login}`);
+      if (!stored) {
+        setHiddenRequestIds([]);
+        return;
+      }
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        const sanitized = parsed
+          .map((value: unknown) => {
+            const numeric = typeof value === 'string' ? Number(value) : value;
+            return typeof numeric === 'number' && Number.isFinite(numeric)
+              ? Math.trunc(numeric)
+              : null;
+          })
+          .filter((value): value is number => value !== null);
+        setHiddenRequestIds(sanitized);
+      } else {
+        setHiddenRequestIds([]);
+      }
+    } catch {
+      setHiddenRequestIds([]);
+    }
+  }, [isAdmin, currentUser]);
+
+  useEffect(() => {
+    if (!isAdmin || !currentUser) return;
+    try {
+      localStorage.setItem(
+        `hiddenRequests_${currentUser.login}`,
+        JSON.stringify(hiddenRequestIds)
+      );
+    } catch {
+      // Ignore persistence errors
+    }
+  }, [hiddenRequestIds, isAdmin, currentUser]);
+
   const [requestSearchInput, setRequestSearchInput] = useState('');
   const [requestSearch, setRequestSearch] = useState('');
   const [requestPage, setRequestPage] = useState(1);
   const requestsPerPage = 10;
 
-  const filteredRequests = useMemo(
-    () =>
-      requests.filter(r =>
-        r.phone.includes(requestSearch) ||
-        r.user_login?.toLowerCase().includes(requestSearch.toLowerCase())
-      ),
-    [requests, requestSearch]
-  );
+  const visibleRequests = useMemo(() => {
+    let base = requests;
+    if (!isAdmin && currentUser) {
+      const userId = currentUser.id;
+      const userLogin = currentUser.login;
+      base = base.filter(
+        (r) => r.user_id === userId || r.user_login === userLogin
+      );
+    }
+    if (isAdmin && hiddenRequestIds.length > 0) {
+      const hiddenSet = new Set(hiddenRequestIds);
+      base = base.filter((r) => !hiddenSet.has(r.id));
+    }
+    const trimmedSearch = requestSearch.trim();
+    if (!trimmedSearch) {
+      return base;
+    }
+    const lowered = trimmedSearch.toLowerCase();
+    return base.filter(
+      (r) =>
+        r.phone.includes(trimmedSearch) ||
+        (r.user_login || '').toLowerCase().includes(lowered)
+    );
+  }, [requests, isAdmin, currentUser, hiddenRequestIds, requestSearch]);
 
-  const totalRequestPages = Math.ceil(filteredRequests.length / requestsPerPage);
+  const totalRequestPages = Math.ceil(visibleRequests.length / requestsPerPage);
   const paginatedRequests = useMemo(
     () =>
-      filteredRequests.slice(
+      visibleRequests.slice(
         (requestPage - 1) * requestsPerPage,
         requestPage * requestsPerPage
       ),
-    [filteredRequests, requestPage]
+    [visibleRequests, requestPage]
   );
 
   // Ensure the current request page is within bounds when the filtered
@@ -624,6 +687,25 @@ const App: React.FC = () => {
   const [showMeetingPoints, setShowMeetingPoints] = useState(false);
   const [zoneMode, setZoneMode] = useState(false);
 
+  const normalizeCdrNumber = useCallback((value: string) => {
+    let sanitized = value.trim();
+    if (!sanitized) return '';
+    sanitized = sanitized.replace(/\s+/g, '');
+    if (sanitized.startsWith('+')) {
+      sanitized = sanitized.slice(1);
+    }
+    while (sanitized.startsWith('00')) {
+      sanitized = sanitized.slice(2);
+    }
+    sanitized = sanitized.replace(/\D/g, '');
+    if (!sanitized) return '';
+    if (sanitized.startsWith('221')) {
+      return sanitized;
+    }
+    sanitized = sanitized.replace(/^0+/, '');
+    return sanitized ? `221${sanitized}` : '';
+  }, []);
+
   // États des statistiques
   const [statsData, setStatsData] = useState(null);
   const [searchLogs, setSearchLogs] = useState([]);
@@ -634,11 +716,13 @@ const App: React.FC = () => {
   const [totalRecords, setTotalRecords] = useState(0);
 
   const addCdrIdentifier = () => {
-    const id = cdrIdentifierInput.trim();
-    if (id && !cdrIdentifiers.includes(id)) {
-      setCdrIdentifiers([...cdrIdentifiers, id]);
+    const normalized = normalizeCdrNumber(cdrIdentifierInput);
+    if (normalized && !cdrIdentifiers.includes(normalized)) {
+      setCdrIdentifiers([...cdrIdentifiers, normalized]);
+      setCdrIdentifierInput('');
+    } else {
+      setCdrIdentifierInput(normalized);
     }
-    setCdrIdentifierInput('');
   };
 
   const removeCdrIdentifier = (index: number) => {
@@ -1129,6 +1213,15 @@ useEffect(() => {
 
   const deleteRequest = async (id: number) => {
     if (!confirm('Supprimer cette demande ?')) return;
+    if (isAdmin) {
+      setHiddenRequestIds((prev) => {
+        if (prev.includes(id)) {
+          return prev;
+        }
+        return [...prev, id];
+      });
+      return;
+    }
     try {
       const token = localStorage.getItem('token');
       await fetch(`/api/requests/${id}`, {
@@ -1139,6 +1232,12 @@ useEffect(() => {
     } catch (error) {
       console.error('Erreur suppression demande:', error);
     }
+  };
+
+  const handleResetHiddenRequests = () => {
+    if (!isAdmin) return;
+    if (!confirm('Réafficher toutes les demandes supprimées ?')) return;
+    setHiddenRequestIds([]);
   };
 
   const startIdentify = (request: IdentificationRequest) => {
@@ -1177,8 +1276,9 @@ useEffect(() => {
       setLoadingStats(true);
       const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
 
-      const isAdmin = currentUser.admin === 1 || currentUser.admin === "1";
-      const logQuery = isAdmin && logUserFilter ? `?username=${encodeURIComponent(logUserFilter)}` : '';
+      const logQuery = isAdmin && logUserFilter
+        ? `?username=${encodeURIComponent(logUserFilter)}`
+        : '';
 
       const [statsResponse, logsResponse, timeResponse, distResponse] = await Promise.all([
         fetch('/api/stats/overview', { headers }),
@@ -1334,9 +1434,8 @@ useEffect(() => {
     const targetUser = passwordTargetUser || currentUser;
     if (!targetUser) return;
 
-    const isAdminUser = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
     const changingOther = targetUser.id !== currentUser?.id;
-    const requireCurrent = !isAdminUser || !changingOther;
+    const requireCurrent = !isAdmin || !changingOther;
 
     if (passwordFormData.newPassword !== passwordFormData.confirmPassword) {
       alert('Les nouveaux mots de passe ne correspondent pas');
@@ -1584,7 +1683,7 @@ useEffect(() => {
     try {
       const token = localStorage.getItem('token');
       const ids = cdrIdentifiers
-        .map((i) => i.trim())
+        .map((i) => normalizeCdrNumber(i))
         .filter((i) => i && !i.startsWith('2214'));
 
       const allPaths: CdrPoint[] = [];
@@ -1861,6 +1960,12 @@ useEffect(() => {
   const handleCdrUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cdrFile || !selectedCase || !cdrNumber.trim()) return;
+    const normalizedNumber = normalizeCdrNumber(cdrNumber);
+    if (!normalizedNumber) {
+      setCdrUploadError('Numéro invalide');
+      return;
+    }
+    setCdrNumber(normalizedNumber);
     setCdrUploading(true);
     setCdrUploadMessage('');
     setCdrUploadError('');
@@ -1868,7 +1973,7 @@ useEffect(() => {
       const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', cdrFile);
-      formData.append('cdrNumber', cdrNumber.trim());
+      formData.append('cdrNumber', normalizedNumber);
       const res = await fetch(`/api/cases/${selectedCase.id}/upload`, {
         method: 'POST',
         headers: { Authorization: token ? `Bearer ${token}` : '' },
@@ -1893,13 +1998,13 @@ useEffect(() => {
 
   // Charger les utilisateurs quand on accède à la page
   useEffect(() => {
-    if (currentPage === 'users' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
+    if (currentPage === 'users' && isAdmin) {
       loadUsers();
     }
     if (currentPage === 'dashboard' && currentUser) {
       loadStatistics();
     }
-    if (currentPage === 'upload' && currentUser && (currentUser.admin === 1 || currentUser.admin === "1")) {
+    if (currentPage === 'upload' && isAdmin) {
       fetchUploadHistory();
     }
     if (currentPage === 'annuaire' && currentUser) {
@@ -1920,10 +2025,7 @@ useEffect(() => {
     if (currentPage === 'requests' && currentUser) {
       fetchRequests();
     }
-  }, [currentPage, currentUser, entreprisesPage, entreprisesSearch, vehiculesPage, vehiculesSearch]);
-
-  // Vérifier si l'utilisateur est admin
-  const isAdmin = currentUser && (currentUser.admin === 1 || currentUser.admin === "1");
+  }, [currentPage, currentUser, entreprisesPage, entreprisesSearch, vehiculesPage, vehiculesSearch, isAdmin]);
 
   useEffect(() => {
     if (currentPage === 'blacklist' && isAdmin) {
@@ -1943,10 +2045,9 @@ useEffect(() => {
     }
 
     const items: NotificationItem[] = [];
-    const isCurrentAdmin = currentUser.admin === 1 || currentUser.admin === "1";
 
     requests.forEach((request) => {
-      if (isCurrentAdmin && request.status !== 'identified') {
+      if (isAdmin && request.status !== 'identified') {
         items.push({
           id: `admin-${request.id}`,
           requestId: request.id,
@@ -1960,7 +2061,7 @@ useEffect(() => {
       }
 
       if (
-        !isCurrentAdmin &&
+        !isAdmin &&
         request.status === 'identified' &&
         (request.user_id === currentUser.id || request.user_login === currentUser.login)
       ) {
@@ -1978,7 +2079,7 @@ useEffect(() => {
     return items
       .sort((a, b) => b.requestId - a.requestId)
       .slice(0, 20);
-  }, [currentUser, requests]);
+  }, [currentUser, requests, isAdmin]);
 
   const notificationCount = notifications.filter(
     (notification) => !readNotifications.includes(notification.id)
@@ -2016,7 +2117,7 @@ useEffect(() => {
     }, 150);
 
     return () => clearTimeout(timeout);
-  }, [highlightedRequestId, currentPage, requests]);
+  }, [highlightedRequestId, currentPage, visibleRequests]);
 
   useEffect(() => {
     if (!highlightedRequestId) return;
@@ -2242,6 +2343,7 @@ useEffect(() => {
             type="text"
             value={cdrIdentifierInput}
             onChange={(e) => setCdrIdentifierInput(e.target.value)}
+            onBlur={(e) => setCdrIdentifierInput(normalizeCdrNumber(e.target.value))}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -3631,6 +3733,7 @@ useEffect(() => {
                       type="text"
                       value={cdrNumber}
                       onChange={(e) => setCdrNumber(e.target.value)}
+                      onBlur={(e) => setCdrNumber(normalizeCdrNumber(e.target.value))}
                       placeholder="Numéro associé"
                       className="block w-full border rounded-md p-2"
                     />
@@ -3754,6 +3857,14 @@ useEffect(() => {
                     <Search className="h-5 w-5" />
                   </button>
                 </div>
+                {isAdmin && hiddenRequestIds.length > 0 && (
+                  <button
+                    onClick={handleResetHiddenRequests}
+                    className="text-sm text-blue-600 hover:underline self-start"
+                  >
+                    Réafficher les demandes supprimées
+                  </button>
+                )}
               </div>
               {identifyingRequest && (
                 <div className="bg-white rounded-lg shadow p-6">
@@ -3777,6 +3888,11 @@ useEffect(() => {
               ) : (
                 <>
                   <div className="grid gap-4">
+                    {paginatedRequests.length === 0 && (
+                      <div className="text-center text-gray-500 py-10 border border-dashed border-gray-300 rounded-xl">
+                        Aucune demande à afficher.
+                      </div>
+                    )}
                     {paginatedRequests.map(r => {
                       const isHighlighted = highlightedRequestId === r.id;
                       return (
@@ -3862,19 +3978,39 @@ useEffect(() => {
                     })}
                   </div>
                   {totalRequestPages > 1 && (
-                    <div className="flex justify-center items-center space-x-2 mt-4">
+                    <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
                       <button
-                        onClick={() => setRequestPage(p => Math.max(p - 1, 1))}
+                        onClick={() => setRequestPage((p) => Math.max(p - 1, 1))}
                         disabled={requestPage === 1}
                         className="p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700"
                       >
                         <ChevronLeft className="h-5 w-5" />
                       </button>
-                      <span className="text-sm">
-                        {requestPage} / {totalRequestPages}
-                      </span>
+                      {getPageNumbers(requestPage, totalRequestPages).map((page, idx) =>
+                        page === '...'
+                          ? (
+                              <span key={`ellipsis-${idx}`} className="px-3 py-1 text-gray-500">
+                                ...
+                              </span>
+                            )
+                          : (
+                              <button
+                                key={`page-${page}`}
+                                onClick={() => setRequestPage(Number(page))}
+                                className={`px-3 py-1 rounded-lg transition ${
+                                  page === requestPage
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            )
+                      )}
                       <button
-                        onClick={() => setRequestPage(p => Math.min(p + 1, totalRequestPages))}
+                        onClick={() =>
+                          setRequestPage((p) => Math.min(p + 1, totalRequestPages))
+                        }
                         disabled={requestPage === totalRequestPages}
                         className="p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700"
                       >
