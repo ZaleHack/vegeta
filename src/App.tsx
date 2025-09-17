@@ -41,7 +41,8 @@ import {
   MapPin,
   AlertTriangle,
   Share2,
-  LayoutDashboard
+  LayoutDashboard,
+  X
 } from 'lucide-react';
 import ToggleSwitch from './components/ToggleSwitch';
 
