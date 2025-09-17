@@ -16,6 +16,11 @@ interface Attachment {
   file_path: string;
 }
 
+interface NewAttachment {
+  file: File;
+  name: string;
+}
+
 interface InitialValues {
   comment?: string;
   extra_fields?: FieldCategory[];
@@ -62,7 +67,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const [existingAttachments, setExistingAttachments] = useState<Attachment[]>(
     () => initialValues.attachments || []
   );
-  const [newAttachments, setNewAttachments] = useState<File[]>([]);
+  const [newAttachments, setNewAttachments] = useState<NewAttachment[]>([]);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<number[]>([]);
   const [removePhoto, setRemovePhoto] = useState(false);
 
@@ -160,7 +165,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length) {
-      setNewAttachments(prev => [...prev, ...files]);
+      setNewAttachments(prev => [
+        ...prev,
+        ...files.map(file => ({
+          file,
+          name: file.name
+        }))
+      ]);
     }
     e.target.value = '';
   };
@@ -172,6 +183,23 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
 
   const removeNewAttachment = (index: number) => {
     setNewAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const renameNewAttachment = (index: number, name: string) => {
+    setNewAttachments(prev => prev.map((att, i) => (i === index ? { ...att, name } : att)));
+  };
+
+  const resolveAttachmentName = (attachment: NewAttachment) => {
+    const trimmed = attachment.name.trim();
+    if (!trimmed) {
+      return attachment.file.name;
+    }
+    if (!trimmed.includes('.') && attachment.file.name.includes('.')) {
+      const extIndex = attachment.file.name.lastIndexOf('.');
+      const extension = attachment.file.name.slice(extIndex);
+      return `${trimmed}${extension}`;
+    }
+    return trimmed;
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -203,7 +231,17 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     if (photo) form.append('photo', photo);
     if (removePhoto && !photo) form.append('remove_photo', 'true');
     if (newAttachments.length) {
-      newAttachments.forEach(file => form.append('attachments', file));
+      newAttachments.forEach(att => {
+        const resolvedName = resolveAttachmentName(att);
+        const needsRename = resolvedName !== att.file.name;
+        const fileToAppend = needsRename
+          ? new File([att.file], resolvedName, {
+              type: att.file.type,
+              lastModified: att.file.lastModified
+            })
+          : att.file;
+        form.append('attachments', fileToAppend);
+      });
     }
     if (removedAttachmentIds.length) {
       form.append('remove_attachment_ids', JSON.stringify(removedAttachmentIds));
@@ -316,9 +354,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
         <textarea
           className="w-full rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           value={comment}
-      onChange={e => setComment(e.target.value)}
-    />
-  </div>
+          onChange={e => setComment(e.target.value)}
+        />
+      </div>
       <div className="grid gap-6 md:grid-cols-2">
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 shadow-sm">
           <label className="block mb-2 font-medium text-gray-700">Photo de profil</label>
@@ -385,22 +423,41 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
           {newAttachments.length > 0 && (
             <div className="space-y-2">
               <div className="text-sm font-semibold text-gray-600">Nouvelles pièces jointes</div>
-              <ul className="space-y-2 max-h-40 overflow-y-auto pr-1 preview-scroll">
-                {newAttachments.map((file, idx) => (
-                  <li
-                    key={`${file.name}-${idx}`}
-                    className="flex items-center justify-between bg-white border border-dashed border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  >
-                    <span className="truncate flex-1 min-w-0">{file.name}</span>
-                    <button
-                      type="button"
-                      className="ml-2 text-red-500 hover:text-red-700"
-                      onClick={() => removeNewAttachment(idx)}
+              <ul className="space-y-3 max-h-48 overflow-y-auto pr-1 preview-scroll">
+                {newAttachments.map((att, idx) => {
+                  const resolvedName = resolveAttachmentName(att);
+                  return (
+                    <li
+                      key={`${att.file.name}-${att.file.lastModified}-${idx}`}
+                      className="bg-white border border-dashed border-gray-300 rounded-lg px-3 py-3 text-sm space-y-2"
                     >
-                      Supprimer
-                    </button>
-                  </li>
-                ))}
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-semibold text-gray-500 uppercase">Nom de la pièce jointe</label>
+                        <input
+                          className="rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={att.name}
+                          placeholder={att.file.name}
+                          onChange={e => renameNewAttachment(idx, e.target.value)}
+                        />
+                        {resolvedName !== att.file.name && (
+                          <div className="text-xs text-gray-500">
+                            Nom final : <span className="font-medium">{resolvedName}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex justify-between items-center pt-1">
+                        <span className="text-xs text-gray-500 truncate">Taille : {(att.file.size / 1024).toFixed(1)} Ko</span>
+                        <button
+                          type="button"
+                          className="text-red-500 hover:text-red-700"
+                          onClick={() => removeNewAttachment(idx)}
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

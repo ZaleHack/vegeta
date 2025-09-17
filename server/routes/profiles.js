@@ -30,6 +30,19 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+const parseBoolean = value => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+  return false;
+};
+
 const parseAttachmentPayload = data => {
   if (data.extra_fields && typeof data.extra_fields === 'string') {
     try {
@@ -116,6 +129,21 @@ router.patch(
     }
   }
 );
+
+router.post('/:id/archive', async (req, res) => {
+  try {
+    const profileId = parseInt(req.params.id, 10);
+    if (Number.isNaN(profileId)) {
+      return res.status(400).json({ error: 'Identifiant invalide' });
+    }
+    const shouldArchive = parseBoolean(req.body?.archived);
+    const profile = await service.setArchiveStatus(profileId, shouldArchive, req.user);
+    res.json({ profile });
+  } catch (error) {
+    const status = error.message === 'Profil non trouvé' ? 404 : error.message === 'Accès refusé' ? 403 : 500;
+    res.status(status).json({ error: error.message });
+  }
+});
 
 router.delete('/:id', async (req, res) => {
   try {
