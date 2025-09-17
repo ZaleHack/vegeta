@@ -52,7 +52,10 @@ class StatsService {
         todaySearches,
         activeUsers,
         topSearchTerms,
-        searchesByType
+        searchesByType,
+        profileStats,
+        requestStats,
+        operationStats
       ] = await Promise.all([
         database.queryOne(
           `SELECT COUNT(*) as count FROM autres.search_logs${userId ? ' WHERE user_id = ?' : ''}`,
@@ -63,7 +66,7 @@ class StatsService {
           userId ? [userId] : []
         ),
         database.queryOne(
-          `SELECT COUNT(*) as count FROM autres.search_logs WHERE DATE(search_date) = CURDATE()${userId ? ' AND user_id = ?' : ''}`,
+          `SELECT COUNT(*) as count FROM autres.search_logs WHERE search_date >= DATE_SUB(NOW(), INTERVAL HOUR(NOW()) HOUR + MINUTE(NOW()) MINUTE + SECOND(NOW()) SECOND)${userId ? ' AND user_id = ?' : ''}`,
           userId ? [userId] : []
         ),
         userId
@@ -76,16 +79,59 @@ class StatsService {
         database.query(
           `SELECT COALESCE(search_type, 'unknown') as search_type, COUNT(*) as search_count FROM autres.search_logs${userId ? ' WHERE user_id = ?' : ''} GROUP BY search_type ORDER BY search_count DESC`,
           userId ? [userId] : []
+        ),
+        database.queryOne(
+          `SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) AS today,
+            SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS recent
+          FROM autres.profiles${userId ? ' WHERE user_id = ?' : ''}`,
+          userId ? [userId] : []
+        ),
+        database.queryOne(
+          `SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+            SUM(CASE WHEN status = 'identified' THEN 1 ELSE 0 END) AS identified,
+            SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) AS today,
+            SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS recent
+          FROM autres.identification_requests${userId ? ' WHERE user_id = ?' : ''}`,
+          userId ? [userId] : []
+        ),
+        database.queryOne(
+          `SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) AS today,
+            SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS recent
+          FROM autres.cdr_cases${userId ? ' WHERE user_id = ?' : ''}`,
+          userId ? [userId] : []
         )
       ]);
 
       const stats = {
-        total_searches: totalSearches?.count || 0,
-        avg_execution_time: Math.round(avgExecutionTime?.avg_time || 0),
-        today_searches: todaySearches?.count || 0,
-        active_users: activeUsers?.count || 0,
+        total_searches: Number(totalSearches?.count ?? 0),
+        avg_execution_time: Math.round(Number(avgExecutionTime?.avg_time ?? 0)),
+        today_searches: Number(todaySearches?.count ?? 0),
+        active_users: Number(activeUsers?.count ?? 0),
         top_search_terms: topSearchTerms || [],
-        searches_by_type: searchesByType || []
+        searches_by_type: searchesByType || [],
+        profiles: {
+          total: Number(profileStats?.total ?? 0),
+          today: Number(profileStats?.today ?? 0),
+          recent: Number(profileStats?.recent ?? 0)
+        },
+        requests: {
+          total: Number(requestStats?.total ?? 0),
+          pending: Number(requestStats?.pending ?? 0),
+          identified: Number(requestStats?.identified ?? 0),
+          today: Number(requestStats?.today ?? 0),
+          recent: Number(requestStats?.recent ?? 0)
+        },
+        operations: {
+          total: Number(operationStats?.total ?? 0),
+          today: Number(operationStats?.today ?? 0),
+          recent: Number(operationStats?.recent ?? 0)
+        }
       };
 
       this.cache.set(cacheKey, stats);

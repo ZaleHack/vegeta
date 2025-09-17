@@ -42,6 +42,7 @@ import {
   AlertTriangle,
   Share2,
   LayoutDashboard,
+  GripVertical,
   X
 } from 'lucide-react';
 import ToggleSwitch from './components/ToggleSwitch';
@@ -60,7 +61,7 @@ const HiddenIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <line x1="1" y1="1" x2="23" y2="23" />
   </svg>
 );
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -68,7 +69,6 @@ import {
   PointElement,
   LineElement,
   BarElement,
-  ArcElement,
   Tooltip,
   Legend
 } from 'chart.js';
@@ -83,7 +83,7 @@ import CdrMap from './components/CdrMap';
 import LinkDiagram from './components/LinkDiagram';
 import SoraLogo from './components/SoraLogo';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend);
 
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 
@@ -112,6 +112,68 @@ interface SearchResponse {
   hits: SearchResult[];
   tables_searched: string[];
 }
+
+interface SearchTermStat {
+  search_term: string;
+  search_count: number;
+}
+
+interface SearchTypeStat {
+  search_type: string;
+  search_count: number;
+}
+
+interface DashboardStats {
+  total_searches: number;
+  avg_execution_time: number;
+  today_searches: number;
+  active_users: number;
+  top_search_terms: SearchTermStat[];
+  searches_by_type: SearchTypeStat[];
+  profiles?: {
+    total: number;
+    today: number;
+    recent: number;
+  };
+  requests?: {
+    total: number;
+    pending: number;
+    identified: number;
+    today: number;
+    recent: number;
+  };
+  operations?: {
+    total: number;
+    today: number;
+    recent: number;
+  };
+}
+
+type DashboardCard = {
+  id: string;
+  title: string;
+  value: string;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  gradient: string;
+  badge?: {
+    label: string;
+    tone: string;
+  };
+  description?: string;
+};
+
+type RequestMetric = {
+  key: string;
+  label: string;
+  value: number;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  tone: string;
+  caption: string;
+  progress?: number;
+};
+
+const DASHBOARD_CARD_STORAGE_KEY = 'sora.dashboard.cardOrder';
+const DEFAULT_CARD_ORDER = ['total-searches', 'total-records', 'profiles', 'requests', 'operations'];
 
 interface GendarmerieEntry {
   id: number;
@@ -714,13 +776,40 @@ const App: React.FC = () => {
   }, []);
 
   // États des statistiques
-  const [statsData, setStatsData] = useState(null);
+  const [statsData, setStatsData] = useState<DashboardStats | null>(null);
+  const [cardOrder, setCardOrder] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(DASHBOARD_CARD_STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const sanitized = parsed.filter((item): item is string => typeof item === 'string');
+            const missing = DEFAULT_CARD_ORDER.filter(id => !sanitized.includes(id));
+            return [...sanitized, ...missing];
+          }
+        } catch (error) {
+          console.warn('Impossible de lire la configuration du dashboard:', error);
+        }
+      }
+    }
+    return DEFAULT_CARD_ORDER;
+  });
+  const [draggedCard, setDraggedCard] = useState<string | null>(null);
   const [searchLogs, setSearchLogs] = useState([]);
   const [logUserFilter, setLogUserFilter] = useState('');
   const [loadingStats, setLoadingStats] = useState(false);
   const [timeSeries, setTimeSeries] = useState<any[]>([]);
   const [tableDistribution, setTableDistribution] = useState<any[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
+
+  const numberFormatter = useMemo(() => new Intl.NumberFormat('fr-FR'), []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(DASHBOARD_CARD_STORAGE_KEY, JSON.stringify(cardOrder));
+    }
+  }, [cardOrder]);
 
   const addCdrIdentifier = () => {
     const normalized = normalizeCdrNumber(cdrIdentifierInput);
@@ -1325,6 +1414,184 @@ useEffect(() => {
       setLoadingStats(false);
     }
   };
+
+  const dashboardCards = useMemo<DashboardCard[]>(() => {
+    const profiles = statsData?.profiles;
+    const requests = statsData?.requests;
+    const operations = statsData?.operations;
+
+    return [
+      {
+        id: 'total-searches',
+        title: 'Recherches totales',
+        value: numberFormatter.format(statsData?.total_searches ?? 0),
+        icon: Search,
+        gradient: 'from-blue-500 via-blue-600 to-indigo-600',
+        badge: {
+          label: `${numberFormatter.format(statsData?.today_searches ?? 0)} aujourd'hui`,
+          tone: 'bg-white/20 text-white'
+        },
+        description: 'Suivi global des requêtes effectuées sur la plateforme'
+      },
+      {
+        id: 'total-records',
+        title: 'Enregistrements indexés',
+        value: numberFormatter.format(totalRecords),
+        icon: Database,
+        gradient: 'from-emerald-500 via-emerald-600 to-teal-600',
+        badge: {
+          label: `${tableDistribution.length} sources actives`,
+          tone: 'bg-white/20 text-white'
+        },
+        description: 'Volume agrégé des données disponibles pour la recherche'
+      },
+      {
+        id: 'profiles',
+        title: 'Profils créés',
+        value: numberFormatter.format(profiles?.total ?? 0),
+        icon: UserCircle,
+        gradient: 'from-rose-500 via-pink-500 to-fuchsia-600',
+        badge: {
+          label: `${numberFormatter.format(profiles?.today ?? 0)} aujourd'hui`,
+          tone: 'bg-white/20 text-white'
+        },
+        description: 'Identités consolidées par les analystes'
+      },
+      {
+        id: 'requests',
+        title: "Demandes d'identification",
+        value: numberFormatter.format(requests?.total ?? 0),
+        icon: ClipboardList,
+        gradient: 'from-indigo-500 via-indigo-600 to-purple-600',
+        badge: {
+          label: `${numberFormatter.format(requests?.pending ?? 0)} en attente`,
+          tone: 'bg-white/20 text-white'
+        },
+        description: 'Flux global des requêtes d’identification'
+      },
+      {
+        id: 'operations',
+        title: 'Opérations CDR',
+        value: numberFormatter.format(operations?.total ?? 0),
+        icon: Activity,
+        gradient: 'from-amber-500 via-orange-500 to-red-500',
+        badge: {
+          label: `${numberFormatter.format(operations?.today ?? 0)} nouvelles`,
+          tone: 'bg-white/20 text-white'
+        },
+        description: 'Dossiers d’analyse et investigations actives'
+      }
+    ];
+  }, [numberFormatter, statsData, totalRecords, tableDistribution.length]);
+
+  const orderedDashboardCards = useMemo(() => {
+    const cardsMap = new Map(dashboardCards.map(card => [card.id, card]));
+    const knownOrder = cardOrder.filter(id => cardsMap.has(id)).map(id => cardsMap.get(id)!);
+    const missing = dashboardCards.filter(card => !cardOrder.includes(card.id));
+    return [...knownOrder, ...missing];
+  }, [cardOrder, dashboardCards]);
+
+  const handleCardDragStart = useCallback((id: string) => () => {
+    setDraggedCard(id);
+  }, []);
+
+  const handleCardDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+  }, []);
+
+  const handleCardDrop = useCallback((targetId: string) => (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (!draggedCard || draggedCard === targetId) {
+      setDraggedCard(null);
+      return;
+    }
+
+    setCardOrder(prev => {
+      const next = [...prev];
+      const fromIndex = next.indexOf(draggedCard);
+      const toIndex = next.indexOf(targetId);
+      if (fromIndex === -1 || toIndex === -1) {
+        return prev;
+      }
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, draggedCard);
+      return next;
+    });
+    setDraggedCard(null);
+  }, [draggedCard]);
+
+  const handleCardDragEnd = useCallback(() => {
+    setDraggedCard(null);
+  }, []);
+
+  const resetCardOrder = useCallback(() => {
+    setCardOrder(DEFAULT_CARD_ORDER);
+    setDraggedCard(null);
+  }, []);
+
+  const requestMetrics = useMemo<RequestMetric[]>(() => {
+    const requests = statsData?.requests;
+    const total = requests?.total ?? 0;
+    const pending = requests?.pending ?? 0;
+    const identified = requests?.identified ?? 0;
+    const today = requests?.today ?? 0;
+    const recent = requests?.recent ?? 0;
+    const percentage = (value: number) => (total ? Math.round((value / total) * 100) : 0);
+
+    return [
+      {
+        key: 'total',
+        label: 'Total des demandes',
+        value: total,
+        icon: ClipboardList,
+        tone: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200',
+        caption: `30 derniers jours : ${numberFormatter.format(recent)}`
+      },
+      {
+        key: 'pending',
+        label: 'En attente',
+        value: pending,
+        icon: AlertTriangle,
+        tone: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200',
+        caption: 'En cours de traitement',
+        progress: percentage(pending)
+      },
+      {
+        key: 'identified',
+        label: 'Identifiées',
+        value: identified,
+        icon: UserCheck,
+        tone: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200',
+        caption: 'Demandes résolues',
+        progress: percentage(identified)
+      },
+      {
+        key: 'today',
+        label: "Aujourd'hui",
+        value: today,
+        icon: Clock,
+        tone: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
+        caption: 'Nouvelle activité du jour'
+      }
+    ];
+  }, [numberFormatter, statsData]);
+
+  const profileStats = statsData?.profiles;
+  const operationStats = statsData?.operations;
+  const profilesTotal = profileStats?.total ?? 0;
+  const profilesRecent = profileStats?.recent ?? 0;
+  const operationsTotal = operationStats?.total ?? 0;
+  const operationsRecent = operationStats?.recent ?? 0;
+  const profileProgress = profilesTotal ? Math.min(100, Math.round((profilesRecent / profilesTotal) * 100)) : 0;
+  const operationsProgress = operationsTotal ? Math.min(100, Math.round((operationsRecent / operationsTotal) * 100)) : 0;
+
+  const searchTypeChips = useMemo(() => {
+    return (statsData?.searches_by_type || []).map(type => ({
+      key: type.search_type,
+      label: type.search_type.replace(/_/g, ' '),
+      value: numberFormatter.format(type.search_count || 0)
+    }));
+  }, [numberFormatter, statsData]);
 
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -4488,65 +4755,60 @@ useEffect(() => {
               ) : (
                 <>
                   {/* Métriques principales */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-xl">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-blue-100 text-sm font-medium">Recherches totales</p>
-                          <p className="text-3xl font-bold">{statsData?.total_searches || 0}</p>
-                        </div>
-                        <div className="bg-white/20 rounded-full p-3">
-                          <Search className="h-8 w-8" />
-                        </div>
-                      </div>
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <p className="text-sm text-gray-500 dark:text-gray-300">
+                        Glissez-déposez les cartes pour personnaliser votre tableau de bord.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={resetCardOrder}
+                        className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors dark:bg-blue-900/40 dark:text-blue-200 dark:hover:bg-blue-900/60"
+                      >
+                        Réinitialiser l'ordre
+                      </button>
                     </div>
-
-                    <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-6 text-white shadow-xl">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-teal-100 text-sm font-medium">Enregistrements indexés</p>
-                          <p className="text-3xl font-bold">{totalRecords}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
+                      {orderedDashboardCards.map(card => (
+                        <div
+                          key={card.id}
+                          draggable
+                          onDragStart={handleCardDragStart(card.id)}
+                          onDragOver={handleCardDragOver}
+                          onDrop={handleCardDrop(card.id)}
+                          onDragEnd={handleCardDragEnd}
+                          className={`relative overflow-hidden rounded-3xl p-6 shadow-xl transition-transform duration-200 cursor-grab active:cursor-grabbing ${draggedCard === card.id ? 'ring-2 ring-white/70 scale-[1.02]' : 'hover:-translate-y-1'}`}
+                        >
+                          <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-95`}></div>
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent)]"></div>
+                          <div className="relative z-10 flex flex-col h-full text-white">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <p className="text-sm font-medium text-white/80">{card.title}</p>
+                                <p className="mt-2 text-3xl font-bold">{card.value}</p>
+                                {card.description && (
+                                  <p className="mt-3 text-sm text-white/70 leading-relaxed">
+                                    {card.description}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end gap-3">
+                                <span className="inline-flex items-center justify-center p-3 rounded-full bg-white/20 backdrop-blur-sm">
+                                  <card.icon className="h-7 w-7" />
+                                </span>
+                                <GripVertical className="h-5 w-5 text-white/70" />
+                              </div>
+                            </div>
+                            {card.badge && (
+                              <div className="mt-auto pt-6">
+                                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-sm border border-white/30 ${card.badge.tone}`}>
+                                  {card.badge.label}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="bg-white/20 rounded-full p-3">
-                          <Database className="h-8 w-8" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-xl">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-green-100 text-sm font-medium">Utilisateurs actifs</p>
-                          <p className="text-3xl font-bold">{statsData?.active_users || 0}</p>
-                        </div>
-                        <div className="bg-white/20 rounded-full p-3">
-                          <Users className="h-8 w-8" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-purple-100 text-sm font-medium">Temps de réponse moyen</p>
-                          <p className="text-3xl font-bold">{statsData?.avg_execution_time || 0}ms</p>
-                        </div>
-                        <div className="bg-white/20 rounded-full p-3">
-                          <Timer className="h-8 w-8" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-xl">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-orange-100 text-sm font-medium">Recherches aujourd'hui</p>
-                          <p className="text-3xl font-bold">{statsData?.today_searches || 0}</p>
-                        </div>
-                        <div className="bg-white/20 rounded-full p-3">
-                          <TrendingUp className="h-8 w-8" />
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
 
@@ -4647,52 +4909,127 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  {/* Répartition des sources de données */}
+                  {/* Activité opérationnelle */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-1">
-                      <div className="bg-white rounded-2xl shadow-xl p-6">
+                    <div className="space-y-6">
+                      <div className="bg-white rounded-2xl shadow-xl p-6 dark:bg-gray-800">
                         <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
-                          <Database className="h-6 w-6 mr-2 text-green-600" />
-                          Sources de données
+                          <ClipboardList className="h-6 w-6 mr-2 text-indigo-600 dark:text-indigo-400" />
+                          Activité des demandes
                         </h3>
-                        <div className="h-80">
-                          <Doughnut
-                            data={{
-                              labels: tableDistribution.map(d => d.table),
-                              datasets: [{
-                                data: tableDistribution.map(d => d.count),
-                                backgroundColor: tableDistribution.map((_, i) => [
-                                  'rgba(59, 130, 246, 0.8)',
-                                  'rgba(16, 185, 129, 0.8)',
-                                  'rgba(245, 158, 11, 0.8)',
-                                  'rgba(239, 68, 68, 0.8)',
-                                  'rgba(147, 51, 234, 0.8)'
-                                ][i % 5]),
-                                borderWidth: 0
-                              }]
-                            }}
-                            options={{
-                              responsive: true,
-                              maintainAspectRatio: false,
-                              plugins: {
-                                legend: {
-                                  position: 'bottom',
-                                  labels: {
-                                    padding: 20,
-                                    usePointStyle: true
-                                  }
-                                }
-                              }
-                            }}
-                          />
-                        </div>
-                        <div className="mt-6 max-h-48 overflow-y-auto space-y-1">
-                          {tableDistribution.map((d, idx) => (
-                            <div key={idx} className="flex justify-between text-sm">
-                              <span className="text-gray-700">{d.table}</span>
-                              <span className="font-medium text-gray-900 dark:text-gray-100">{d.count}</span>
+                        <div className="space-y-4">
+                          {requestMetrics.map(item => (
+                            <div
+                              key={item.key}
+                              className="rounded-2xl border border-gray-100 dark:border-gray-700/60 bg-gray-50/60 dark:bg-gray-900/40 px-4 py-4"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <span className={`flex h-11 w-11 items-center justify-center rounded-full ${item.tone}`}>
+                                    <item.icon className="h-5 w-5" />
+                                  </span>
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">{item.label}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.caption}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{numberFormatter.format(item.value)}</p>
+                                  {item.progress !== undefined && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.progress}% du total</p>
+                                  )}
+                                </div>
+                              </div>
+                              {item.progress !== undefined && (
+                                <div className="mt-3 h-2 rounded-full bg-white/60 dark:bg-gray-800/70">
+                                  <div
+                                    className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
+                                    style={{ width: `${item.progress}%` }}
+                                  ></div>
+                                </div>
+                              )}
                             </div>
                           ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-2xl shadow-xl p-6 dark:bg-gray-800">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+                          <Activity className="h-6 w-6 mr-2 text-rose-600 dark:text-rose-400" />
+                          Profils & opérations
+                        </h3>
+                        <div className="space-y-6">
+                          <div className="rounded-2xl border border-gray-100 dark:border-gray-700/60 p-5 bg-gradient-to-br from-rose-50 via-white to-white dark:from-rose-950/30 dark:via-gray-900/60">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <p className="text-sm font-semibold text-rose-600 dark:text-rose-300">Profils enregistrés</p>
+                                <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">{numberFormatter.format(profilesTotal)}</p>
+                                <div className="mt-3 flex flex-wrap gap-2 text-xs text-rose-700 dark:text-rose-200">
+                                  <span className="inline-flex items-center rounded-full bg-white/70 dark:bg-white/10 px-3 py-1">
+                                    Aujourd'hui : {numberFormatter.format(profileStats?.today ?? 0)}
+                                  </span>
+                                  <span className="inline-flex items-center rounded-full bg-white/70 dark:bg-white/10 px-3 py-1">
+                                    30 derniers jours : {numberFormatter.format(profilesRecent)}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className="inline-flex items-center justify-center p-3 rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-200">
+                                <UserCircle className="h-6 w-6" />
+                              </span>
+                            </div>
+                            <div className="mt-4 h-2 rounded-full bg-rose-100 dark:bg-rose-900/40">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-500"
+                                style={{ width: `${profileProgress}%` }}
+                              ></div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-gray-100 dark:border-gray-700/60 p-5 bg-gradient-to-br from-amber-50 via-white to-white dark:from-amber-950/30 dark:via-gray-900/60">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <p className="text-sm font-semibold text-amber-600 dark:text-amber-300">Opérations CDR</p>
+                                <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">{numberFormatter.format(operationsTotal)}</p>
+                                <div className="mt-3 flex flex-wrap gap-2 text-xs text-amber-700 dark:text-amber-200">
+                                  <span className="inline-flex items-center rounded-full bg-white/70 dark:bg-white/10 px-3 py-1">
+                                    Aujourd'hui : {numberFormatter.format(operationStats?.today ?? 0)}
+                                  </span>
+                                  <span className="inline-flex items-center rounded-full bg-white/70 dark:bg-white/10 px-3 py-1">
+                                    30 derniers jours : {numberFormatter.format(operationsRecent)}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className="inline-flex items-center justify-center p-3 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-200">
+                                <Activity className="h-6 w-6" />
+                              </span>
+                            </div>
+                            <div className="mt-4 h-2 rounded-full bg-amber-100 dark:bg-amber-900/40">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500"
+                                style={{ width: `${operationsProgress}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-700/60">
+                          <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Types de recherche</h4>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {searchTypeChips.length > 0 ? (
+                              searchTypeChips.map(type => (
+                                <span
+                                  key={type.key}
+                                  className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 dark:bg-gray-900/60 dark:text-gray-200"
+                                >
+                                  <span className="inline-flex h-2 w-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"></span>
+                                  <span className="capitalize">{type.label}</span>
+                                  <span className="text-gray-500 dark:text-gray-400">• {type.value}</span>
+                                </span>
+                              ))
+                            ) : (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">Aucun historique de type de recherche disponible.</p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
