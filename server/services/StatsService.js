@@ -66,7 +66,7 @@ class StatsService {
           userId ? [userId] : []
         ),
         database.queryOne(
-          `SELECT COUNT(*) as count FROM autres.search_logs WHERE search_date >= DATE_SUB(NOW(), INTERVAL HOUR(NOW()) HOUR + MINUTE(NOW()) MINUTE + SECOND(NOW()) SECOND)${userId ? ' AND user_id = ?' : ''}`,
+          `SELECT COUNT(*) as count FROM autres.search_logs WHERE search_date >= DATE(NOW())${userId ? ' AND user_id = ?' : ''}`,
           userId ? [userId] : []
         ),
         userId
