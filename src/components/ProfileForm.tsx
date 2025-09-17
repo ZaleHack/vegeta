@@ -10,10 +10,17 @@ interface FieldCategory {
   fields: ExtraField[];
 }
 
+interface Attachment {
+  id: number;
+  original_name: string | null;
+  file_path: string;
+}
+
 interface InitialValues {
   comment?: string;
   extra_fields?: FieldCategory[];
   photo_path?: string | null;
+  attachments?: Attachment[];
 }
 
 interface ProfileFormProps {
@@ -43,6 +50,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const [message, setMessage] = useState('');
   const [comment, setComment] = useState(initialValues.comment || '');
   const [dragging, setDragging] = useState<{ catIdx: number; fieldIdx: number } | null>(null);
+  const [existingAttachments, setExistingAttachments] = useState<Attachment[]>(
+    () => initialValues.attachments || []
+  );
+  const [newAttachments, setNewAttachments] = useState<File[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<number[]>([]);
+  const [removePhoto, setRemovePhoto] = useState(false);
 
   useEffect(() => {
     setCategories(buildInitialFields());
@@ -53,6 +66,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       setPreview(null);
     }
     setPhoto(null);
+    setRemovePhoto(false);
+    setExistingAttachments(initialValues.attachments || []);
+    setNewAttachments([]);
+    setRemovedAttachmentIds([]);
   }, [initialValues, profileId]);
 
   const addCategory = () =>
@@ -122,6 +139,30 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     const file = e.target.files?.[0] || null;
     setPhoto(file);
     setPreview(file ? URL.createObjectURL(file) : null);
+    setRemovePhoto(false);
+  };
+
+  const handleRemovePhoto = () => {
+    setPhoto(null);
+    setPreview(null);
+    setRemovePhoto(true);
+  };
+
+  const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length) {
+      setNewAttachments(prev => [...prev, ...files]);
+    }
+    e.target.value = '';
+  };
+
+  const removeExistingAttachment = (id: number) => {
+    setExistingAttachments(prev => prev.filter(att => att.id !== id));
+    setRemovedAttachmentIds(prev => (prev.includes(id) ? prev : [...prev, id]));
+  };
+
+  const removeNewAttachment = (index: number) => {
+    setNewAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -151,6 +192,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     form.append('comment', comment);
     form.append('extra_fields', JSON.stringify(formatted));
     if (photo) form.append('photo', photo);
+    if (removePhoto && !photo) form.append('remove_photo', 'true');
+    if (newAttachments.length) {
+      newAttachments.forEach(file => form.append('attachments', file));
+    }
+    if (removedAttachmentIds.length) {
+      form.append('remove_attachment_ids', JSON.stringify(removedAttachmentIds));
+    }
     const token = localStorage.getItem('token');
     const url = profileId ? `/api/profiles/${profileId}` : '/api/profiles';
     const method = profileId ? 'PATCH' : 'POST';
@@ -164,6 +212,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     const data = await res.json();
     if (res.ok) {
       setMessage('Profil enregistré avec succès');
+      setPhoto(null);
+      setNewAttachments([]);
+      setRemovedAttachmentIds([]);
+      if (data.profile) {
+        setExistingAttachments(Array.isArray(data.profile.attachments) ? data.profile.attachments : []);
+        setPreview(data.profile.photo_path ? `/${data.profile.photo_path}` : null);
+        setRemovePhoto(false);
+      }
       if (onSaved) onSaved(data.profile?.id);
     } else {
       setMessage(data.error || 'Erreur lors de la sauvegarde');
@@ -251,22 +307,98 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
         <textarea
           className="w-full rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           value={comment}
-          onChange={e => setComment(e.target.value)}
-        />
-      </div>
-      <div>
-        <input
-          type="file"
-          onChange={handlePhoto}
-          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-        />
-        {preview && (
-          <img
-            src={preview}
-            alt="preview"
-            className="mt-2 w-32 h-32 object-cover rounded-full"
+      onChange={e => setComment(e.target.value)}
+    />
+  </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 shadow-sm">
+          <label className="block mb-2 font-medium text-gray-700">Photo de profil</label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handlePhoto}
+            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
-        )}
+          {preview ? (
+            <div className="mt-4 space-y-3">
+              <img src={preview} alt="preview" className="w-32 h-32 object-cover rounded-full mx-auto" />
+              <button
+                type="button"
+                className="px-3 py-1 text-sm text-red-600 hover:text-red-700"
+                onClick={handleRemovePhoto}
+              >
+                Retirer la photo
+              </button>
+            </div>
+          ) : removePhoto ? (
+            <p className="mt-3 text-sm text-gray-500">La photo actuelle sera supprimée lors de la sauvegarde.</p>
+          ) : (
+            <p className="mt-3 text-sm text-gray-500">Aucune photo sélectionnée.</p>
+          )}
+        </div>
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 shadow-sm space-y-3">
+          <label className="block font-medium text-gray-700">Pièces jointes</label>
+          <input
+            type="file"
+            multiple
+            onChange={handleAttachmentChange}
+            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+          {existingAttachments.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm font-semibold text-gray-600">Pièces jointes enregistrées</div>
+              <ul className="space-y-2 max-h-40 overflow-y-auto pr-1 preview-scroll">
+                {existingAttachments.map(att => (
+                  <li
+                    key={att.id}
+                    className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <a
+                      href={`/${att.file_path}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline flex-1 min-w-0"
+                    >
+                      <span className="truncate">{att.original_name || att.file_path.split('/').pop()}</span>
+                    </a>
+                    <button
+                      type="button"
+                      className="ml-2 text-red-500 hover:text-red-700"
+                      onClick={() => removeExistingAttachment(att.id)}
+                    >
+                      Retirer
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {newAttachments.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm font-semibold text-gray-600">Nouvelles pièces jointes</div>
+              <ul className="space-y-2 max-h-40 overflow-y-auto pr-1 preview-scroll">
+                {newAttachments.map((file, idx) => (
+                  <li
+                    key={`${file.name}-${idx}`}
+                    className="flex items-center justify-between bg-white border border-dashed border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <span className="truncate flex-1 min-w-0">{file.name}</span>
+                    <button
+                      type="button"
+                      className="ml-2 text-red-500 hover:text-red-700"
+                      onClick={() => removeNewAttachment(idx)}
+                    >
+                      Supprimer
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {existingAttachments.length === 0 && newAttachments.length === 0 && (
+            <p className="text-sm text-gray-500">Aucune pièce jointe n'est associée à ce profil.</p>
+          )}
+        </div>
       </div>
       <button
         type="submit"

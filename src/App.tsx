@@ -365,6 +365,7 @@ const App: React.FC = () => {
     comment?: string;
     extra_fields?: FieldCategory[];
     photo_path?: string | null;
+    attachments?: { id: number; original_name: string | null; file_path: string }[];
   }>({});
   const [editingProfileId, setEditingProfileId] = useState<number | null>(null);
 
@@ -557,7 +558,12 @@ const App: React.FC = () => {
     const categories: FieldCategory[] = [
       { title: 'Informations', fields: [...infoFields, ...extraFields] }
     ];
-    setProfileDefaults({ comment: data.comment || '', extra_fields: categories, photo_path: null });
+    setProfileDefaults({
+      comment: data.comment || '',
+      extra_fields: categories,
+      photo_path: null,
+      attachments: []
+    });
     setEditingProfileId(null);
     setShowProfileForm(true);
     setCurrentPage('profiles');
@@ -605,7 +611,8 @@ const App: React.FC = () => {
       setProfileDefaults({
         comment: profile.comment || '',
         extra_fields: extras,
-        photo_path: profile.photo_path || null
+        photo_path: profile.photo_path || null,
+        attachments: Array.isArray(profile.attachments) ? profile.attachments : []
       });
       setEditingProfileId(id);
       setShowProfileForm(true);

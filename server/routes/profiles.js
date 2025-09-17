@@ -15,7 +15,8 @@ const __dirname = path.dirname(__filename);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../uploads/profiles');
+    const subDir = file.fieldname === 'photo' ? 'profiles' : 'profile-attachments';
+    const dir = path.join(__dirname, '../../uploads', subDir);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -29,23 +30,54 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+const parseAttachmentPayload = data => {
+  if (data.extra_fields && typeof data.extra_fields === 'string') {
+    try {
+      data.extra_fields = JSON.parse(data.extra_fields);
+    } catch (_) {
+      data.extra_fields = [];
+    }
+  }
+  if (data.remove_attachment_ids && typeof data.remove_attachment_ids === 'string') {
+    try {
+      const parsed = JSON.parse(data.remove_attachment_ids);
+      data.remove_attachment_ids = Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      data.remove_attachment_ids = [];
+    }
+  }
+  if (typeof data.remove_photo === 'string') {
+    const lowered = data.remove_photo.toLowerCase();
+    data.remove_photo = lowered === '1' || lowered === 'true' || lowered === 'on';
+  }
+  return data;
+};
+
 router.use(authenticate);
 
-  router.post('/', upload.single('photo'), async (req, res) => {
+router.post(
+  '/',
+  upload.fields([
+    { name: 'photo', maxCount: 1 },
+    { name: 'attachments', maxCount: 20 }
+  ]),
+  async (req, res) => {
     try {
-      const data = { ...req.body };
-      if (data.extra_fields && typeof data.extra_fields === 'string') {
-        try { data.extra_fields = JSON.parse(data.extra_fields); } catch (_) {}
-      }
-      const profile = await service.create(data, req.user.id, req.file);
+      const data = parseAttachmentPayload({ ...req.body });
+      const profile = await service.create(data, req.user.id, req.files || {});
       try {
-        await UserLog.create({ user_id: req.user.id, action: 'create_profile', details: JSON.stringify({ profile_id: profile.id }) });
+        await UserLog.create({
+          user_id: req.user.id,
+          action: 'create_profile',
+          details: JSON.stringify({ profile_id: profile.id })
+        });
       } catch (_) {}
       res.json({ profile });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
-  });
+  }
+);
 
 router.get('/', async (req, res) => {
   try {
@@ -68,18 +100,22 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-router.patch('/:id', upload.single('photo'), async (req, res) => {
-  try {
-    const data = { ...req.body };
-    if (data.extra_fields && typeof data.extra_fields === 'string') {
-      try { data.extra_fields = JSON.parse(data.extra_fields); } catch (_) {}
+router.patch(
+  '/:id',
+  upload.fields([
+    { name: 'photo', maxCount: 1 },
+    { name: 'attachments', maxCount: 20 }
+  ]),
+  async (req, res) => {
+    try {
+      const data = parseAttachmentPayload({ ...req.body });
+      const profile = await service.update(parseInt(req.params.id), data, req.user, req.files || {});
+      res.json({ profile });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
     }
-    const profile = await service.update(parseInt(req.params.id), data, req.user, req.file);
-    res.json({ profile });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
-});
+);
 
 router.delete('/:id', async (req, res) => {
   try {
@@ -90,20 +126,24 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-  router.get('/:id/pdf', async (req, res) => {
+router.get('/:id/pdf', async (req, res) => {
+  try {
+    const profile = await service.get(parseInt(req.params.id), req.user);
+    if (!profile) return res.status(404).json({ error: 'Profil non trouvé' });
+    const pdf = await service.generatePDF(profile);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=profile-${profile.id}.pdf`);
+    res.send(pdf);
     try {
-      const profile = await service.get(parseInt(req.params.id), req.user);
-      if (!profile) return res.status(404).json({ error: 'Profil non trouvé' });
-      const pdf = await service.generatePDF(profile);
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename=profile-${profile.id}.pdf`);
-      res.send(pdf);
-      try {
-        await UserLog.create({ user_id: req.user.id, action: 'export_profile', details: JSON.stringify({ profile_id: profile.id }) });
-      } catch (_) {}
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+      await UserLog.create({
+        user_id: req.user.id,
+        action: 'export_profile',
+        details: JSON.stringify({ profile_id: profile.id })
+      });
+    } catch (_) {}
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 export default router;

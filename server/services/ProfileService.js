@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { PassThrough } from 'stream';
 import Profile from '../models/Profile.js';
+import ProfileAttachment from '../models/ProfileAttachment.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,12 +11,64 @@ const __dirname = path.dirname(__filename);
 class ProfileService {
   constructor() {
     this.photosDir = path.join(__dirname, '../../uploads/profiles');
-    if (!fs.existsSync(this.photosDir)) {
-      fs.mkdirSync(this.photosDir, { recursive: true });
-    }
+    this.attachmentsDir = path.join(__dirname, '../../uploads/profile-attachments');
+    [this.photosDir, this.attachmentsDir].forEach(dir => {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    });
   }
 
-  async create(data, userId, file) {
+  normalizeStoredPath(value) {
+    return value ? value.replace(/\\/g, '/') : value;
+  }
+
+  resolveStoragePath(storedPath) {
+    if (!storedPath) return null;
+    const normalized = this.normalizeStoredPath(storedPath).replace(/^[/\\]+/, '');
+    const parts = normalized.split(/[/\\]+/);
+    return path.resolve(__dirname, '../../', parts.join(path.sep));
+  }
+
+  removeStoredFile(storedPath) {
+    const absolute = this.resolveStoragePath(storedPath);
+    if (!absolute) return;
+    try {
+      if (fs.existsSync(absolute)) {
+        fs.unlinkSync(absolute);
+      }
+    } catch (_) {}
+  }
+
+  async withAttachments(profile) {
+    if (!profile) return null;
+    const attachments = await ProfileAttachment.findByProfileId(profile.id);
+    return {
+      ...profile,
+      photo_path: this.normalizeStoredPath(profile.photo_path),
+      attachments: attachments.map(att => ({
+        ...att,
+        file_path: this.normalizeStoredPath(att.file_path)
+      }))
+    };
+  }
+
+  async removeAttachments(profileId, attachmentIds) {
+    if (!attachmentIds || attachmentIds.length === 0) return;
+    const existing = await ProfileAttachment.findByProfileId(profileId);
+    const ids = attachmentIds
+      .map(id => parseInt(id, 10))
+      .filter(id => Number.isInteger(id));
+    if (ids.length === 0) return;
+    const toDelete = existing.filter(att => ids.includes(att.id));
+    if (toDelete.length === 0) return;
+    await ProfileAttachment.deleteByIds(profileId, ids);
+    toDelete.forEach(att => this.removeStoredFile(att.file_path));
+  }
+
+  async create(data, userId, files = {}) {
+    const photoFile = Array.isArray(files.photo) ? files.photo[0] : null;
+    const attachmentFiles = Array.isArray(files.attachments) ? files.attachments : [];
     const profileData = {
       user_id: userId,
       first_name: data.first_name || null,
@@ -25,17 +78,45 @@ class ProfileService {
       comment: data.comment ?? '',
       extra_fields: data.extra_fields || [],
       // Use POSIX-style paths for storage so that paths work across OSes
-      photo_path: file ? path.posix.join('uploads/profiles', file.filename) : null
+      photo_path: photoFile ? path.posix.join('uploads/profiles', photoFile.filename) : null
     };
-    return Profile.create(profileData);
+    const created = await Profile.create(profileData);
+    if (attachmentFiles.length) {
+      await ProfileAttachment.createMany(
+        created.id,
+        attachmentFiles.map(file => ({
+          file_path: path.posix.join('uploads/profile-attachments', file.filename),
+          original_name: file.originalname
+        }))
+      );
+    }
+    const fresh = await Profile.findById(created.id);
+    return this.withAttachments(fresh);
   }
 
-  async update(id, data, user, file) {
+  async update(id, data, user, files = {}) {
     const existing = await Profile.findById(id);
     if (!existing) throw new Error('Profil non trouvé');
     const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
     if (!isAdmin && existing.user_id !== user.id) {
       throw new Error('Accès refusé');
+    }
+    const photoFile = Array.isArray(files.photo) ? files.photo[0] : null;
+    const attachmentFiles = Array.isArray(files.attachments) ? files.attachments : [];
+    const removalIds = Array.isArray(data.remove_attachment_ids)
+      ? data.remove_attachment_ids
+      : [];
+    let photoPath = this.normalizeStoredPath(existing.photo_path);
+    if (photoFile) {
+      if (photoPath) {
+        this.removeStoredFile(photoPath);
+      }
+      photoPath = path.posix.join('uploads/profiles', photoFile.filename);
+    } else if (data.remove_photo) {
+      if (photoPath) {
+        this.removeStoredFile(photoPath);
+      }
+      photoPath = null;
     }
     const updateData = {
       first_name: data.first_name ?? existing.first_name,
@@ -45,13 +126,22 @@ class ProfileService {
       comment: data.comment ?? existing.comment ?? '',
       extra_fields: data.extra_fields || JSON.parse(existing.extra_fields || '[]'),
       // Normalize existing paths to use forward slashes to avoid issues on different OSes
-      photo_path: file
-        ? path.posix.join('uploads/profiles', file.filename)
-        : existing.photo_path
-            ? existing.photo_path.replace(/\\/g, '/')
-            : existing.photo_path
+      photo_path: photoPath
     };
-    return Profile.update(id, updateData);
+    const updated = await Profile.update(id, updateData);
+    if (removalIds.length) {
+      await this.removeAttachments(id, removalIds);
+    }
+    if (attachmentFiles.length) {
+      await ProfileAttachment.createMany(
+        id,
+        attachmentFiles.map(file => ({
+          file_path: path.posix.join('uploads/profile-attachments', file.filename),
+          original_name: file.originalname
+        }))
+      );
+    }
+    return this.withAttachments(updated);
   }
 
   async delete(id, user) {
@@ -61,6 +151,11 @@ class ProfileService {
     if (!isAdmin && existing.user_id !== user.id) {
       throw new Error('Accès refusé');
     }
+    if (existing.photo_path) {
+      this.removeStoredFile(existing.photo_path);
+    }
+    const attachments = await ProfileAttachment.findByProfileId(id);
+    attachments.forEach(att => this.removeStoredFile(att.file_path));
     return Profile.delete(id);
   }
 
@@ -69,16 +164,31 @@ class ProfileService {
     if (!profile) return null;
     const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
     if (!isAdmin && profile.user_id !== user.id) return null;
-    return profile;
+    return this.withAttachments(profile);
   }
 
   async list(user, search, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
     const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
-    if (search) {
-      return Profile.searchByNameOrPhone(search, user.id, isAdmin, limit, offset);
+    const result = search
+      ? await Profile.searchByNameOrPhone(search, user.id, isAdmin, limit, offset)
+      : await Profile.findAll(isAdmin ? null : user.id, limit, offset);
+    const rows = result.rows.map(row => ({
+      ...row,
+      photo_path: this.normalizeStoredPath(row.photo_path)
+    }));
+    if (rows.length === 0) {
+      return { rows, total: result.total };
     }
-    return Profile.findAll(isAdmin ? null : user.id, limit, offset);
+    const attachmentsMap = await ProfileAttachment.findByProfileIds(rows.map(row => row.id));
+    const enriched = rows.map(row => ({
+      ...row,
+      attachments: (attachmentsMap[row.id] || []).map(att => ({
+        ...att,
+        file_path: this.normalizeStoredPath(att.file_path)
+      }))
+    }));
+    return { rows: enriched, total: result.total };
   }
 
   async generatePDF(profile) {
