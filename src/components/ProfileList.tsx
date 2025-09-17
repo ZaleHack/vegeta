@@ -1,6 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { X } from 'lucide-react';
+import { X, Paperclip, Download } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
+
+interface ProfileAttachment {
+  id: number;
+  file_path: string;
+  original_name: string | null;
+}
 
 interface Profile {
   id: number;
@@ -11,6 +17,7 @@ interface Profile {
   comment: string | null;
   photo_path: string | null;
   extra_fields?: string | null;
+  attachments?: ProfileAttachment[];
 }
 
 interface ProfileListProps {
@@ -45,8 +52,13 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
         setTotal(0);
         return;
       }
-      // Ensure the profiles field from the API is always an array
-      setProfiles(Array.isArray(data.profiles) ? data.profiles : []);
+      // Ensure the profiles field from the API is always an array and normalize attachments
+      const rawProfiles: Profile[] = Array.isArray(data.profiles) ? data.profiles : [];
+      const normalized = rawProfiles.map(profile => ({
+        ...profile,
+        attachments: Array.isArray(profile.attachments) ? profile.attachments : []
+      }));
+      setProfiles(normalized);
       setTotal(data.total || 0);
     } catch (err) {
       setError('Erreur de réseau');
@@ -287,6 +299,37 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                       <div className="flex justify-between">
                         <span className="font-medium mr-2">Commentaire:</span>
                         <span>{selected.comment}</span>
+                      </div>
+                    )}
+                    {selected.attachments && selected.attachments.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        <div className="font-semibold text-gray-700 flex items-center">
+                          <Paperclip className="w-4 h-4 mr-2" /> Pièces jointes
+                        </div>
+                        <ul className="space-y-2">
+                          {selected.attachments.map(att => {
+                            const label = att.original_name || att.file_path.split('/').pop();
+                            return (
+                              <li
+                                key={att.id}
+                                className="bg-white border border-gray-200 rounded-lg px-3 py-2"
+                              >
+                                <a
+                                  href={`/${att.file_path}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center justify-between text-blue-600 hover:underline text-sm"
+                                >
+                                  <span className="flex items-center min-w-0">
+                                    <Paperclip className="w-4 h-4 mr-2 text-gray-500" />
+                                    <span className="truncate">{label}</span>
+                                  </span>
+                                  <Download className="w-4 h-4 ml-2 shrink-0" />
+                                </a>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       </div>
                     )}
                   </>

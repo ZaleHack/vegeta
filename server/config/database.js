@@ -174,6 +174,18 @@ class DatabaseManager {
       `);
 
       await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.profile_attachments (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          profile_id INT NOT NULL,
+          file_path VARCHAR(255) NOT NULL,
+          original_name VARCHAR(255) DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_profile_id (profile_id),
+          FOREIGN KEY (profile_id) REFERENCES autres.profiles(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await this.query(`
         CREATE TABLE IF NOT EXISTS autres.identified_numbers (
           id INT AUTO_INCREMENT PRIMARY KEY,
           phone VARCHAR(50) NOT NULL UNIQUE,
