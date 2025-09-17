@@ -173,6 +173,7 @@ interface ProfileData {
 
 interface IdentificationRequest {
   id: number;
+  user_id?: number;
   phone: string;
   status: string;
   user_login?: string;
@@ -1958,7 +1959,11 @@ useEffect(() => {
         });
       }
 
-      if (!isCurrentAdmin && request.user_login === currentUser.login && request.status === 'identified') {
+      if (
+        !isCurrentAdmin &&
+        request.status === 'identified' &&
+        (request.user_id === currentUser.id || request.user_login === currentUser.login)
+      ) {
         items.push({
           id: `user-${request.id}`,
           requestId: request.id,
