@@ -123,6 +123,56 @@ const parseDurationToSeconds = (duration: string): number => {
   return isNaN(asNumber) ? 0 : asNumber;
 };
 
+const parseTimeToSeconds = (time: string | undefined): number | null => {
+  if (!time) return null;
+  const parts = time.split(':').map(Number);
+  if (parts.length < 2 || parts.some(isNaN)) return null;
+  if (parts.length === 2) {
+    const [hours, minutes] = parts;
+    return hours * 3600 + minutes * 60;
+  }
+  const [hours, minutes, seconds] = parts as [number, number, number];
+  return hours * 3600 + minutes * 60 + seconds;
+};
+
+const getPointDurationInSeconds = (point: Point): number => {
+  if (point.duration) {
+    const parsed = parseDurationToSeconds(point.duration);
+    if (parsed > 0) return parsed;
+  }
+
+  const startSeconds = parseTimeToSeconds(point.startTime);
+  const endSeconds = parseTimeToSeconds(point.endTime);
+
+  if (startSeconds === null || endSeconds === null) return 0;
+
+  let diff = endSeconds - startSeconds;
+  if (diff < 0) {
+    diff += 24 * 3600;
+  }
+
+  return diff > 0 ? diff : 0;
+};
+
+const formatDuration = (seconds: number): string => {
+  if (seconds <= 0) return '0s';
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.round(seconds % 60);
+
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (secs > 0 && hours === 0) parts.push(`${secs}s`);
+
+  if (parts.length === 0) {
+    return `${Math.round(seconds)}s`;
+  }
+
+  return parts.join(' ');
+};
+
 const getPointColor = (type: string, direction?: string) => {
   if (type === 'web') return '#dc2626';
   if (type === 'sms') return '#16a34a';
@@ -569,7 +619,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           entry.smsCount += 1;
         } else {
           entry.callCount += 1;
-          if (p.duration) entry.callDuration += parseDurationToSeconds(p.duration);
+          entry.callDuration += getPointDurationInSeconds(p);
         }
         contactMap.set(p.number, entry);
       }
@@ -600,10 +650,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         number,
         callCount: c.callCount,
         smsCount: c.smsCount,
-        callDuration:
-          c.callDuration >= 60
-            ? `${Math.floor(c.callDuration / 60)}m`
-            : `${Math.round(c.callDuration)}s`,
+        callDuration: formatDuration(c.callDuration),
         total: c.callCount + c.smsCount
       }))
       .sort((a, b) => b.total - a.total);
