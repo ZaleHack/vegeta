@@ -35,6 +35,17 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
   const [error, setError] = useState('');
   const limit = 6;
 
+  const buildProtectedUrl = (relativePath?: string | null) => {
+    if (!relativePath) return null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const normalized = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+    if (!token) return normalized;
+    const separator = normalized.includes('?') ? '&' : '?';
+    return `${normalized}${separator}token=${encodeURIComponent(token)}`;
+  };
+
+  const selectedPhotoUrl = selected ? buildProtectedUrl(selected.photo_path) : null;
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -163,15 +174,16 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                     { label: 'Phone', value: p.phone },
                     { label: 'Email', value: p.email }
                   ].filter(f => f.value).slice(0, 4);
+              const photoUrl = buildProtectedUrl(p.photo_path);
               return (
                 <div
                   key={p.id}
                   className="bg-white/80 backdrop-blur-sm shadow-md rounded-2xl p-6 flex flex-col border border-blue-100 hover:border-blue-300 hover:shadow-xl transition-shadow"
                 >
                   <div className="flex items-center space-x-4">
-                    {p.photo_path ? (
+                    {photoUrl ? (
                       <img
-                        src={`/${p.photo_path}`}
+                        src={photoUrl}
                         alt="profil"
                         className="w-16 h-16 rounded-full object-cover ring-2 ring-blue-500"
                       />
@@ -249,9 +261,9 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
             >
               <X className="w-5 h-5" />
             </button>
-            {selected.photo_path && (
+            {selectedPhotoUrl && (
               <img
-                src={`/${selected.photo_path}`}
+                src={selectedPhotoUrl}
                 alt="profil"
                 className="mx-auto w-32 h-32 rounded-full object-cover mb-4 ring-2 ring-blue-500"
               />
@@ -309,13 +321,14 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                         <ul className="space-y-2">
                           {selected.attachments.map(att => {
                             const label = att.original_name || att.file_path.split('/').pop();
+                            const href = buildProtectedUrl(att.file_path);
                             return (
                               <li
                                 key={att.id}
                                 className="bg-white border border-gray-200 rounded-lg px-3 py-2"
                               >
                                 <a
-                                  href={`/${att.file_path}`}
+                                  href={href || '#'}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="flex items-center justify-between text-blue-600 hover:underline text-sm"

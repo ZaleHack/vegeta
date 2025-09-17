@@ -1,8 +1,10 @@
 import User from '../models/User.js';
 
 export const authenticate = async (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  
+  const headerToken = req.headers.authorization?.replace('Bearer ', '');
+  const queryToken = typeof req.query.token === 'string' ? req.query.token : undefined;
+  const token = headerToken || queryToken;
+
   if (!token) {
     return res.status(401).json({ error: 'Token d\'authentification requis' });
   }
