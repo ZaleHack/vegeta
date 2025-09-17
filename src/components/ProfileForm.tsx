@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import useProtectedFileUrl from '../hooks/useProtectedFileUrl';
+import { downloadProtectedAsset } from '../utils/protectedAssets';
 
 interface ExtraField {
   key: string;
@@ -32,15 +34,6 @@ interface ProfileFormProps {
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
 const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId, onSaved }) => {
-  const buildProtectedUrl = (relativePath?: string | null) => {
-    if (!relativePath) return null;
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const normalized = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
-    if (!token) return normalized;
-    const separator = normalized.includes('?') ? '&' : '?';
-    return `${normalized}${separator}token=${encodeURIComponent(token)}`;
-  };
-
   const buildInitialFields = (): FieldCategory[] => {
     if (initialValues.extra_fields && initialValues.extra_fields.length) {
       return initialValues.extra_fields;
@@ -65,21 +58,40 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const [newAttachments, setNewAttachments] = useState<File[]>([]);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<number[]>([]);
   const [removePhoto, setRemovePhoto] = useState(false);
+  const [remotePhotoPath, setRemotePhotoPath] = useState<string | null>(
+    initialValues.photo_path || null
+  );
+  const protectedPreview = useProtectedFileUrl(!photo && !removePhoto ? remotePhotoPath : null);
+  const localPreviewRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (localPreviewRef.current) {
+      URL.revokeObjectURL(localPreviewRef.current);
+      localPreviewRef.current = null;
+    }
     setCategories(buildInitialFields());
     setComment(initialValues.comment || '');
-    if (initialValues.photo_path) {
-      setPreview(buildProtectedUrl(initialValues.photo_path));
-    } else {
-      setPreview(null);
-    }
+    setRemotePhotoPath(initialValues.photo_path || null);
+    setPreview(null);
     setPhoto(null);
     setRemovePhoto(false);
     setExistingAttachments(initialValues.attachments || []);
     setNewAttachments([]);
     setRemovedAttachmentIds([]);
   }, [initialValues, profileId]);
+
+  useEffect(() => {
+    if (!photo && !removePhoto) {
+      setPreview(protectedPreview || null);
+    }
+  }, [protectedPreview, photo, removePhoto]);
+
+  useEffect(() => () => {
+    if (localPreviewRef.current) {
+      URL.revokeObjectURL(localPreviewRef.current);
+      localPreviewRef.current = null;
+    }
+  }, []);
 
   const addCategory = () =>
     setCategories(prev => [...prev, { title: '', fields: [{ key: '', value: '' }] }]);
@@ -147,12 +159,26 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     setPhoto(file);
-    setPreview(file ? URL.createObjectURL(file) : null);
     setRemovePhoto(false);
+    if (localPreviewRef.current) {
+      URL.revokeObjectURL(localPreviewRef.current);
+      localPreviewRef.current = null;
+    }
+    if (file) {
+      const objectUrl = URL.createObjectURL(file);
+      localPreviewRef.current = objectUrl;
+      setPreview(objectUrl);
+    } else {
+      setPreview(protectedPreview || null);
+    }
   };
 
   const handleRemovePhoto = () => {
     setPhoto(null);
+    if (localPreviewRef.current) {
+      URL.revokeObjectURL(localPreviewRef.current);
+      localPreviewRef.current = null;
+    }
     setPreview(null);
     setRemovePhoto(true);
   };
@@ -226,7 +252,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       setRemovedAttachmentIds([]);
       if (data.profile) {
         setExistingAttachments(Array.isArray(data.profile.attachments) ? data.profile.attachments : []);
-        setPreview(data.profile.photo_path ? buildProtectedUrl(data.profile.photo_path) : null);
+        setRemotePhotoPath(data.profile.photo_path || null);
+        if (localPreviewRef.current) {
+          URL.revokeObjectURL(localPreviewRef.current);
+          localPreviewRef.current = null;
+        }
+        setPreview(null);
         setRemovePhoto(false);
       }
       if (onSaved) onSaved(data.profile?.id);
@@ -362,14 +393,19 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
                     key={att.id}
                     className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm"
                   >
-                    <a
-                      href={buildProtectedUrl(att.file_path) || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline flex-1 min-w-0"
+                    <button
+                      type="button"
+                      className="text-blue-600 hover:underline flex-1 min-w-0 text-left"
+                      onClick={async () => {
+                        try {
+                          await downloadProtectedAsset(att.file_path, att.original_name);
+                        } catch (error) {
+                          setMessage("Impossible de télécharger la pièce jointe");
+                        }
+                      }}
                     >
                       <span className="truncate">{att.original_name || att.file_path.split('/').pop()}</span>
-                    </a>
+                    </button>
                     <button
                       type="button"
                       className="ml-2 text-red-500 hover:text-red-700"

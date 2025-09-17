@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { X, Paperclip, Download } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
+import useProtectedFileUrl from '../hooks/useProtectedFileUrl';
+import { downloadProtectedAsset } from '../utils/protectedAssets';
 
 interface ProfileAttachment {
   id: number;
@@ -25,6 +27,20 @@ interface ProfileListProps {
   onEdit?: (id: number) => void;
 }
 
+interface AvatarProps {
+  path?: string | null;
+  className?: string;
+  fallbackClassName?: string;
+}
+
+const Avatar: React.FC<AvatarProps> = ({ path, className, fallbackClassName }) => {
+  const photoUrl = useProtectedFileUrl(path);
+  if (!photoUrl) {
+    return <div className={fallbackClassName || className} />;
+  }
+  return <img src={photoUrl} alt="profil" className={className} />;
+};
+
 const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [query, setQuery] = useState('');
@@ -35,16 +51,6 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
   const [error, setError] = useState('');
   const limit = 6;
 
-  const buildProtectedUrl = (relativePath?: string | null) => {
-    if (!relativePath) return null;
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const normalized = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
-    if (!token) return normalized;
-    const separator = normalized.includes('?') ? '&' : '?';
-    return `${normalized}${separator}token=${encodeURIComponent(token)}`;
-  };
-
-  const selectedPhotoUrl = selected ? buildProtectedUrl(selected.photo_path) : null;
 
   const load = useCallback(async () => {
     try {
@@ -174,22 +180,17 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                     { label: 'Phone', value: p.phone },
                     { label: 'Email', value: p.email }
                   ].filter(f => f.value).slice(0, 4);
-              const photoUrl = buildProtectedUrl(p.photo_path);
               return (
                 <div
                   key={p.id}
                   className="bg-white/80 backdrop-blur-sm shadow-md rounded-2xl p-6 flex flex-col border border-blue-100 hover:border-blue-300 hover:shadow-xl transition-shadow"
                 >
                   <div className="flex items-center space-x-4">
-                    {photoUrl ? (
-                      <img
-                        src={photoUrl}
-                        alt="profil"
-                        className="w-16 h-16 rounded-full object-cover ring-2 ring-blue-500"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-full bg-gray-200" />
-                    )}
+                    <Avatar
+                      path={p.photo_path}
+                      className="w-16 h-16 rounded-full object-cover ring-2 ring-blue-500"
+                      fallbackClassName="w-16 h-16 rounded-full bg-gray-200"
+                    />
                     <div className="text-sm text-gray-700 space-y-1">
                       {display.map(f => (
                         <div key={f.label} className="flex items-center">
@@ -261,13 +262,13 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
             >
               <X className="w-5 h-5" />
             </button>
-            {selectedPhotoUrl && (
-              <img
-                src={selectedPhotoUrl}
-                alt="profil"
-                className="mx-auto w-32 h-32 rounded-full object-cover mb-4 ring-2 ring-blue-500"
+            <div className="flex justify-center mb-4">
+              <Avatar
+                path={selected.photo_path}
+                className="w-32 h-32 rounded-full object-cover ring-2 ring-blue-500"
+                fallbackClassName="w-32 h-32 rounded-full bg-gray-200"
               />
-            )}
+            </div>
             <h2 className="text-2xl font-semibold text-center mb-4">Détails du profil</h2>
             <div className="space-y-2 text-sm max-h-60 overflow-y-auto p-2 preview-scroll">
               {(() => {
@@ -321,24 +322,28 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                         <ul className="space-y-2">
                           {selected.attachments.map(att => {
                             const label = att.original_name || att.file_path.split('/').pop();
-                            const href = buildProtectedUrl(att.file_path);
                             return (
                               <li
                                 key={att.id}
                                 className="bg-white border border-gray-200 rounded-lg px-3 py-2"
                               >
-                                <a
-                                  href={href || '#'}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center justify-between text-blue-600 hover:underline text-sm"
+                                <button
+                                  type="button"
+                                  className="flex items-center justify-between text-blue-600 hover:underline text-sm w-full text-left"
+                                  onClick={async () => {
+                                    try {
+                                      await downloadProtectedAsset(att.file_path, att.original_name);
+                                    } catch (error) {
+                                      alert('Impossible de télécharger la pièce jointe');
+                                    }
+                                  }}
                                 >
                                   <span className="flex items-center min-w-0">
                                     <Paperclip className="w-4 h-4 mr-2 text-gray-500" />
                                     <span className="truncate">{label}</span>
                                   </span>
                                   <Download className="w-4 h-4 ml-2 shrink-0" />
-                                </a>
+                                </button>
                               </li>
                             );
                           })}
