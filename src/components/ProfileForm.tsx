@@ -32,6 +32,15 @@ interface ProfileFormProps {
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
 const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId, onSaved }) => {
+  const buildProtectedUrl = (relativePath?: string | null) => {
+    if (!relativePath) return null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const normalized = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+    if (!token) return normalized;
+    const separator = normalized.includes('?') ? '&' : '?';
+    return `${normalized}${separator}token=${encodeURIComponent(token)}`;
+  };
+
   const buildInitialFields = (): FieldCategory[] => {
     if (initialValues.extra_fields && initialValues.extra_fields.length) {
       return initialValues.extra_fields;
@@ -61,7 +70,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     setCategories(buildInitialFields());
     setComment(initialValues.comment || '');
     if (initialValues.photo_path) {
-      setPreview(`/${initialValues.photo_path}`);
+      setPreview(buildProtectedUrl(initialValues.photo_path));
     } else {
       setPreview(null);
     }
@@ -217,7 +226,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       setRemovedAttachmentIds([]);
       if (data.profile) {
         setExistingAttachments(Array.isArray(data.profile.attachments) ? data.profile.attachments : []);
-        setPreview(data.profile.photo_path ? `/${data.profile.photo_path}` : null);
+        setPreview(data.profile.photo_path ? buildProtectedUrl(data.profile.photo_path) : null);
         setRemovePhoto(false);
       }
       if (onSaved) onSaved(data.profile?.id);
@@ -354,7 +363,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
                     className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm"
                   >
                     <a
-                      href={`/${att.file_path}`}
+                      href={buildProtectedUrl(att.file_path) || '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline flex-1 min-w-0"

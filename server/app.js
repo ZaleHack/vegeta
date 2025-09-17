@@ -23,6 +23,7 @@ import requestsRoutes from './routes/requests.js';
 import identifiedNumbersRoutes from './routes/identified-numbers.js';
 import blacklistRoutes from './routes/blacklist.js';
 import logsRoutes from './routes/logs.js';
+import { authenticate } from './middleware/auth.js';
 
 // Initialisation de la base de données
 import database from './config/database.js';
@@ -46,7 +47,37 @@ const uploadsPath = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
 }
-app.use('/uploads', express.static(uploadsPath));
+const uploadsRoot = path.resolve(uploadsPath);
+
+app.get('/uploads/*', authenticate, async (req, res) => {
+  try {
+    const requestedPath = req.params[0] || '';
+    const normalized = path
+      .normalize(requestedPath)
+      .replace(/^(\.{2}(?:[\\/]|$))+/, '');
+    const absolutePath = path.resolve(uploadsRoot, normalized);
+
+    if (
+      absolutePath !== uploadsRoot &&
+      !absolutePath.startsWith(`${uploadsRoot}${path.sep}`)
+    ) {
+      return res.status(400).json({ error: 'Chemin invalide' });
+    }
+
+    const stat = await fs.promises.stat(absolutePath);
+    if (!stat.isFile()) {
+      return res.status(404).json({ error: 'Fichier introuvable' });
+    }
+
+    res.sendFile(absolutePath);
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return res.status(404).json({ error: 'Fichier introuvable' });
+    }
+    console.error('Erreur lors de la desserte de fichier uploadé:', error);
+    res.status(500).json({ error: 'Impossible de récupérer le fichier demandé' });
+  }
+});
 
 // Trust proxy pour obtenir la vraie IP
 app.set('trust proxy', 1);
