@@ -11,8 +11,6 @@ import {
   Trash2,
   Key,
   Download,
-  Menu,
-  X,
   Sun,
   Moon,
   Shield,
@@ -42,7 +40,8 @@ import {
   MessageSquare,
   MapPin,
   AlertTriangle,
-  Share2
+  Share2,
+  LayoutDashboard
 } from 'lucide-react';
 import ToggleSwitch from './components/ToggleSwitch';
 
@@ -2491,141 +2490,157 @@ useEffect(() => {
       <div
         className={`${
           sidebarOpen ? 'w-72' : 'w-20'
-        } bg-white dark:bg-gray-800 shadow-xl transition-all duration-300 flex flex-col`}
+        } relative overflow-hidden bg-white/80 dark:bg-gray-900/60 border-r border-white/60 dark:border-gray-800/70 backdrop-blur-xl shadow-[0_20px_50px_rgba(8,112,184,0.12)] transition-all duration-300 flex flex-col`}
       >
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/60 via-white/20 to-transparent dark:from-gray-900/60 dark:via-gray-900/30" />
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="relative p-6 border-b border-white/60 dark:border-gray-800/70">
           <div className="flex items-center justify-between">
-            <div className={`flex items-center ${!sidebarOpen && 'justify-center'}`}>
-              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg text-white">
+            <div className={`flex items-center gap-3 ${!sidebarOpen && 'justify-center gap-0'}`}>
+              <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30">
                 <SoraLogo className="h-7 w-7" />
               </div>
               {sidebarOpen && (
-                <div className="ml-3">
-                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">SORA</h1>
+                <div>
+                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent tracking-tight">SORA</h1>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Surveillance &amp; Operations</p>
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
-                onClick={() =>
-                  setTheme(theme === 'dark' ? 'light' : 'dark')
-                }
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white transition-colors"
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="group relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/60 bg-white/70 text-gray-600 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-gray-700/70 dark:bg-gray-800/70 dark:text-gray-200"
                 aria-label="Toggle theme"
+                title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
               >
-                {theme === 'dark' ? (
-                  <Sun className="h-5 w-5" />
-                ) : (
-                  <Moon className="h-5 w-5" />
-                )}
+                <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 opacity-0 transition-opacity group-hover:opacity-100 dark:from-blue-500 dark:to-indigo-500" />
+                <span className="relative">
+                  {theme === 'dark' ? (
+                    <Sun className="h-5 w-5" />
+                  ) : (
+                    <Moon className="h-5 w-5" />
+                  )}
+                </span>
               </button>
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white transition-colors"
+                className="group relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/60 bg-white/70 text-gray-600 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-gray-700/70 dark:bg-gray-800/70 dark:text-gray-200"
+                title={sidebarOpen ? 'Réduire le menu' : 'Déployer le menu'}
               >
-                {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 opacity-0 transition-opacity group-hover:opacity-100" />
+                <span className="relative">
+                  {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                </span>
               </button>
             </div>
           </div>
         </div>
-        
+
         {/* Navigation */}
-        <nav className="flex-1 p-4">
+        <nav className="relative flex-1 p-4">
           <div className="space-y-2">
             <button
               onClick={() => setCurrentPage('dashboard')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+              title="Dashboard"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'dashboard'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
             >
-              <Activity className="h-5 w-5" />
+              <Activity className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Dashboard</span>}
             </button>
 
             <button
               onClick={() => setCurrentPage('search')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+              title="Recherche"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'search'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
             >
-              <Search className="h-5 w-5" />
+              <Search className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Recherche</span>}
             </button>
 
             <button
               onClick={() => setCurrentPage('annuaire')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+              title="Annuaire Gendarmerie"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'annuaire'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
             >
-              <Phone className="h-5 w-5" />
+              <Phone className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Annuaire Gendarmerie</span>}
             </button>
 
             <button
               onClick={() => setCurrentPage('ong')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+              title="ONG"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'ong'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
             >
-              <Globe className="h-5 w-5" />
+              <Globe className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">ONG</span>}
             </button>
 
             <button
               onClick={() => setCurrentPage('entreprises')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+              title="Entreprises"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'entreprises'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
             >
-              <Building2 className="h-5 w-5" />
+              <Building2 className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Entreprises</span>}
             </button>
 
             <button
               onClick={() => setCurrentPage('vehicules')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+              title="Véhicules"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'vehicules'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
             >
-              <Car className="h-5 w-5" />
+              <Car className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Véhicules</span>}
             </button>
 
             <button
               onClick={() => setCurrentPage('cdr')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+              title="CDR"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
             >
-              <Clock className="h-5 w-5" />
+              <Clock className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">CDR</span>}
             </button>
 
             <button
               onClick={() => setCurrentPage('requests')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+              title="Demandes"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'requests'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
             >
-              <ClipboardList className="h-5 w-5" />
+              <ClipboardList className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Demandes</span>}
             </button>
 
@@ -2634,26 +2649,28 @@ useEffect(() => {
                 setCurrentPage('profiles');
                 setShowProfileForm(false);
               }}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+              title="Fiches de profil"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'profiles'
-                  ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
             >
-              <FileText className="h-5 w-5" />
+              <FileText className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Fiches de profil</span>}
             </button>
 
             {isAdmin && (
               <button
                 onClick={() => setCurrentPage('blacklist')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                title="Black List"
+                className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'blacklist'
-                    ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-                } ${!sidebarOpen && 'justify-center'}`}
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                    : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+                } ${!sidebarOpen && 'justify-center px-0'}`}
               >
-                <Ban className="h-5 w-5" />
+                <Ban className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
                 {sidebarOpen && <span className="ml-3">Black List</span>}
               </button>
             )}
@@ -2661,13 +2678,14 @@ useEffect(() => {
             {isAdmin && (
               <button
                 onClick={() => setCurrentPage('logs')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                title="Logs"
+                className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'logs'
-                    ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-                } ${!sidebarOpen && 'justify-center'}`}
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                    : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+                } ${!sidebarOpen && 'justify-center px-0'}`}
               >
-                <List className="h-5 w-5" />
+                <List className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
                 {sidebarOpen && <span className="ml-3">Logs</span>}
               </button>
             )}
@@ -2675,13 +2693,14 @@ useEffect(() => {
             {isAdmin && (
               <button
                 onClick={() => setCurrentPage('users')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                title="Utilisateurs"
+                className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'users'
-                    ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-                } ${!sidebarOpen && 'justify-center'}`}
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                    : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+                } ${!sidebarOpen && 'justify-center px-0'}`}
               >
-                <Users className="h-5 w-5" />
+                <Users className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
                 {sidebarOpen && <span className="ml-3">Utilisateurs</span>}
               </button>
             )}
@@ -2689,37 +2708,62 @@ useEffect(() => {
             {isAdmin && (
               <button
                 onClick={() => setCurrentPage('upload')}
-                className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                title="Charger des données"
+                className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'upload'
-                    ? 'bg-blue-600 text-white shadow-lg dark:bg-blue-600 dark:text-white'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white'
-              } ${!sidebarOpen && 'justify-center'}`}
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                    : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+                } ${!sidebarOpen && 'justify-center px-0'}`}
               >
-                <Upload className="h-5 w-5" />
+                <Upload className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
                 {sidebarOpen && <span className="ml-3">Charger des données</span>}
               </button>
             )}
           </div>
+
+          {sidebarOpen && (
+            <div className="mt-8">
+              <div className="relative overflow-hidden rounded-2xl border border-blue-100/60 bg-gradient-to-br from-blue-50 via-white to-white shadow-lg shadow-blue-500/10 dark:border-blue-500/30 dark:from-blue-900/40 dark:via-gray-900/40 dark:to-gray-900/30">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.25),transparent)] dark:bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.35),transparent)]" />
+                <div className="relative flex items-center gap-3 p-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30">
+                    <LayoutDashboard className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Menu compact</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-300">Cache les libellés pour une navigation épurée.</p>
+                  </div>
+                  <div className="-mr-1">
+                    <ToggleSwitch
+                      label={<span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-200">Icônes</span>}
+                      checked={!sidebarOpen}
+                      onChange={(checked) => setSidebarOpen(!checked)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </nav>
 
         {/* User info */}
-        <div className="p-4 border-t border-gray-200">
-          <div className={`flex items-center ${!sidebarOpen && 'justify-center'}`}>
-            <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-gray-400 to-gray-500 rounded-full">
-              <User className="h-5 w-5 text-white" />
+        <div className="relative p-4 border-t border-white/60 dark:border-gray-800/70">
+          <div className={`flex items-center gap-3 ${!sidebarOpen && 'justify-center'}`}>
+            <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-gray-500 via-gray-600 to-gray-800 text-white shadow-md shadow-gray-500/30">
+              <User className="h-5 w-5" />
             </div>
             {sidebarOpen && (
-              <div className="ml-3 flex-1">
-                <p className="text-sm font-semibold text-gray-700">{currentUser?.login}</p>
-                <div className="flex items-center mt-1">
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{currentUser?.login}</p>
+                <div className="mt-1 flex items-center gap-2">
                   {isAdmin ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                      <Shield className="w-3 h-3 mr-1" />
+                    <span className="inline-flex items-center rounded-full bg-gradient-to-r from-rose-500/20 to-orange-500/20 px-2.5 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-300">
+                      <Shield className="mr-1 h-3 w-3" />
                       Admin
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      <UserCheck className="w-3 h-3 mr-1" />
+                    <span className="inline-flex items-center rounded-full bg-gradient-to-r from-blue-500/20 to-cyan-500/20 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-300">
+                      <UserCheck className="mr-1 h-3 w-3" />
                       Utilisateur
                     </span>
                   )}
@@ -2727,21 +2771,21 @@ useEffect(() => {
               </div>
             )}
           </div>
-          
+
           {sidebarOpen && (
-            <div className="mt-4 flex space-x-2">
+            <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 onClick={() => openPasswordModal()}
-                className="flex-1 flex items-center justify-center px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                className="group relative flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-700 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:text-blue-600 dark:border-gray-700/70 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:text-white"
               >
-                <Key className="w-3 h-3 mr-1" />
+                <Key className="h-3 w-3 transition-transform duration-200 group-hover:scale-110" />
                 Mot de passe
               </button>
               <button
                 onClick={handleLogout}
-                className="flex-1 flex items-center justify-center px-3 py-2 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors"
+                className="group relative flex items-center justify-center gap-2 rounded-xl border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs font-semibold text-red-600 transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
               >
-                <LogOut className="w-3 h-3 mr-1" />
+                <LogOut className="h-3 w-3 transition-transform duration-200 group-hover:scale-110" />
                 Déconnexion
               </button>
             </div>
