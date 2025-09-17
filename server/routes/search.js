@@ -3,6 +3,7 @@ import SearchService from '../services/SearchService.js';
 import ElasticSearchService from '../services/ElasticSearchService.js';
 import { authenticate } from '../middleware/auth.js';
 import Blacklist from '../models/Blacklist.js';
+import UserLog from '../models/UserLog.js';
 
 const router = express.Router();
 const searchService = new SearchService();
@@ -30,6 +31,20 @@ router.post('/', authenticate, async (req, res) => {
 
     const trimmed = query.trim();
     if (await Blacklist.exists(trimmed)) {
+      try {
+        await UserLog.create({
+          user_id: req.user.id,
+          action: 'blacklist_search_attempt',
+          details: JSON.stringify({
+            alert: true,
+            number: trimmed,
+            page: 'search',
+            message: 'Tentative de recherche sur un numéro blacklisté'
+          })
+        });
+      } catch (logError) {
+        console.error('Erreur log blacklist:', logError);
+      }
       return res.status(403).json({ error: "Numéro blacklisté. Contacter l'administration pour plus d'informations." });
     }
 
