@@ -144,6 +144,20 @@ class ProfileService {
     return this.withAttachments(updated);
   }
 
+  async setArchiveStatus(id, archived, user) {
+    const existing = await Profile.findById(id);
+    if (!existing) throw new Error('Profil non trouvé');
+    const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
+    if (!isAdmin && existing.user_id !== user.id) {
+      throw new Error('Accès refusé');
+    }
+    const updateData = {
+      archived_at: archived ? new Date() : null
+    };
+    const updated = await Profile.update(id, updateData);
+    return this.withAttachments(updated);
+  }
+
   async delete(id, user) {
     const existing = await Profile.findById(id);
     if (!existing) throw new Error('Profil non trouvé');

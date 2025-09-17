@@ -18,6 +18,7 @@ interface Profile {
   photo_path: string | null;
   extra_fields?: string | null;
   attachments?: ProfileAttachment[];
+  archived_at?: string | null;
 }
 
 interface ProfileListProps {
@@ -95,6 +96,50 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
     });
     load();
   };
+
+  const toggleArchive = useCallback(
+    async (profile: Profile) => {
+      const shouldArchive = !profile.archived_at;
+      const confirmMessage = shouldArchive
+        ? 'Archiver ce profil ? Il restera accessible dans la liste.'
+        : 'Désarchiver ce profil ?';
+      if (!window.confirm(confirmMessage)) return;
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/profiles/${profile.id}/archive`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token ? `Bearer ${token}` : ''
+          },
+          body: JSON.stringify({ archived: shouldArchive })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(data.error || "Impossible de mettre à jour l'état d'archivage");
+          return;
+        }
+        const updatedProfile = data.profile as Profile | undefined;
+        if (updatedProfile) {
+          setProfiles(prev =>
+            prev.map(p => (p.id === profile.id ? { ...p, archived_at: updatedProfile.archived_at } : p))
+          );
+          setSelected(prev =>
+            prev && prev.id === profile.id
+              ? { ...prev, archived_at: updatedProfile.archived_at }
+              : prev
+          );
+          setError('');
+        } else {
+          await load();
+        }
+      } catch (err: unknown) {
+        console.error(err);
+        setError("Erreur lors de la mise à jour de l'archivage");
+      }
+    },
+    [load]
+  );
 
   const exportProfile = async (id: number) => {
     const token = localStorage.getItem('token');
@@ -175,11 +220,21 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                     { label: 'Email', value: p.email }
                   ].filter(f => f.value).slice(0, 4);
               const photoUrl = buildProtectedUrl(p.photo_path);
+              const isArchived = Boolean(p.archived_at);
               return (
                 <div
                   key={p.id}
-                  className="bg-white/80 backdrop-blur-sm shadow-md rounded-2xl p-6 flex flex-col border border-blue-100 hover:border-blue-300 hover:shadow-xl transition-shadow"
+                  className={`relative bg-white/80 backdrop-blur-sm shadow-md rounded-2xl p-6 flex flex-col border ${
+                    isArchived
+                      ? 'border-amber-200 ring-1 ring-amber-200/60 opacity-90'
+                      : 'border-blue-100 hover:border-blue-300'
+                  } hover:shadow-xl transition-shadow`}
                 >
+                  {isArchived && (
+                    <span className="absolute top-4 right-4 text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
+                      Archivé
+                    </span>
+                  )}
                   <div className="flex items-center space-x-4">
                     {photoUrl ? (
                       <img
@@ -214,6 +269,12 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                         Modifier
                       </button>
                     )}
+                    <button
+                      className={`hover:underline ${isArchived ? 'text-amber-700' : 'text-amber-600'}`}
+                      onClick={() => toggleArchive(p)}
+                    >
+                      {isArchived ? 'Désarchiver' : 'Archiver'}
+                    </button>
                     <button
                       className="text-red-600 hover:underline"
                       onClick={() => remove(p.id)}
@@ -270,10 +331,10 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
             )}
             <h2 className="text-2xl font-semibold text-center mb-4">Détails du profil</h2>
             <div className="space-y-2 text-sm max-h-60 overflow-y-auto p-2 preview-scroll">
-              {(() => {
-                let parsed: any[] = [];
-                try {
-                  parsed = selected.extra_fields ? JSON.parse(selected.extra_fields) : [];
+            {(() => {
+              let parsed: any[] = [];
+              try {
+                parsed = selected.extra_fields ? JSON.parse(selected.extra_fields) : [];
                 } catch {
                   parsed = [];
                 }
@@ -292,6 +353,11 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit }) => {
                 }
                 return (
                   <>
+                    {selected.archived_at && (
+                      <div className="flex items-center justify-center gap-2 text-sm text-amber-700 bg-amber-100 border border-amber-200 rounded-lg px-3 py-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500" /> Profil archivé
+                      </div>
+                    )}
                     {parsed.map((cat, idx) => (
                       <div key={idx} className="mb-2">
                         {cat.title && (
