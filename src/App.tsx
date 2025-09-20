@@ -2741,16 +2741,16 @@ useEffect(() => {
 
   const renderCdrSearchForm = () => {
     const detectionSection = !showCdrMap && selectedCase && (
-      <section className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 shadow-xl shadow-slate-900/30 dark:from-slate-900 dark:via-slate-900 dark:to-black">
+      <section className="rounded-3xl border border-slate-200/80 bg-white/95 text-slate-900 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100 dark:shadow-black/40">
         <div className="flex flex-col gap-4 p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-200">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
                 <Shield className="h-6 w-6" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold">Détection de changement de numéro</h3>
-                <p className="text-sm text-slate-300">
+                <p className="text-sm text-slate-500 dark:text-slate-300">
                   Identifiez instantanément les nouveaux numéros associés aux identifiants surveillés.
                 </p>
               </div>
@@ -2759,7 +2759,7 @@ useEffect(() => {
               type="button"
               onClick={fetchFraudDetection}
               disabled={fraudLoading || !selectedCase || cdrIdentifiers.length === 0}
-              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-5 py-2 text-sm font-semibold text-slate-100 transition-all hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/20"
             >
               {fraudLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
               <span>Analyser</span>
@@ -2767,49 +2767,49 @@ useEffect(() => {
           </div>
 
           {fraudError && (
-            <p className="text-sm text-rose-300">{fraudError}</p>
+            <p className="text-sm text-rose-500 dark:text-rose-300">{fraudError}</p>
           )}
 
           {cdrIdentifiers.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-4 py-3 text-sm text-slate-200">
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-white/20 dark:bg-white/5 dark:text-slate-200">
               Ajoutez au moins un numéro dans la recherche pour lancer l’analyse.
             </div>
           ) : fraudLoading ? (
             <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-6 w-6 animate-spin text-slate-100" />
+              <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-slate-100" />
             </div>
           ) : fraudResult ? (
             <div className="space-y-4">
-              <div className="text-xs uppercase tracking-wide text-slate-400">
+              <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Dernière analyse&nbsp;: {formatFraudDateTime(fraudResult.updatedAt)}
               </div>
               {fraudResult.imeis.length === 0 ? (
-                <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-4 text-sm text-emerald-100">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-400/10 dark:text-emerald-100">
                   Aucun changement de numéro détecté pour les identifiants recherchés.
                 </div>
               ) : (
                 <div className="space-y-4">
                   {!hasFraudSuspiciousNumbers && (
-                    <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-400/10 dark:text-emerald-100">
                       Aucune anomalie détectée : tous les numéros correspondent aux identifiants suivis.
                     </div>
                   )}
                   {fraudResult.imeis.map((imeiEntry) => (
-                    <div key={imeiEntry.imei} className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60 backdrop-blur">
-                      <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 text-sm font-semibold">
+                    <div key={imeiEntry.imei} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/60 dark:backdrop-blur">
+                      <div className="flex items-center justify-between border-b border-slate-200/70 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-white/10 dark:text-slate-100">
                         <span>IMEI {imeiEntry.imei}</span>
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
                           {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''}
                         </span>
                       </div>
                       {imeiEntry.numbers.length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-slate-300">
+                        <div className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
                           Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
                         </div>
                       ) : (
                         <div className="overflow-x-auto">
-                          <table className="min-w-full text-xs text-slate-200">
-                            <thead className="bg-white/5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          <table className="min-w-full text-xs text-slate-600 dark:text-slate-200">
+                            <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/5 dark:text-slate-400">
                               <tr>
                                 <th className="px-4 py-2 text-left">Numéro</th>
                                 <th className="px-4 py-2 text-left">Statut</th>
@@ -2819,32 +2819,32 @@ useEffect(() => {
                                 <th className="px-4 py-2 text-left">Rôles</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-white/5">
+                            <tbody className="divide-y divide-slate-100 dark:divide-white/10">
                               {imeiEntry.numbers.map((numberEntry) => (
                                 <tr
                                   key={`${imeiEntry.imei}-${numberEntry.number}`}
                                   className={
                                     numberEntry.status === 'nouveau'
-                                      ? 'bg-rose-500/10'
-                                      : 'odd:bg-white/5 even:bg-white/0'
+                                      ? 'bg-rose-50 dark:bg-rose-500/10'
+                                      : 'odd:bg-white even:bg-slate-50 dark:odd:bg-white/5 dark:even:bg-white/0'
                                   }
                                 >
-                                  <td className="px-4 py-2 font-medium text-slate-100">{numberEntry.number}</td>
+                                  <td className="px-4 py-2 font-medium text-slate-700 dark:text-slate-100">{numberEntry.number}</td>
                                   <td className="px-4 py-2">
                                     <span
                                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                                         numberEntry.status === 'nouveau'
-                                          ? 'bg-rose-500/20 text-rose-100'
-                                          : 'bg-emerald-500/20 text-emerald-100'
+                                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-100'
+                                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
                                       }`}
                                     >
                                       {numberEntry.status === 'nouveau' ? 'Nouveau' : 'Attendu'}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-2 text-slate-200">{formatFraudDate(numberEntry.firstSeen)}</td>
-                                  <td className="px-4 py-2 text-slate-200">{formatFraudDate(numberEntry.lastSeen)}</td>
-                                  <td className="px-4 py-2 text-slate-200">{numberEntry.occurrences}</td>
-                                  <td className="px-4 py-2 text-slate-200">
+                                  <td className="px-4 py-2 text-slate-600 dark:text-slate-200">{formatFraudDate(numberEntry.firstSeen)}</td>
+                                  <td className="px-4 py-2 text-slate-600 dark:text-slate-200">{formatFraudDate(numberEntry.lastSeen)}</td>
+                                  <td className="px-4 py-2 text-slate-700 dark:text-slate-100">{numberEntry.occurrences}</td>
+                                  <td className="px-4 py-2 text-slate-600 dark:text-slate-200">
                                     {numberEntry.roles.length === 0
                                       ? '-'
                                       : numberEntry.roles
@@ -2863,7 +2863,7 @@ useEffect(() => {
               )}
             </div>
           ) : (
-            <p className="text-sm text-slate-300">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               Lancez une analyse pour détecter les nouveaux numéros associés aux identifiants recherchés.
             </p>
           )}
