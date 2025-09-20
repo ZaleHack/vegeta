@@ -7,6 +7,41 @@ import database from '../config/database.js';
 
 const ALLOWED_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 
+const normalizePhoneNumber = (value) => {
+  if (!value) return '';
+  let sanitized = String(value).trim();
+  if (!sanitized) return '';
+  sanitized = sanitized.replace(/\s+/g, '');
+  if (sanitized.startsWith('+')) {
+    sanitized = sanitized.slice(1);
+  }
+  while (sanitized.startsWith('00')) {
+    sanitized = sanitized.slice(2);
+  }
+  sanitized = sanitized.replace(/\D/g, '');
+  if (!sanitized) return '';
+  if (sanitized.startsWith('221')) {
+    return sanitized;
+  }
+  sanitized = sanitized.replace(/^0+/, '');
+  return sanitized ? `221${sanitized}` : '';
+};
+
+const normalizeDateValue = (value) => {
+  if (!value) return null;
+  const str = String(value).trim();
+  if (!str) return null;
+  const parsed = new Date(str);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+  const match = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (match) {
+    return `${match[3]}-${match[2]}-${match[1]}`;
+  }
+  return str;
+};
+
 class CdrService {
   async importCsv(filePath, caseName, fileId, cdrNumber) {
     const cdrNum = cdrNumber.startsWith('221') ? cdrNumber : `221${cdrNumber}`;
@@ -346,6 +381,74 @@ class CdrService {
     }
 
     return { nodes, links };
+  }
+
+  async detectNumberChanges(caseName, { startDate = null, endDate = null } = {}) {
+    const rows = await Cdr.getImeiNumberPairs(caseName, { startDate, endDate });
+    const imeiMap = new Map();
+
+    for (const row of rows) {
+      const imei = String(row.imei || '').trim();
+      const normalizedNumber = normalizePhoneNumber(row.numero);
+      if (!imei || !normalizedNumber) {
+        continue;
+      }
+
+      const normalizedDate = normalizeDateValue(row.call_date);
+      const imeiEntry = imeiMap.get(imei) || new Map();
+      const numberEntry = imeiEntry.get(normalizedNumber) || {
+        number: normalizedNumber,
+        firstSeen: null,
+        lastSeen: null,
+        occurrences: 0,
+        roles: new Set(),
+        fileIds: new Set()
+      };
+
+      numberEntry.occurrences += 1;
+      if (normalizedDate) {
+        if (!numberEntry.firstSeen || normalizedDate < numberEntry.firstSeen) {
+          numberEntry.firstSeen = normalizedDate;
+        }
+        if (!numberEntry.lastSeen || normalizedDate > numberEntry.lastSeen) {
+          numberEntry.lastSeen = normalizedDate;
+        }
+      }
+
+      if (row.role) {
+        numberEntry.roles.add(String(row.role));
+      }
+      if (row.file_id) {
+        numberEntry.fileIds.add(Number(row.file_id));
+      }
+
+      imeiEntry.set(normalizedNumber, numberEntry);
+      imeiMap.set(imei, imeiEntry);
+    }
+
+    const result = [];
+    for (const [imei, numbersMap] of imeiMap.entries()) {
+      const numbers = Array.from(numbersMap.values()).map((entry) => ({
+        number: entry.number,
+        firstSeen: entry.firstSeen,
+        lastSeen: entry.lastSeen,
+        occurrences: entry.occurrences,
+        roles: Array.from(entry.roles).sort(),
+        fileIds: Array.from(entry.fileIds)
+      }));
+
+      numbers.sort((a, b) => {
+        if (a.lastSeen && b.lastSeen && a.lastSeen !== b.lastSeen) {
+          return a.lastSeen > b.lastSeen ? -1 : 1;
+        }
+        return b.occurrences - a.occurrences;
+      });
+
+      result.push({ imei, numbers });
+    }
+
+    result.sort((a, b) => a.imei.localeCompare(b.imei));
+    return result;
   }
 
   async listLocations(caseName) {
