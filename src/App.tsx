@@ -3053,14 +3053,14 @@ useEffect(() => {
 
     if (showCdrMap) {
       return (
-        <div className="fixed bottom-4 left-4 z-[1000] w-80 max-h-[80vh] overflow-y-auto rounded-3xl border border-white/60 bg-white/90 p-4 shadow-2xl shadow-blue-500/20 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/80">
+        <div className="fixed bottom-6 left-6 z-[1000] w-[28rem] max-h-[88vh] overflow-y-auto rounded-3xl border border-white/60 bg-white/90 p-5 shadow-2xl shadow-blue-500/20 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/85">
           {formContent}
         </div>
       );
     }
 
     return (
-      <div className="max-h-[60vh] overflow-y-auto rounded-3xl border border-slate-200/80 bg-transparent">
+      <div className="rounded-3xl border border-slate-200/80 bg-transparent">
         {formContent}
       </div>
     );
@@ -3074,14 +3074,12 @@ useEffect(() => {
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="group fixed bottom-6 left-4 sm:left-10 md:left-12 z-[1100] flex h-12 w-12 items-center justify-center rounded-2xl border border-white/70 bg-white/90 text-slate-700 shadow-lg shadow-blue-500/20 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:text-slate-200"
+          className="group fixed top-6 left-6 z-[1100] flex h-12 w-12 items-center justify-center rounded-xl border border-white/70 bg-white/90 text-slate-700 shadow-lg shadow-blue-500/20 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:text-slate-200"
           title="Déployer le menu"
           aria-label="Déployer le menu"
         >
-          <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 opacity-0 transition-opacity group-hover:opacity-100" />
-          <span className="relative">
-            <ChevronRight className="h-5 w-5" />
-          </span>
+          <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 opacity-0 transition-opacity group-hover:opacity-100" />
+          <ChevronRight className="relative h-5 w-5" />
         </button>
       )}
       {/* Sidebar */}
