@@ -149,6 +149,21 @@ router.get('/:id/fraud-detection', authenticate, async (req, res) => {
     }
 
     const { start, end } = req.query;
+    const numberParams = req.query.numbers;
+    const targetNumbers = [];
+    if (Array.isArray(numberParams)) {
+      for (const value of numberParams) {
+        if (typeof value === 'string' && value.trim()) {
+          targetNumbers.push(value.trim());
+        }
+      }
+    } else if (typeof numberParams === 'string' && numberParams.trim()) {
+      for (const value of numberParams.split(',')) {
+        if (value && value.trim()) {
+          targetNumbers.push(value.trim());
+        }
+      }
+    }
     const isValidDate = (str) => {
       if (!str) return false;
       const regex = /^\d{4}-\d{2}-\d{2}$/;
@@ -168,7 +183,8 @@ router.get('/:id/fraud-detection', authenticate, async (req, res) => {
       caseId,
       {
         startDate: start || null,
-        endDate: end || null
+        endDate: end || null,
+        targetNumbers
       },
       req.user
     );
