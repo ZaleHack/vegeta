@@ -4274,7 +4274,7 @@ useEffect(() => {
                         </p>
                         {fraudResult.imeis.length === 0 ? (
                           <div className="rounded-xl border border-dashed border-slate-200/80 bg-slate-50/70 p-4 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-300">
-                            Aucune donnée CDR importée ne permet d'établir une correspondance IMEI/numéro.
+                            Aucun changement de numéro détecté à partir des numéros associés aux CDR importés.
                           </div>
                         ) : (
                           <div className="space-y-4">

@@ -120,7 +120,10 @@ class CaseService {
       ])
     );
 
-    const detections = await this.cdrService.detectNumberChanges(existingCase.name, options);
+    const detections = await this.cdrService.detectNumberChanges(existingCase.name, {
+      ...options,
+      referenceNumbers: Array.from(referenceNumbers)
+    });
     const imeis = detections.map((entry) => {
       const numbers = entry.numbers.map((numberEntry) => {
         const { fileIds, ...rest } = numberEntry;
