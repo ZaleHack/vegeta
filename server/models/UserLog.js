@@ -1,10 +1,22 @@
 import database from '../config/database.js';
 
+const ensureUserExists = async userId => {
+  if (userId === undefined || userId === null) return null;
+
+  const existing = await database.queryOne(
+    'SELECT id FROM autres.users WHERE id = ? LIMIT 1',
+    [userId]
+  );
+
+  return existing ? userId : null;
+};
+
 class UserLog {
   static async create({ user_id, action, details = null, duration_ms = null }) {
+    const safeUserId = await ensureUserExists(user_id);
     await database.query(
       `INSERT INTO autres.user_logs (user_id, action, details, duration_ms) VALUES (?, ?, ?, ?)`,
-      [user_id, action, details, duration_ms]
+      [safeUserId, action, details, duration_ms]
     );
   }
 
