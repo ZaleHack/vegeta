@@ -101,8 +101,10 @@ class CaseService {
       throw new Error('Case not found');
     }
 
+    const { startDate = null, endDate = null, targetNumbers = [] } = options;
+
     const files = await Case.listFiles(caseId);
-    const referenceNumbers = new Set(
+    const fileReferenceNumbers = new Set(
       files
         .map((file) => normalizeCaseNumber(file.cdr_number))
         .filter((value) => Boolean(value))
@@ -120,8 +122,21 @@ class CaseService {
       ])
     );
 
+    const normalizedTargets = Array.isArray(targetNumbers)
+      ? targetNumbers
+          .map((value) => normalizeCaseNumber(value))
+          .filter((value) => Boolean(value))
+      : [];
+
+    const referenceNumbers = normalizedTargets.length > 0
+      ? new Set(normalizedTargets)
+      : fileReferenceNumbers;
+
+    const statusReferenceSet = new Set([...fileReferenceNumbers, ...referenceNumbers]);
+
     const detections = await this.cdrService.detectNumberChanges(existingCase.name, {
-      ...options,
+      startDate,
+      endDate,
       referenceNumbers: Array.from(referenceNumbers)
     });
     const imeis = detections.map((entry) => {
@@ -133,7 +148,7 @@ class CaseService {
         return {
           ...rest,
           files: filesInfo,
-          status: referenceNumbers.has(numberEntry.number) ? 'attendu' : 'nouveau'
+          status: statusReferenceSet.has(numberEntry.number) ? 'attendu' : 'nouveau'
         };
       });
 
