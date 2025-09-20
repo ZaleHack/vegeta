@@ -117,6 +117,42 @@ class DatabaseManager {
         }
       }
 
+      const hasCreatedAt = await this.queryOne(`
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'created_at'
+      `);
+
+      if (!hasCreatedAt) {
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER division_id
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+          }
+        }
+      }
+
+      const hasUpdatedAt = await this.queryOne(`
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'updated_at'
+      `);
+
+      if (!hasUpdatedAt) {
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+          }
+        }
+      }
+
       const defaultDivisions = [
         'Division Cybersecurité',
         'Division Analyse',
