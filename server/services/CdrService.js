@@ -383,7 +383,21 @@ class CdrService {
     return { nodes, links };
   }
 
-  async detectNumberChanges(caseName, { startDate = null, endDate = null } = {}) {
+  async detectNumberChanges(
+    caseName,
+    { startDate = null, endDate = null, referenceNumbers = [] } = {}
+  ) {
+    const normalizedReferenceNumbers = Array.isArray(referenceNumbers)
+      ? referenceNumbers
+          .map((value) => normalizePhoneNumber(value))
+          .filter((value) => Boolean(value))
+      : [];
+
+    const referenceSet = new Set(normalizedReferenceNumbers);
+    if (referenceSet.size === 0) {
+      return [];
+    }
+
     const rows = await Cdr.getImeiNumberPairs(caseName, { startDate, endDate });
     const imeiMap = new Map();
 
@@ -395,8 +409,10 @@ class CdrService {
       }
 
       const normalizedDate = normalizeDateValue(row.call_date);
-      const imeiEntry = imeiMap.get(imei) || new Map();
-      const numberEntry = imeiEntry.get(normalizedNumber) || {
+      const imeiEntry =
+        imeiMap.get(imei) || { numbers: new Map(), hasReferenceNumber: false };
+      const numbersMap = imeiEntry.numbers;
+      const numberEntry = numbersMap.get(normalizedNumber) || {
         number: normalizedNumber,
         firstSeen: null,
         lastSeen: null,
@@ -422,20 +438,32 @@ class CdrService {
         numberEntry.fileIds.add(Number(row.file_id));
       }
 
-      imeiEntry.set(normalizedNumber, numberEntry);
+      if (referenceSet.has(normalizedNumber)) {
+        imeiEntry.hasReferenceNumber = true;
+      }
+
+      numbersMap.set(normalizedNumber, numberEntry);
       imeiMap.set(imei, imeiEntry);
     }
 
     const result = [];
-    for (const [imei, numbersMap] of imeiMap.entries()) {
-      const numbers = Array.from(numbersMap.values()).map((entry) => ({
-        number: entry.number,
-        firstSeen: entry.firstSeen,
-        lastSeen: entry.lastSeen,
-        occurrences: entry.occurrences,
-        roles: Array.from(entry.roles).sort(),
-        fileIds: Array.from(entry.fileIds)
+    for (const [imei, entry] of imeiMap.entries()) {
+      if (!entry.hasReferenceNumber) {
+        continue;
+      }
+
+      const numbers = Array.from(entry.numbers.values()).map((number) => ({
+        number: number.number,
+        firstSeen: number.firstSeen,
+        lastSeen: number.lastSeen,
+        occurrences: number.occurrences,
+        roles: Array.from(number.roles).sort(),
+        fileIds: Array.from(number.fileIds)
       }));
+
+      if (numbers.length < 2) {
+        continue;
+      }
 
       numbers.sort((a, b) => {
         if (a.lastSeen && b.lastSeen && a.lastSeen !== b.lastSeen) {
