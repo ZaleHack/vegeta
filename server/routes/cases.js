@@ -141,6 +141,82 @@ router.get('/:id/search', authenticate, async (req, res) => {
   }
 });
 
+router.get('/:id/fraud-detection', authenticate, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(caseId) || caseId <= 0) {
+      return res.status(400).json({ error: 'ID de dossier invalide' });
+    }
+
+    const { start, end } = req.query;
+    const isValidDate = (str) => {
+      if (!str) return false;
+      const regex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!regex.test(str)) return false;
+      return !isNaN(new Date(str).getTime());
+    };
+
+    if ((start && !isValidDate(start)) || (end && !isValidDate(end))) {
+      return res.status(400).json({ error: 'Format de date invalide (YYYY-MM-DD)' });
+    }
+
+    if (start && end && new Date(start) > new Date(end)) {
+      return res.status(400).json({ error: 'La date de début doit précéder la date de fin' });
+    }
+
+    const result = await caseService.detectFraud(
+      caseId,
+      {
+        startDate: start || null,
+        endDate: end || null
+      },
+      req.user
+    );
+
+    const suspiciousNumbers = new Set();
+    for (const imeiEntry of result.imeis || []) {
+      for (const numberEntry of imeiEntry.numbers || []) {
+        if (numberEntry.status === 'nouveau') {
+          suspiciousNumbers.add(numberEntry.number);
+        }
+      }
+    }
+
+    const blacklistHits = [];
+    for (const number of suspiciousNumbers) {
+      if (await Blacklist.exists(number)) {
+        blacklistHits.push(number);
+      }
+    }
+
+    if (blacklistHits.length > 0) {
+      try {
+        await UserLog.create({
+          user_id: req.user.id,
+          action: 'blacklist_fraud_detection',
+          details: JSON.stringify({
+            alert: true,
+            numbers: blacklistHits,
+            case_id: caseId,
+            page: 'cdr-case',
+            message: 'Détection de fraude - numéro blacklisté'
+          })
+        });
+      } catch (logError) {
+        console.error('Erreur log blacklist fraude:', logError);
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    if (err.message === 'Case not found') {
+      return res.status(404).json({ error: 'Dossier introuvable' });
+    }
+    console.error('Erreur détection de fraude:', err);
+    res.status(500).json({ error: 'Erreur lors de la détection de fraude' });
+  }
+});
+
 router.post('/:id/link-diagram', authenticate, async (req, res) => {
   try {
     const caseId = parseInt(req.params.id, 10);

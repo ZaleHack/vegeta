@@ -7,6 +7,26 @@ import User from '../models/User.js';
 
 const ALLOWED_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 
+const normalizeCaseNumber = (value) => {
+  if (!value) return '';
+  let sanitized = String(value).trim();
+  if (!sanitized) return '';
+  sanitized = sanitized.replace(/\s+/g, '');
+  if (sanitized.startsWith('+')) {
+    sanitized = sanitized.slice(1);
+  }
+  while (sanitized.startsWith('00')) {
+    sanitized = sanitized.slice(2);
+  }
+  sanitized = sanitized.replace(/\D/g, '');
+  if (!sanitized) return '';
+  if (sanitized.startsWith('221')) {
+    return sanitized;
+  }
+  sanitized = sanitized.replace(/^0+/, '');
+  return sanitized ? `221${sanitized}` : '';
+};
+
 class CaseService {
   constructor() {
     this.cdrService = new CdrService();
@@ -73,6 +93,69 @@ class CaseService {
       ? numbers.filter(n => ALLOWED_PREFIXES.some(p => String(n).startsWith(p)))
       : [];
     return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.name);
+  }
+
+  async detectFraud(caseId, options = {}, user) {
+    const existingCase = await this.getCaseById(caseId, user);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
+
+    const files = await Case.listFiles(caseId);
+    const referenceNumbers = new Set(
+      files
+        .map((file) => normalizeCaseNumber(file.cdr_number))
+        .filter((value) => Boolean(value))
+    );
+    const fileMap = new Map(
+      files.map((file) => [
+        file.id,
+        {
+          id: file.id,
+          filename: file.filename,
+          uploaded_at: file.uploaded_at,
+          line_count: file.line_count,
+          cdr_number: file.cdr_number
+        }
+      ])
+    );
+
+    const detections = await this.cdrService.detectNumberChanges(existingCase.name, options);
+    const imeis = detections.map((entry) => {
+      const numbers = entry.numbers.map((numberEntry) => {
+        const { fileIds, ...rest } = numberEntry;
+        const filesInfo = (fileIds || [])
+          .map((id) => fileMap.get(id))
+          .filter((info) => Boolean(info));
+        return {
+          ...rest,
+          files: filesInfo,
+          status: referenceNumbers.has(numberEntry.number) ? 'attendu' : 'nouveau'
+        };
+      });
+
+      numbers.sort((a, b) => {
+        if (a.status !== b.status) {
+          return a.status === 'nouveau' ? -1 : 1;
+        }
+        if (a.lastSeen && b.lastSeen && a.lastSeen !== b.lastSeen) {
+          return a.lastSeen > b.lastSeen ? -1 : 1;
+        }
+        return b.occurrences - a.occurrences;
+      });
+
+      return {
+        imei: entry.imei,
+        numbers
+      };
+    });
+
+    imeis.sort((a, b) => a.imei.localeCompare(b.imei));
+
+    return {
+      imeis,
+      updatedAt: new Date().toISOString()
+    };
   }
 
   async deleteCase(id, user) {

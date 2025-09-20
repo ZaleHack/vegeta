@@ -120,6 +120,42 @@ class Cdr {
     return await database.query(query, params);
   }
 
+  static async getImeiNumberPairs(tableName, { startDate = null, endDate = null } = {}) {
+    const table = this.escapeIdentifier(tableName);
+    const filters = [];
+    const params = [];
+
+    if (startDate) {
+      filters.push('call_date >= ?');
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      filters.push('call_date <= ?');
+      params.push(endDate);
+    }
+
+    const filterClause = filters.length ? ` AND ${filters.join(' AND ')}` : '';
+
+    const query = `
+      SELECT imei, numero, call_date, file_id, role
+      FROM (
+        SELECT imei_appelant AS imei, numero_intl_appelant AS numero, date_debut AS call_date, file_id, 'caller' AS role
+        FROM ${table}
+        UNION ALL
+        SELECT imei_appele AS imei, numero_intl_appele AS numero, date_debut AS call_date, file_id, 'callee' AS role
+        FROM ${table}
+        UNION ALL
+        SELECT imei_appele_original AS imei, numero_intl_appele_original AS numero, date_debut AS call_date, file_id, 'target' AS role
+        FROM ${table}
+      ) AS combined
+      WHERE imei IS NOT NULL AND imei <> '' AND numero IS NOT NULL AND numero <> ''${filterClause}
+      ORDER BY imei, numero, call_date
+    `;
+
+    return await database.query(query, params);
+  }
+
   static async listLocations(tableName) {
     const table = this.escapeIdentifier(tableName);
     return await database.query(

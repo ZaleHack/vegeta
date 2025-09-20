@@ -86,6 +86,11 @@ import SoraLogo from './components/SoraLogo';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend);
 
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
+const FRAUD_ROLE_LABELS: Record<string, string> = {
+  caller: 'Appelant',
+  callee: 'Appelé',
+  target: 'Cible'
+};
 
 interface User {
   id: number;
@@ -358,6 +363,34 @@ interface CaseFile {
   uploaded_at: string;
   line_count: number;
   cdr_number: string | null;
+}
+
+interface FraudFileInfo {
+  id: number;
+  filename: string;
+  uploaded_at: string;
+  line_count: number;
+  cdr_number: string | null;
+}
+
+interface FraudNumberEntry {
+  number: string;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  occurrences: number;
+  roles: string[];
+  files: FraudFileInfo[];
+  status: 'nouveau' | 'attendu';
+}
+
+interface FraudImeiEntry {
+  imei: string;
+  numbers: FraudNumberEntry[];
+}
+
+interface FraudDetectionResult {
+  imeis: FraudImeiEntry[];
+  updatedAt: string;
 }
 
 interface GraphNode {
@@ -789,6 +822,15 @@ const App: React.FC = () => {
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
   const [showMeetingPoints, setShowMeetingPoints] = useState(false);
   const [zoneMode, setZoneMode] = useState(false);
+  const [fraudResult, setFraudResult] = useState<FraudDetectionResult | null>(null);
+  const [fraudLoading, setFraudLoading] = useState(false);
+  const [fraudError, setFraudError] = useState('');
+  const hasFraudSuspiciousNumbers = useMemo(() => {
+    if (!fraudResult) return false;
+    return fraudResult.imeis.some((entry) =>
+      entry.numbers.some((number) => number.status === 'nouveau')
+    );
+  }, [fraudResult]);
 
   const normalizeCdrNumber = useCallback((value: string) => {
     let sanitized = value.trim();
@@ -808,6 +850,24 @@ const App: React.FC = () => {
     sanitized = sanitized.replace(/^0+/, '');
     return sanitized ? `221${sanitized}` : '';
   }, []);
+
+  const formatFraudDate = (value?: string | null) => {
+    if (!value) return '-';
+    try {
+      return format(parseISO(value), 'P', { locale: fr });
+    } catch {
+      return value;
+    }
+  };
+
+  const formatFraudDateTime = (value?: string | null) => {
+    if (!value) return '-';
+    try {
+      return format(parseISO(value), 'Pp', { locale: fr });
+    } catch {
+      return value;
+    }
+  };
 
   // États des statistiques
   const [statsData, setStatsData] = useState<DashboardStats | null>(null);
@@ -2080,6 +2140,40 @@ useEffect(() => {
     }
   };
 
+  const fetchFraudDetection = async () => {
+    if (!selectedCase) return;
+
+    setFraudLoading(true);
+    setFraudError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
+      if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
+      const query = params.toString();
+      const res = await fetch(
+        `/api/cases/${selectedCase.id}/fraud-detection${query ? `?${query}` : ''}`,
+        {
+          headers: { Authorization: token ? `Bearer ${token}` : '' }
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setFraudResult(data);
+      } else {
+        setFraudResult(null);
+        setFraudError(data.error || 'Erreur lors de la détection de fraude');
+      }
+    } catch (error) {
+      console.error('Erreur détection fraude:', error);
+      setFraudResult(null);
+      setFraudError('Erreur lors de la détection de fraude');
+    } finally {
+      setFraudLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (cdrIdentifiers.length > 0) {
       fetchCdrData();
@@ -2191,8 +2285,13 @@ useEffect(() => {
   useEffect(() => {
     if (!selectedCase) {
       setCaseFiles([]);
+      setFraudResult(null);
+      setFraudError('');
+      setFraudLoading(false);
     } else {
       fetchCaseFiles(selectedCase.id);
+      setFraudResult(null);
+      setFraudError('');
     }
   }, [selectedCase]);
 
@@ -4135,6 +4234,146 @@ useEffect(() => {
                       </div>
                     </div>
                   )}
+                  <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-inner dark:bg-slate-900/60 dark:border-slate-700/60 space-y-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">
+                          <Shield className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Détection de fraude</h3>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Identifiez les changements de numéro pour chaque IMEI.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={fetchFraudDetection}
+                        disabled={fraudLoading || !selectedCase}
+                        className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {fraudLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Analyser la détection de fraude'
+                        )}
+                      </button>
+                    </div>
+                    {fraudError && (
+                      <p className="text-sm text-rose-600 dark:text-rose-400">{fraudError}</p>
+                    )}
+                    {fraudLoading ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-blue-400" />
+                      </div>
+                    ) : fraudResult ? (
+                      <div className="space-y-4">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Dernière analyse&nbsp;: {formatFraudDateTime(fraudResult.updatedAt)}
+                        </p>
+                        {fraudResult.imeis.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-slate-200/80 bg-slate-50/70 p-4 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-300">
+                            Aucune donnée CDR importée ne permet d'établir une correspondance IMEI/numéro.
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {!hasFraudSuspiciousNumbers && (
+                              <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-900/30 dark:text-emerald-200">
+                                Aucune anomalie détectée : tous les numéros correspondent aux références du dossier.
+                              </div>
+                            )}
+                            {fraudResult.imeis.map((imeiEntry) => (
+                              <div key={imeiEntry.imei} className="rounded-xl border border-slate-200/80 bg-white/95 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                                <div className="flex items-center justify-between border-b border-slate-200/70 px-4 py-3 dark:border-slate-700/60">
+                                  <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">IMEI {imeiEntry.imei}</div>
+                                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                                    {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''}
+                                  </div>
+                                </div>
+                                {imeiEntry.numbers.length === 0 ? (
+                                  <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-300">
+                                    Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
+                                  </div>
+                                ) : (
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full text-xs text-slate-700 dark:text-slate-200">
+                                      <thead className="bg-slate-100/80 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
+                                        <tr>
+                                          <th className="px-4 py-2 text-left">Numéro</th>
+                                          <th className="px-4 py-2 text-left">Statut</th>
+                                          <th className="px-4 py-2 text-left">Première vue</th>
+                                          <th className="px-4 py-2 text-left">Dernière vue</th>
+                                          <th className="px-4 py-2 text-left">Occurrences</th>
+                                          <th className="px-4 py-2 text-left">Rôles</th>
+                                          <th className="px-4 py-2 text-left">Fichiers</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                                        {imeiEntry.numbers.map((numberEntry) => (
+                                          <tr
+                                            key={`${imeiEntry.imei}-${numberEntry.number}`}
+                                            className={
+                                              numberEntry.status === 'nouveau'
+                                                ? 'bg-rose-50/70 dark:bg-rose-900/20'
+                                                : 'odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40'
+                                            }
+                                          >
+                                            <td className="px-4 py-2 font-medium">{numberEntry.number}</td>
+                                            <td className="px-4 py-2">
+                                              <span
+                                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                                  numberEntry.status === 'nouveau'
+                                                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200'
+                                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
+                                                }`}
+                                              >
+                                                {numberEntry.status === 'nouveau' ? 'Nouveau' : 'Attendu'}
+                                              </span>
+                                            </td>
+                                            <td className="px-4 py-2">{formatFraudDate(numberEntry.firstSeen)}</td>
+                                            <td className="px-4 py-2">{formatFraudDate(numberEntry.lastSeen)}</td>
+                                            <td className="px-4 py-2">{numberEntry.occurrences}</td>
+                                            <td className="px-4 py-2">
+                                              {numberEntry.roles.length === 0
+                                                ? '-'
+                                                : numberEntry.roles
+                                                    .map((role) => FRAUD_ROLE_LABELS[role] || role)
+                                                    .join(', ')}
+                                            </td>
+                                            <td className="px-4 py-2">
+                                              {numberEntry.files.length === 0 ? (
+                                                <span>-</span>
+                                              ) : (
+                                                <div className="flex flex-wrap gap-2">
+                                                  {numberEntry.files.map((file) => (
+                                                    <span
+                                                      key={file.id}
+                                                      className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                                    >
+                                                      {file.filename}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Lancez une analyse pour détecter les nouveaux numéros associés aux IMEI de l'opération.
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                     {renderCdrSearchForm()}
