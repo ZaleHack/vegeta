@@ -1154,7 +1154,7 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchLogs = async (page = 1) => {
+  const fetchLogs = useCallback(async (page = 1) => {
     try {
       const token = localStorage.getItem('token');
       const params = new URLSearchParams();
@@ -1173,9 +1173,9 @@ const App: React.FC = () => {
     } catch (err) {
       console.error('Erreur chargement logs:', err);
     }
-  };
+  }, [logUserFilter]);
 
-  const fetchSessions = async (page = 1) => {
+  const fetchSessions = useCallback(async (page = 1) => {
     setSessionLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -1197,7 +1197,7 @@ const App: React.FC = () => {
     } finally {
       setSessionLoading(false);
     }
-  };
+  }, [logUserFilter]);
 
   const exportLogs = async () => {
     try {
@@ -2782,7 +2782,7 @@ useEffect(() => {
       fetchLogs(1);
       fetchSessions(1);
     }
-  }, [currentPage, isAdmin, fetchSessions]);
+  }, [currentPage, isAdmin, fetchLogs, fetchSessions]);
 
   const notifications = useMemo<NotificationItem[]>(() => {
     if (!currentUser) {
