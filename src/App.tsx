@@ -2786,13 +2786,13 @@ useEffect(() => {
 
   return (
     <div
-      className="min-h-screen flex bg-gray-50 dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100"
+      className="min-h-screen flex bg-slate-100 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100"
     >
       {!sidebarOpen && (
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="group fixed top-4 left-6 sm:left-12 z-[1100] flex h-11 w-11 items-center justify-center rounded-2xl border border-white/60 bg-white/80 text-gray-700 shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:shadow-xl dark:border-gray-700/70 dark:bg-gray-900/70 dark:text-gray-200"
+          className="group fixed bottom-6 left-4 sm:left-10 md:left-12 z-[1100] flex h-12 w-12 items-center justify-center rounded-2xl border border-white/70 bg-white/90 text-slate-700 shadow-lg shadow-blue-500/20 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:text-slate-200"
           title="Déployer le menu"
           aria-label="Déployer le menu"
         >
@@ -3087,7 +3087,7 @@ useEffect(() => {
       </div>
 
       {/* Main content */}
-        <div ref={mainContentRef} className="flex-1 overflow-auto scroll-smooth">
+        <div ref={mainContentRef} className="flex-1 overflow-auto scroll-smooth bg-white/70 dark:bg-slate-900/50">
           <div className="p-8">
               <div className="flex justify-end mb-4 relative">
                 <button
@@ -3484,35 +3484,35 @@ useEffect(() => {
                 onChange={(e) => setGendarmerieSearch(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <div className="overflow-x-auto bg-white shadow rounded-lg dark:bg-gray-800">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
                 {gendarmerieLoading ? (
                   <div className="loading-bar-container my-4">
                     <div className="loading-bar"></div>
                   </div>
                 ) : (
                   <>
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-blue-600">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Libellé</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Téléphone</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">SousCategorie</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Secteur</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Créé le</th>
+                    <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                      <thead className="bg-slate-100/80 dark:bg-slate-800/80">
+                        <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                          <th className="px-6 py-3">ID</th>
+                          <th className="px-6 py-3">Libellé</th>
+                          <th className="px-6 py-3">Téléphone</th>
+                          <th className="px-6 py-3">SousCategorie</th>
+                          <th className="px-6 py-3">Secteur</th>
+                          <th className="px-6 py-3">Créé le</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
+                      <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                         {paginatedGendarmerie.map((entry) => {
                           const isTitle = !entry.Telephone || entry.Telephone.trim() === '';
                           return isTitle ? (
-                            <tr key={entry.id} className="bg-gray-100 dark:bg-gray-700">
-                              <td colSpan={6} className="px-6 py-4 font-semibold text-gray-900 dark:text-gray-100">
+                            <tr key={entry.id} className="bg-slate-100/80 dark:bg-slate-800/70">
+                              <td colSpan={6} className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-100">
                                 {entry.Libelle}
                               </td>
                             </tr>
                           ) : (
-                            <tr key={entry.id}>
+                            <tr key={entry.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60">
                               <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.Libelle}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
@@ -3524,15 +3524,15 @@ useEffect(() => {
                         })}
                       </tbody>
                     </table>
-                    <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
-                      <span className="text-sm text-gray-700">
+                    <div className="px-6 py-3 flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/60">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">
                         Page {gendarmeriePage} sur {gendarmerieTotalPages}
                       </span>
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => setGendarmeriePage((p) => Math.max(p - 1, 1))}
                           disabled={gendarmeriePage === 1}
-                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
                         >
                           Précédent
                         </button>
@@ -3541,16 +3541,16 @@ useEffect(() => {
                             <button
                               key={page}
                               onClick={() => setGendarmeriePage(page)}
-                              className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                              className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
                                 gendarmeriePage === page
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                  : 'border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60'
                               }`}
                             >
                               {page}
                             </button>
                           ) : (
-                            <span key={`gend-ellipsis-${idx}`} className="px-3 py-1">
+                            <span key={`gend-ellipsis-${idx}`} className="px-3 py-1 text-slate-400 dark:text-slate-500">
                               ...
                             </span>
                           )
@@ -3558,7 +3558,7 @@ useEffect(() => {
                         <button
                           onClick={() => setGendarmeriePage((p) => Math.min(p + 1, gendarmerieTotalPages))}
                           disabled={gendarmeriePage === gendarmerieTotalPages}
-                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
                         >
                           Suivant
                         </button>
@@ -3583,31 +3583,31 @@ useEffect(() => {
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <div className="overflow-x-auto bg-white shadow rounded-lg">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
                 {ongLoading ? (
                   <div className="loading-bar-container my-4">
                     <div className="loading-bar"></div>
                   </div>
                 ) : (
                   <>
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-blue-600">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">OrganizationName</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Type</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Name</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Title</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">EmailAddress</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Telephone</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">SelectAreaofInterest</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">SelectSectorsofInterest</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">created_at</th>
+                    <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                      <thead className="bg-slate-100/80 dark:bg-slate-800/80">
+                        <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                          <th className="px-6 py-3">ID</th>
+                          <th className="px-6 py-3">OrganizationName</th>
+                          <th className="px-6 py-3">Type</th>
+                          <th className="px-6 py-3">Name</th>
+                          <th className="px-6 py-3">Title</th>
+                          <th className="px-6 py-3">EmailAddress</th>
+                          <th className="px-6 py-3">Telephone</th>
+                          <th className="px-6 py-3">SelectAreaofInterest</th>
+                          <th className="px-6 py-3">SelectSectorsofInterest</th>
+                          <th className="px-6 py-3">created_at</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                         {paginatedOng.map(entry => (
-                          <tr key={entry.id}>
+                          <tr key={entry.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60">
                             <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.OrganizationName}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.Type}</td>
@@ -3622,15 +3622,15 @@ useEffect(() => {
                         ))}
                       </tbody>
                     </table>
-                    <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
-                      <span className="text-sm text-gray-700">
+                    <div className="px-6 py-3 flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/60">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">
                         Page {ongPage} sur {ongTotalPages}
                       </span>
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => setOngPage(p => Math.max(p - 1, 1))}
                           disabled={ongPage === 1}
-                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
                         >
                           Précédent
                         </button>
@@ -3639,16 +3639,16 @@ useEffect(() => {
                             <button
                               key={page}
                               onClick={() => setOngPage(page)}
-                              className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                              className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
                                 ongPage === page
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                  : 'border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60'
                               }`}
                             >
                               {page}
                             </button>
                           ) : (
-                            <span key={`ong-ellipsis-${idx}`} className="px-3 py-1">
+                            <span key={`ong-ellipsis-${idx}`} className="px-3 py-1 text-slate-400 dark:text-slate-500">
                               ...
                             </span>
                           )
@@ -3656,7 +3656,7 @@ useEffect(() => {
                         <button
                           onClick={() => setOngPage(p => Math.min(p + 1, ongTotalPages))}
                           disabled={ongPage === ongTotalPages}
-                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
                         >
                           Suivant
                         </button>
@@ -3681,56 +3681,56 @@ useEffect(() => {
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <div className="overflow-x-auto bg-white shadow rounded-lg">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
                 {entreprisesLoading ? (
                   <div className="loading-bar-container my-4">
                     <div className="loading-bar"></div>
                   </div>
                 ) : (
                   <>
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-blue-600">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ninea_ninet</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">cuci</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">raison_social</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ensemble_sigle</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">numrc</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa1</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa2</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">syscoa3</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">naemas</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">naemas_rev1</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">citi_rev4</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">adresse</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">telephone</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">telephone1</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">numero_telecopie</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">email</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">bp</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">region</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">departement</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ville</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">commune</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">quartier</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">personne_contact</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">adresse_personne_contact</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">qualite_personne_contact</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">premiere_annee_exercice</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">forme_juridique</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">regime_fiscal</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">pays_du_siege_de_lentreprise</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">nombre_etablissement</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">controle</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">date_reception</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">libelle_activite_principale</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">observations</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">systeme</th>
+                    <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                      <thead className="bg-slate-100/80 dark:bg-slate-800/80">
+                        <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                          <th className="px-6 py-3 whitespace-nowrap">ninea_ninet</th>
+                          <th className="px-6 py-3 whitespace-nowrap">cuci</th>
+                          <th className="px-6 py-3 whitespace-nowrap">raison_social</th>
+                          <th className="px-6 py-3 whitespace-nowrap">ensemble_sigle</th>
+                          <th className="px-6 py-3 whitespace-nowrap">numrc</th>
+                          <th className="px-6 py-3 whitespace-nowrap">syscoa1</th>
+                          <th className="px-6 py-3 whitespace-nowrap">syscoa2</th>
+                          <th className="px-6 py-3 whitespace-nowrap">syscoa3</th>
+                          <th className="px-6 py-3 whitespace-nowrap">naemas</th>
+                          <th className="px-6 py-3 whitespace-nowrap">naemas_rev1</th>
+                          <th className="px-6 py-3 whitespace-nowrap">citi_rev4</th>
+                          <th className="px-6 py-3 whitespace-nowrap">adresse</th>
+                          <th className="px-6 py-3 whitespace-nowrap">telephone</th>
+                          <th className="px-6 py-3 whitespace-nowrap">telephone1</th>
+                          <th className="px-6 py-3 whitespace-nowrap">numero_telecopie</th>
+                          <th className="px-6 py-3 whitespace-nowrap">email</th>
+                          <th className="px-6 py-3 whitespace-nowrap">bp</th>
+                          <th className="px-6 py-3 whitespace-nowrap">region</th>
+                          <th className="px-6 py-3 whitespace-nowrap">departement</th>
+                          <th className="px-6 py-3 whitespace-nowrap">ville</th>
+                          <th className="px-6 py-3 whitespace-nowrap">commune</th>
+                          <th className="px-6 py-3 whitespace-nowrap">quartier</th>
+                          <th className="px-6 py-3 whitespace-nowrap">personne_contact</th>
+                          <th className="px-6 py-3 whitespace-nowrap">adresse_personne_contact</th>
+                          <th className="px-6 py-3 whitespace-nowrap">qualite_personne_contact</th>
+                          <th className="px-6 py-3 whitespace-nowrap">premiere_annee_exercice</th>
+                          <th className="px-6 py-3 whitespace-nowrap">forme_juridique</th>
+                          <th className="px-6 py-3 whitespace-nowrap">regime_fiscal</th>
+                          <th className="px-6 py-3 whitespace-nowrap">pays_du_siege_de_lentreprise</th>
+                          <th className="px-6 py-3 whitespace-nowrap">nombre_etablissement</th>
+                          <th className="px-6 py-3 whitespace-nowrap">controle</th>
+                          <th className="px-6 py-3 whitespace-nowrap">date_reception</th>
+                          <th className="px-6 py-3 whitespace-nowrap">libelle_activite_principale</th>
+                          <th className="px-6 py-3 whitespace-nowrap">observations</th>
+                          <th className="px-6 py-3 whitespace-nowrap">systeme</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                         {paginatedEntreprises.map((entry, index) => (
-                          <tr key={index}>
+                          <tr key={index} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60">
                             <td className="px-6 py-4 whitespace-nowrap">{entry.ninea_ninet}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.cuci}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.raison_social}</td>
@@ -3770,15 +3770,15 @@ useEffect(() => {
                         ))}
                       </tbody>
                     </table>
-                    <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
-                      <span className="text-sm text-gray-700">
+                    <div className="px-6 py-3 flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/60">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">
                         Page {entreprisesPage} sur {entreprisesTotalPages}
                       </span>
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => setEntreprisesPage((p) => Math.max(p - 1, 1))}
                           disabled={entreprisesPage === 1}
-                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
                         >
                           Précédent
                         </button>
@@ -3787,16 +3787,16 @@ useEffect(() => {
                             <button
                               key={page}
                               onClick={() => setEntreprisesPage(page)}
-                              className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                              className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
                                 entreprisesPage === page
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                  : 'border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60'
                               }`}
                             >
                               {page}
                             </button>
                           ) : (
-                            <span key={`ent-ellipsis-${idx}`} className="px-3 py-1">
+                            <span key={`ent-ellipsis-${idx}`} className="px-3 py-1 text-slate-400 dark:text-slate-500">
                               ...
                             </span>
                           )
@@ -3804,7 +3804,7 @@ useEffect(() => {
                         <button
                           onClick={() => setEntreprisesPage((p) => Math.min(p + 1, entreprisesTotalPages))}
                           disabled={entreprisesPage === entreprisesTotalPages}
-                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
                         >
                           Suivant
                         </button>
@@ -3829,56 +3829,56 @@ useEffect(() => {
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <div className="overflow-x-auto bg-white shadow rounded-lg">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
                 {vehiculesLoading ? (
                   <div className="loading-bar-container my-4">
                     <div className="loading-bar"></div>
                   </div>
                 ) : (
                   <>
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-blue-600">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Numero_Immatriculation</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Code_Type</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Numero_Serie</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Immatriculation</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Serie_Immatriculation</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Categorie</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Marque</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Appelation_Com</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Genre</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Carrosserie</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Etat_Initial</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Immat_Etrangere</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Etrangere</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Mise_Circulation</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Premiere_Immat</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Energie</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Puissance_Adm</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Cylindre</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Places_Assises</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PTR</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PTAC_Code</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Poids_Vide</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">CU</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Prenoms</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Nom</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_Naissance</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Exact</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Lieu_Naissance</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Adresse_Vehicule</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Code_Localite</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Tel_Fixe</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Tel_Portable</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">PrecImmat</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Date_PrecImmat</th>
+                    <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                      <thead className="bg-slate-100/80 dark:bg-slate-800/80">
+                        <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                          <th className="px-6 py-3 whitespace-nowrap">ID</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Numero_Immatriculation</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Code_Type</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Numero_Serie</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_Immatriculation</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Serie_Immatriculation</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Categorie</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Marque</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Appelation_Com</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Genre</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Carrosserie</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Etat_Initial</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Immat_Etrangere</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_Etrangere</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_Mise_Circulation</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_Premiere_Immat</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Energie</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Puissance_Adm</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Cylindre</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Places_Assises</th>
+                          <th className="px-6 py-3 whitespace-nowrap">PTR</th>
+                          <th className="px-6 py-3 whitespace-nowrap">PTAC_Code</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Poids_Vide</th>
+                          <th className="px-6 py-3 whitespace-nowrap">CU</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Prenoms</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Nom</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_Naissance</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Exact</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Lieu_Naissance</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Adresse_Vehicule</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Code_Localite</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Tel_Fixe</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Tel_Portable</th>
+                          <th className="px-6 py-3 whitespace-nowrap">PrecImmat</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_PrecImmat</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                         {paginatedVehicules.map((entry) => (
-                          <tr key={entry.ID}>
+                          <tr key={entry.ID} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60">
                             <td className="px-6 py-4 whitespace-nowrap">{entry.ID}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.Numero_Immatriculation}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.Code_Type}</td>
@@ -3918,15 +3918,15 @@ useEffect(() => {
                         ))}
                       </tbody>
                     </table>
-                    <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
-                      <span className="text-sm text-gray-700">
+                    <div className="px-6 py-3 flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/60">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">
                         Page {vehiculesPage} sur {vehiculesTotalPages}
                       </span>
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => setVehiculesPage((p) => Math.max(p - 1, 1))}
                           disabled={vehiculesPage === 1}
-                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
                         >
                           Précédent
                         </button>
@@ -3935,16 +3935,16 @@ useEffect(() => {
                             <button
                               key={page}
                               onClick={() => setVehiculesPage(page)}
-                              className={`px-3 py-1 rounded-md border text-sm font-medium ${
+                              className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
                                 vehiculesPage === page
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                  : 'border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60'
                               }`}
                             >
                               {page}
                             </button>
                           ) : (
-                            <span key={`veh-ellipsis-${idx}`} className="px-3 py-1">
+                            <span key={`veh-ellipsis-${idx}`} className="px-3 py-1 text-slate-400 dark:text-slate-500">
                               ...
                             </span>
                           )
@@ -3952,7 +3952,7 @@ useEffect(() => {
                         <button
                           onClick={() => setVehiculesPage((p) => Math.min(p + 1, vehiculesTotalPages))}
                           disabled={vehiculesPage === vehiculesTotalPages}
-                          className="px-3 py-1 rounded-md border text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
                         >
                           Suivant
                         </button>
@@ -4070,8 +4070,8 @@ useEffect(() => {
 
               {!showCdrMap && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-white rounded-lg shadow p-6 space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-700">Importation CDR</h3>
+                  <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60 space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Importation CDR</h3>
                   <form onSubmit={handleCdrUpload} className="space-y-4">
                     <input
                       type="text"
@@ -4079,18 +4079,18 @@ useEffect(() => {
                       onChange={(e) => setCdrNumber(e.target.value)}
                       onBlur={(e) => setCdrNumber(normalizeCdrNumber(e.target.value))}
                       placeholder="Numéro associé"
-                      className="block w-full border rounded-md p-2"
+                      className="block w-full rounded-xl border border-slate-200/70 bg-white/80 p-3 text-sm text-slate-800 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/70 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
                     />
                     <input
                       type="file"
                       accept=".csv"
                       onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      className="block w-full text-sm text-slate-500 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-500/10 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-blue-600 hover:file:bg-blue-500/20 dark:text-slate-300"
                     />
                       <button
                         type="submit"
                         disabled={cdrUploading || !cdrFile || !cdrNumber}
-                        className="flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50"
+                        className="flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:translate-y-0 disabled:opacity-50"
                       >
                         {cdrUploading ? (
                           <Loader2 className="h-5 w-5 animate-spin" />
@@ -4098,31 +4098,31 @@ useEffect(() => {
                           'Importer CDR'
                         )}
                       </button>
-                    {cdrUploadMessage && <p className="text-green-600">{cdrUploadMessage}</p>}
-                    {cdrUploadError && <p className="text-red-600">{cdrUploadError}</p>}
+                    {cdrUploadMessage && <p className="text-green-600 dark:text-green-400">{cdrUploadMessage}</p>}
+                    {cdrUploadError && <p className="text-red-600 dark:text-rose-400">{cdrUploadError}</p>}
                   </form>
                   {caseFiles.length > 0 && (
                     <div>
                       <h4 className="font-semibold mb-2">Fichiers importés</h4>
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm text-gray-700">
-                          <thead>
-                            <tr>
+                      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-inner dark:bg-slate-900/60 dark:border-slate-700/60">
+                        <table className="min-w-full text-sm text-slate-700 dark:text-slate-200">
+                          <thead className="bg-slate-100/80 dark:bg-slate-800/80">
+                            <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
                               <th className="px-4 py-2 text-left">Nom du fichier</th>
                               <th className="px-4 py-2 text-left">Numéro</th>
                               <th className="px-4 py-2 text-left">Lignes</th>
                               <th className="px-4 py-2" />
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-200">
+                          <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                             {caseFiles.map((f) => (
-                              <tr key={f.id}>
+                              <tr key={f.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40">
                                 <td className="px-4 py-2 truncate">{f.filename}</td>
                                 <td className="px-4 py-2">{f.cdr_number || '-'}</td>
                                 <td className="px-4 py-2">{f.line_count}</td>
                                 <td className="px-4 py-2 text-right">
                                   <button
-                                    className="text-red-600 hover:underline"
+                                    className="text-rose-600 hover:underline dark:text-rose-400"
                                     onClick={() => handleDeleteFile(f.id)}
                                   >
                                     Supprimer
@@ -4390,7 +4390,7 @@ useEffect(() => {
                 </div>
               </div>
             ) : (
-              <div className="bg-white shadow rounded-lg p-6">
+              <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
                 <ProfileList onCreate={() => openCreateProfile({})} onEdit={openEditProfile} />
               </div>
             )}
@@ -4400,7 +4400,7 @@ useEffect(() => {
         {currentPage === 'blacklist' && isAdmin && (
           <div className="space-y-6">
             <PageHeader icon={<Ban className="h-6 w-6" />} title="Black List" />
-            <div className="bg-white shadow rounded-lg p-6 space-y-4">
+            <div className="space-y-4 rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
               <div className="flex flex-col md:flex-row gap-4">
                 <form onSubmit={handleAddBlacklist} className="flex flex-1 gap-2">
                   <input
@@ -4408,9 +4408,9 @@ useEffect(() => {
                     placeholder="Numéro"
                     value={blacklistNumber}
                     onChange={(e) => setBlacklistNumber(e.target.value)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 rounded-xl border border-slate-200/70 bg-white/80 px-4 py-2 text-sm text-slate-800 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/70 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
                   />
-                  <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  <button type="submit" className="rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-transform hover:-translate-y-0.5">
                     Ajouter
                   </button>
                 </form>
@@ -4419,30 +4419,30 @@ useEffect(() => {
                     type="file"
                     accept=".txt,.csv"
                     onChange={(e) => setBlacklistFile(e.target.files?.[0] || null)}
-                    className="flex-1 text-sm"
+                    className="flex-1 text-sm text-slate-600 dark:text-slate-300"
                   />
-                  <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                  <button type="submit" className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition-transform hover:-translate-y-0.5 hover:bg-emerald-600">
                     Importer
                   </button>
                 </form>
               </div>
-              {blacklistError && <p className="text-red-600">{blacklistError}</p>}
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numéro</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              {blacklistError && <p className="text-red-600 dark:text-rose-400">{blacklistError}</p>}
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-inner dark:bg-slate-900/60 dark:border-slate-700/60">
+                <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                  <thead className="bg-slate-100/80 dark:bg-slate-800/80">
+                    <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                      <th className="px-6 py-3">Numéro</th>
+                      <th className="px-6 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                     {blacklist.map((b) => (
-                      <tr key={b.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{b.number}</td>
+                      <tr key={b.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{b.number}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                           <button
                             onClick={() => handleDeleteBlacklist(b.id)}
-                            className="text-red-600 hover:text-red-900"
+                            className="text-rose-600 transition-colors hover:text-rose-500 dark:text-rose-400 dark:hover:text-rose-300"
                           >
                             Supprimer
                           </button>
@@ -4459,42 +4459,42 @@ useEffect(() => {
         {currentPage === 'logs' && isAdmin && (
           <div className="space-y-6">
             <PageHeader icon={<List className="h-6 w-6" />} title="Logs" />
-            <div className="bg-white shadow rounded-lg p-6">
+            <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
               <div className="mb-4 flex">
                 <input
                   type="text"
                   value={logUserFilter}
                   onChange={(e) => setLogUserFilter(e.target.value)}
                   placeholder="Filtrer par utilisateur"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm text-slate-800 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/70 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
                 />
                 <button
                   onClick={() => fetchLogs(1)}
-                  className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="ml-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-transform hover:-translate-y-0.5"
                 >
                   Rechercher
                 </button>
                 <button
                   onClick={exportLogs}
-                  className="ml-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  className="ml-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition-transform hover:-translate-y-0.5 hover:bg-emerald-600"
                 >
                   Exporter
                 </button>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Page</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profil</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durée (min)</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-inner dark:bg-slate-900/60 dark:border-slate-700/60">
+                <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                  <thead className="bg-slate-100/80 dark:bg-slate-800/80">
+                    <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                      <th className="px-6 py-3">Utilisateur</th>
+                      <th className="px-6 py-3">Action</th>
+                      <th className="px-6 py-3">Détails</th>
+                      <th className="px-6 py-3">Page</th>
+                      <th className="px-6 py-3">Profil</th>
+                      <th className="px-6 py-3">Durée (min)</th>
+                      <th className="px-6 py-3">Date</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                     {logsData.map((log: any) => {
                       let details: any = {};
                       try {
@@ -4556,14 +4556,16 @@ useEffect(() => {
                         <tr
                           key={log.id}
                           className={`transition ${
-                            isAlertLog ? 'bg-red-50/80 hover:bg-red-100/70' : 'hover:bg-gray-50'
+                            isAlertLog
+                              ? 'bg-rose-50/80 hover:bg-rose-100/70 dark:bg-rose-500/20 dark:hover:bg-rose-500/30'
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
                           }`}
                         >
                           <td
                             className={`px-6 py-4 whitespace-nowrap text-sm ${
                               isAlertLog
-                                ? 'border-l-4 border-red-500 bg-red-50/70 font-semibold text-red-900'
-                                : 'text-gray-900'
+                                ? 'border-l-4 border-rose-500 bg-rose-100/70 font-semibold text-rose-900 dark:border-rose-400 dark:bg-rose-500/20 dark:text-rose-100'
+                                : 'text-slate-900 dark:text-slate-100'
                             }`}
                           >
                             {log.username || 'Inconnu'}
@@ -4571,28 +4573,28 @@ useEffect(() => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             {isAlertLog ? (
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="inline-flex items-center gap-2 rounded-full bg-red-600 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-sm shadow-red-300/60">
+                                <span className="inline-flex items-center gap-2 rounded-full bg-rose-600 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-sm shadow-rose-300/60">
                                   <AlertTriangle className="h-4 w-4" />
                                   Alerte Blacklist
                                 </span>
-                                <span className="text-sm font-medium text-red-700">{log.action}</span>
+                                <span className="text-sm font-medium text-rose-700 dark:text-rose-200">{log.action}</span>
                               </div>
                             ) : (
-                              <span className="text-gray-900">{log.action}</span>
+                              <span className="text-slate-900 dark:text-slate-100">{log.action}</span>
                             )}
                           </td>
                           <td
                             className={`px-6 py-4 text-sm ${
-                              isAlertLog ? 'align-top text-red-800' : 'text-gray-900'
+                              isAlertLog ? 'align-top text-rose-800 dark:text-rose-100' : 'text-slate-900 dark:text-slate-100'
                             }`}
                           >
                             {detailContent}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{pageName || '-'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">{pageName || '-'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">
                             {details.profile_id ? (
                               <button
-                                className="text-blue-600 hover:underline"
+                                className="text-blue-600 hover:underline dark:text-blue-400"
                                 onClick={() => openEditProfile(details.profile_id)}
                               >
                                 Voir
@@ -4601,8 +4603,8 @@ useEffect(() => {
                               '-'
                             )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.duration_ms ? Math.round(log.duration_ms / 60000) : '-'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">{log.duration_ms ? Math.round(log.duration_ms / 60000) : '-'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">
                             {log.created_at ? format(parseISO(log.created_at), 'Pp', { locale: fr }) : '-'}
                           </td>
                         </tr>
@@ -4610,19 +4612,19 @@ useEffect(() => {
                     })}
                   </tbody>
                 </table>
-                <div className="flex justify-between items-center mt-4">
+                <div className="mt-4 flex items-center justify-between">
                   <button
                     onClick={() => fetchLogs(logPage - 1)}
                     disabled={logPage <= 1}
-                    className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+                    className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     Précédent
                   </button>
-                  <span className="text-sm text-gray-700">Page {logPage} / {Math.max(1, Math.ceil(logTotal / LOGS_LIMIT))}</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-300">Page {logPage} / {Math.max(1, Math.ceil(logTotal / LOGS_LIMIT))}</span>
                   <button
                     onClick={() => fetchLogs(logPage + 1)}
                     disabled={logPage >= Math.ceil(logTotal / LOGS_LIMIT)}
-                    className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+                    className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     Suivant
                   </button>
@@ -4647,7 +4649,7 @@ useEffect(() => {
               </div>
 
               {/* Table des utilisateurs */}
-              <div className="bg-white shadow-xl rounded-2xl overflow-hidden">
+              <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/80 dark:bg-slate-900/70 dark:border-slate-700/60">
                 {users.length === 0 ? (
                   <div className="text-center py-16">
                     <Users className="mx-auto h-16 w-16 text-gray-400 mb-4" />
@@ -4665,48 +4667,51 @@ useEffect(() => {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                      <thead className="bg-slate-100/80 dark:bg-slate-800/80">
+                        <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                          <th className="px-6 py-4">
                             Utilisateur
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-4">
                             Rôle
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-4">
                             Statut
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-4">
                             Créé le
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-4">
                             Actions
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                         {users.map((user) => (
-                          <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                          <tr
+                            key={user.id}
+                            className="transition-colors odd:bg-white even:bg-slate-50/70 hover:bg-slate-100/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60 dark:hover:bg-slate-800/80"
+                          >
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-700 rounded-full">
                                   <User className="h-5 w-5 text-white" />
                                 </div>
                                 <div className="ml-4">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.login}</div>
-                                  <div className="text-sm text-gray-500">ID: {user.id}</div>
+                                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{user.login}</div>
+                                  <div className="text-xs text-slate-500 dark:text-slate-300">ID: {user.id}</div>
                                 </div>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               {(user.admin === 1 || user.admin === "1") ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                <span className="inline-flex items-center gap-2 rounded-full bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-700 dark:text-rose-300">
                                   <Shield className="w-3 h-3 mr-1" />
                                   Administrateur
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                <span className="inline-flex items-center gap-2 rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-600 dark:text-blue-300">
                                   <UserCheck className="w-3 h-3 mr-1" />
                                   Utilisateur
                                 </span>
@@ -4714,16 +4719,16 @@ useEffect(() => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               {user.active === 1 ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
                                   Actif
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                <span className="inline-flex items-center rounded-full bg-slate-400/20 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
                                   Désactivé
                                 </span>
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">
                               {new Date(user.created_at).toLocaleDateString('fr-FR', {
                                 year: 'numeric',
                                 month: 'long',
@@ -4734,14 +4739,14 @@ useEffect(() => {
                               <div className="flex space-x-3">
                                 <button
                                   onClick={() => openEditModal(user)}
-                                  className="text-blue-600 hover:text-blue-900 transition-colors"
+                                  className="text-blue-600 transition-colors hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
                                   title="Modifier l'utilisateur"
                                 >
                                   <Edit className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => openPasswordModal(user)}
-                                  className="text-green-600 hover:text-green-900 transition-colors"
+                                  className="text-emerald-500 transition-colors hover:text-emerald-400 dark:text-emerald-300 dark:hover:text-emerald-200"
                                   title="Changer le mot de passe"
                                 >
                                   <Key className="w-4 h-4" />
@@ -4749,7 +4754,7 @@ useEffect(() => {
                                 {user.id !== currentUser?.id && (
                                   <button
                                     onClick={() => handleDeleteUser(user.id)}
-                                    className="text-red-600 hover:text-red-900 transition-colors"
+                                    className="text-rose-600 transition-colors hover:text-rose-500 dark:text-rose-400 dark:hover:text-rose-300"
                                     title="Supprimer l'utilisateur"
                                   >
                                     <Trash2 className="w-4 h-4" />
