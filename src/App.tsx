@@ -43,7 +43,8 @@ import {
   AlertTriangle,
   Share2,
   GripVertical,
-  X
+  X,
+  Scan
 } from 'lucide-react';
 import ToggleSwitch from './components/ToggleSwitch';
 
@@ -2739,287 +2740,327 @@ useEffect(() => {
   }
 
   const renderCdrSearchForm = () => {
-    const formContent = (
-      <>
-        <h3 className="text-lg font-semibold text-gray-700">Recherche</h3>
-        <form onSubmit={handleCdrSearch} className="space-y-4">
-        <div className="w-full px-4 py-2 border border-gray-300 rounded-md flex flex-wrap gap-2">
-          {cdrIdentifiers.map((id, idx) => (
-            <span
-              key={idx}
-              className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center"
-            >
-              {id}
-              <button
-                type="button"
-                onClick={() => removeCdrIdentifier(idx)}
-                className="ml-1 text-blue-500 hover:text-blue-700"
-              >
-                <X size={14} />
-              </button>
-            </span>
-          ))}
-          <input
-            type="text"
-            value={cdrIdentifierInput}
-            onChange={(e) => setCdrIdentifierInput(e.target.value)}
-            onBlur={(e) => setCdrIdentifierInput(normalizeCdrNumber(e.target.value))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                addCdrIdentifier();
-              }
-            }}
-            placeholder="Ajouter un numéro"
-            className="flex-1 min-w-[120px] border-none focus:outline-none focus:ring-0"
-          />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <input
-            type="date"
-            value={cdrStart}
-            onChange={(e) => setCdrStart(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="date"
-            value={cdrEnd}
-            onChange={(e) => setCdrEnd(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <input
-            type="time"
-            value={cdrStartTime}
-            onChange={(e) => setCdrStartTime(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="time"
-            value={cdrEndTime}
-            onChange={(e) => setCdrEndTime(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div className="space-y-2">
-          <ToggleSwitch
-            label={
-              <>
-                <PhoneIncoming className="w-4 h-4 text-green-600" />
-                <span>Appels entrants</span>
-              </>
-            }
-            checked={cdrIncoming}
-            onChange={setCdrIncoming}
-            activeColor="peer-checked:bg-green-500 dark:peer-checked:bg-green-500"
-          />
-          <ToggleSwitch
-            label={
-              <>
-                <PhoneOutgoing className="w-4 h-4 text-blue-600" />
-                <span>Appels sortants</span>
-              </>
-            }
-            checked={cdrOutgoing}
-            onChange={setCdrOutgoing}
-            activeColor="peer-checked:bg-blue-500 dark:peer-checked:bg-blue-500"
-          />
-          <ToggleSwitch
-            label={
-              <>
-                <MessageSquare className="w-4 h-4 text-green-600" />
-                <span>SMS</span>
-              </>
-            }
-            checked={cdrSms}
-            onChange={setCdrSms}
-            activeColor="peer-checked:bg-green-500 dark:peer-checked:bg-green-500"
-          />
-          <ToggleSwitch
-            label={
-              <>
-                <MapPin className="w-4 h-4 text-red-600" />
-                <span>Position</span>
-              </>
-            }
-            checked={cdrPosition}
-            onChange={setCdrPosition}
-            activeColor="peer-checked:bg-red-500 dark:peer-checked:bg-red-500"
-          />
-          <ToggleSwitch
-            label={
-              <>
-                <Car className="w-4 h-4 text-indigo-500" />
-                <span>Itinéraire</span>
-              </>
-            }
-            checked={cdrItinerary}
-            onChange={setCdrItinerary}
-            activeColor="peer-checked:bg-indigo-500 dark:peer-checked:bg-indigo-500"
-          />
-        </div>
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={cdrLoading}
-            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Search className="h-4 w-4" />
-            <span>Rechercher</span>
-          </button>
-          {caseFiles.filter((f) => f.cdr_number).length >= 2 && (
+    const detectionSection = !showCdrMap && selectedCase && (
+      <section className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 shadow-xl shadow-slate-900/30 dark:from-slate-900 dark:via-slate-900 dark:to-black">
+        <div className="flex flex-col gap-4 p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-200">
+                <Shield className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Détection de changement de numéro</h3>
+                <p className="text-sm text-slate-300">
+                  Identifiez instantanément les nouveaux numéros associés aux identifiants surveillés.
+                </p>
+              </div>
+            </div>
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500"
-              onClick={handleLinkDiagram}
+              onClick={fetchFraudDetection}
+              disabled={fraudLoading || !selectedCase || cdrIdentifiers.length === 0}
+              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-5 py-2 text-sm font-semibold text-slate-100 transition-all hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Share2 className="h-4 w-4" />
-              <span>Diagramme des liens</span>
+              {fraudLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
+              <span>Analyser</span>
             </button>
+          </div>
+
+          {fraudError && (
+            <p className="text-sm text-rose-300">{fraudError}</p>
+          )}
+
+          {cdrIdentifiers.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-4 py-3 text-sm text-slate-200">
+              Ajoutez au moins un numéro dans la recherche pour lancer l’analyse.
+            </div>
+          ) : fraudLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-6 w-6 animate-spin text-slate-100" />
+            </div>
+          ) : fraudResult ? (
+            <div className="space-y-4">
+              <div className="text-xs uppercase tracking-wide text-slate-400">
+                Dernière analyse&nbsp;: {formatFraudDateTime(fraudResult.updatedAt)}
+              </div>
+              {fraudResult.imeis.length === 0 ? (
+                <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-4 text-sm text-emerald-100">
+                  Aucun changement de numéro détecté pour les identifiants recherchés.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {!hasFraudSuspiciousNumbers && (
+                    <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+                      Aucune anomalie détectée : tous les numéros correspondent aux identifiants suivis.
+                    </div>
+                  )}
+                  {fraudResult.imeis.map((imeiEntry) => (
+                    <div key={imeiEntry.imei} className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60 backdrop-blur">
+                      <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 text-sm font-semibold">
+                        <span>IMEI {imeiEntry.imei}</span>
+                        <span className="text-xs text-slate-400">
+                          {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      {imeiEntry.numbers.length === 0 ? (
+                        <div className="px-4 py-3 text-sm text-slate-300">
+                          Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-xs text-slate-200">
+                            <thead className="bg-white/5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                              <tr>
+                                <th className="px-4 py-2 text-left">Numéro</th>
+                                <th className="px-4 py-2 text-left">Statut</th>
+                                <th className="px-4 py-2 text-left">Première vue</th>
+                                <th className="px-4 py-2 text-left">Dernière vue</th>
+                                <th className="px-4 py-2 text-left">Occurrences</th>
+                                <th className="px-4 py-2 text-left">Rôles</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {imeiEntry.numbers.map((numberEntry) => (
+                                <tr
+                                  key={`${imeiEntry.imei}-${numberEntry.number}`}
+                                  className={
+                                    numberEntry.status === 'nouveau'
+                                      ? 'bg-rose-500/10'
+                                      : 'odd:bg-white/5 even:bg-white/0'
+                                  }
+                                >
+                                  <td className="px-4 py-2 font-medium text-slate-100">{numberEntry.number}</td>
+                                  <td className="px-4 py-2">
+                                    <span
+                                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                        numberEntry.status === 'nouveau'
+                                          ? 'bg-rose-500/20 text-rose-100'
+                                          : 'bg-emerald-500/20 text-emerald-100'
+                                      }`}
+                                    >
+                                      {numberEntry.status === 'nouveau' ? 'Nouveau' : 'Attendu'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2 text-slate-200">{formatFraudDate(numberEntry.firstSeen)}</td>
+                                  <td className="px-4 py-2 text-slate-200">{formatFraudDate(numberEntry.lastSeen)}</td>
+                                  <td className="px-4 py-2 text-slate-200">{numberEntry.occurrences}</td>
+                                  <td className="px-4 py-2 text-slate-200">
+                                    {numberEntry.roles.length === 0
+                                      ? '-'
+                                      : numberEntry.roles
+                                          .map((role) => FRAUD_ROLE_LABELS[role] || role)
+                                          .join(', ')}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-300">
+              Lancez une analyse pour détecter les nouveaux numéros associés aux identifiants recherchés.
+            </p>
           )}
         </div>
-        </form>
-        {selectedCase && (
-          <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-inner dark:bg-slate-900/60 dark:border-slate-700/60 space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">
-                  <Shield className="h-5 w-5" />
+      </section>
+    );
+
+    const searchSection = (
+      <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+        <div className="border-b border-slate-200/70 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-6 text-white dark:border-slate-700/60">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Recherche CDR</h3>
+              <p className="text-sm text-white/80">Affinez votre requête pour visualiser les communications pertinentes.</p>
+            </div>
+            <div className="hidden md:flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20">
+              <Search className="h-6 w-6" />
+            </div>
+          </div>
+        </div>
+        <form onSubmit={handleCdrSearch} className="space-y-5 p-6">
+          <div>
+            <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Numéros recherchés</label>
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700/60 dark:bg-slate-900/50">
+              {cdrIdentifiers.map((id, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
+                >
+                  {id}
+                  <button
+                    type="button"
+                    onClick={() => removeCdrIdentifier(idx)}
+                    className="text-blue-500 transition hover:text-blue-700 dark:hover:text-blue-100"
+                  >
+                    <X size={14} />
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={cdrIdentifierInput}
+                onChange={(e) => setCdrIdentifierInput(e.target.value)}
+                onBlur={(e) => setCdrIdentifierInput(normalizeCdrNumber(e.target.value))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addCdrIdentifier();
+                  }
+                }}
+                placeholder="Ajouter un numéro"
+                className="flex-1 min-w-[150px] border-none bg-transparent py-1 text-sm focus:outline-none focus:ring-0"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Date de début</label>
+              <input
+                type="date"
+                value={cdrStart}
+                onChange={(e) => setCdrStart(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Date de fin</label>
+              <input
+                type="date"
+                value={cdrEnd}
+                onChange={(e) => setCdrEnd(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Heure de début</label>
+              <input
+                type="time"
+                value={cdrStartTime}
+                onChange={(e) => setCdrStartTime(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Heure de fin</label>
+              <input
+                type="time"
+                value={cdrEndTime}
+                onChange={(e) => setCdrEndTime(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <ToggleSwitch
+              label={
+                <div className="flex items-center gap-2">
+                  <PhoneIncoming className="h-4 w-4 text-emerald-500" />
+                  <span>Appels entrants</span>
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Détection de changement de numéro</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Identifiez les changements de numéro pour les identifiants recherchés.
-                  </p>
+              }
+              checked={cdrIncoming}
+              onChange={setCdrIncoming}
+              activeColor="peer-checked:bg-emerald-500 dark:peer-checked:bg-emerald-500"
+            />
+            <ToggleSwitch
+              label={
+                <div className="flex items-center gap-2">
+                  <PhoneOutgoing className="h-4 w-4 text-blue-500" />
+                  <span>Appels sortants</span>
                 </div>
-              </div>
+              }
+              checked={cdrOutgoing}
+              onChange={setCdrOutgoing}
+              activeColor="peer-checked:bg-blue-500 dark:peer-checked:bg-blue-500"
+            />
+            <ToggleSwitch
+              label={
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-green-500" />
+                  <span>SMS</span>
+                </div>
+              }
+              checked={cdrSms}
+              onChange={setCdrSms}
+              activeColor="peer-checked:bg-green-500 dark:peer-checked:bg-green-500"
+            />
+            <ToggleSwitch
+              label={
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-rose-500" />
+                  <span>Position</span>
+                </div>
+              }
+              checked={cdrPosition}
+              onChange={setCdrPosition}
+              activeColor="peer-checked:bg-rose-500 dark:peer-checked:bg-rose-500"
+            />
+            <ToggleSwitch
+              label={
+                <div className="flex items-center gap-2">
+                  <Car className="h-4 w-4 text-indigo-500" />
+                  <span>Itinéraire</span>
+                </div>
+              }
+              checked={cdrItinerary}
+              onChange={setCdrItinerary}
+              activeColor="peer-checked:bg-indigo-500 dark:peer-checked:bg-indigo-500"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={cdrLoading}
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Search className="h-4 w-4" />
+              <span>Rechercher</span>
+            </button>
+            {caseFiles.filter((f) => f.cdr_number).length >= 2 && (
               <button
                 type="button"
-                onClick={fetchFraudDetection}
-                disabled={fraudLoading || !selectedCase || cdrIdentifiers.length === 0}
-                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
+                onClick={handleLinkDiagram}
               >
-                {fraudLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  'Analyser le changement de numéro'
-                )}
+                <Share2 className="h-4 w-4" />
+                <span>Diagramme des liens</span>
               </button>
-            </div>
-            {fraudError && (
-              <p className="text-sm text-rose-600 dark:text-rose-400">{fraudError}</p>
-            )}
-            {cdrIdentifiers.length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Ajoutez au moins un numéro dans la recherche pour lancer l’analyse.
-              </p>
-            ) : fraudLoading ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-blue-400" />
-              </div>
-            ) : fraudResult ? (
-              <div className="space-y-4">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Dernière analyse&nbsp;: {formatFraudDateTime(fraudResult.updatedAt)}
-                </p>
-                {fraudResult.imeis.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200/80 bg-slate-50/70 p-4 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-300">
-                    Aucun changement de numéro détecté pour les identifiants recherchés.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {!hasFraudSuspiciousNumbers && (
-                      <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-900/30 dark:text-emerald-200">
-                        Aucune anomalie détectée : tous les numéros correspondent aux identifiants suivis.
-                      </div>
-                    )}
-                    {fraudResult.imeis.map((imeiEntry) => (
-                      <div key={imeiEntry.imei} className="rounded-xl border border-slate-200/80 bg-white/95 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
-                        <div className="flex items-center justify-between border-b border-slate-200/70 px-4 py-3 dark:border-slate-700/60">
-                          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">IMEI {imeiEntry.imei}</div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''}
-                          </div>
-                        </div>
-                        {imeiEntry.numbers.length === 0 ? (
-                          <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-300">
-                            Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full text-xs text-slate-700 dark:text-slate-200">
-                              <thead className="bg-slate-100/80 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
-                                <tr>
-                                  <th className="px-4 py-2 text-left">Numéro</th>
-                                  <th className="px-4 py-2 text-left">Statut</th>
-                                  <th className="px-4 py-2 text-left">Première vue</th>
-                                  <th className="px-4 py-2 text-left">Dernière vue</th>
-                                  <th className="px-4 py-2 text-left">Occurrences</th>
-                                  <th className="px-4 py-2 text-left">Rôles</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                                {imeiEntry.numbers.map((numberEntry) => (
-                                  <tr
-                                    key={`${imeiEntry.imei}-${numberEntry.number}`}
-                                    className={
-                                      numberEntry.status === 'nouveau'
-                                        ? 'bg-rose-50/70 dark:bg-rose-900/20'
-                                        : 'odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40'
-                                    }
-                                  >
-                                    <td className="px-4 py-2 font-medium">{numberEntry.number}</td>
-                                    <td className="px-4 py-2">
-                                      <span
-                                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                          numberEntry.status === 'nouveau'
-                                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200'
-                                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
-                                        }`}
-                                      >
-                                        {numberEntry.status === 'nouveau' ? 'Nouveau' : 'Attendu'}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-2">{formatFraudDate(numberEntry.firstSeen)}</td>
-                                    <td className="px-4 py-2">{formatFraudDate(numberEntry.lastSeen)}</td>
-                                    <td className="px-4 py-2">{numberEntry.occurrences}</td>
-                                    <td className="px-4 py-2">
-                                      {numberEntry.roles.length === 0
-                                        ? '-'
-                                        : numberEntry.roles
-                                            .map((role) => FRAUD_ROLE_LABELS[role] || role)
-                                            .join(', ')}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Lancez une analyse pour détecter les nouveaux numéros associés aux identifiants recherchés.
-              </p>
             )}
           </div>
-        )}
-      </>
+        </form>
+      </section>
     );
+
+    const formContent = (
+      <div className="space-y-6">
+        {searchSection}
+        {detectionSection}
+      </div>
+    );
+
     if (showCdrMap) {
       return (
-        <div className="fixed bottom-4 left-4 z-[1000] w-80 max-h-[80vh] overflow-y-auto bg-white/90 backdrop-blur rounded-lg shadow-lg p-4 space-y-4">
+        <div className="fixed bottom-4 left-4 z-[1000] w-80 max-h-[80vh] overflow-y-auto rounded-3xl border border-white/60 bg-white/90 p-4 shadow-2xl shadow-blue-500/20 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/80">
           {formContent}
         </div>
       );
     }
+
     return (
-      <div className="bg-white rounded-lg shadow p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+      <div className="max-h-[60vh] overflow-y-auto rounded-3xl border border-slate-200/80 bg-transparent">
         {formContent}
       </div>
     );
