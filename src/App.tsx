@@ -99,6 +99,8 @@ interface User {
   admin: number;
   created_at: string;
   active: number;
+  division_id: number;
+  division_name?: string | null;
 }
 
 interface SearchResult {
@@ -250,13 +252,57 @@ interface IdentificationRequest {
   updated_at?: string;
 }
 
+type NotificationType = 'request' | 'case_shared';
+
 interface NotificationItem {
   id: string;
-  requestId: number;
-  phone: string;
+  requestId?: number;
+  phone?: string;
   status: 'pending' | 'identified';
   message: string;
   description: string;
+  type: NotificationType;
+  caseId?: number;
+  notificationId?: number;
+  read?: boolean;
+}
+
+interface DivisionEntry {
+  id: number;
+  name: string;
+}
+
+interface CaseShareUser {
+  id: number;
+  login: string;
+  admin: number;
+  active: number;
+  created_at: string;
+}
+
+interface CaseShareInfo {
+  divisionId: number | null;
+  owner: { id: number | undefined; login: string | undefined };
+  recipients: number[];
+  users: CaseShareUser[];
+}
+
+interface ServerNotification {
+  id: number;
+  user_id: number;
+  type: string;
+  data: any;
+  read_at: string | null;
+  created_at: string;
+}
+
+interface SessionLog {
+  id: number;
+  user_id: number;
+  username: string;
+  login_at: string;
+  logout_at: string | null;
+  duration_seconds: number;
 }
 
 interface OngEntry {
@@ -356,6 +402,11 @@ interface CdrCase {
   name: string;
   created_at?: string;
   user_login?: string;
+  division_id?: number;
+  division_name?: string | null;
+  is_owner?: number | boolean;
+  shared_user_ids?: number[];
+  shared_with_me?: boolean;
 }
 
 interface CaseFile {
@@ -483,6 +534,10 @@ const App: React.FC = () => {
   const [logPage, setLogPage] = useState(1);
   const [logTotal, setLogTotal] = useState(0);
   const LOGS_LIMIT = 20;
+  const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
+  const [sessionTotal, setSessionTotal] = useState(0);
+  const [sessionPage, setSessionPage] = useState(1);
+  const [sessionLoading, setSessionLoading] = useState(false);
   interface ExtraField {
     key: string;
     value: string;
@@ -506,6 +561,7 @@ const App: React.FC = () => {
   const [readNotifications, setReadNotifications] = useState<string[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [highlightedRequestId, setHighlightedRequestId] = useState<number | null>(null);
+  const [serverNotifications, setServerNotifications] = useState<ServerNotification[]>([]);
   const isAdmin = useMemo(
     () => (currentUser ? currentUser.admin === 1 || currentUser.admin === "1" : false),
     [currentUser]
@@ -515,6 +571,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!currentUser) {
       setReadNotifications([]);
+      setServerNotifications([]);
       return;
     }
     try {
@@ -657,7 +714,8 @@ const App: React.FC = () => {
     login: '',
     password: '',
     admin: 0,
-    active: 1
+    active: 1,
+    divisionId: 0
   });
   const [passwordFormData, setPasswordFormData] = useState({
     currentPassword: '',
@@ -670,6 +728,9 @@ const App: React.FC = () => {
     confirm: false
   });
   const [passwordTargetUser, setPasswordTargetUser] = useState<User | null>(null);
+  const [divisions, setDivisions] = useState<DivisionEntry[]>([]);
+  const [newDivisionName, setNewDivisionName] = useState('');
+  const [creatingDivision, setCreatingDivision] = useState(false);
   const [uploadTable, setUploadTable] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
@@ -826,6 +887,15 @@ const App: React.FC = () => {
   const [fraudResult, setFraudResult] = useState<FraudDetectionResult | null>(null);
   const [fraudLoading, setFraudLoading] = useState(false);
   const [fraudError, setFraudError] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareTargetCase, setShareTargetCase] = useState<CdrCase | null>(null);
+  const [shareDivisionUsers, setShareDivisionUsers] = useState<CaseShareUser[]>([]);
+  const [shareSelectedUserIds, setShareSelectedUserIds] = useState<number[]>([]);
+  const [shareAllUsers, setShareAllUsers] = useState(false);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareMessage, setShareMessage] = useState('');
+  const [shareOwnerId, setShareOwnerId] = useState<number | null>(null);
+  const [pendingShareCaseId, setPendingShareCaseId] = useState<number | null>(null);
   const hasFraudSuspiciousNumbers = useMemo(() => {
     if (!fraudResult) return false;
     return fraudResult.imeis.some((entry) =>
@@ -1102,6 +1172,30 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error('Erreur chargement logs:', err);
+    }
+  };
+
+  const fetchSessions = async (page = 1) => {
+    setSessionLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', String(LOGS_LIMIT));
+      if (logUserFilter) params.set('username', logUserFilter);
+      const res = await fetch(`/api/logs/sessions?${params.toString()}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSessionLogs(data.sessions || []);
+        setSessionTotal(data.total || 0);
+        setSessionPage(page);
+      }
+    } catch (err) {
+      console.error('Erreur chargement sessions:', err);
+    } finally {
+      setSessionLoading(false);
     }
   };
 
@@ -1382,11 +1476,31 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const fetchServerNotifications = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/notifications?limit=20', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const entries: ServerNotification[] = Array.isArray(data.notifications)
+          ? data.notifications
+          : [];
+        setServerNotifications(entries);
+      }
+    } catch (error) {
+      console.error('Erreur chargement notifications serveur:', error);
+    }
+  }, []);
+
 useEffect(() => {
   if (currentUser) {
     fetchRequests();
+    fetchServerNotifications();
   }
-}, [currentUser, fetchRequests]);
+}, [currentUser, fetchRequests, fetchServerNotifications]);
 
   const markRequestIdentified = async (id: number, profileId?: number) => {
     try {
@@ -1461,6 +1575,28 @@ useEffect(() => {
       }
     } catch (error) {
       console.error('Erreur chargement utilisateurs:', error);
+    }
+  };
+
+  const loadDivisions = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/divisions', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const entries: DivisionEntry[] = Array.isArray(data.divisions) ? data.divisions : [];
+        setDivisions(entries);
+        if (!editingUser) {
+          setUserFormData(prev => ({
+            ...prev,
+            divisionId: prev.divisionId && prev.divisionId > 0 ? prev.divisionId : (entries[0]?.id ?? 0)
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Erreur chargement divisions:', error);
     }
   };
 
@@ -1699,12 +1835,12 @@ useEffect(() => {
     setLoading(true);
 
     try {
+      if (!userFormData.divisionId || userFormData.divisionId <= 0) {
+        alert('Veuillez sélectionner une division');
+        setLoading(false);
+        return;
+      }
       const token = localStorage.getItem('token');
-      console.log('🔍 Création utilisateur - Token:', token ? 'présent' : 'absent');
-      console.log('🔍 Données à envoyer:', {
-        login: userFormData.login,
-        role: userFormData.admin === 1 ? 'ADMIN' : 'USER'
-      });
       
       const response = await fetch('/api/users', {
         method: 'POST',
@@ -1716,17 +1852,23 @@ useEffect(() => {
           login: userFormData.login,
           password: userFormData.password,
           role: userFormData.admin === 1 ? 'ADMIN' : 'USER',
-          active: userFormData.active === 1 ? 1 : 0
+          active: userFormData.active === 1 ? 1 : 0,
+          divisionId: userFormData.divisionId
         })
       });
 
       const data = await response.json();
-      console.log('🔍 Réponse serveur:', { status: response.status, data });
 
       if (response.ok) {
         alert('Utilisateur créé avec succès');
         setShowUserModal(false);
-        setUserFormData({ login: '', password: '', admin: 0, active: 1 });
+        setUserFormData({
+          login: '',
+          password: '',
+          admin: 0,
+          active: 1,
+          divisionId: divisions[0]?.id || 0
+        });
         setEditingUser(null);
         loadUsers();
       } else {
@@ -1758,7 +1900,8 @@ useEffect(() => {
         body: JSON.stringify({
           login: userFormData.login,
           admin: userFormData.admin,
-          active: userFormData.active === 1 ? 1 : 0
+          active: userFormData.active === 1 ? 1 : 0,
+          divisionId: userFormData.divisionId
         })
       });
 
@@ -1767,7 +1910,13 @@ useEffect(() => {
       if (response.ok) {
         alert('Utilisateur modifié avec succès');
         setShowUserModal(false);
-        setUserFormData({ login: '', password: '', admin: 0, active: 1 });
+        setUserFormData({
+          login: '',
+          password: '',
+          admin: 0,
+          active: 1,
+          divisionId: divisions[0]?.id || 0
+        });
         setEditingUser(null);
         loadUsers();
       } else {
@@ -1777,6 +1926,39 @@ useEffect(() => {
       alert('Erreur de connexion au serveur');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateDivision = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDivisionName.trim()) {
+      alert('Veuillez saisir un nom de division');
+      return;
+    }
+    setCreatingDivision(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/divisions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: newDivisionName.trim() })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert('Division créée avec succès');
+        setNewDivisionName('');
+        loadDivisions();
+      } else {
+        alert(data.error || 'Erreur lors de la création de la division');
+      }
+    } catch (error) {
+      console.error('Erreur création division:', error);
+      alert('Erreur de connexion au serveur');
+    } finally {
+      setCreatingDivision(false);
     }
   };
 
@@ -1816,8 +1998,8 @@ useEffect(() => {
       return;
     }
 
-    if (passwordFormData.newPassword.length < 6) {
-      alert('Le nouveau mot de passe doit contenir au moins 6 caractères');
+    if (passwordFormData.newPassword.length < 8) {
+      alert('Le nouveau mot de passe doit contenir au moins 8 caractères');
       return;
     }
 
@@ -1874,14 +2056,21 @@ useEffect(() => {
       login: user.login,
       password: '',
       admin: user.admin,
-      active: user.active
+      active: user.active,
+      divisionId: user.division_id || divisions[0]?.id || 0
     });
     setShowUserModal(true);
   };
 
   const openCreateModal = () => {
     setEditingUser(null);
-    setUserFormData({ login: '', password: '', admin: 0, active: 1 });
+    setUserFormData({
+      login: '',
+      password: '',
+      admin: 0,
+      active: 1,
+      divisionId: divisions[0]?.id || 0
+    });
     setShowUserModal(true);
   };
 
@@ -2259,10 +2448,143 @@ useEffect(() => {
       });
       if (res.ok) {
         const data = await res.json();
-        setCases(data);
+        const normalized = Array.isArray(data)
+          ? data.map((item: any) => ({
+              ...item,
+              is_owner: item?.is_owner === 1 || item?.is_owner === true,
+              shared_with_me: Boolean(item?.shared_with_me),
+              shared_user_ids: Array.isArray(item?.shared_user_ids) ? item.shared_user_ids : []
+            }))
+          : [];
+        setCases(normalized);
+        if (pendingShareCaseId) {
+          const target = normalized.find((item) => item.id === pendingShareCaseId);
+          if (target) {
+            setSelectedCase(target);
+            setCurrentPage('cdr-case');
+          }
+          setPendingShareCaseId(null);
+        }
       }
     } catch (error) {
       console.error('Erreur chargement cases:', error);
+    }
+  };
+
+  const openShareModalForCase = async (cdrCase: CdrCase) => {
+    setShareTargetCase(cdrCase);
+    setShareMessage('');
+    setShareSelectedUserIds([]);
+    setShareAllUsers(false);
+    setShareDivisionUsers([]);
+    setShareOwnerId(null);
+    setShowShareModal(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/cases/${cdrCase.id}/share`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const users: CaseShareUser[] = Array.isArray(data.users) ? data.users : [];
+        const recipients: number[] = Array.isArray(data.recipients) ? data.recipients : [];
+        const ownerId = typeof data.owner?.id === 'number' ? data.owner.id : null;
+        setShareDivisionUsers(users);
+        setShareSelectedUserIds(recipients);
+        setShareOwnerId(ownerId);
+        const eligibleIds = users.filter((user) => user.id !== ownerId).map((user) => user.id);
+        setShareAllUsers(
+          eligibleIds.length > 0 && eligibleIds.every((id) => recipients.includes(id))
+        );
+      } else {
+        setShareMessage(data.error || "Erreur lors du chargement des informations de partage");
+      }
+    } catch (error) {
+      console.error('Erreur chargement informations partage:', error);
+      setShareMessage('Erreur lors du chargement des informations de partage');
+    }
+  };
+
+  const toggleShareUser = (userId: number) => {
+    setShareSelectedUserIds((prev) => {
+      if (prev.includes(userId)) {
+        return prev.filter((id) => id !== userId);
+      }
+      return [...prev, userId];
+    });
+    setShareAllUsers(false);
+  };
+
+  const toggleShareAllUsers = () => {
+    const availableIds = shareDivisionUsers
+      .filter((user) => user.id !== shareOwnerId)
+      .map((user) => user.id);
+    if (shareAllUsers) {
+      setShareSelectedUserIds([]);
+      setShareAllUsers(false);
+    } else {
+      setShareSelectedUserIds(availableIds);
+      setShareAllUsers(true);
+    }
+  };
+
+  const handleSubmitShare = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!shareTargetCase) return;
+    setShareLoading(true);
+    setShareMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/cases/${shareTargetCase.id}/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({
+          shareAll: shareAllUsers,
+          userIds: shareAllUsers ? [] : shareSelectedUserIds
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setShareMessage('Partage mis à jour');
+        const recipients: number[] = Array.isArray(data.recipients) ? data.recipients : [];
+        setShareSelectedUserIds(recipients);
+        if (shareAllUsers) {
+          const availableIds = shareDivisionUsers
+            .filter((user) => user.id !== shareOwnerId)
+            .map((user) => user.id);
+          setShareAllUsers(
+            availableIds.length > 0 && availableIds.every((id) => recipients.includes(id))
+          );
+        }
+        fetchCases();
+      } else {
+        setShareMessage(data.error || "Erreur lors de la mise à jour du partage");
+      }
+    } catch (error) {
+      console.error('Erreur partage opération:', error);
+      setShareMessage('Erreur lors de la mise à jour du partage');
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const markServerNotificationAsRead = async (notificationId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`/api/notifications/${notificationId}/read`, {
+        method: 'POST',
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      setServerNotifications((prev) =>
+        prev.map((notif) =>
+          notif.id === notificationId ? { ...notif, read_at: new Date().toISOString() } : notif
+        )
+      );
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la notification:', error);
     }
   };
 
@@ -2421,6 +2743,7 @@ useEffect(() => {
   useEffect(() => {
     if (currentPage === 'users' && isAdmin) {
       loadUsers();
+      loadDivisions();
     }
     if (currentPage === 'dashboard' && currentUser) {
       loadStatistics();
@@ -2457,8 +2780,9 @@ useEffect(() => {
   useEffect(() => {
     if (currentPage === 'logs' && isAdmin) {
       fetchLogs(1);
+      fetchSessions(1);
     }
-  }, [currentPage, isAdmin]);
+  }, [currentPage, isAdmin, fetchSessions]);
 
   const notifications = useMemo<NotificationItem[]>(() => {
     if (!currentUser) {
@@ -2477,7 +2801,8 @@ useEffect(() => {
           message: 'Nouvelle demande d\'identification',
           description: request.user_login
             ? `Envoyée par ${request.user_login}`
-            : 'Demande en attente de traitement'
+            : 'Demande en attente de traitement',
+          type: 'request'
         });
       }
 
@@ -2492,18 +2817,47 @@ useEffect(() => {
           phone: request.phone,
           status: 'identified',
           message: 'Identification terminée',
-          description: `Le numéro ${request.phone} a été identifié`
+          description: `Le numéro ${request.phone} a été identifié`,
+          type: 'request'
         });
       }
     });
 
+    serverNotifications.forEach((notif) => {
+      if (notif.type === 'case_shared' && notif.data) {
+        const caseId = typeof notif.data.caseId === 'number' ? notif.data.caseId : undefined;
+        const caseName = typeof notif.data.caseName === 'string' ? notif.data.caseName : '';
+        const ownerLogin = typeof notif.data.owner === 'string' ? notif.data.owner : '';
+        if (caseId) {
+          items.push({
+            id: `share-${notif.id}`,
+            notificationId: notif.id,
+            caseId,
+            status: 'pending',
+            message: 'Nouvelle opération partagée',
+            description: caseName
+              ? ownerLogin
+                ? `"${caseName}" partagé par ${ownerLogin}`
+                : `"${caseName}" est disponible`
+              : 'Une opération a été partagée avec vous',
+            type: 'case_shared',
+            read: Boolean(notif.read_at)
+          });
+        }
+      }
+    });
+
     return items
-      .sort((a, b) => b.requestId - a.requestId)
+      .sort((a, b) => {
+        const idA = a.requestId ?? a.notificationId ?? 0;
+        const idB = b.requestId ?? b.notificationId ?? 0;
+        return idB - idA;
+      })
       .slice(0, 20);
-  }, [currentUser, requests, isAdmin]);
+  }, [currentUser, requests, isAdmin, serverNotifications]);
 
   const notificationCount = notifications.filter(
-    (notification) => !readNotifications.includes(notification.id)
+    (notification) => !notification.read && !readNotifications.includes(notification.id)
   ).length;
   const totalNotifications = notifications.length;
 
@@ -2511,9 +2865,10 @@ useEffect(() => {
     if (!currentUser) return;
     const interval = setInterval(() => {
       fetchRequests();
+      fetchServerNotifications();
     }, 60000);
     return () => clearInterval(interval);
-  }, [currentUser, fetchRequests]);
+  }, [currentUser, fetchRequests, fetchServerNotifications]);
 
   const handleNotificationClick = () => {
     setShowNotifications(prev => !prev);
@@ -2523,6 +2878,26 @@ useEffect(() => {
     setReadNotifications(prev =>
       prev.includes(notification.id) ? prev : [...prev, notification.id]
     );
+    if (notification.type === 'case_shared') {
+      if (notification.notificationId) {
+        markServerNotificationAsRead(notification.notificationId);
+      }
+      setShowNotifications(false);
+      if (notification.caseId) {
+        const match = cases.find((c) => c.id === notification.caseId);
+        if (match) {
+          setSelectedCase(match);
+          setCurrentPage('cdr-case');
+        } else {
+          setPendingShareCaseId(notification.caseId);
+          fetchCases();
+          setCurrentPage('cdr');
+        }
+      } else {
+        setCurrentPage('cdr');
+      }
+      return;
+    }
     setShowNotifications(false);
     setCurrentPage('requests');
     setHighlightedRequestId(notification.requestId);
@@ -3402,7 +3777,7 @@ useEffect(() => {
                         </div>
                       ) : (
                         notifications.map(notification => {
-                          const isUnread = !readNotifications.includes(notification.id);
+                          const isUnread = !notification.read && !readNotifications.includes(notification.id);
                           return (
                             <button
                               key={notification.id}
@@ -3442,11 +3817,13 @@ useEffect(() => {
                                 <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                                   {notification.description}
                                 </div>
-                                <div className="mt-2 inline-flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                                  <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
-                                    {notification.phone}
-                                  </span>
-                                </div>
+                                {notification.phone && (
+                                  <div className="mt-2 inline-flex items-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+                                      {notification.phone}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </button>
                           );
@@ -4278,6 +4655,11 @@ useEffect(() => {
                           <p className="text-sm text-gray-500 mb-2">Utilisateur : {c.user_login}</p>
                         )}
                         <h4 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{c.name}</h4>
+                        {!c.is_owner && c.shared_with_me && (
+                          <span className="mb-4 inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                            Partagée avec vous
+                          </span>
+                        )}
                         <div className="mt-auto flex flex-col sm:flex-row gap-2">
                           <button
                             className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -4299,6 +4681,14 @@ useEffect(() => {
                             <Download className="w-4 h-4" />
                             <span>Exporter rapport en PDF</span>
                           </button>
+                          {(isAdmin || c.is_owner) && (
+                            <button
+                              className="flex-1 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                              onClick={() => openShareModalForCase(c)}
+                            >
+                              Partager
+                            </button>
+                          )}
                           <button
                             className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                             onClick={() => handleDeleteCase(c.id)}
@@ -4749,7 +5139,10 @@ useEffect(() => {
                   className="flex-1 rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm text-slate-800 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/70 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
                 />
                 <button
-                  onClick={() => fetchLogs(1)}
+                  onClick={() => {
+                    fetchLogs(1);
+                    fetchSessions(1);
+                  }}
                   className="ml-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-transform hover:-translate-y-0.5"
                 >
                   Rechercher
@@ -4910,6 +5303,66 @@ useEffect(() => {
                   </button>
                 </div>
               </div>
+              <div className="mt-8 rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
+                <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-emerald-500" />
+                  Sessions utilisateur
+                </h4>
+                <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-inner dark:bg-slate-900/60 dark:border-slate-700/60">
+                  <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                    <thead className="bg-slate-100/80 dark:bg-slate-800/80">
+                      <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                        <th className="px-6 py-3">Utilisateur</th>
+                        <th className="px-6 py-3">Connexion</th>
+                        <th className="px-6 py-3">Déconnexion</th>
+                        <th className="px-6 py-3">Durée</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                      {sessionLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="px-6 py-4 text-center text-sm text-slate-500 dark:text-slate-300">
+                            Aucune session enregistrée.
+                          </td>
+                        </tr>
+                      ) : (
+                        sessionLogs.map((session) => {
+                          const loginAt = session.login_at ? format(parseISO(session.login_at), 'Pp', { locale: fr }) : '-';
+                          const logoutAt = session.logout_at ? format(parseISO(session.logout_at), 'Pp', { locale: fr }) : 'Session active';
+                          const durationMinutes = Math.max(0, Math.round((session.duration_seconds ?? 0) / 60));
+                          return (
+                            <tr key={session.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">{session.username}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{loginAt}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{logoutAt}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">{durationMinutes} min</td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4 flex items-center justify-between">
+                  <button
+                    onClick={() => fetchSessions(sessionPage - 1)}
+                    disabled={sessionPage <= 1 || sessionLoading}
+                    className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    Précédent
+                  </button>
+                  <span className="text-sm text-slate-500 dark:text-slate-300">
+                    Page {sessionPage} sur {Math.max(1, Math.ceil(sessionTotal / LOGS_LIMIT))}
+                  </span>
+                  <button
+                    onClick={() => fetchSessions(sessionPage + 1)}
+                    disabled={sessionPage >= Math.ceil(sessionTotal / LOGS_LIMIT) || sessionLoading}
+                    className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    Suivant
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -4926,6 +5379,28 @@ useEffect(() => {
                   <Plus className="w-5 h-5 mr-2" />
                   Nouvel utilisateur
                 </button>
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 gap-4">
+                <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-lg shadow-slate-200/80 dark:bg-slate-900/70 dark:border-slate-700/60">
+                  <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">Créer une nouvelle division</h4>
+                  <form onSubmit={handleCreateDivision} className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      value={newDivisionName}
+                      onChange={(e) => setNewDivisionName(e.target.value)}
+                      placeholder="Nom de la division"
+                      className="flex-1 rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm text-slate-800 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/70 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
+                    />
+                    <button
+                      type="submit"
+                      disabled={creatingDivision}
+                      className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition-transform hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {creatingDivision ? 'Création...' : 'Créer la division'}
+                    </button>
+                  </form>
+                </div>
               </div>
 
               {/* Table des utilisateurs */}
@@ -4955,6 +5430,9 @@ useEffect(() => {
                           </th>
                           <th className="px-6 py-4">
                             Rôle
+                          </th>
+                          <th className="px-6 py-4">
+                            Division
                           </th>
                           <th className="px-6 py-4">
                             Statut
@@ -4996,6 +5474,9 @@ useEffect(() => {
                                   Utilisateur
                                 </span>
                               )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">
+                              {user.division_name || '—'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               {user.active === 1 ? (
@@ -5562,12 +6043,12 @@ useEffect(() => {
                   <input
                     type="password"
                     required
-                    minLength={6}
+                    minLength={8}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     value={userFormData.password}
                     onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
                   />
-                  <p className="mt-1 text-sm text-gray-500">Minimum 6 caractères</p>
+                  <p className="mt-1 text-sm text-gray-500">Minimum 8 caractères</p>
                 </div>
               )}
 
@@ -5580,6 +6061,26 @@ useEffect(() => {
                 >
                   <option value={0}>Utilisateur</option>
                   <option value={1}>Administrateur</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Division</label>
+                <select
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={userFormData.divisionId}
+                  onChange={(e) => setUserFormData({ ...userFormData, divisionId: parseInt(e.target.value) })}
+                  required
+                >
+                  {divisions.length === 0 ? (
+                    <option value={0}>Aucune division disponible</option>
+                  ) : (
+                    divisions.map((division) => (
+                      <option key={division.id} value={division.id}>
+                        {division.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -5601,7 +6102,13 @@ useEffect(() => {
                   onClick={() => {
                     setShowUserModal(false);
                     setEditingUser(null);
-                    setUserFormData({ login: '', password: '', admin: 0, active: 1 });
+                    setUserFormData({
+                      login: '',
+                      password: '',
+                      admin: 0,
+                      active: 1,
+                      divisionId: divisions[0]?.id || 0
+                    });
                   }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >
@@ -5613,6 +6120,100 @@ useEffect(() => {
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
                 >
                   {loading ? 'Enregistrement...' : (editingUser ? 'Modifier' : 'Créer')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de partage d'opération */}
+      {showShareModal && shareTargetCase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900/95">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  Partager l'opération
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {shareTargetCase.name}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowShareModal(false);
+                  setShareTargetCase(null);
+                }}
+                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmitShare} className="space-y-5 px-6 py-5">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Sélectionnez les membres de la division pour partager cette opération. Seuls les utilisateurs actifs de la division peuvent être sélectionnés.
+              </p>
+              <label className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-800/60 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={shareAllUsers}
+                  onChange={toggleShareAllUsers}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Partager avec tous les membres de la division
+              </label>
+              <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200/80 bg-white/80 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
+                {shareDivisionUsers.length === 0 ? (
+                  <div className="p-4 text-sm text-slate-500 dark:text-slate-300">
+                    Aucun utilisateur disponible dans cette division.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                    {shareDivisionUsers.map((member) => {
+                      const disabled = member.id === shareOwnerId;
+                      const checked = shareAllUsers || shareSelectedUserIds.includes(member.id);
+                      return (
+                        <li key={member.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                          <label className={`flex items-center gap-3 ${disabled ? 'opacity-60' : ''}`}>
+                            <input
+                              type="checkbox"
+                              disabled={disabled}
+                              checked={disabled ? true : checked}
+                              onChange={() => toggleShareUser(member.id)}
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-slate-700 dark:text-slate-200">{member.login}</span>
+                          </label>
+                          <span className="text-xs text-slate-400 dark:text-slate-500">
+                            {disabled ? 'Responsable' : member.active === 1 ? 'Actif' : 'Inactif'}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+              {shareMessage && (
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">{shareMessage}</p>
+              )}
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowShareModal(false);
+                    setShareTargetCase(null);
+                  }}
+                  className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  Fermer
+                </button>
+                <button
+                  type="submit"
+                  disabled={shareLoading}
+                  className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {shareLoading ? 'Enregistrement...' : 'Enregistrer le partage'}
                 </button>
               </div>
             </form>
@@ -5663,7 +6264,7 @@ useEffect(() => {
                   <input
                     type={showPasswords.new ? 'text' : 'password'}
                     required
-                    minLength={6}
+                    minLength={8}
                     className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     value={passwordFormData.newPassword}
                     onChange={(e) => setPasswordFormData({ ...passwordFormData, newPassword: e.target.value })}
@@ -5680,7 +6281,7 @@ useEffect(() => {
                     )}
                   </button>
                 </div>
-                <p className="mt-1 text-sm text-gray-500">Minimum 6 caractères</p>
+                <p className="mt-1 text-sm text-gray-500">Minimum 8 caractères</p>
               </div>
 
               <div>
@@ -5689,7 +6290,7 @@ useEffect(() => {
                   <input
                     type={showPasswords.confirm ? 'text' : 'password'}
                     required
-                    minLength={6}
+                    minLength={8}
                     className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     value={passwordFormData.confirmPassword}
                     onChange={(e) => setPasswordFormData({ ...passwordFormData, confirmPassword: e.target.value })}

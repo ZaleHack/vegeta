@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import UserLog from '../models/UserLog.js';
+import UserSession from '../models/UserSession.js';
 
 const router = express.Router();
 
@@ -46,6 +47,23 @@ router.get('/export', authenticate, async (req, res) => {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="logs.csv"');
   res.send(csv);
+});
+
+router.get('/sessions', authenticate, async (req, res) => {
+  const isAdmin = req.user?.admin === 1 || req.user?.admin === '1' || req.user?.admin === true;
+  if (!isAdmin) return res.status(403).json({ error: 'Accès refusé' });
+
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const username = typeof req.query.username === 'string' ? req.query.username : '';
+
+  try {
+    const { rows, total } = await UserSession.getSessions(page, limit, { username });
+    res.json({ sessions: rows, total });
+  } catch (error) {
+    console.error('Erreur récupération sessions utilisateurs:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des sessions' });
+  }
 });
 
 export default router;

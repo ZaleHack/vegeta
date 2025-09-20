@@ -46,7 +46,15 @@ class DatabaseManager {
 
   async createSystemTables() {
     try {
-      // Créer la table users
+      // Créer les tables de division et des utilisateurs
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.divisions (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL UNIQUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.users (
           id INT AUTO_INCREMENT PRIMARY KEY,
@@ -54,8 +62,11 @@ class DatabaseManager {
           mdp VARCHAR(255) NOT NULL,
           admin TINYINT(1) DEFAULT 0,
           active TINYINT(1) DEFAULT 1,
+          division_id INT DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_division_id (division_id),
+          CONSTRAINT fk_users_division FOREIGN KEY (division_id) REFERENCES autres.divisions(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
@@ -72,6 +83,74 @@ class DatabaseManager {
           `);
         } catch (error) {
           if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+          }
+        }
+      }
+
+      const hasDivision = await this.queryOne(`
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'division_id'
+      `);
+
+      if (!hasDivision) {
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD COLUMN division_id INT NULL AFTER active
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+          }
+        }
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD CONSTRAINT fk_users_division FOREIGN KEY (division_id)
+              REFERENCES autres.divisions(id) ON DELETE SET NULL
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_KEYNAME' && error.code !== 'ER_CANT_CREATE_TABLE') {
+            throw error;
+          }
+        }
+      }
+
+      const defaultDivisions = [
+        'Division Cybersecurité',
+        'Division Analyse',
+        'Division Digitale',
+        'Division Recherche Opération',
+        'Division Protection'
+      ];
+
+      for (const name of defaultDivisions) {
+        await this.query(
+          `INSERT INTO autres.divisions (name)
+           SELECT ? FROM DUAL WHERE NOT EXISTS (
+             SELECT 1 FROM autres.divisions WHERE name = ?
+           )`,
+          [name, name]
+        );
+      }
+
+      const fallbackDivision = await this.queryOne(
+        `SELECT id FROM autres.divisions ORDER BY id ASC LIMIT 1`
+      );
+
+      if (fallbackDivision?.id) {
+        await this.pool.execute(
+          `UPDATE autres.users SET division_id = ? WHERE division_id IS NULL`,
+          [fallbackDivision.id]
+        );
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            MODIFY COLUMN division_id INT NOT NULL
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_CANT_CREATE_TABLE') {
             throw error;
           }
         }
@@ -228,6 +307,20 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.cdr_case_shares (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          case_id INT NOT NULL,
+          user_id INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uniq_case_user (case_id, user_id),
+          INDEX idx_share_case (case_id),
+          INDEX idx_share_user (user_id),
+          FOREIGN KEY (case_id) REFERENCES autres.cdr_cases(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
       // Table des fichiers importés par dossier
       await this.query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_case_files (
@@ -277,6 +370,33 @@ class DatabaseManager {
           INDEX idx_imei_appele (imei_appele),
           FOREIGN KEY (case_id) REFERENCES autres.cdr_cases(id) ON DELETE CASCADE,
           FOREIGN KEY (file_id) REFERENCES autres.cdr_case_files(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.notifications (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          data TEXT DEFAULT NULL,
+          read_at TIMESTAMP NULL DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_notification_user (user_id),
+          INDEX idx_notification_read (user_id, read_at),
+          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.user_sessions (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          login_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          logout_at TIMESTAMP NULL DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_session_user (user_id),
+          INDEX idx_session_login (login_at),
+          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 

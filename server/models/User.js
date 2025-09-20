@@ -4,12 +4,12 @@ import database from '../config/database.js';
 
 class User {
   static async create(userData) {
-    const { login, mdp, admin = 0, active = 1 } = userData;
+    const { login, mdp, admin = 0, active = 1, division_id } = userData;
     const hashedPassword = await bcrypt.hash(mdp, 12);
 
     const result = await database.query(
-      'INSERT INTO autres.users (login, mdp, admin, active) VALUES (?, ?, ?, ?)',
-      [login, hashedPassword, admin, active]
+      'INSERT INTO autres.users (login, mdp, admin, active, division_id) VALUES (?, ?, ?, ?, ?)',
+      [login, hashedPassword, admin, active, division_id]
     );
 
     return {
@@ -17,13 +17,17 @@ class User {
       login,
       mdp: hashedPassword,
       admin,
-      active
+      active,
+      division_id
     };
   }
 
   static async findById(id) {
     return await database.queryOne(
-      'SELECT * FROM autres.users WHERE id = ?',
+      `SELECT u.*, d.name AS division_name
+       FROM autres.users u
+       LEFT JOIN autres.divisions d ON u.division_id = d.id
+       WHERE u.id = ?`,
       [id]
     );
   }
@@ -31,7 +35,10 @@ class User {
   static async findByLogin(login) {
     try {
       const user = await database.queryOne(
-        'SELECT * FROM autres.users WHERE login = ?',
+        `SELECT u.*, d.name AS division_name
+         FROM autres.users u
+         LEFT JOIN autres.divisions d ON u.division_id = d.id
+         WHERE u.login = ?`,
         [login]
       );
       return user;
@@ -63,7 +70,10 @@ class User {
 
   static async findAll() {
     return await database.query(
-      'SELECT id, login, admin, active FROM autres.users ORDER BY id DESC'
+      `SELECT u.id, u.login, u.admin, u.active, u.created_at, u.division_id, d.name AS division_name
+       FROM autres.users u
+       LEFT JOIN autres.divisions d ON u.division_id = d.id
+       ORDER BY u.id DESC`
     );
   }
 
@@ -76,6 +86,9 @@ class User {
         if (key === 'mdp') {
           fields.push('mdp = ?');
           values.push(bcrypt.hashSync(userData[key], 12));
+        } else if (key === 'division_id') {
+          fields.push('division_id = ?');
+          values.push(userData[key]);
         } else {
           fields.push(`${key} = ?`);
           values.push(userData[key]);
@@ -91,7 +104,7 @@ class User {
       `UPDATE autres.users SET ${fields.join(', ')} WHERE id = ?`,
       values
     );
-    
+
     return await this.findById(id);
   }
 
