@@ -14,10 +14,22 @@ const ensureUserExists = async userId => {
 class UserLog {
   static async create({ user_id, action, details = null, duration_ms = null }) {
     const safeUserId = await ensureUserExists(user_id);
-    await database.query(
-      `INSERT INTO autres.user_logs (user_id, action, details, duration_ms) VALUES (?, ?, ?, ?)`,
-      [safeUserId, action, details, duration_ms]
-    );
+
+    try {
+      await database.query(
+        `INSERT INTO autres.user_logs (user_id, action, details, duration_ms) VALUES (?, ?, ?, ?)`,
+        [safeUserId, action, details, duration_ms]
+      );
+    } catch (error) {
+      if (error?.code === 'ER_NO_REFERENCED_ROW_2') {
+        await database.query(
+          `INSERT INTO autres.user_logs (user_id, action, details, duration_ms) VALUES (?, ?, ?, ?)`,
+          [null, action, details, duration_ms]
+        );
+        return;
+      }
+      throw error;
+    }
   }
 
   static async getLogs(page = 1, limit = 20, username = '', userId = null) {
