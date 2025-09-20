@@ -2,32 +2,32 @@
 
 @layer base {
   body {
-    @apply m-0 bg-gray-50 text-gray-900;
+    @apply m-0 bg-slate-100 text-slate-900 antialiased;
   }
   .dark body {
-    @apply bg-gray-900 text-gray-100;
+    @apply bg-slate-950 text-slate-100 antialiased;
   }
   form {
-    @apply bg-white rounded-xl shadow-md;
+    @apply bg-white/95 rounded-2xl shadow-xl shadow-slate-200/80 backdrop-blur;
   }
   .dark form {
-    @apply bg-gray-800 rounded-xl shadow-md;
+    @apply bg-slate-900/80 rounded-2xl shadow-2xl shadow-black/40 backdrop-blur;
   }
   input,
   textarea,
   select {
-    @apply bg-gray-50 text-gray-900 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500;
+    @apply bg-white text-slate-900 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:border-transparent;
   }
   button {
-    @apply bg-white text-gray-900 rounded-lg;
+    @apply rounded-xl font-medium;
   }
   .dark button {
-    @apply bg-gray-800 text-gray-100 rounded-lg;
+    @apply rounded-xl font-medium;
   }
   .dark input,
   .dark textarea,
   .dark select {
-    @apply bg-gray-800 text-gray-100 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500;
+    @apply bg-slate-900 text-slate-100 rounded-xl placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/60;
   }
   .dark .btn-primary {
     @apply bg-blue-600 text-white;
@@ -38,22 +38,22 @@
 @tailwind utilities;
 
 @layer components {
-    .dark .text-gray-600 { @apply text-gray-300; }
-    .dark .text-gray-700 { @apply text-gray-300; }
-    .dark .text-gray-500 { @apply text-gray-400; }
-  .dark .bg-gray-50 { @apply bg-gray-800; }
-  .dark .bg-white { @apply bg-gray-800; }
-  .dark .bg-white\/20 { @apply bg-gray-800/20; }
-  .dark .bg-white\/60 { @apply bg-gray-800/60; }
-  .dark .bg-white\/70 { @apply bg-gray-800/70; }
-  .dark .bg-white\/80 { @apply bg-gray-800/80; }
-  .dark .bg-white\/90 { @apply bg-gray-800/90; }
-  .dark .border-gray-100 { @apply border-gray-700; }
-  .dark .border-gray-200 { @apply border-gray-700; }
-  .dark .border-gray-300 { @apply border-gray-600; }
-  .dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { @apply divide-gray-700; }
-  .dark .hover\:bg-gray-100:hover { @apply bg-gray-700; }
-  .dark .hover\:bg-gray-50:hover { @apply bg-gray-700; }
+    .dark .text-gray-600 { @apply text-slate-300; }
+    .dark .text-gray-700 { @apply text-slate-300; }
+    .dark .text-gray-500 { @apply text-slate-400; }
+  .dark .bg-gray-50 { @apply bg-slate-900; }
+  .dark .bg-white { @apply bg-slate-900; }
+  .dark .bg-white\/20 { @apply bg-slate-900/20; }
+  .dark .bg-white\/60 { @apply bg-slate-900/60; }
+  .dark .bg-white\/70 { @apply bg-slate-900/70; }
+  .dark .bg-white\/80 { @apply bg-slate-900/80; }
+  .dark .bg-white\/90 { @apply bg-slate-900/90; }
+  .dark .border-gray-100 { @apply border-slate-700; }
+  .dark .border-gray-200 { @apply border-slate-700; }
+  .dark .border-gray-300 { @apply border-slate-600; }
+  .dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { @apply divide-slate-700; }
+  .dark .hover\:bg-gray-100:hover { @apply bg-slate-800; }
+  .dark .hover\:bg-gray-50:hover { @apply bg-slate-800; }
 }
 
 @keyframes loading-bar {
