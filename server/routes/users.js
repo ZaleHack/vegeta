@@ -1,5 +1,6 @@
 import express from 'express';
 import User from '../models/User.js';
+import Division from '../models/Division.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -44,19 +45,29 @@ router.get('/:id', authenticate, requireAdmin, async (req, res) => {
 // Créer un nouvel utilisateur (ADMIN seulement)
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { login, password, role = 'USER', active = true } = req.body;
+    const { login, password, role = 'USER', active = true, divisionId } = req.body;
 
     if (!login || !password) {
       return res.status(400).json({ error: 'Login et mot de passe requis' });
     }
 
     if (password.length < 8) {
-      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères' });
+      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
     }
 
     const allowedRoles = ['ADMIN', 'USER'];
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({ error: 'Rôle invalide' });
+    }
+
+    const division_id = Number(divisionId);
+    if (!Number.isInteger(division_id) || division_id <= 0) {
+      return res.status(400).json({ error: 'Division invalide' });
+    }
+
+    const division = await Division.findById(division_id);
+    if (!division) {
+      return res.status(400).json({ error: 'Division inexistante' });
     }
 
     // Vérifier l'unicité
@@ -67,13 +78,14 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 
     // Créer l'utilisateur
     const admin = role === 'ADMIN' ? 1 : 0;
-    const newUser = await User.create({ login, mdp: password, admin, active: active ? 1 : 0 });
-    
+    const newUser = await User.create({ login, mdp: password, admin, active: active ? 1 : 0, division_id });
+
     const { mdp, ...userResponse } = newUser;
-    res.status(201).json({ 
+    res.status(201).json({
       message: 'Utilisateur créé avec succès',
       user: {
         ...userResponse,
+        division_name: division.name,
         role: admin === 1 ? 'ADMIN' : 'USER'
       }
     });
@@ -87,7 +99,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const { login, admin, password, active } = req.body;
+    const { login, admin, password, active, divisionId } = req.body;
 
     if (isNaN(userId)) {
       return res.status(400).json({ error: 'ID utilisateur invalide' });
@@ -102,6 +114,18 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
         return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
       }
       updates.mdp = password;
+    }
+
+    if (divisionId !== undefined) {
+      const division_id = Number(divisionId);
+      if (!Number.isInteger(division_id) || division_id <= 0) {
+        return res.status(400).json({ error: 'Division invalide' });
+      }
+      const division = await Division.findById(division_id);
+      if (!division) {
+        return res.status(400).json({ error: 'Division inexistante' });
+      }
+      updates.division_id = division_id;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -128,9 +152,9 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
     }
 
     const { mdp, ...userResponse } = updatedUser;
-    res.json({ 
+    res.json({
       message: 'Utilisateur mis à jour avec succès',
-      user: userResponse 
+      user: userResponse
     });
   } catch (error) {
     console.error('Erreur mise à jour utilisateur:', error);

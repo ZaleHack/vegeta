@@ -23,6 +23,8 @@ import requestsRoutes from './routes/requests.js';
 import identifiedNumbersRoutes from './routes/identified-numbers.js';
 import blacklistRoutes from './routes/blacklist.js';
 import logsRoutes from './routes/logs.js';
+import divisionsRoutes from './routes/divisions.js';
+import notificationsRoutes from './routes/notifications.js';
 import { authenticate } from './middleware/auth.js';
 
 // Initialisation de la base de données
@@ -98,6 +100,8 @@ app.use('/api/requests', requestsRoutes);
 app.use('/api/identified-numbers', identifiedNumbersRoutes);
 app.use('/api/blacklist', blacklistRoutes);
 app.use('/api/logs', logsRoutes);
+app.use('/api/divisions', divisionsRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {

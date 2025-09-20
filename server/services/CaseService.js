@@ -4,6 +4,9 @@ import { PassThrough } from 'stream';
 import Case from '../models/Case.js';
 import CdrService from './CdrService.js';
 import User from '../models/User.js';
+import CaseShare from '../models/CaseShare.js';
+import Division from '../models/Division.js';
+import Notification from '../models/Notification.js';
 
 const ALLOWED_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 
@@ -45,17 +48,115 @@ class CaseService {
   }
 
   async getCaseById(id, user) {
-    const c = await Case.findById(id);
-    if (!c) return null;
-    if (!this._isAdmin(user) && c.user_id !== user.id) return null;
-    return c;
+    if (this._isAdmin(user)) {
+      return await Case.findById(id);
+    }
+    return await Case.findByIdForUser(id, user.id);
   }
 
   async listCases(user) {
     if (this._isAdmin(user)) {
-      return await Case.findAll();
+      const cases = await Case.findAll();
+      const shareMap = await CaseShare.getSharesForCases(cases.map((c) => c.id));
+      return cases.map((c) => ({
+        ...c,
+        is_owner: c.user_id === user.id ? 1 : 0,
+        shared_user_ids: shareMap.get(c.id) || [],
+        shared_with_me: false
+      }));
     }
-    return await Case.findAllByUser(user.id);
+    const cases = await Case.findAllForUser(user.id);
+    const ownedCaseIds = cases.filter((c) => c.is_owner === 1 || c.is_owner === true).map((c) => c.id);
+    const shareMap = await CaseShare.getSharesForCases(ownedCaseIds);
+    return cases.map((c) => ({
+      ...c,
+      shared_user_ids: (c.is_owner === 1 || c.is_owner === true) ? (shareMap.get(c.id) || []) : undefined,
+      shared_with_me: !(c.is_owner === 1 || c.is_owner === true)
+    }));
+  }
+
+  async getShareInfo(caseId, user) {
+    const existingCase = await Case.findById(caseId);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
+
+    const isOwner = existingCase.user_id === user.id;
+    const isAdmin = this._isAdmin(user);
+
+    if (!isOwner && !isAdmin) {
+      throw new Error('Forbidden');
+    }
+
+    const owner = await User.findById(existingCase.user_id);
+    const divisionId = owner?.division_id || null;
+    const divisionUsers = divisionId ? await Division.findUsers(divisionId, { includeInactive: false }) : [];
+    const recipientIds = await CaseShare.getUserIds(caseId);
+
+    return {
+      divisionId,
+      owner: { id: owner?.id, login: owner?.login },
+      recipients: recipientIds,
+      users: divisionUsers
+    };
+  }
+
+  async shareCase(caseId, user, { userIds = [], shareAll = false } = {}) {
+    const existingCase = await Case.findById(caseId);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
+
+    const isOwner = existingCase.user_id === user.id;
+    const isAdmin = this._isAdmin(user);
+
+    if (!isOwner && !isAdmin) {
+      throw new Error('Forbidden');
+    }
+
+    const owner = await User.findById(existingCase.user_id);
+    const divisionId = owner?.division_id;
+
+    if (!divisionId) {
+      throw new Error('Division not found for owner');
+    }
+
+    const divisionUsers = await Division.findUsers(divisionId, { includeInactive: false });
+    const allowedIds = divisionUsers
+      .filter((u) => u.id !== owner.id)
+      .map((u) => u.id);
+
+    const targetIds = shareAll
+      ? allowedIds
+      : Array.isArray(userIds)
+        ? userIds
+            .map((id) => Number(id))
+            .filter((id) => Number.isInteger(id) && id > 0 && allowedIds.includes(id))
+        : [];
+
+    const { added, removed } = await CaseShare.replaceShares(caseId, targetIds);
+
+    if (added.length > 0) {
+      for (const addedId of added) {
+        const data = {
+          caseId,
+          caseName: existingCase.name,
+          owner: owner?.login || '',
+          divisionId
+        };
+        try {
+          await Notification.create({ user_id: addedId, type: 'case_shared', data });
+        } catch (error) {
+          console.error('Erreur création notification partage opération:', error);
+        }
+      }
+    }
+
+    return {
+      added,
+      removed,
+      recipients: targetIds
+    };
   }
 
   async importFile(caseId, filePath, originalName, user, cdrNumber) {

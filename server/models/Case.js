@@ -10,11 +10,14 @@ class Case {
   }
 
   static async findById(id) {
-    const rows = await database.query(
-      'SELECT * FROM autres.cdr_cases WHERE id = ?',
+    return await database.queryOne(
+      `SELECT c.*, u.login AS user_login, u.division_id, d.name AS division_name
+       FROM autres.cdr_cases c
+       JOIN autres.users u ON c.user_id = u.id
+       LEFT JOIN autres.divisions d ON u.division_id = d.id
+       WHERE c.id = ?`,
       [id]
     );
-    return rows[0] || null;
   }
 
   static async findAllByUser(userId) {
@@ -26,8 +29,48 @@ class Case {
 
   static async findAll() {
     return await database.query(
-      'SELECT c.*, u.login AS user_login FROM autres.cdr_cases c JOIN autres.users u ON c.user_id = u.id ORDER BY c.created_at DESC'
+      `SELECT c.*, u.login AS user_login, u.division_id, d.name AS division_name
+       FROM autres.cdr_cases c
+       JOIN autres.users u ON c.user_id = u.id
+       LEFT JOIN autres.divisions d ON u.division_id = d.id
+       ORDER BY c.created_at DESC`
     );
+  }
+
+  static async findAllForUser(userId) {
+    return await database.query(
+      `SELECT DISTINCT c.*, u.login AS user_login, u.division_id, d.name AS division_name,
+              CASE WHEN c.user_id = ? THEN 1 ELSE 0 END AS is_owner
+         FROM autres.cdr_cases c
+         JOIN autres.users u ON c.user_id = u.id
+         LEFT JOIN autres.divisions d ON u.division_id = d.id
+         LEFT JOIN autres.cdr_case_shares s ON c.id = s.case_id AND s.user_id = ?
+         WHERE c.user_id = ? OR s.user_id = ?
+         ORDER BY c.created_at DESC`,
+      [userId, userId, userId, userId]
+    );
+  }
+
+  static async findByIdForUser(caseId, userId) {
+    return await database.queryOne(
+      `SELECT c.*, u.login AS user_login, u.division_id, d.name AS division_name,
+              CASE WHEN c.user_id = ? THEN 1 ELSE 0 END AS is_owner
+         FROM autres.cdr_cases c
+         JOIN autres.users u ON c.user_id = u.id
+         LEFT JOIN autres.divisions d ON u.division_id = d.id
+         LEFT JOIN autres.cdr_case_shares s ON c.id = s.case_id AND s.user_id = ?
+         WHERE c.id = ? AND (c.user_id = ? OR s.user_id = ?)
+         LIMIT 1`,
+      [userId, userId, caseId, userId, userId]
+    );
+  }
+
+  static async getShareUserIds(caseId) {
+    const rows = await database.query(
+      `SELECT user_id FROM autres.cdr_case_shares WHERE case_id = ?`,
+      [caseId]
+    );
+    return rows.map((row) => row.user_id);
   }
 
   static async delete(id) {

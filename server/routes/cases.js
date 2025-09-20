@@ -30,6 +30,51 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+router.get('/:id/share', authenticate, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(caseId)) {
+      return res.status(400).json({ error: 'ID de dossier invalide' });
+    }
+    const info = await caseService.getShareInfo(caseId, req.user);
+    res.json(info);
+  } catch (err) {
+    if (err.message === 'Forbidden') {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+    if (err.message === 'Case not found') {
+      return res.status(404).json({ error: 'Opération introuvable' });
+    }
+    console.error('Erreur récupération partage:', err);
+    res.status(500).json({ error: 'Erreur lors de la récupération des partages' });
+  }
+});
+
+router.post('/:id/share', authenticate, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(caseId)) {
+      return res.status(400).json({ error: 'ID de dossier invalide' });
+    }
+    const shareAll = req.body.shareAll === true || req.body.shareAll === 'true';
+    const userIds = Array.isArray(req.body.userIds) ? req.body.userIds : [];
+    const result = await caseService.shareCase(caseId, req.user, { userIds, shareAll });
+    res.json(result);
+  } catch (err) {
+    if (err.message === 'Forbidden') {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+    if (err.message === 'Case not found') {
+      return res.status(404).json({ error: 'Opération introuvable' });
+    }
+    if (err.message === 'Division not found for owner') {
+      return res.status(400).json({ error: 'Division introuvable pour le responsable' });
+    }
+    console.error('Erreur mise à jour partage:', err);
+    res.status(500).json({ error: 'Erreur lors du partage de l\'opération' });
+  }
+});
+
 router.post('/', authenticate, async (req, res) => {
   try {
     const { name } = req.body;
