@@ -3684,7 +3684,8 @@ useEffect(() => {
   };
 
   return (
-    <div
+    <>
+      <div
       className="min-h-screen flex bg-slate-100 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100"
     >
       {!sidebarOpen && (
@@ -7160,6 +7161,8 @@ useEffect(() => {
         </div>
       )}
     </div>
+
+    </>
   );
 };
 
