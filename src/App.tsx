@@ -587,6 +587,29 @@ const App: React.FC = () => {
   const [logTotal, setLogTotal] = useState(0);
   const LOGS_LIMIT = 20;
   const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
+  const sessionRows = useMemo(
+    () =>
+      sessionLogs.map((session) => {
+        const loginAt = session.login_at ? format(parseISO(session.login_at), 'Pp', { locale: fr }) : '-';
+        const logoutAt = session.logout_at ? format(parseISO(session.logout_at), 'Pp', { locale: fr }) : 'Session active';
+        const durationMinutes = Math.max(0, Math.round((session.duration_seconds ?? 0) / 60));
+
+        return (
+          <tr
+            key={session.id}
+            className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40"
+          >
+            <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
+              {session.username}
+            </td>
+            <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{loginAt}</td>
+            <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{logoutAt}</td>
+            <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">{durationMinutes} min</td>
+          </tr>
+      );
+    }),
+    [sessionLogs]
+  );
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionPage, setSessionPage] = useState(1);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -6020,19 +6043,7 @@ useEffect(() => {
                           </td>
                         </tr>
                       ) : (
-                        sessionLogs.map((session) => {
-                          const loginAt = session.login_at ? format(parseISO(session.login_at), 'Pp', { locale: fr }) : '-';
-                          const logoutAt = session.logout_at ? format(parseISO(session.logout_at), 'Pp', { locale: fr }) : 'Session active';
-                          const durationMinutes = Math.max(0, Math.round((session.duration_seconds ?? 0) / 60));
-                          return (
-                            <tr key={session.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40">
-                              <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">{session.username}</td>
-                              <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{loginAt}</td>
-                              <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{logoutAt}</td>
-                              <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">{durationMinutes} min</td>
-                            </tr>
-                          );
-                        })
+                        sessionRows
                       )}
                     </tbody>
                   </table>
