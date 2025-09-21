@@ -5798,6 +5798,7 @@ useEffect(() => {
                   </tbody>
                 </table>
               </div>
+            </div>
           </div>
         )}
 
@@ -6674,71 +6675,79 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    {/* Logs de recherche récents */}
-                    <div className="lg:col-span-2">
-                      <div className="bg-white rounded-2xl shadow-xl p-6">
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
-                          <FileText className="h-6 w-6 mr-2 text-blue-600" />
-                          Logs de recherche
-                        </h3>
-                        {isAdmin && (
-                          <div className="mb-4 flex">
-                            <input
-                              type="text"
-                              value={logUserFilter}
-                              onChange={(e) => setLogUserFilter(e.target.value)}
-                              placeholder="Filtrer par utilisateur"
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                            <button
-                              onClick={loadStatistics}
-                              className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                            >
-                              Rechercher
-                            </button>
+                      {/* Logs de recherche récents */}
+                      <div className="lg:col-span-2">
+                        <div className="bg-white rounded-2xl shadow-xl p-6">
+                          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+                            <FileText className="h-6 w-6 mr-2 text-blue-600" />
+                            Logs de recherche
+                          </h3>
+                          {isAdmin && (
+                            <div className="mb-4 flex">
+                              <input
+                                type="text"
+                                value={logUserFilter}
+                                onChange={(e) => setLogUserFilter(e.target.value)}
+                                placeholder="Filtrer par utilisateur"
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              <button
+                                onClick={loadStatistics}
+                                className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                              >
+                                Rechercher
+                              </button>
+                            </div>
+                          )}
+                          <div className="max-h-80 overflow-y-auto">
+                            <div className="space-y-3">
+                              {searchLogs.length > 0 ? (
+                                searchLogs.map((log, index) => (
+                                  <div
+                                    key={index}
+                                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                                  >
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-3">
+                                        <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                                          <User className="h-4 w-4 text-blue-600" />
+                                        </div>
+                                        <div>
+                                          <p className="font-medium text-gray-900 dark:text-gray-100">
+                                            {log.username || 'Utilisateur inconnu'}
+                                          </p>
+                                          <p className="text-sm text-gray-500 truncate max-w-xs">"{log.search_term}"</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="flex items-center space-x-2">
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                          {log.results_count || 0} résultats
+                                        </span>
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                          {log.execution_time_ms || 0}ms
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-400 mt-1">
+                                        {log.search_date ? format(parseISO(log.search_date), 'dd/MM HH:mm', { locale: fr }) : 'Date inconnue'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-center py-8">
+                                  <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                                  <p className="text-gray-500">Aucune recherche récente</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                        <div className="max-h-80 overflow-y-auto">
-                          <div className="space-y-3">
-                            {searchLogs.length > 0 ? searchLogs.map((log, index) => (
-                              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                <div className="flex-1">
-                                  <div className="flex items-center space-x-3">
-                                    <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-                                      <User className="h-4 w-4 text-blue-600" />
-                                    </div>
-                                    <div>
-                                      <p className="font-medium text-gray-900 dark:text-gray-100">{log.username || 'Utilisateur inconnu'}</p>
-                                      <p className="text-sm text-gray-500 truncate max-w-xs">"{log.search_term}"</p>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <div className="flex items-center space-x-2">
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                      {log.results_count || 0} résultats
-                                    </span>
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                      {log.execution_time_ms || 0}ms
-                                    </span>
-                                  </div>
-                                  <p className="text-xs text-gray-400 mt-1">
-                                    {log.search_date ? format(parseISO(log.search_date), 'dd/MM HH:mm', { locale: fr }) : 'Date inconnue'}
-                                  </p>
-                                </div>
-                              </div>
-                            )) : (
-                              <div className="text-center py-8">
-                                <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                                <p className="text-gray-500">Aucune recherche récente</p>
-                              </div>
-                            )}
-                </div>
-              </div>
-            </div>
-          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                  {/* Termes de recherche populaires */}
+                    {/* Termes de recherche populaires */}
                     <div className="bg-white rounded-2xl shadow-xl p-6 dark:bg-gray-800">
                       <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center dark:text-gray-100">
                         <TrendingUp className="h-6 w-6 mr-2 text-orange-600 dark:text-orange-400" />
@@ -6769,7 +6778,7 @@ useEffect(() => {
                           </div>
                         )}
                       </div>
-                  </div>
+                    </div>
                 </>
               )}
             </div>
