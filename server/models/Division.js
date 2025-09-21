@@ -35,10 +35,31 @@ class Division {
       throw new Error('Invalid division id');
     }
 
-    const detachResult = await database.query(
-      'UPDATE autres.users SET division_id = NULL WHERE division_id = ?',
+    const fallbackDivision = await database.queryOne(
+      'SELECT id FROM autres.divisions WHERE id != ? ORDER BY id ASC LIMIT 1',
       [divisionId]
     );
+
+    const { count: userCount = 0 } = await database.queryOne(
+      'SELECT COUNT(*) AS count FROM autres.users WHERE division_id = ?',
+      [divisionId]
+    ) ?? {};
+
+    if (userCount > 0 && !fallbackDivision?.id) {
+      const error = new Error('Impossible de supprimer la division: des utilisateurs y sont encore affectés et aucune division de remplacement n\'est disponible.');
+      error.code = 'DIVISION_DELETE_FORBIDDEN';
+      throw error;
+    }
+
+    let detachedUsers = 0;
+
+    if (fallbackDivision?.id) {
+      const detachResult = await database.query(
+        'UPDATE autres.users SET division_id = ? WHERE division_id = ?',
+        [fallbackDivision.id, divisionId]
+      );
+      detachedUsers = detachResult.affectedRows ?? 0;
+    }
 
     const result = await database.query(
       'DELETE FROM autres.divisions WHERE id = ?',
@@ -47,7 +68,7 @@ class Division {
 
     return {
       removed: result.affectedRows > 0,
-      detachedUsers: detachResult.affectedRows ?? 0
+      detachedUsers
     };
   }
 
