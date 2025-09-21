@@ -29,6 +29,28 @@ class Division {
     };
   }
 
+  static async delete(id) {
+    const divisionId = Number(id);
+    if (!Number.isInteger(divisionId) || divisionId <= 0) {
+      throw new Error('Invalid division id');
+    }
+
+    const detachResult = await database.query(
+      'UPDATE autres.users SET division_id = NULL WHERE division_id = ?',
+      [divisionId]
+    );
+
+    const result = await database.query(
+      'DELETE FROM autres.divisions WHERE id = ?',
+      [divisionId]
+    );
+
+    return {
+      removed: result.affectedRows > 0,
+      detachedUsers: detachResult.affectedRows ?? 0
+    };
+  }
+
   static async findUsers(divisionId, { includeInactive = false } = {}) {
     if (!divisionId) {
       return [];

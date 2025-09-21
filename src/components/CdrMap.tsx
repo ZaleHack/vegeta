@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import {
   MapContainer,
   TileLayer,
@@ -486,6 +486,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
   const [activeMeetingNumber, setActiveMeetingNumber] = useState<string | null>(null);
   const [isSatellite, setIsSatellite] = useState(false);
+
+  const closeInfoPanels = useCallback(() => {
+    setShowZoneInfo(false);
+    setActiveInfo(null);
+  }, []);
 
   const sourceNumbers = useMemo(
     () =>
@@ -1905,7 +1910,19 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
         {showMeetingPoints && meetingPoints.length > 0 && (
           <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-48 overflow-y-auto">
-            <p className="font-semibold mb-1">Points de rencontre</p>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="font-semibold">Points de rencontre</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMeetingNumber(null);
+                  onToggleMeetingPoints?.();
+                }}
+                className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                Fermer tableau
+              </button>
+            </div>
             <table className="text-xs">
               <thead>
                 <tr className="text-left">
@@ -1933,7 +1950,31 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
         {(showZoneInfo || activeInfo) && (
           <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
-            <p className="font-semibold">Total : {total}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="font-semibold">
+                  {showZoneInfo && !activeInfo
+                    ? 'Résumé de la zone'
+                    : activeInfo === 'contacts'
+                      ? 'Personnes en contact'
+                      : activeInfo === 'recent'
+                        ? 'Localisations récentes'
+                        : activeInfo === 'popular'
+                          ? 'Lieux les plus visités'
+                          : activeInfo === 'history'
+                            ? 'Historique des déplacements'
+                            : 'Informations'}
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">Total : {total}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeInfoPanels}
+                className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                Fermer tableau
+              </button>
+            </div>
             {sourceNumbers.length > 1 && (
               <div className="flex flex-wrap gap-2">
                 <button

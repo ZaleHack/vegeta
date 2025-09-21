@@ -270,6 +270,7 @@ interface NotificationItem {
 interface DivisionEntry {
   id: number;
   name: string;
+  created_at?: string;
 }
 
 interface CaseShareUser {
@@ -782,6 +783,8 @@ const App: React.FC = () => {
   const [divisions, setDivisions] = useState<DivisionEntry[]>([]);
   const [newDivisionName, setNewDivisionName] = useState('');
   const [creatingDivision, setCreatingDivision] = useState(false);
+  const [deletingDivisionId, setDeletingDivisionId] = useState<number | null>(null);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
   const [uploadTable, setUploadTable] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
@@ -1657,17 +1660,75 @@ useEffect(() => {
         const data = await response.json();
         const entries: DivisionEntry[] = Array.isArray(data.divisions) ? data.divisions : [];
         setDivisions(entries);
-        if (!editingUser) {
-          setUserFormData(prev => ({
+        setUserFormData(prev => {
+          const hasSelection = prev.divisionId && entries.some((division) => division.id === prev.divisionId);
+          const nextDivisionId = hasSelection ? prev.divisionId : (entries[0]?.id ?? 0);
+          if (nextDivisionId === prev.divisionId) {
+            return prev;
+          }
+          return {
             ...prev,
-            divisionId: prev.divisionId && prev.divisionId > 0 ? prev.divisionId : (entries[0]?.id ?? 0)
-          }));
-        }
+            divisionId: nextDivisionId
+          };
+        });
       }
     } catch (error) {
       console.error('Erreur chargement divisions:', error);
     }
   };
+
+  const filteredUsers = useMemo(() => {
+    const term = userSearchTerm.trim().toLowerCase();
+    if (!term) {
+      return users;
+    }
+    return users.filter((user) => {
+      const login = (user.login || '').toLowerCase();
+      const divisionName = (user.division_name || '').toLowerCase();
+      const idMatch = String(user.id || '').includes(term);
+      const roleLabel = (user.admin === 1 || user.admin === '1') ? 'administrateur' : 'utilisateur';
+      const statusLabel = (user.active === 1 || user.active === '1') ? 'actif' : 'inactif';
+      return (
+        login.includes(term) ||
+        divisionName.includes(term) ||
+        idMatch ||
+        roleLabel.includes(term) ||
+        statusLabel.includes(term)
+      );
+    });
+  }, [userSearchTerm, users]);
+
+  const userStats = useMemo(() => {
+    let activeCount = 0;
+    let adminCount = 0;
+    users.forEach((user) => {
+      if (user.active === 1 || user.active === '1') {
+        activeCount += 1;
+      }
+      if (user.admin === 1 || user.admin === '1') {
+        adminCount += 1;
+      }
+    });
+    const total = users.length;
+    return {
+      total,
+      active: activeCount,
+      inactive: Math.max(0, total - activeCount),
+      admins: adminCount
+    };
+  }, [users]);
+
+  const divisionUserCount = useMemo(() => {
+    const counts: Record<number, number> = {};
+    users.forEach((user) => {
+      const divisionId = Number(user.division_id);
+      if (!Number.isInteger(divisionId) || divisionId <= 0) {
+        return;
+      }
+      counts[divisionId] = (counts[divisionId] ?? 0) + 1;
+    });
+    return counts;
+  }, [users]);
 
   // Charger les statistiques
   const loadStatistics = async () => {
@@ -2028,6 +2089,39 @@ useEffect(() => {
       alert('Erreur de connexion au serveur');
     } finally {
       setCreatingDivision(false);
+    }
+  };
+
+  const handleDeleteDivision = async (divisionId: number) => {
+    if (!confirm('Supprimer cette division ? Les utilisateurs associés ne seront plus rattachés.')) {
+      return;
+    }
+    setDeletingDivisionId(divisionId);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/divisions/${divisionId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        let message = 'Division supprimée avec succès';
+        if (data.detachedUsers > 0) {
+          message += ` ( ${data.detachedUsers} utilisateur(s) détaché(s) )`;
+        }
+        alert(message);
+        await loadDivisions();
+        await loadUsers();
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Erreur lors de la suppression de la division');
+      }
+    } catch (error) {
+      console.error('Erreur suppression division:', error);
+      alert('Erreur de connexion au serveur');
+    } finally {
+      setDeletingDivisionId(null);
     }
   };
 
@@ -5900,170 +5994,284 @@ useEffect(() => {
         )}
 
         {currentPage === 'users' && isAdmin && (
-            <div className="space-y-8">
-              {/* Header */}
-              <div className="flex justify-between items-center">
+          <div className="space-y-8">
+            <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-blue-50/60 to-indigo-50/40 p-6 shadow-xl shadow-blue-200/50 dark:border-slate-700/60 dark:from-slate-900/70 dark:via-slate-900/40 dark:to-blue-950/40">
+              <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
                 <PageHeader icon={<User className="h-6 w-6" />} title="Gestion des utilisateurs" subtitle="Créez et gérez les comptes utilisateurs" />
-                <button
-                  onClick={openCreateModal}
-                  className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all shadow-lg"
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Nouvel utilisateur
-                </button>
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                  <button
+                    onClick={openCreateModal}
+                    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition-transform hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                  >
+                    <Plus className="mr-2 h-5 w-5" />
+                    Nouvel utilisateur
+                  </button>
+                </div>
               </div>
+            </div>
 
-              <div className="mt-6 grid grid-cols-1 gap-4">
-                <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-5 shadow-lg shadow-slate-200/80 dark:bg-slate-900/70 dark:border-slate-700/60">
-                  <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">Créer une nouvelle division</h4>
-                  <form onSubmit={handleCreateDivision} className="flex flex-col sm:flex-row gap-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="flex items-center justify-between rounded-2xl border border-blue-100/70 bg-white/95 p-5 shadow-lg shadow-blue-100/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+                <div>
+                  <p className="text-sm text-slate-500 dark:text-slate-300">Utilisateurs</p>
+                  <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{userStats.total}</p>
+                </div>
+                <span className="rounded-full bg-blue-500/10 p-3 text-blue-600 dark:text-blue-300">
+                  <Users className="h-5 w-5" />
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-emerald-100/70 bg-white/95 p-5 shadow-lg shadow-emerald-100/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+                <div>
+                  <p className="text-sm text-slate-500 dark:text-slate-300">Utilisateurs actifs</p>
+                  <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{userStats.active}</p>
+                </div>
+                <span className="rounded-full bg-emerald-500/10 p-3 text-emerald-600 dark:text-emerald-300">
+                  <UserCheck className="h-5 w-5" />
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-rose-100/70 bg-white/95 p-5 shadow-lg shadow-rose-100/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+                <div>
+                  <p className="text-sm text-slate-500 dark:text-slate-300">Administrateurs</p>
+                  <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{userStats.admins}</p>
+                </div>
+                <span className="rounded-full bg-rose-500/10 p-3 text-rose-600 dark:text-rose-300">
+                  <Shield className="h-5 w-5" />
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-indigo-100/70 bg-white/95 p-5 shadow-lg shadow-indigo-100/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+                <div>
+                  <p className="text-sm text-slate-500 dark:text-slate-300">Divisions</p>
+                  <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{divisions.length}</p>
+                </div>
+                <span className="rounded-full bg-indigo-500/10 p-3 text-indigo-600 dark:text-indigo-300">
+                  <Building2 className="h-5 w-5" />
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+              <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/80 dark:border-slate-700/60 dark:bg-slate-900/70 xl:col-span-2">
+                <div className="absolute -right-20 -top-24 h-56 w-56 rounded-full bg-blue-200/40 blur-3xl dark:bg-blue-900/30"></div>
+                <div className="relative z-10">
+                  <h4 className="text-base font-semibold text-slate-800 dark:text-slate-100">Créer une nouvelle division</h4>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Organisez vos équipes en regroupant les utilisateurs par division.</p>
+                </div>
+                <form onSubmit={handleCreateDivision} className="relative z-10 mt-5 flex flex-col gap-3 sm:flex-row">
+                  <div className="flex-1">
+                    <label htmlFor="divisionName" className="sr-only">Nom de la division</label>
                     <input
+                      id="divisionName"
                       type="text"
                       value={newDivisionName}
                       onChange={(e) => setNewDivisionName(e.target.value)}
                       placeholder="Nom de la division"
-                      className="flex-1 rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm text-slate-800 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/70 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
+                      className="w-full rounded-xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm text-slate-800 shadow-inner focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/60 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
                     />
-                    <button
-                      type="submit"
-                      disabled={creatingDivision}
-                      className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition-transform hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {creatingDivision ? 'Création...' : 'Créer la division'}
-                    </button>
-                  </form>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={creatingDivision}
+                    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-transform hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {creatingDivision ? 'Création...' : 'Créer la division'}
+                  </button>
+                </form>
+              </div>
+              <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/80 dark:border-slate-700/60 dark:bg-slate-900/70">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h4 className="text-base font-semibold text-slate-800 dark:text-slate-100">Divisions existantes</h4>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Supprimez les divisions inutiles pour garder vos équipes à jour.</p>
+                  </div>
+                  <span className="rounded-full bg-indigo-500/10 p-3 text-indigo-600 dark:text-indigo-300">
+                    <Building2 className="h-5 w-5" />
+                  </span>
+                </div>
+                <div className="mt-5 space-y-3">
+                  {divisions.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200/70 bg-white/80 p-4 text-sm text-slate-500 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                      Aucune division créée pour le moment.
+                    </div>
+                  ) : (
+                    divisions.map((division) => {
+                      const memberCount = divisionUserCount[division.id] ?? 0;
+                      const createdLabel = division.created_at ? new Date(division.created_at).toLocaleDateString('fr-FR') : null;
+                      return (
+                        <div
+                          key={division.id}
+                          className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white/80 px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700/60 dark:bg-slate-900/60"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{division.name}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-300">
+                              {memberCount} membre{memberCount > 1 ? 's' : ''}
+                              {createdLabel ? ` · Créée le ${createdLabel}` : ''}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDivision(division.id)}
+                            disabled={deletingDivisionId === division.id}
+                            className="inline-flex items-center justify-center rounded-full border border-rose-200/70 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300"
+                            aria-label={`Supprimer la division ${division.name}`}
+                          >
+                            {deletingDivisionId === division.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
-
-              {/* Table des utilisateurs */}
-              <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/80 dark:bg-slate-900/70 dark:border-slate-700/60">
-                {users.length === 0 ? (
-                  <div className="text-center py-16">
-                    <Users className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Aucun utilisateur</h3>
-                    <p className="text-gray-500 mb-6">
-                      Commencez par créer un nouvel utilisateur pour votre équipe.
-                    </p>
-                    <button
-                      onClick={openCreateModal}
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Créer le premier utilisateur
-                    </button>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
-                      <thead className="bg-slate-100/80 dark:bg-slate-800/80">
-                        <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
-                          <th className="px-6 py-4">
-                            Utilisateur
-                          </th>
-                          <th className="px-6 py-4">
-                            Rôle
-                          </th>
-                          <th className="px-6 py-4">
-                            Division
-                          </th>
-                          <th className="px-6 py-4">
-                            Statut
-                          </th>
-                          <th className="px-6 py-4">
-                            Créé le
-                          </th>
-                          <th className="px-6 py-4">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                        {users.map((user) => (
-                          <tr
-                            key={user.id}
-                            className="transition-colors odd:bg-white even:bg-slate-50/70 hover:bg-slate-100/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60 dark:hover:bg-slate-800/80"
-                          >
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-700 rounded-full">
-                                  <User className="h-5 w-5 text-white" />
-                                </div>
-                                <div className="ml-4">
-                                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{user.login}</div>
-                                  <div className="text-xs text-slate-500 dark:text-slate-300">ID: {user.id}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              {(user.admin === 1 || user.admin === "1") ? (
-                                <span className="inline-flex items-center gap-2 rounded-full bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-700 dark:text-rose-300">
-                                  <Shield className="w-3 h-3 mr-1" />
-                                  Administrateur
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-2 rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-600 dark:text-blue-300">
-                                  <UserCheck className="w-3 h-3 mr-1" />
-                                  Utilisateur
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">
-                              {user.division_name || '—'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              {user.active === 1 ? (
-                                <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
-                                  Actif
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center rounded-full bg-slate-400/20 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                                  Désactivé
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">
-                              {new Date(user.created_at).toLocaleDateString('fr-FR', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <div className="flex space-x-3">
-                                <button
-                                  onClick={() => openEditModal(user)}
-                                  className="text-blue-600 transition-colors hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
-                                  title="Modifier l'utilisateur"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => openPasswordModal(user)}
-                                  className="text-emerald-500 transition-colors hover:text-emerald-400 dark:text-emerald-300 dark:hover:text-emerald-200"
-                                  title="Changer le mot de passe"
-                                >
-                                  <Key className="w-4 h-4" />
-                                </button>
-                                {user.id !== currentUser?.id && (
-                                  <button
-                                    onClick={() => handleDeleteUser(user.id)}
-                                    className="text-rose-600 transition-colors hover:text-rose-500 dark:text-rose-400 dark:hover:text-rose-300"
-                                    title="Supprimer l'utilisateur"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
             </div>
-          )}
+
+            <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/70 dark:border-slate-700/60 dark:bg-slate-900/70">
+              <div className="flex flex-col gap-4 border-b border-slate-200/60 px-6 py-5 md:flex-row md:items-center md:justify-between dark:border-slate-700/60">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Utilisateurs de la plateforme</h3>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Visualisez les membres de votre organisation et gérez leurs accès.</p>
+                </div>
+                <div className="flex w-full items-center gap-3 md:w-auto">
+                  <div className="relative w-full max-w-xs">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400 dark:text-slate-500" />
+                    <input
+                      type="text"
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      placeholder="Rechercher un utilisateur, un rôle ou une division"
+                      className="w-full rounded-xl border border-slate-200/70 bg-white/80 py-2.5 pl-10 pr-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
+                    />
+                  </div>
+                  <button
+                    onClick={openCreateModal}
+                    className="hidden items-center rounded-xl border border-blue-200/70 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-100 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-300 md:inline-flex"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nouvel utilisateur
+                  </button>
+                </div>
+              </div>
+              {users.length === 0 ? (
+                <div className="flex flex-col items-center justify-center space-y-4 px-8 py-16 text-center">
+                  <Users className="h-16 w-16 text-slate-300 dark:text-slate-600" />
+                  <div>
+                    <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">Aucun utilisateur</h3>
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">Commencez par créer un utilisateur pour votre équipe.</p>
+                  </div>
+                  <button
+                    onClick={openCreateModal}
+                    className="inline-flex items-center rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-xl"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Créer un utilisateur
+                  </button>
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="px-8 py-14 text-center text-sm text-slate-500 dark:text-slate-300">
+                  Aucun utilisateur ne correspond à votre recherche.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200/70 text-sm text-slate-700 dark:divide-slate-700/60 dark:text-slate-200">
+                    <thead className="bg-slate-100/80 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-800/80 dark:text-slate-300">
+                      <tr>
+                        <th className="px-6 py-3 text-left">Utilisateur</th>
+                        <th className="px-6 py-3 text-left">Rôle</th>
+                        <th className="px-6 py-3 text-left">Division</th>
+                        <th className="px-6 py-3 text-left">Statut</th>
+                        <th className="px-6 py-3 text-left">Créé le</th>
+                        <th className="px-6 py-3 text-left">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                      {filteredUsers.map((user) => (
+                        <tr key={user.id} className="bg-white/95 transition hover:bg-slate-50/80 dark:bg-slate-900/60 dark:hover:bg-slate-800/60">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-200/70">
+                                <User className="h-5 w-5" />
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{user.login}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-300">ID: {user.id}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {(user.admin === 1 || user.admin === '1') ? (
+                              <span className="inline-flex items-center gap-2 rounded-full bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                                <Shield className="h-3 w-3" />
+                                Administrateur
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-2 rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-600 dark:text-blue-300">
+                                <UserCheck className="h-3 w-3" />
+                                Utilisateur
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">
+                            {user.division_name || '—'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {(user.active === 1 || user.active === '1') ? (
+                              <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
+                                Actif
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center rounded-full bg-slate-400/20 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                Désactivé
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">
+                            {new Date(user.created_at).toLocaleDateString('fr-FR', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center space-x-3">
+                              <button
+                                onClick={() => openEditModal(user)}
+                                className="text-blue-600 transition-colors hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+                                title="Modifier l'utilisateur"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => openPasswordModal(user)}
+                                className="text-emerald-500 transition-colors hover:text-emerald-400 dark:text-emerald-300 dark:hover:text-emerald-200"
+                                title="Changer le mot de passe"
+                              >
+                                <Key className="h-4 w-4" />
+                              </button>
+                              {user.id !== currentUser?.id && (
+                                <button
+                                  onClick={() => handleDeleteUser(user.id)}
+                                  className="text-rose-600 transition-colors hover:text-rose-500 dark:text-rose-400 dark:hover:text-rose-300"
+                                  title="Supprimer l'utilisateur"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
 
           {currentPage === 'dashboard' && (
             <div className="space-y-8">
