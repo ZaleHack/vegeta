@@ -4689,12 +4689,14 @@ useEffect(() => {
                               Partager
                             </button>
                           )}
-                          <button
-                            className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                            onClick={() => handleDeleteCase(c.id)}
-                          >
-                            Supprimer
-                          </button>
+                          {c.is_owner && (
+                            <button
+                              className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                              onClick={() => handleDeleteCase(c.id)}
+                            >
+                              Supprimer
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
