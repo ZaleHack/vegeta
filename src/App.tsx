@@ -590,6 +590,54 @@ const App: React.FC = () => {
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionPage, setSessionPage] = useState(1);
   const [sessionLoading, setSessionLoading] = useState(false);
+  const criticalAlertCount = useMemo(() => {
+    return logsData.reduce((count: number, log: any) => {
+      if (!log) return count;
+
+      let parsedDetails: Record<string, unknown> = {};
+      if (typeof log.details === 'string') {
+        try {
+          parsedDetails = JSON.parse(log.details);
+        } catch {
+          parsedDetails = {};
+        }
+      } else if (log.details && typeof log.details === 'object') {
+        parsedDetails = log.details as Record<string, unknown>;
+      }
+
+      const isAlert =
+        log.action === 'blacklist_search_attempt' || parsedDetails.alert === true;
+
+      return isAlert ? count + 1 : count;
+    }, 0);
+  }, [logsData]);
+
+  const lastLogUpdateLabel = useMemo(() => {
+    if (!logsData.length) return null;
+
+    let latest: Date | null = null;
+
+    logsData.forEach((log) => {
+      if (!log?.created_at) return;
+      try {
+        const parsed = parseISO(log.created_at);
+        if (Number.isNaN(parsed.getTime())) return;
+        if (!latest || parsed > latest) {
+          latest = parsed;
+        }
+      } catch {
+        // Ignore parsing errors
+      }
+    });
+
+    if (!latest) return null;
+
+    try {
+      return format(latest, 'Pp', { locale: fr });
+    } catch {
+      return latest.toLocaleString('fr-FR');
+    }
+  }, [logsData]);
   interface ExtraField {
     key: string;
     value: string;
@@ -3326,7 +3374,6 @@ useEffect(() => {
                   )}
                 </button>
               </form>
-            </div>
           </div>
         </div>
       </div>
@@ -5750,53 +5797,91 @@ useEffect(() => {
                   </tbody>
                 </table>
               </div>
-            </div>
           </div>
         )}
 
         {currentPage === 'logs' && isAdmin && (
           <div className="space-y-6">
             <PageHeader icon={<List className="h-6 w-6" />} title="Logs" />
-            <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
-              <div className="mb-4 flex">
-                <input
-                  type="text"
-                  value={logUserFilter}
-                  onChange={(e) => setLogUserFilter(e.target.value)}
-                  placeholder="Filtrer par utilisateur"
-                  className="flex-1 rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm text-slate-800 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/70 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
-                />
-                <button
-                  onClick={() => {
-                    fetchLogs(1);
-                    fetchSessions(1);
-                  }}
-                  className="ml-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-transform hover:-translate-y-0.5"
-                >
-                  Rechercher
-                </button>
-                <button
-                  onClick={exportLogs}
-                  className="ml-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition-transform hover:-translate-y-0.5 hover:bg-emerald-600"
-                >
-                  Exporter
-                </button>
-              </div>
-              <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-inner dark:bg-slate-900/60 dark:border-slate-700/60">
-                <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
-                  <thead className="bg-slate-100/80 dark:bg-slate-800/80">
-                    <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
-                      <th className="px-6 py-3">Utilisateur</th>
-                      <th className="px-6 py-3">Action</th>
-                      <th className="px-6 py-3">Détails</th>
-                      <th className="px-6 py-3">Page</th>
-                      <th className="px-6 py-3">Profil</th>
-                      <th className="px-6 py-3">Durée (min)</th>
-                      <th className="px-6 py-3">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                    {logsData.map((log: any) => {
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/80 to-blue-50/60 p-8 shadow-xl shadow-blue-200/60 dark:border-slate-700/60 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-slate-900/40">
+              <div className="absolute -right-32 top-1/4 h-72 w-72 rounded-full bg-blue-200/40 blur-3xl dark:bg-blue-900/30"></div>
+              <div className="absolute -left-32 top-2/3 h-64 w-64 rounded-full bg-indigo-200/40 blur-3xl dark:bg-indigo-900/30"></div>
+              <div className="relative z-10 space-y-8">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Tableau de bord des logs</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-300">
+                      Surveillez les actions des utilisateurs, identifiez rapidement les alertes et exportez les journaux pour vos audits.
+                    </p>
+                  </div>
+                  <div className="grid w-full gap-3 sm:grid-cols-3 lg:w-auto">
+                    <div className="rounded-2xl border border-white/60 bg-white/80 px-5 py-4 shadow-sm shadow-blue-200/50 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Logs totaux</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">{logTotal}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/60 bg-white/80 px-5 py-4 shadow-sm shadow-blue-200/50 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Logs récents</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">{logsData.length}</p>
+                    </div>
+                    <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-5 py-4 shadow-sm shadow-rose-200/40 backdrop-blur-sm dark:border-rose-500/40 dark:bg-rose-500/20">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-rose-500 dark:text-rose-200">Alertes critiques</p>
+                      <p className="mt-2 text-2xl font-semibold text-rose-600 dark:text-rose-200">{criticalAlertCount}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="relative w-full md:max-w-md">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                    <input
+                      type="text"
+                      value={logUserFilter}
+                      onChange={(e) => setLogUserFilter(e.target.value)}
+                      placeholder="Filtrer par utilisateur"
+                      className="w-full rounded-2xl border border-white/60 bg-white/80 py-3 pl-11 pr-4 text-sm text-slate-800 shadow-inner focus:border-blue-500/60 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <button
+                      onClick={() => {
+                        fetchLogs(1);
+                        fetchSessions(1);
+                      }}
+                      className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/30 transition-transform hover:-translate-y-0.5 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                    >
+                      Rechercher
+                    </button>
+                    <button
+                      onClick={exportLogs}
+                      className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-400/40 transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    >
+                      Exporter
+                    </button>
+                  </div>
+                </div>
+
+                {lastLogUpdateLabel && (
+                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400 dark:text-slate-500">
+                    <Clock className="h-4 w-4" />
+                    Dernière mise à jour : {lastLogUpdateLabel}
+                  </div>
+                )}
+
+                <div className="overflow-hidden rounded-2xl border border-white/60 bg-white/90 shadow-xl shadow-blue-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                  <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                    <thead className="bg-white/80 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 backdrop-blur-sm dark:bg-slate-800/80 dark:text-slate-300">
+                      <tr>
+                        <th className="px-6 py-4">Utilisateur</th>
+                        <th className="px-6 py-4">Action</th>
+                        <th className="px-6 py-4">Détails</th>
+                        <th className="px-6 py-4">Page</th>
+                        <th className="px-6 py-4">Profil</th>
+                        <th className="px-6 py-4">Durée (min)</th>
+                        <th className="px-6 py-4">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                      {logsData.map((log: any) => {
                       let details: any = {};
                       try {
                         details = log.details ? JSON.parse(log.details) : {};
@@ -5824,19 +5909,23 @@ useEffect(() => {
                       const detailContent = (() => {
                         if (isAlertLog) {
                           return (
-                            <div className="flex items-start gap-3 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-red-400 px-4 py-3 text-white shadow-lg shadow-red-200/60">
-                              <AlertTriangle className="h-5 w-5 flex-shrink-0" />
-                              <div className="space-y-1">
-                                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-red-100">
-                                  Alerte prioritaire
-                                </p>
-                                <p className="text-sm font-medium leading-tight">{alertMessage}</p>
-                                {alertContext && (
-                                  <p className="text-xs text-red-100/90">{alertContext}</p>
-                                )}
-                                {alertNumber && (
-                                  <p className="text-xs text-red-100/90">Cible : {alertNumber}</p>
-                                )}
+                            <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm shadow-sm shadow-rose-300/30 backdrop-blur-sm">
+                              <div className="flex items-start gap-3">
+                                <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-sm shadow-rose-500/40">
+                                  <AlertTriangle className="h-4 w-4" />
+                                </span>
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-rose-600 dark:text-rose-200/80">
+                                    Alerte prioritaire
+                                  </p>
+                                  <p className="text-sm font-medium text-rose-700 dark:text-rose-100">{alertMessage}</p>
+                                  {alertContext && (
+                                    <p className="text-xs text-rose-600/80 dark:text-rose-200/70">{alertContext}</p>
+                                  )}
+                                  {alertNumber && (
+                                    <p className="text-xs text-rose-600/80 dark:text-rose-200/70">Cible : {alertNumber}</p>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );
@@ -5856,52 +5945,49 @@ useEffect(() => {
                       return (
                         <tr
                           key={log.id}
-                          className={`transition ${
+                          className={`transition-colors duration-200 ${
                             isAlertLog
-                              ? 'bg-rose-50/80 hover:bg-rose-100/70 dark:bg-rose-500/20 dark:hover:bg-rose-500/30'
-                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                              ? 'bg-rose-50/70 hover:bg-rose-100/70 dark:bg-rose-500/10 dark:hover:bg-rose-500/20'
+                              : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/60'
                           }`}
                         >
-                          <td
-                            className={`px-6 py-4 whitespace-nowrap text-sm ${
-                              isAlertLog
-                                ? 'border-l-4 border-rose-500 bg-rose-100/70 font-semibold text-rose-900 dark:border-rose-400 dark:bg-rose-500/20 dark:text-rose-100'
-                                : 'text-slate-900 dark:text-slate-100'
-                            }`}
-                          >
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold ${isAlertLog ? 'text-rose-700 dark:text-rose-100' : 'text-slate-900 dark:text-slate-100'}`}>
                             {log.username || 'Inconnu'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             {isAlertLog ? (
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="inline-flex items-center gap-2 rounded-full bg-rose-600 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-sm shadow-rose-300/60">
-                                  <AlertTriangle className="h-4 w-4" />
-                                  Alerte Blacklist
-                                </span>
-                                <span className="text-sm font-medium text-rose-700 dark:text-rose-200">{log.action}</span>
+                              <div className="inline-flex items-center gap-2 rounded-full border border-rose-400/60 bg-rose-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-rose-600 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200">
+                                <AlertTriangle className="h-4 w-4" />
+                                {log.action}
                               </div>
                             ) : (
-                              <span className="text-slate-900 dark:text-slate-100">{log.action}</span>
+                              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-100/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-600 dark:border-slate-700/60 dark:bg-slate-800/60 dark:text-slate-300">
+                                {log.action}
+                              </span>
                             )}
                           </td>
-                          <td
-                            className={`px-6 py-4 text-sm ${
-                              isAlertLog ? 'align-top text-rose-800 dark:text-rose-100' : 'text-slate-900 dark:text-slate-100'
-                            }`}
-                          >
+                          <td className={`px-6 py-4 text-sm ${isAlertLog ? 'align-top text-rose-700 dark:text-rose-100' : 'text-slate-900 dark:text-slate-100'}`}>
                             {detailContent}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">{pageName || '-'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {pageName ? (
+                              <span className="inline-flex items-center rounded-full border border-blue-200/60 bg-blue-50/70 px-3 py-1 text-xs font-medium text-blue-600 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-200">
+                                {pageName}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 dark:text-slate-400">-</span>
+                            )}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">
                             {details.profile_id ? (
                               <button
-                                className="text-blue-600 hover:underline dark:text-blue-400"
+                                className="inline-flex items-center gap-2 rounded-full border border-blue-200/70 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-600 transition hover:-translate-y-0.5 hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-blue-500/40 dark:text-blue-300"
                                 onClick={() => openEditProfile(details.profile_id)}
                               >
-                                Voir
+                                Voir le profil
                               </button>
                             ) : (
-                              '-'
+                              <span className="text-slate-500 dark:text-slate-400">-</span>
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">{log.duration_ms ? Math.round(log.duration_ms / 60000) : '-'}</td>
@@ -5911,45 +5997,62 @@ useEffect(() => {
                         </tr>
                       );
                     })}
-                  </tbody>
-                </table>
-                <div className="mt-4 flex items-center justify-between">
-                  <button
-                    onClick={() => fetchLogs(logPage - 1)}
-                    disabled={logPage <= 1}
-                    className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                  >
-                    Précédent
-                  </button>
-                  <span className="text-sm text-slate-600 dark:text-slate-300">Page {logPage} / {Math.max(1, Math.ceil(logTotal / LOGS_LIMIT))}</span>
-                  <button
-                    onClick={() => fetchLogs(logPage + 1)}
-                    disabled={logPage >= Math.ceil(logTotal / LOGS_LIMIT)}
-                    className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                  >
-                    Suivant
-                  </button>
+                    </tbody>
+                  </table>
+                  <div className="flex items-center justify-between gap-3 border-t border-slate-100/80 bg-white/80 px-6 py-4 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                    <button
+                      onClick={() => fetchLogs(logPage - 1)}
+                      disabled={logPage <= 1}
+                      className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                    >
+                      Précédent
+                    </button>
+                    <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                      Page {logPage} / {Math.max(1, Math.ceil(logTotal / LOGS_LIMIT))}
+                    </span>
+                    <button
+                      onClick={() => fetchLogs(logPage + 1)}
+                      disabled={logPage >= Math.ceil(logTotal / LOGS_LIMIT)}
+                      className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                    >
+                      Suivant
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="mt-8 rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
-                <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-emerald-500" />
-                  Sessions utilisateur
-                </h4>
-                <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-inner dark:bg-slate-900/60 dark:border-slate-700/60">
+            </div>
+            <div className="relative mt-8 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-xl shadow-slate-200/70 dark:border-slate-700/60 dark:bg-slate-900/70">
+              <div className="absolute -right-20 top-0 h-48 w-48 rounded-full bg-emerald-200/40 blur-3xl dark:bg-emerald-900/30"></div>
+              <div className="absolute -left-24 bottom-0 h-56 w-56 rounded-full bg-sky-200/40 blur-3xl dark:bg-sky-900/30"></div>
+              <div className="relative z-10 space-y-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-emerald-500" />
+                      Sessions utilisateur
+                    </h4>
+                    <p className="text-sm text-slate-500 dark:text-slate-300">
+                      Gardez un œil sur les connexions actives et l'activité récente des membres de votre équipe.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/50 bg-emerald-500/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600 dark:border-emerald-500/40 dark:bg-emerald-500/20 dark:text-emerald-200">
+                    Total : {sessionTotal}
+                  </span>
+                </div>
+                <div className="overflow-hidden rounded-2xl border border-white/60 bg-white/90 shadow-inner backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
                   <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
-                    <thead className="bg-slate-100/80 dark:bg-slate-800/80">
-                      <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
-                        <th className="px-6 py-3">Utilisateur</th>
-                        <th className="px-6 py-3">Connexion</th>
-                        <th className="px-6 py-3">Déconnexion</th>
-                        <th className="px-6 py-3">Durée</th>
+                    <thead className="bg-white/75 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 backdrop-blur-sm dark:bg-slate-800/80 dark:text-slate-300">
+                      <tr>
+                        <th className="px-6 py-4">Utilisateur</th>
+                        <th className="px-6 py-4">Connexion</th>
+                        <th className="px-6 py-4">Déconnexion</th>
+                        <th className="px-6 py-4">Durée</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                       {sessionLogs.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="px-6 py-4 text-center text-sm text-slate-500 dark:text-slate-300">
+                          <td colSpan={4} className="px-6 py-6 text-center text-sm text-slate-500 dark:text-slate-300">
                             Aucune session enregistrée.
                           </td>
                         </tr>
@@ -5959,7 +6062,10 @@ useEffect(() => {
                           const logoutAt = session.logout_at ? format(parseISO(session.logout_at), 'Pp', { locale: fr }) : 'Session active';
                           const durationMinutes = Math.max(0, Math.round((session.duration_seconds ?? 0) / 60));
                           return (
-                            <tr key={session.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40">
+                            <tr
+                              key={session.id}
+                              className="transition-colors odd:bg-white/95 even:bg-slate-50/70 hover:bg-blue-50/40 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40 dark:hover:bg-slate-800/60"
+                            >
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">{session.username}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{loginAt}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{logoutAt}</td>
@@ -5971,21 +6077,21 @@ useEffect(() => {
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-4 flex items-center justify-between">
+                <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
                   <button
                     onClick={() => fetchSessions(sessionPage - 1)}
                     disabled={sessionPage <= 1 || sessionLoading}
-                    className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                   >
                     Précédent
                   </button>
-                  <span className="text-sm text-slate-500 dark:text-slate-300">
+                  <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
                     Page {sessionPage} sur {Math.max(1, Math.ceil(sessionTotal / LOGS_LIMIT))}
                   </span>
                   <button
                     onClick={() => fetchSessions(sessionPage + 1)}
                     disabled={sessionPage >= Math.ceil(sessionTotal / LOGS_LIMIT) || sessionLoading}
-                    className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/30 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                   >
                     Suivant
                   </button>
@@ -6626,11 +6732,10 @@ useEffect(() => {
                                 <p className="text-gray-500">Aucune recherche récente</p>
                               </div>
                             )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
                   {/* Termes de recherche populaires */}
                     <div className="bg-white rounded-2xl shadow-xl p-6 dark:bg-gray-800">
