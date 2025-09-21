@@ -25,6 +25,7 @@ import blacklistRoutes from './routes/blacklist.js';
 import logsRoutes from './routes/logs.js';
 import divisionsRoutes from './routes/divisions.js';
 import notificationsRoutes from './routes/notifications.js';
+import fraudRoutes from './routes/fraud.js';
 import { authenticate } from './middleware/auth.js';
 
 // Initialisation de la base de données
@@ -102,6 +103,7 @@ app.use('/api/blacklist', blacklistRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/divisions', divisionsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/fraud-detection', fraudRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {
