@@ -81,6 +81,7 @@ class FraudDetectionService {
     const hasFilter = Boolean(trimmedIdentifier);
 
     const imeiMap = new Map();
+    const numberMap = new Map();
 
     for (const caseName of caseNames) {
       try {
@@ -145,6 +146,46 @@ class FraudDetectionService {
           if (caseMeta) {
             numberEntry.cases.set(caseMeta.id, caseMeta);
           }
+
+          let numberInfo = numberMap.get(normalizedNumber);
+          if (!numberInfo) {
+            numberInfo = {
+              number: normalizedNumber,
+              imeis: new Map(),
+            };
+            numberMap.set(normalizedNumber, numberInfo);
+          }
+
+          let imeiInfo = numberInfo.imeis.get(imei);
+          if (!imeiInfo) {
+            imeiInfo = {
+              imei,
+              firstSeen: null,
+              lastSeen: null,
+              occurrences: 0,
+              roles: new Set(),
+              cases: new Map(),
+            };
+            numberInfo.imeis.set(imei, imeiInfo);
+          }
+
+          imeiInfo.occurrences += 1;
+          if (normalizedDate) {
+            if (!imeiInfo.firstSeen || normalizedDate < imeiInfo.firstSeen) {
+              imeiInfo.firstSeen = normalizedDate;
+            }
+            if (!imeiInfo.lastSeen || normalizedDate > imeiInfo.lastSeen) {
+              imeiInfo.lastSeen = normalizedDate;
+            }
+          }
+
+          if (role) {
+            imeiInfo.roles.add(role);
+          }
+
+          if (caseMeta) {
+            imeiInfo.cases.set(caseMeta.id, caseMeta);
+          }
         }
       } catch (error) {
         console.error(`Erreur détection fraude globale pour ${caseName}:`, error);
@@ -152,6 +193,7 @@ class FraudDetectionService {
     }
 
     const result = [];
+    const suspiciousNumbers = [];
 
     for (const [imei, entry] of imeiMap.entries()) {
       const numbers = Array.from(entry.numbers.values()).map((number) => ({
@@ -219,8 +261,75 @@ class FraudDetectionService {
       return a.imei.localeCompare(b.imei);
     });
 
+    for (const [number, entry] of numberMap.entries()) {
+      const imeis = Array.from(entry.imeis.values()).map((info) => ({
+        imei: info.imei,
+        firstSeen: info.firstSeen,
+        lastSeen: info.lastSeen,
+        occurrences: info.occurrences,
+        roles: Array.from(info.roles).sort(),
+        cases: Array.from(info.cases.values()),
+      }));
+
+      if (imeis.length < 2) {
+        continue;
+      }
+
+      const callerSet = new Set(
+        imeis
+          .filter((i) => i.roles.includes('caller'))
+          .map((i) => i.imei)
+      );
+      const calleeSet = new Set(
+        imeis
+          .filter((i) => i.roles.includes('callee'))
+          .map((i) => i.imei)
+      );
+
+      if (callerSet.size < 2 && calleeSet.size < 2) {
+        continue;
+      }
+
+      imeis.sort((a, b) => {
+        if (a.lastSeen && b.lastSeen && a.lastSeen !== b.lastSeen) {
+          return a.lastSeen > b.lastSeen ? -1 : 1;
+        }
+        return b.occurrences - a.occurrences;
+      });
+
+      const caseAccumulator = new Map();
+      for (const imeiEntry of imeis) {
+        for (const info of imeiEntry.cases) {
+          caseAccumulator.set(info.id, info);
+        }
+      }
+
+      suspiciousNumbers.push({
+        number,
+        imeis,
+        roleSummary: {
+          caller: callerSet.size,
+          callee: calleeSet.size,
+        },
+        cases: Array.from(caseAccumulator.values()),
+      });
+    }
+
+    suspiciousNumbers.sort((a, b) => {
+      const aSuspicious = Math.max(a.roleSummary.caller, a.roleSummary.callee);
+      const bSuspicious = Math.max(b.roleSummary.caller, b.roleSummary.callee);
+      if (aSuspicious !== bSuspicious) {
+        return bSuspicious - aSuspicious;
+      }
+      if (a.imeis.length !== b.imeis.length) {
+        return b.imeis.length - a.imeis.length;
+      }
+      return a.number.localeCompare(b.number);
+    });
+
     return {
       imeis: result,
+      numbers: suspiciousNumbers,
       updatedAt: new Date().toISOString(),
     };
   }
