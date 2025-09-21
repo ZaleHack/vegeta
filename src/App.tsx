@@ -445,6 +445,37 @@ interface FraudDetectionResult {
   updatedAt: string;
 }
 
+interface GlobalFraudCaseInfo {
+  id: number;
+  name: string;
+  owner?: string | null;
+  division?: string | null;
+}
+
+interface GlobalFraudNumberEntry {
+  number: string;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  occurrences: number;
+  roles: string[];
+  cases: GlobalFraudCaseInfo[];
+}
+
+interface GlobalFraudImeiEntry {
+  imei: string;
+  numbers: GlobalFraudNumberEntry[];
+  roleSummary: {
+    caller: number;
+    callee: number;
+  };
+  cases: GlobalFraudCaseInfo[];
+}
+
+interface GlobalFraudDetectionResult {
+  imeis: GlobalFraudImeiEntry[];
+  updatedAt: string;
+}
+
 interface GraphNode {
   id: string;
   type: string;
@@ -887,6 +918,12 @@ const App: React.FC = () => {
   const [fraudResult, setFraudResult] = useState<FraudDetectionResult | null>(null);
   const [fraudLoading, setFraudLoading] = useState(false);
   const [fraudError, setFraudError] = useState('');
+  const [globalFraudIdentifier, setGlobalFraudIdentifier] = useState('');
+  const [globalFraudStart, setGlobalFraudStart] = useState('');
+  const [globalFraudEnd, setGlobalFraudEnd] = useState('');
+  const [globalFraudLoading, setGlobalFraudLoading] = useState(false);
+  const [globalFraudError, setGlobalFraudError] = useState('');
+  const [globalFraudResult, setGlobalFraudResult] = useState<GlobalFraudDetectionResult | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTargetCase, setShareTargetCase] = useState<CdrCase | null>(null);
   const [shareDivisionUsers, setShareDivisionUsers] = useState<CaseShareUser[]>([]);
@@ -2377,6 +2414,56 @@ useEffect(() => {
     }
   };
 
+  const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const trimmedIdentifier = globalFraudIdentifier.trim();
+    if (!trimmedIdentifier) {
+      setGlobalFraudError('Numéro ou IMEI requis');
+      setGlobalFraudResult(null);
+      return;
+    }
+    if (globalFraudStart && globalFraudEnd && new Date(globalFraudStart) > new Date(globalFraudEnd)) {
+      setGlobalFraudError('La date de début doit précéder la date de fin');
+      return;
+    }
+
+    setGlobalFraudLoading(true);
+    setGlobalFraudError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      params.append('identifier', trimmedIdentifier);
+      if (globalFraudStart) params.append('start', globalFraudStart);
+      if (globalFraudEnd) params.append('end', globalFraudEnd);
+      const query = params.toString();
+      const res = await fetch(`/api/fraud-detection${query ? `?${query}` : ''}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGlobalFraudResult(data);
+      } else {
+        setGlobalFraudResult(null);
+        setGlobalFraudError(data.error || 'Erreur lors de la détection de fraude');
+      }
+    } catch (error) {
+      console.error('Erreur détection fraude globale:', error);
+      setGlobalFraudResult(null);
+      setGlobalFraudError('Erreur lors de la détection de fraude');
+    } finally {
+      setGlobalFraudLoading(false);
+    }
+  };
+
+  const resetGlobalFraudSearch = () => {
+    setGlobalFraudIdentifier('');
+    setGlobalFraudStart('');
+    setGlobalFraudEnd('');
+    setGlobalFraudResult(null);
+    setGlobalFraudError('');
+  };
+
   useEffect(() => {
     if (cdrIdentifiers.length > 0) {
       fetchCdrData();
@@ -3603,6 +3690,19 @@ useEffect(() => {
             </button>
 
             <button
+              onClick={() => setCurrentPage('fraud-detection')}
+              title="Détection de Fraude"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'fraud-detection'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <AlertTriangle className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Détection de Fraude</span>}
+            </button>
+
+            <button
               onClick={() => setCurrentPage('requests')}
               title="Demandes"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
@@ -4724,6 +4824,344 @@ useEffect(() => {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {currentPage === 'fraud-detection' && (
+            <div className="space-y-8">
+              <PageHeader
+                icon={<AlertTriangle className="h-6 w-6" />}
+                title="Détection de Fraude"
+                subtitle="Repérez les IMEI partagés par plusieurs lignes sur l'ensemble de la plateforme"
+              />
+
+              <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-rose-500/10 via-purple-500/10 to-blue-500/10" />
+                <div className="relative p-8 space-y-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                        Analyse transversale des CDR
+                      </h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-300">
+                        Recherchez les IMEI utilisés par plusieurs numéros en combinant l'ensemble des dossiers disponibles.
+                      </p>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur dark:bg-white/10 dark:text-slate-200">
+                      <Scan className="h-4 w-4" />
+                      Analyse globale
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleGlobalFraudSearch} className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                          Numéro ou IMEI à analyser
+                        </label>
+                        <div className="relative">
+                          <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+                            <Search className="h-4 w-4" />
+                          </div>
+                          <input
+                            type="text"
+                            value={globalFraudIdentifier}
+                            onChange={(e) => {
+                              setGlobalFraudIdentifier(e.target.value);
+                              if (globalFraudError) setGlobalFraudError('');
+                            }}
+                            placeholder="Ex : 221771234567 ou 356789104567890"
+                            className="w-full rounded-2xl border border-slate-200/80 bg-white/80 px-12 py-3 text-base shadow-inner focus:border-transparent focus:outline-none focus:ring-4 focus:ring-purple-500/30 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
+                          />
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          La recherche couvre simultanément les IMEI appelants et appelés présents dans tous les CDR importés.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                            Date de début (optionnel)
+                          </label>
+                          <input
+                            type="date"
+                            value={globalFraudStart}
+                            onChange={(e) => {
+                              setGlobalFraudStart(e.target.value);
+                              if (globalFraudError) setGlobalFraudError('');
+                            }}
+                            className="w-full rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/60"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                            Date de fin (optionnel)
+                          </label>
+                          <input
+                            type="date"
+                            value={globalFraudEnd}
+                            onChange={(e) => {
+                              setGlobalFraudEnd(e.target.value);
+                              if (globalFraudError) setGlobalFraudError('');
+                            }}
+                            className="w-full rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/60"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="submit"
+                        disabled={globalFraudLoading}
+                        className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 via-purple-500 to-blue-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {globalFraudLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
+                        <span>Lancer l'analyse</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={resetGlobalFraudSearch}
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-6 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-slate-500"
+                      >
+                        <X className="h-4 w-4" />
+                        <span>Réinitialiser</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </section>
+
+              {globalFraudError && (
+                <div className="rounded-3xl border border-rose-200 bg-rose-50/80 px-6 py-4 text-sm text-rose-700 shadow-sm dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+                  {globalFraudError}
+                </div>
+              )}
+
+              {globalFraudLoading ? (
+                <div className="flex justify-center py-12">
+                  <LoadingSpinner />
+                </div>
+              ) : globalFraudResult ? (
+                globalFraudResult.imeis.length === 0 ? (
+                  <section className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-8 text-emerald-700 shadow-inner dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-200">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-600 dark:bg-emerald-500/30 dark:text-emerald-100">
+                        <Shield className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold">Aucune anomalie détectée</h3>
+                        <p className="mt-1 text-sm">
+                          Aucun IMEI ne partage plusieurs numéros sur la période analysée.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+                ) : (
+                  <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+                    <div className="border-b border-slate-200/70 bg-gradient-to-r from-rose-500 via-purple-500 to-blue-500 px-8 py-6 text-white dark:border-slate-700/60">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold">Résultats de l'analyse</h3>
+                          <p className="text-sm text-white/80">
+                            Dernière exécution&nbsp;: {formatFraudDateTime(globalFraudResult.updatedAt)}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold">
+                            <AlertTriangle className="h-4 w-4" />
+                            {globalFraudResult.imeis.length} IMEI suspects
+                          </span>
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold">
+                            <Phone className="h-4 w-4" />
+                            {globalFraudResult.imeis.reduce((acc, entry) => acc + entry.numbers.length, 0)} numéros
+                          </span>
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold">
+                            <Building2 className="h-4 w-4" />
+                            {(() => {
+                              const caseIds = new Set<number>();
+                              globalFraudResult.imeis.forEach((entry) => {
+                                entry.cases.forEach((info) => {
+                                  if (typeof info.id === 'number') {
+                                    caseIds.add(info.id);
+                                  }
+                                });
+                              });
+                              return caseIds.size;
+                            })()} dossiers impactés
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                      {globalFraudResult.imeis.map((imeiEntry) => (
+                        <div key={imeiEntry.imei} className="space-y-5 p-6">
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex items-start gap-4">
+                              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 via-purple-500 to-blue-500 text-white shadow-lg shadow-purple-400/40">
+                                <AlertTriangle className="h-7 w-7" />
+                              </div>
+                              <div>
+                                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">IMEI {imeiEntry.imei}</h4>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  <span
+                                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                                      imeiEntry.roleSummary.caller >= 2
+                                        ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-200'
+                                        : 'bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-300'
+                                    }`}
+                                  >
+                                    <PhoneOutgoing className="h-3.5 w-3.5" />
+                                    Appelants&nbsp;: {imeiEntry.roleSummary.caller}
+                                  </span>
+                                  <span
+                                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                                      imeiEntry.roleSummary.callee >= 2
+                                        ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200'
+                                        : 'bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-300'
+                                    }`}
+                                  >
+                                    <PhoneIncoming className="h-3.5 w-3.5" />
+                                    Appelés&nbsp;: {imeiEntry.roleSummary.callee}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-white/5 dark:text-slate-300">
+                                    <MapPin className="h-3.5 w-3.5" />
+                                    {imeiEntry.cases.length} dossier{imeiEntry.cases.length > 1 ? 's' : ''}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            {imeiEntry.cases.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {imeiEntry.cases.slice(0, 3).map((caseInfo) => (
+                                  <span
+                                    key={caseInfo.id}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200/70 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-600 dark:text-slate-300"
+                                  >
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100">{caseInfo.name}</span>
+                                    {caseInfo.owner && (
+                                      <span className="text-slate-400 dark:text-slate-500">· {caseInfo.owner}</span>
+                                    )}
+                                  </span>
+                                ))}
+                                {imeiEntry.cases.length > 3 && (
+                                  <span className="inline-flex items-center rounded-xl bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-white/5 dark:text-slate-400">
+                                    +{imeiEntry.cases.length - 3}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="overflow-x-auto rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50">
+                            <table className="min-w-full text-sm text-slate-700 dark:text-slate-200">
+                              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                                <tr>
+                                  <th className="px-4 py-3 text-left">Numéro</th>
+                                  <th className="px-4 py-3 text-left">Rôles</th>
+                                  <th className="px-4 py-3 text-left">Occurrences</th>
+                                  <th className="px-4 py-3 text-left">Première apparition</th>
+                                  <th className="px-4 py-3 text-left">Dernière apparition</th>
+                                  <th className="px-4 py-3 text-left">Dossiers liés</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100/80 dark:divide-white/10">
+                                {imeiEntry.numbers.map((numberEntry) => (
+                                  <tr
+                                    key={`${imeiEntry.imei}-${numberEntry.number}`}
+                                    className="odd:bg-white even:bg-slate-50/60 dark:odd:bg-slate-900/40 dark:even:bg-slate-900/20"
+                                  >
+                                    <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">
+                                      {numberEntry.number}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      {numberEntry.roles.length === 0 ? (
+                                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                                          -
+                                        </span>
+                                      ) : (
+                                        <div className="flex flex-wrap gap-2">
+                                          {numberEntry.roles.map((role) => (
+                                            <span
+                                              key={role}
+                                              className="inline-flex items-center rounded-full bg-blue-100/80 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
+                                            >
+                                              {FRAUD_ROLE_LABELS[role] || role}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{numberEntry.occurrences}</td>
+                                    <td className="px-4 py-3 text-slate-500 dark:text-slate-300">
+                                      {formatFraudDate(numberEntry.firstSeen)}
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-500 dark:text-slate-300">
+                                      {formatFraudDate(numberEntry.lastSeen)}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      {numberEntry.cases.length === 0 ? (
+                                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                                          -
+                                        </span>
+                                      ) : (
+                                        <div className="flex flex-wrap gap-2">
+                                          {numberEntry.cases.map((info) => (
+                                            <span
+                                              key={`${imeiEntry.imei}-${numberEntry.number}-${info.id}`}
+                                              className="inline-flex items-center rounded-full bg-purple-100/80 px-3 py-1 text-xs font-semibold text-purple-600 dark:bg-purple-500/20 dark:text-purple-200"
+                                            >
+                                              {info.name}
+                                              {info.owner ? ` · ${info.owner}` : ''}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )
+              ) : (
+                <section className="rounded-3xl border border-slate-200/80 bg-white/95 p-8 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-300/40">
+                        <AlertTriangle className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Règle de détection</h3>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
+                          Identifiez les IMEI utilisés par plusieurs lignes en quelques secondes.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-100/60 px-4 py-2 text-sm text-slate-600 dark:bg-white/5 dark:text-slate-300">
+                      Analyse tous les CDR disponibles
+                    </div>
+                  </div>
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                      <p className="font-semibold text-slate-800 dark:text-slate-100">IMEI appelé</p>
+                      <p className="mt-1">
+                        Fraude détectée si le même IMEI appelé apparaît avec au moins deux numéros distincts.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                      <p className="font-semibold text-slate-800 dark:text-slate-100">IMEI appelant</p>
+                      <p className="mt-1">
+                        Fraude détectée si le même IMEI appelant dessert au moins deux numéros différents.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              )}
             </div>
           )}
 
