@@ -334,6 +334,12 @@ router.delete('/:id', authenticate, async (req, res) => {
     res.json({ message: 'Case supprimé' });
   } catch (err) {
     console.error('Erreur suppression case:', err);
+    if (err.message === 'Case not found') {
+      return res.status(404).json({ error: 'Opération introuvable' });
+    }
+    if (err.message === 'Forbidden') {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
     res.status(500).json({ error: 'Erreur suppression case' });
   }
 });

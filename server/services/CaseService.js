@@ -282,6 +282,12 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
+    const isOwner = existingCase.user_id === user.id || existingCase.is_owner === 1 || existingCase.is_owner === true;
+    const isAdmin = this._isAdmin(user);
+
+    if (!isOwner && !isAdmin) {
+      throw new Error('Forbidden');
+    }
     // Delete the case first to avoid dropping the CDR table if the delete fails
     await Case.delete(id);
     // Remove any CDR table associated with this case, but don't fail the whole
