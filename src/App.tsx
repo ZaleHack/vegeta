@@ -5887,7 +5887,12 @@ useEffect(() => {
               </div>
             ) : (
               <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
-                <ProfileList onCreate={() => openCreateProfile({})} onEdit={openEditProfile} />
+                <ProfileList
+                  onCreate={() => openCreateProfile({})}
+                  onEdit={openEditProfile}
+                  currentUser={currentUser}
+                  isAdmin={isAdmin}
+                />
               </div>
             )}
           </div>

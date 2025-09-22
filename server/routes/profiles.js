@@ -96,7 +96,14 @@ router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const { rows, total } = await service.list(req.user, req.query.q, page, limit);
+    const includeArchived = parseBoolean(req.query?.archived);
+    const { rows, total } = await service.list(
+      req.user,
+      req.query.q,
+      page,
+      limit,
+      includeArchived
+    );
     res.json({ profiles: rows, total });
   } catch (error) {
     res.status(500).json({ error: error.message });
