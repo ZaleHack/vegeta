@@ -118,4 +118,3 @@ export function buildQrCodeUrl(otpauthUrl, size = 200) {
   const encoded = encodeURIComponent(otpauthUrl);
   return `https://chart.googleapis.com/chart?chs=${size}x${size}&chld=M|0&cht=qr&chl=${encoded}`;
 }
-*** End File
