@@ -190,6 +190,43 @@ router.post('/2fa/confirm', authenticate, async (req, res) => {
 
 router.delete('/2fa', authenticate, async (req, res) => {
   try {
+    if (req.user.otp_enabled !== 1) {
+      return res.status(400).json({ error: 'La double authentification est déjà désactivée' });
+    }
+
+    const { password, token } = req.body || {};
+
+    if (!password && !token) {
+      return res.status(400).json({ error: 'Mot de passe ou code TOTP requis pour désactiver la double authentification' });
+    }
+
+    let isVerified = false;
+
+    if (password) {
+      const isValidPassword = await User.validatePassword(password, req.user.mdp);
+      if (isValidPassword) {
+        isVerified = true;
+      } else if (!token) {
+        return res.status(401).json({ error: 'Mot de passe invalide' });
+      }
+    }
+
+    if (!isVerified && token) {
+      if (!req.user.otp_secret) {
+        return res.status(400).json({ error: 'Aucun secret TOTP actif, contactez un administrateur' });
+      }
+
+      const isValidTotp = totpService.verify(token, req.user.otp_secret, 1);
+      if (!isValidTotp) {
+        return res.status(401).json({ error: 'Code TOTP invalide' });
+      }
+      isVerified = true;
+    }
+
+    if (!isVerified) {
+      return res.status(401).json({ error: 'Vérification requise pour désactiver la double authentification' });
+    }
+
     const updatedUser = await User.resetOtpSecret(req.user.id);
     totpService.clearPendingSecret(req.user.id);
     req.user = updatedUser;
