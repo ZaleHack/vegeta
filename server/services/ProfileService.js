@@ -128,7 +128,7 @@ class ProfileService {
       // Normalize existing paths to use forward slashes to avoid issues on different OSes
       photo_path: photoPath
     };
-    const updated = await Profile.update(id, updateData);
+    await Profile.update(id, updateData);
     if (removalIds.length) {
       await this.removeAttachments(id, removalIds);
     }
@@ -141,7 +141,7 @@ class ProfileService {
         }))
       );
     }
-    return this.withAttachments(updated);
+    return this.withAttachments(await Profile.findById(id));
   }
 
   async setArchiveStatus(id, archived, user) {
@@ -154,15 +154,14 @@ class ProfileService {
     const updateData = {
       archived_at: archived ? new Date() : null
     };
-    const updated = await Profile.update(id, updateData);
-    return this.withAttachments(updated);
+    await Profile.update(id, updateData);
+    return this.withAttachments(await Profile.findById(id));
   }
 
   async delete(id, user) {
     const existing = await Profile.findById(id);
     if (!existing) throw new Error('Profil non trouvé');
-    const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
-    if (!isAdmin && existing.user_id !== user.id) {
+    if (existing.user_id !== user.id) {
       throw new Error('Accès refusé');
     }
     if (existing.photo_path) {
@@ -177,16 +176,36 @@ class ProfileService {
     const profile = await Profile.findById(id);
     if (!profile) return null;
     const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
-    if (!isAdmin && profile.user_id !== user.id) return null;
+    const userDivision =
+      user.division_id !== undefined && user.division_id !== null
+        ? Number(user.division_id)
+        : null;
+    const ownerDivision =
+      profile.owner_division_id !== undefined && profile.owner_division_id !== null
+        ? Number(profile.owner_division_id)
+        : null;
+    const sameDivision =
+      userDivision !== null && ownerDivision !== null && userDivision === ownerDivision;
+    if (!isAdmin && profile.user_id !== user.id && !sameDivision) return null;
     return this.withAttachments(profile);
   }
 
-  async list(user, search, page = 1, limit = 10) {
+  async list(user, search, page = 1, limit = 10, includeArchived = false) {
     const offset = (page - 1) * limit;
     const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
-    const result = search
-      ? await Profile.searchByNameOrPhone(search, user.id, isAdmin, limit, offset)
-      : await Profile.findAll(isAdmin ? null : user.id, limit, offset);
+    const divisionId =
+      user.division_id !== undefined && user.division_id !== null
+        ? Number(user.division_id)
+        : null;
+    const result = await Profile.findAccessible({
+      userId: user.id,
+      divisionId,
+      isAdmin,
+      includeArchived,
+      search,
+      limit,
+      offset
+    });
     const rows = result.rows.map(row => ({
       ...row,
       photo_path: this.normalizeStoredPath(row.photo_path)
