@@ -48,6 +48,7 @@ import {
   Scan
 } from 'lucide-react';
 import ToggleSwitch from './components/ToggleSwitch';
+import PaginationControls from './components/PaginationControls';
 
 const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...props}>
@@ -88,6 +89,7 @@ import SoraLogo from './components/SoraLogo';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend);
 
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
+const PAGE_SIZE_OPTIONS = [10, 25, 50];
 const FRAUD_ROLE_LABELS: Record<string, string> = {
   caller: 'Appelant',
   callee: 'Appelé',
@@ -775,7 +777,7 @@ const App: React.FC = () => {
   const [requestSearchInput, setRequestSearchInput] = useState('');
   const [requestSearch, setRequestSearch] = useState('');
   const [requestPage, setRequestPage] = useState(1);
-  const requestsPerPage = 10;
+  const [requestsPerPage, setRequestsPerPage] = useState(10);
 
   const visibleRequests = useMemo(() => {
     let base = requests;
@@ -809,7 +811,7 @@ const App: React.FC = () => {
         (requestPage - 1) * requestsPerPage,
         requestPage * requestsPerPage
       ),
-    [visibleRequests, requestPage]
+    [visibleRequests, requestPage, requestsPerPage]
   );
 
   // Ensure the current request page is within bounds when the filtered
@@ -951,28 +953,28 @@ const App: React.FC = () => {
   const [gendarmerieSearch, setGendarmerieSearch] = useState('');
   const [gendarmeriePage, setGendarmeriePage] = useState(1);
   const [gendarmerieLoading, setGendarmerieLoading] = useState(false);
-  const gendarmeriePerPage = 12;
+  const [gendarmeriePerPage, setGendarmeriePerPage] = useState(10);
 
   // États ONG
   const [ongData, setOngData] = useState<OngEntry[]>([]);
   const [ongSearch, setOngSearch] = useState('');
   const [ongPage, setOngPage] = useState(1);
   const [ongLoading, setOngLoading] = useState(false);
-  const ongPerPage = 12;
+  const [ongPerPage, setOngPerPage] = useState(10);
 
   // États entreprises
   const [entreprisesData, setEntreprisesData] = useState<EntrepriseEntry[]>([]);
   const [entreprisesSearch, setEntreprisesSearch] = useState('');
   const [entreprisesPage, setEntreprisesPage] = useState(1);
   const [entreprisesLoading, setEntreprisesLoading] = useState(false);
-  const entreprisesPerPage = 12;
+  const [entreprisesPerPage, setEntreprisesPerPage] = useState(10);
   const [entreprisesTotal, setEntreprisesTotal] = useState(0);
 
   const [vehiculesData, setVehiculesData] = useState<VehiculeEntry[]>([]);
   const [vehiculesSearch, setVehiculesSearch] = useState('');
   const [vehiculesPage, setVehiculesPage] = useState(1);
   const [vehiculesLoading, setVehiculesLoading] = useState(false);
-  const vehiculesPerPage = 12;
+  const [vehiculesPerPage, setVehiculesPerPage] = useState(10);
   const [vehiculesTotal, setVehiculesTotal] = useState(0);
 
   // États CDR
@@ -3314,7 +3316,17 @@ useEffect(() => {
     if (currentPage === 'requests' && currentUser) {
       fetchRequests();
     }
-  }, [currentPage, currentUser, entreprisesPage, entreprisesSearch, vehiculesPage, vehiculesSearch, isAdmin]);
+  }, [
+    currentPage,
+    currentUser,
+    entreprisesPage,
+    entreprisesSearch,
+    entreprisesPerPage,
+    vehiculesPage,
+    vehiculesSearch,
+    vehiculesPerPage,
+    isAdmin
+  ]);
 
   useEffect(() => {
     if (currentPage === 'blacklist' && isAdmin) {
@@ -3510,22 +3522,6 @@ useEffect(() => {
     (numericSearch.startsWith('77') || numericSearch.startsWith('78')) &&
     numericSearch.length >= 9;
 
-  const getPageNumbers = (current: number, total: number) => {
-    const delta = 2;
-    const pages: (number | string)[] = [];
-    let last = 0;
-    for (let i = 1; i <= total; i++) {
-      if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
-        if (last && i - last > 1) {
-          pages.push('...');
-        }
-        pages.push(i);
-        last = i;
-      }
-    }
-    return pages;
-  };
-
   const filteredGendarmerie =
     gendarmerieSearch.trim() === ''
       ? gendarmerieData
@@ -3568,6 +3564,10 @@ useEffect(() => {
     gendarmeriePage * gendarmeriePerPage
   );
 
+  useEffect(() => {
+    setGendarmeriePage(page => Math.min(page, gendarmerieTotalPages));
+  }, [gendarmerieTotalPages]);
+
   const filteredOng =
     ongSearch.trim() === ''
       ? ongData
@@ -3588,17 +3588,29 @@ useEffect(() => {
     ongPage * ongPerPage
   );
 
+  useEffect(() => {
+    setOngPage(page => Math.min(page, ongTotalPages));
+  }, [ongTotalPages]);
+
   const entreprisesTotalPages = Math.max(
     1,
     Math.ceil(entreprisesTotal / entreprisesPerPage)
   );
   const paginatedEntreprises = entreprisesData;
 
+  useEffect(() => {
+    setEntreprisesPage(page => Math.min(page, entreprisesTotalPages));
+  }, [entreprisesTotalPages]);
+
   const vehiculesTotalPages = Math.max(
     1,
     Math.ceil(vehiculesTotal / vehiculesPerPage)
   );
   const paginatedVehicules = vehiculesData;
+
+  useEffect(() => {
+    setVehiculesPage(page => Math.min(page, vehiculesTotalPages));
+  }, [vehiculesTotalPages]);
 
   useEffect(() => {
     setGendarmeriePage(1);
@@ -4830,44 +4842,28 @@ useEffect(() => {
                         })}
                       </tbody>
                     </table>
-                    <div className="px-6 py-3 flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/60">
-                      <span className="text-sm text-slate-600 dark:text-slate-300">
-                        Page {gendarmeriePage} sur {gendarmerieTotalPages}
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => setGendarmeriePage((p) => Math.max(p - 1, 1))}
-                          disabled={gendarmeriePage === 1}
-                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                        >
-                          Précédent
-                        </button>
-                        {getPageNumbers(gendarmeriePage, gendarmerieTotalPages).map((page, idx) =>
-                          typeof page === 'number' ? (
-                            <button
-                              key={page}
-                              onClick={() => setGendarmeriePage(page)}
-                              className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
-                                gendarmeriePage === page
-                                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
-                                  : 'border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60'
-                              }`}
-                            >
-                              {page}
-                            </button>
-                          ) : (
-                            <span key={`gend-ellipsis-${idx}`} className="px-3 py-1 text-slate-400 dark:text-slate-500">
-                              ...
-                            </span>
-                          )
-                        )}
-                        <button
-                          onClick={() => setGendarmeriePage((p) => Math.min(p + 1, gendarmerieTotalPages))}
-                          disabled={gendarmeriePage === gendarmerieTotalPages}
-                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                        >
-                          Suivant
-                        </button>
+                    <div className="border-t border-slate-200/80 px-6 py-4 dark:border-slate-800/60">
+                      <div className="flex flex-col gap-3">
+                        <span className="text-sm text-slate-600 dark:text-slate-300">
+                          Page {gendarmeriePage} sur {gendarmerieTotalPages}
+                        </span>
+                        <PaginationControls
+                          currentPage={gendarmeriePage}
+                          totalPages={gendarmerieTotalPages}
+                          onPageChange={setGendarmeriePage}
+                          onLoadMore={() =>
+                            setGendarmeriePage((page) =>
+                              Math.min(page + 1, gendarmerieTotalPages)
+                            )
+                          }
+                          canLoadMore={gendarmeriePage < gendarmerieTotalPages}
+                          pageSize={gendarmeriePerPage}
+                          pageSizeOptions={PAGE_SIZE_OPTIONS}
+                          onPageSizeChange={(size) => {
+                            setGendarmeriePerPage(size);
+                            setGendarmeriePage(1);
+                          }}
+                        />
                       </div>
                     </div>
                   </>
@@ -4928,44 +4924,26 @@ useEffect(() => {
                         ))}
                       </tbody>
                     </table>
-                    <div className="px-6 py-3 flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/60">
-                      <span className="text-sm text-slate-600 dark:text-slate-300">
-                        Page {ongPage} sur {ongTotalPages}
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => setOngPage(p => Math.max(p - 1, 1))}
-                          disabled={ongPage === 1}
-                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                        >
-                          Précédent
-                        </button>
-                        {getPageNumbers(ongPage, ongTotalPages).map((page, idx) =>
-                          typeof page === 'number' ? (
-                            <button
-                              key={page}
-                              onClick={() => setOngPage(page)}
-                              className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
-                                ongPage === page
-                                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
-                                  : 'border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60'
-                              }`}
-                            >
-                              {page}
-                            </button>
-                          ) : (
-                            <span key={`ong-ellipsis-${idx}`} className="px-3 py-1 text-slate-400 dark:text-slate-500">
-                              ...
-                            </span>
-                          )
-                        )}
-                        <button
-                          onClick={() => setOngPage(p => Math.min(p + 1, ongTotalPages))}
-                          disabled={ongPage === ongTotalPages}
-                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                        >
-                          Suivant
-                        </button>
+                    <div className="border-t border-slate-200/80 px-6 py-4 dark:border-slate-800/60">
+                      <div className="flex flex-col gap-3">
+                        <span className="text-sm text-slate-600 dark:text-slate-300">
+                          Page {ongPage} sur {ongTotalPages}
+                        </span>
+                        <PaginationControls
+                          currentPage={ongPage}
+                          totalPages={ongTotalPages}
+                          onPageChange={setOngPage}
+                          onLoadMore={() =>
+                            setOngPage(page => Math.min(page + 1, ongTotalPages))
+                          }
+                          canLoadMore={ongPage < ongTotalPages}
+                          pageSize={ongPerPage}
+                          pageSizeOptions={PAGE_SIZE_OPTIONS}
+                          onPageSizeChange={(size) => {
+                            setOngPerPage(size);
+                            setOngPage(1);
+                          }}
+                        />
                       </div>
                     </div>
                   </>
@@ -5076,44 +5054,28 @@ useEffect(() => {
                         ))}
                       </tbody>
                     </table>
-                    <div className="px-6 py-3 flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/60">
-                      <span className="text-sm text-slate-600 dark:text-slate-300">
-                        Page {entreprisesPage} sur {entreprisesTotalPages}
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => setEntreprisesPage((p) => Math.max(p - 1, 1))}
-                          disabled={entreprisesPage === 1}
-                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                        >
-                          Précédent
-                        </button>
-                        {getPageNumbers(entreprisesPage, entreprisesTotalPages).map((page, idx) =>
-                          typeof page === 'number' ? (
-                            <button
-                              key={page}
-                              onClick={() => setEntreprisesPage(page)}
-                              className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
-                                entreprisesPage === page
-                                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
-                                  : 'border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60'
-                              }`}
-                            >
-                              {page}
-                            </button>
-                          ) : (
-                            <span key={`ent-ellipsis-${idx}`} className="px-3 py-1 text-slate-400 dark:text-slate-500">
-                              ...
-                            </span>
-                          )
-                        )}
-                        <button
-                          onClick={() => setEntreprisesPage((p) => Math.min(p + 1, entreprisesTotalPages))}
-                          disabled={entreprisesPage === entreprisesTotalPages}
-                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                        >
-                          Suivant
-                        </button>
+                    <div className="border-t border-slate-200/80 px-6 py-4 dark:border-slate-800/60">
+                      <div className="flex flex-col gap-3">
+                        <span className="text-sm text-slate-600 dark:text-slate-300">
+                          Page {entreprisesPage} sur {entreprisesTotalPages}
+                        </span>
+                        <PaginationControls
+                          currentPage={entreprisesPage}
+                          totalPages={entreprisesTotalPages}
+                          onPageChange={setEntreprisesPage}
+                          onLoadMore={() =>
+                            setEntreprisesPage((page) =>
+                              Math.min(page + 1, entreprisesTotalPages)
+                            )
+                          }
+                          canLoadMore={entreprisesPage < entreprisesTotalPages}
+                          pageSize={entreprisesPerPage}
+                          pageSizeOptions={PAGE_SIZE_OPTIONS}
+                          onPageSizeChange={(size) => {
+                            setEntreprisesPerPage(size);
+                            setEntreprisesPage(1);
+                          }}
+                        />
                       </div>
                     </div>
                   </>
@@ -5224,44 +5186,28 @@ useEffect(() => {
                         ))}
                       </tbody>
                     </table>
-                    <div className="px-6 py-3 flex items-center justify-between border-t border-slate-200/80 dark:border-slate-800/60">
-                      <span className="text-sm text-slate-600 dark:text-slate-300">
-                        Page {vehiculesPage} sur {vehiculesTotalPages}
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => setVehiculesPage((p) => Math.max(p - 1, 1))}
-                          disabled={vehiculesPage === 1}
-                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                        >
-                          Précédent
-                        </button>
-                        {getPageNumbers(vehiculesPage, vehiculesTotalPages).map((page, idx) =>
-                          typeof page === 'number' ? (
-                            <button
-                              key={page}
-                              onClick={() => setVehiculesPage(page)}
-                              className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
-                                vehiculesPage === page
-                                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
-                                  : 'border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60'
-                              }`}
-                            >
-                              {page}
-                            </button>
-                          ) : (
-                            <span key={`veh-ellipsis-${idx}`} className="px-3 py-1 text-slate-400 dark:text-slate-500">
-                              ...
-                            </span>
-                          )
-                        )}
-                        <button
-                          onClick={() => setVehiculesPage((p) => Math.min(p + 1, vehiculesTotalPages))}
-                          disabled={vehiculesPage === vehiculesTotalPages}
-                          className="rounded-full border border-slate-200/80 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
-                        >
-                          Suivant
-                        </button>
+                    <div className="border-t border-slate-200/80 px-6 py-4 dark:border-slate-800/60">
+                      <div className="flex flex-col gap-3">
+                        <span className="text-sm text-slate-600 dark:text-slate-300">
+                          Page {vehiculesPage} sur {vehiculesTotalPages}
+                        </span>
+                        <PaginationControls
+                          currentPage={vehiculesPage}
+                          totalPages={vehiculesTotalPages}
+                          onPageChange={setVehiculesPage}
+                          onLoadMore={() =>
+                            setVehiculesPage((page) =>
+                              Math.min(page + 1, vehiculesTotalPages)
+                            )
+                          }
+                          canLoadMore={vehiculesPage < vehiculesTotalPages}
+                          pageSize={vehiculesPerPage}
+                          pageSizeOptions={PAGE_SIZE_OPTIONS}
+                          onPageSizeChange={(size) => {
+                            setVehiculesPerPage(size);
+                            setVehiculesPage(1);
+                          }}
+                        />
                       </div>
                     </div>
                   </>
@@ -6112,45 +6058,25 @@ useEffect(() => {
                     );
                     })}
                   </div>
-                  {totalRequestPages > 1 && (
-                    <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
-                      <button
-                        onClick={() => setRequestPage((p) => Math.max(p - 1, 1))}
-                        disabled={requestPage === 1}
-                        className="p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700"
-                      >
-                        <ChevronLeft className="h-5 w-5" />
-                      </button>
-                      {getPageNumbers(requestPage, totalRequestPages).map((page, idx) =>
-                        page === '...'
-                          ? (
-                              <span key={`ellipsis-${idx}`} className="px-3 py-1 text-gray-500">
-                                ...
-                              </span>
-                            )
-                          : (
-                              <button
-                                key={`page-${page}`}
-                                onClick={() => setRequestPage(Number(page))}
-                                className={`px-3 py-1 rounded-lg transition ${
-                                  page === requestPage
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                }`}
-                              >
-                                {page}
-                              </button>
-                            )
-                      )}
-                      <button
-                        onClick={() =>
-                          setRequestPage((p) => Math.min(p + 1, totalRequestPages))
+                  {visibleRequests.length > 0 && (
+                    <div className="mt-6">
+                      <PaginationControls
+                        currentPage={requestPage}
+                        totalPages={totalRequestPages}
+                        onPageChange={setRequestPage}
+                        onLoadMore={() =>
+                          setRequestPage((page) =>
+                            Math.min(page + 1, Math.max(totalRequestPages, 1))
+                          )
                         }
-                        disabled={requestPage === totalRequestPages}
-                        className="p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700"
-                      >
-                        <ChevronRight className="h-5 w-5" />
-                      </button>
+                        canLoadMore={requestPage < totalRequestPages}
+                        pageSize={requestsPerPage}
+                        pageSizeOptions={PAGE_SIZE_OPTIONS}
+                        onPageSizeChange={(size) => {
+                          setRequestsPerPage(size);
+                          setRequestPage(1);
+                        }}
+                      />
                     </div>
                   )}
                 </>
