@@ -183,6 +183,11 @@ type RequestMetric = {
   progress?: number;
 };
 
+type InitialRoute = {
+  page?: string;
+  query?: string;
+};
+
 const DASHBOARD_CARD_STORAGE_KEY = 'sora.dashboard.cardOrder';
 const DEFAULT_CARD_ORDER = ['total-searches', 'total-records', 'profiles', 'requests', 'operations'];
 
@@ -591,6 +596,16 @@ const App: React.FC = () => {
   const [searchError, setSearchError] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastQueryRef = useRef<{ query: string; page: number; limit: number } | null>(null);
+  const initialRoute = useMemo<InitialRoute>(() => {
+    if (typeof window === 'undefined') {
+      return {};
+    }
+    const params = new URLSearchParams(window.location.search);
+    const page = params.get('page') || undefined;
+    const query = params.get('query') || undefined;
+    return { page, query };
+  }, []);
+  const [hasAppliedInitialRoute, setHasAppliedInitialRoute] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'profile'>('list');
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
@@ -1622,6 +1637,33 @@ const App: React.FC = () => {
       abortControllerRef.current = null;
     }
   };
+
+  useEffect(() => {
+    if (!isAuthenticated || hasAppliedInitialRoute) return;
+
+    const { page, query } = initialRoute;
+    const hasParams = Boolean(page || query);
+
+    if (page) {
+      setCurrentPage(page);
+    } else if (query) {
+      setCurrentPage('search');
+    }
+
+    if (query) {
+      setSearchQuery(query);
+      handleSearch(undefined, query);
+    }
+
+    if (hasParams && typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('page');
+      url.searchParams.delete('query');
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+
+    setHasAppliedInitialRoute(true);
+  }, [isAuthenticated, hasAppliedInitialRoute, initialRoute, handleSearch]);
 
   const exportToCSV = () => {
     if (!searchResults || searchResults.hits.length === 0) {
