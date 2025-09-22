@@ -301,6 +301,20 @@ class DatabaseManager {
       `);
 
       await this.query(`
+        CREATE TABLE IF NOT EXISTS autres.profile_shares (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          profile_id INT NOT NULL,
+          user_id INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY unique_profile_user (profile_id, user_id),
+          INDEX idx_profile_share_profile (profile_id),
+          INDEX idx_profile_share_user (user_id),
+          FOREIGN KEY (profile_id) REFERENCES autres.profiles(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await this.query(`
         CREATE TABLE IF NOT EXISTS autres.identified_numbers (
           id INT AUTO_INCREMENT PRIMARY KEY,
           phone VARCHAR(50) NOT NULL UNIQUE,

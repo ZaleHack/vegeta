@@ -4,6 +4,9 @@ import { fileURLToPath } from 'url';
 import { PassThrough } from 'stream';
 import Profile from '../models/Profile.js';
 import ProfileAttachment from '../models/ProfileAttachment.js';
+import ProfileShare from '../models/ProfileShare.js';
+import Division from '../models/Division.js';
+import User from '../models/User.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +20,10 @@ class ProfileService {
         fs.mkdirSync(dir, { recursive: true });
       }
     });
+  }
+
+  _isAdmin(user) {
+    return user && (user.admin === 1 || user.admin === '1' || user.admin === true);
   }
 
   normalizeStoredPath(value) {
@@ -97,7 +104,7 @@ class ProfileService {
   async update(id, data, user, files = {}) {
     const existing = await Profile.findById(id);
     if (!existing) throw new Error('Profil non trouvé');
-    const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
+    const isAdmin = this._isAdmin(user);
     if (!isAdmin && existing.user_id !== user.id) {
       throw new Error('Accès refusé');
     }
@@ -161,24 +168,19 @@ class ProfileService {
   async get(id, user) {
     const profile = await Profile.findById(id);
     if (!profile) return null;
-    const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
-    const userDivision =
-      user.division_id !== undefined && user.division_id !== null
-        ? Number(user.division_id)
-        : null;
-    const ownerDivision =
-      profile.owner_division_id !== undefined && profile.owner_division_id !== null
-        ? Number(profile.owner_division_id)
-        : null;
-    const sameDivision =
-      userDivision !== null && ownerDivision !== null && userDivision === ownerDivision;
-    if (!isAdmin && profile.user_id !== user.id && !sameDivision) return null;
+    const isAdmin = this._isAdmin(user);
+    if (!isAdmin && profile.user_id !== user.id) {
+      const shared = await ProfileShare.isSharedWithUser(profile.id, user.id);
+      if (!shared) {
+        return null;
+      }
+    }
     return this.withAttachments(profile);
   }
 
   async list(user, search, page = 1, limit = 10) {
     const offset = (page - 1) * limit;
-    const isAdmin = user.admin === 1 || user.admin === '1' || user.admin === true;
+    const isAdmin = this._isAdmin(user);
     const divisionId =
       user.division_id !== undefined && user.division_id !== null
         ? Number(user.division_id)
@@ -199,14 +201,94 @@ class ProfileService {
       return { rows, total: result.total };
     }
     const attachmentsMap = await ProfileAttachment.findByProfileIds(rows.map(row => row.id));
-    const enriched = rows.map(row => ({
-      ...row,
-      attachments: (attachmentsMap[row.id] || []).map(att => ({
+    const shareMap = await ProfileShare.getSharesForProfiles(rows.map(row => row.id));
+    const enriched = rows.map(row => {
+      const attachments = (attachmentsMap[row.id] || []).map(att => ({
         ...att,
         file_path: this.normalizeStoredPath(att.file_path)
-      }))
-    }));
+      }));
+      const sharedUserIds = shareMap.get(row.id) || [];
+      const isOwner = row.user_id === user.id;
+      const sharedWithMe = !isOwner && sharedUserIds.includes(user.id);
+      return {
+        ...row,
+        attachments,
+        is_owner: isOwner,
+        shared_with_me: sharedWithMe,
+        shared_user_ids: isAdmin || isOwner ? sharedUserIds : undefined
+      };
+    });
     return { rows: enriched, total: result.total };
+  }
+
+  async getShareInfo(profileId, user) {
+    const profile = await Profile.findById(profileId);
+    if (!profile) {
+      throw new Error('Profil non trouvé');
+    }
+
+    const isOwner = profile.user_id === user.id;
+    const isAdmin = this._isAdmin(user);
+
+    if (!isOwner && !isAdmin) {
+      throw new Error('Accès refusé');
+    }
+
+    const owner = await User.findById(profile.user_id);
+    const divisionId = owner?.division_id || null;
+    const divisionUsers = divisionId
+      ? await Division.findUsers(divisionId, { includeInactive: false })
+      : [];
+    const recipients = await ProfileShare.getUserIds(profileId);
+
+    return {
+      divisionId,
+      owner: { id: owner?.id, login: owner?.login },
+      recipients,
+      users: divisionUsers
+    };
+  }
+
+  async shareProfile(profileId, user, { userIds = [], shareAll = false } = {}) {
+    const profile = await Profile.findById(profileId);
+    if (!profile) {
+      throw new Error('Profil non trouvé');
+    }
+
+    const isOwner = profile.user_id === user.id;
+    const isAdmin = this._isAdmin(user);
+
+    if (!isOwner && !isAdmin) {
+      throw new Error('Accès refusé');
+    }
+
+    const owner = await User.findById(profile.user_id);
+    const divisionId = owner?.division_id;
+
+    if (!divisionId) {
+      throw new Error('Division introuvable pour le propriétaire');
+    }
+
+    const divisionUsers = await Division.findUsers(divisionId, { includeInactive: false });
+    const allowedIds = divisionUsers
+      .filter(member => member.id !== owner?.id)
+      .map(member => member.id);
+
+    const targetIds = shareAll
+      ? allowedIds
+      : Array.isArray(userIds)
+        ? userIds
+            .map(id => Number(id))
+            .filter(id => Number.isInteger(id) && id > 0 && allowedIds.includes(id))
+        : [];
+
+    const { added, removed } = await ProfileShare.replaceShares(profileId, targetIds);
+
+    return {
+      added,
+      removed,
+      recipients: targetIds
+    };
   }
 
   async generatePDF(profile) {

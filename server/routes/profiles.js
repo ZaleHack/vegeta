@@ -95,6 +95,52 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/:id/share', async (req, res) => {
+  try {
+    const profileId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(profileId)) {
+      return res.status(400).json({ error: 'ID de profil invalide' });
+    }
+    const info = await service.getShareInfo(profileId, req.user);
+    res.json(info);
+  } catch (error) {
+    if (error.message === 'Profil non trouvé') {
+      return res.status(404).json({ error: 'Profil introuvable' });
+    }
+    if (error.message === 'Accès refusé') {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/share', async (req, res) => {
+  try {
+    const profileId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(profileId)) {
+      return res.status(400).json({ error: 'ID de profil invalide' });
+    }
+    const shareAll = req.body.shareAll === true || req.body.shareAll === 'true';
+    const userIds = Array.isArray(req.body.userIds) ? req.body.userIds : [];
+    const result = await service.shareProfile(profileId, req.user, {
+      userIds,
+      shareAll
+    });
+    res.json(result);
+  } catch (error) {
+    if (error.message === 'Profil non trouvé') {
+      return res.status(404).json({ error: 'Profil introuvable' });
+    }
+    if (error.message === 'Accès refusé') {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+    if (error.message === 'Division introuvable pour le propriétaire') {
+      return res.status(400).json({ error: "Division introuvable pour le propriétaire du profil" });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const profile = await service.get(parseInt(req.params.id), req.user);
