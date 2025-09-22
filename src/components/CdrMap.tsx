@@ -1094,7 +1094,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       <div
         style={{
           transform: `rotate(${carAngle}deg)`,
-          background: 'linear-gradient(135deg, #312e81, #2563eb, #0ea5e9)',
+          backgroundColor: '#2563eb',
           borderRadius: '14px',
           width: size,
           height: size,
