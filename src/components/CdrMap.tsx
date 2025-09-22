@@ -221,6 +221,21 @@ const getIcon = (type: string, direction: string | undefined) => {
   });
 };
 
+const normalizePhoneDigits = (value?: string): string => {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '');
+  if (digits.startsWith('221')) {
+    return digits.slice(3);
+  }
+  return digits;
+};
+
+const formatPhoneForDisplay = (value?: string): string => {
+  const normalized = normalizePhoneDigits(value);
+  if (normalized) return normalized;
+  return value?.trim() || 'N/A';
+};
+
 const getArrowIcon = (angle: number) => {
   const size = 16;
   const icon = (
@@ -438,7 +453,7 @@ const MeetingPointMarker: React.FC<{
             <tbody>
               {mp.perNumber.map((d, idx) => (
                 <tr key={idx} className="border-t">
-                  <td className="px-2 py-1 font-medium">{d.number}</td>
+                  <td className="px-2 py-1 font-medium">{formatPhoneForDisplay(d.number)}</td>
                   <td className="px-2 py-1">
                     <div className="max-h-24 overflow-y-auto space-y-1">
                       {d.events.map((ev, i) => (
@@ -486,6 +501,36 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
   const [activeMeetingNumber, setActiveMeetingNumber] = useState<string | null>(null);
   const [isSatellite, setIsSatellite] = useState(false);
+  const handleIdentifyNumber = useCallback((value: string) => {
+    if (typeof window === 'undefined') return;
+    const normalized = normalizePhoneDigits(value);
+    if (!normalized) return;
+    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    const url = new URL(baseUrl);
+    url.searchParams.set('page', 'search');
+    url.searchParams.set('query', normalized);
+    window.open(url.toString(), '_blank', 'noopener,noreferrer');
+  }, []);
+
+  const renderIdentifyButton = useCallback(
+    (value?: string) => {
+      const normalized = normalizePhoneDigits(value);
+      if (!normalized) return null;
+      return (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            handleIdentifyNumber(normalized);
+          }}
+          className="ml-2 inline-flex items-center rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition-all hover:from-blue-600 hover:via-indigo-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+        >
+          Identifier
+        </button>
+      );
+    },
+    [handleIdentifyNumber]
+  );
 
   const closeInfoPanels = useCallback(() => {
     setShowZoneInfo(false);
@@ -1319,21 +1364,29 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   <div className="space-y-2 text-sm">
                     <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
                     {loc.type === 'sms' ? (
-                      <div className="flex items-center space-x-1">
-                        <span>{loc.caller || 'N/A'}</span>
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2">
+                          <span>{formatPhoneForDisplay(loc.caller)}</span>
+                          {renderIdentifyButton(loc.caller)}
+                        </div>
                         <MessageSquare size={16} className="text-gray-700" />
-                        <span>{loc.callee || 'N/A'}</span>
+                        <div className="flex items-center space-x-2">
+                          <span>{formatPhoneForDisplay(loc.callee)}</span>
+                          {renderIdentifyButton(loc.callee)}
+                        </div>
                       </div>
                     ) : (
                       <>
-                        <div className="flex items-center space-x-1">
+                        <div className="flex items-center space-x-2">
                           <PhoneOutgoing size={16} className="text-gray-700" />
-                          <span>Appelant: {loc.caller || 'N/A'}</span>
+                          <span>Appelant: {formatPhoneForDisplay(loc.caller)}</span>
+                          {renderIdentifyButton(loc.caller)}
                         </div>
                         {loc.type !== 'web' && (
-                          <div className="flex items-center space-x-1">
+                          <div className="flex items-center space-x-2">
                             <PhoneIncoming size={16} className="text-gray-700" />
-                            <span>Appelé: {loc.callee || 'N/A'}</span>
+                            <span>Appelé: {formatPhoneForDisplay(loc.callee)}</span>
+                            {renderIdentifyButton(loc.callee)}
                           </div>
                         )}
                       </>
@@ -1396,21 +1449,29 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                     <div key={i} className="mt-2 p-2 bg-white dark:!bg-white rounded-lg shadow text-gray-900 dark:!text-gray-900">
                       <p className="font-semibold">{loc.source || 'N/A'}</p>
                       {loc.type === 'sms' ? (
-                        <div className="flex items-center space-x-1">
-                          <span>{loc.caller || 'N/A'}</span>
+                        <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2">
+                            <span>{formatPhoneForDisplay(loc.caller)}</span>
+                            {renderIdentifyButton(loc.caller)}
+                          </div>
                           <MessageSquare size={16} className="text-gray-700 dark:!text-gray-700" />
-                          <span>{loc.callee || 'N/A'}</span>
+                          <div className="flex items-center space-x-2">
+                            <span>{formatPhoneForDisplay(loc.callee)}</span>
+                            {renderIdentifyButton(loc.callee)}
+                          </div>
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-center space-x-1">
+                          <div className="flex items-center space-x-2">
                             <PhoneOutgoing size={16} className="text-gray-700 dark:!text-gray-700" />
-                            <span>Appelant: {loc.caller || 'N/A'}</span>
+                            <span>Appelant: {formatPhoneForDisplay(loc.caller)}</span>
+                            {renderIdentifyButton(loc.caller)}
                           </div>
                           {loc.type !== 'web' && (
-                            <div className="flex items-center space-x-1">
+                            <div className="flex items-center space-x-2">
                               <PhoneIncoming size={16} className="text-gray-700 dark:!text-gray-700" />
-                              <span>Appelé: {loc.callee || 'N/A'}</span>
+                              <span>Appelé: {formatPhoneForDisplay(loc.callee)}</span>
+                              {renderIdentifyButton(loc.callee)}
                             </div>
                           )}
                         </>
@@ -1535,21 +1596,29 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                     {loc.nom || 'Localisation'}
                   </p>
                   {loc.type === 'sms' ? (
-                    <div className="flex items-center space-x-1">
-                      <span>{loc.caller || 'N/A'}</span>
+                    <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2">
+                        <span>{formatPhoneForDisplay(loc.caller)}</span>
+                        {renderIdentifyButton(loc.caller)}
+                      </div>
                       <MessageSquare size={16} className="text-gray-700" />
-                      <span>{loc.callee || 'N/A'}</span>
+                      <div className="flex items-center space-x-2">
+                        <span>{formatPhoneForDisplay(loc.callee)}</span>
+                        {renderIdentifyButton(loc.callee)}
+                      </div>
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center space-x-1">
+                      <div className="flex items-center space-x-2">
                         <PhoneOutgoing size={16} className="text-gray-700" />
-                        <span>Appelant: {loc.caller || 'N/A'}</span>
+                        <span>Appelant: {formatPhoneForDisplay(loc.caller)}</span>
+                        {renderIdentifyButton(loc.caller)}
                       </div>
                       {loc.type !== 'web' && (
-                        <div className="flex items-center space-x-1">
+                        <div className="flex items-center space-x-2">
                           <PhoneIncoming size={16} className="text-gray-700" />
-                          <span>Appelé: {loc.callee || 'N/A'}</span>
+                          <span>Appelé: {formatPhoneForDisplay(loc.callee)}</span>
+                          {renderIdentifyButton(loc.callee)}
                         </div>
                       )}
                     </>
@@ -1939,7 +2008,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   .map((m, i) => (
                     <tr key={i} className="border-t">
                       <td className="pr-2">{m.nom || `${m.lat},${m.lng}`}</td>
-                      <td className="pr-2">{m.numbers.join(', ')}</td>
+                      <td className="pr-2">{m.numbers.map((num) => formatPhoneForDisplay(num)).join(', ')}</td>
                       <td className="pr-2">{m.events.length}</td>
                     </tr>
                   ))}
