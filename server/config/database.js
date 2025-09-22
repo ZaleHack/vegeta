@@ -516,7 +516,9 @@ class DatabaseManager {
 
   async query(sql, params = []) {
     try {
-      await this.ensureInitialized();
+      if (!this.pool) {
+        await this.ensureInitialized();
+      }
       const [rows] = await this.pool.execute(sql, params);
       return rows;
     } catch (error) {
@@ -527,7 +529,9 @@ class DatabaseManager {
 
   async queryOne(sql, params = []) {
     try {
-      await this.ensureInitialized();
+      if (!this.pool) {
+        await this.ensureInitialized();
+      }
       const [rows] = await this.pool.execute(sql, params);
       return rows[0] || null;
     } catch (error) {
