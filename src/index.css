@@ -37,16 +37,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer utilities {
-  [class*="bg-gradient-to-"],
-  [class*="dark:bg-gradient-to-"],
-  [class*="bg-[radial-gradient"],
-  [class*="dark:bg-[radial-gradient"] {
-    background-image: none !important;
-    background-color: #2563eb !important;
-  }
-}
-
 @layer components {
     .dark .text-gray-600 { @apply text-slate-300; }
     .dark .text-gray-700 { @apply text-slate-300; }
