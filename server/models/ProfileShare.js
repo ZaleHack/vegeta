@@ -38,7 +38,17 @@ class ProfileShare {
       : [];
     const current = await this.getUserIds(profileId);
     const toRemove = current.filter((id) => !normalized.includes(id));
-    const toAdd = normalized.filter((id) => !current.includes(id));
+    let toAdd = normalized.filter((id) => !current.includes(id));
+
+    if (toAdd.length > 0) {
+      const placeholders = toAdd.map(() => '?').join(',');
+      const validRows = await database.query(
+        `SELECT id FROM autres.users WHERE id IN (${placeholders})`,
+        toAdd
+      );
+      const validIds = new Set(validRows.map((row) => row.id));
+      toAdd = toAdd.filter((id) => validIds.has(id));
+    }
 
     if (toRemove.length > 0) {
       const placeholders = toRemove.map(() => '?').join(',');
