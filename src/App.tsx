@@ -102,6 +102,8 @@ interface User {
   active: number;
   division_id: number;
   division_name?: string | null;
+  otp_enabled?: number;
+  role?: 'ADMIN' | 'USER';
 }
 
 interface SearchResult {
@@ -815,8 +817,19 @@ const App: React.FC = () => {
   );
 
   // États d'authentification
-  const [loginData, setLoginData] = useState({ login: '', password: '' });
+  const [loginData, setLoginData] = useState({ login: '', password: '', totp: '' });
   const [loginError, setLoginError] = useState('');
+  const [loginInfo, setLoginInfo] = useState('');
+  const [requireTotp, setRequireTotp] = useState(false);
+  const [twoFactorSetup, setTwoFactorSetup] = useState<{
+    secret: string;
+    otpauthUrl: string;
+    qrCode: string;
+  } | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+  const [twoFactorError, setTwoFactorError] = useState('');
+  const [twoFactorMessage, setTwoFactorMessage] = useState('');
 
   // États de gestion des utilisateurs
   const [users, setUsers] = useState<User[]>([]);
@@ -1206,17 +1219,41 @@ const App: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setLoginError('');
+    setLoginInfo('');
+
+    if (requireTotp && !loginData.totp.trim()) {
+      setLoading(false);
+      setLoginError('Code Authenticator requis');
+      return;
+    }
 
     try {
+      const payload: Record<string, string> = {
+        login: loginData.login,
+        password: loginData.password
+      };
+
+      if (loginData.totp.trim()) {
+        payload.totp = loginData.totp.trim();
+      }
+
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginData)
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
 
       if (response.ok) {
+        if (data.requireTotp) {
+          setRequireTotp(true);
+          setLoginError('');
+          setLoginInfo('Veuillez saisir le code généré par votre application Authenticator.');
+          setLoginData((prev) => ({ ...prev, totp: '' }));
+          return;
+        }
+
         localStorage.setItem('token', data.token);
         console.log('🔍 Utilisateur connecté:', data.user);
         console.log('🔍 Admin status:', data.user.admin, 'Type:', typeof data.user.admin);
@@ -1224,8 +1261,18 @@ const App: React.FC = () => {
         setIsAuthenticated(true);
         setCurrentPage('dashboard');
         setLogoutReason(null);
-        setLoginData({ login: '', password: '' });
+        setLoginData({ login: '', password: '', totp: '' });
+        setRequireTotp(false);
+        setLoginInfo('');
+        setLoginError('');
       } else {
+        if (data.requireTotp) {
+          setRequireTotp(true);
+          setLoginInfo('Veuillez saisir le code généré par votre application Authenticator.');
+          if (loginData.totp) {
+            setLoginData((prev) => ({ ...prev, totp: '' }));
+          }
+        }
         setLoginError(data.error || 'Erreur de connexion');
       }
     } catch (error) {
@@ -1234,6 +1281,14 @@ const App: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const resetTwoFactorState = useCallback(() => {
+    setTwoFactorSetup(null);
+    setTwoFactorCode('');
+    setTwoFactorError('');
+    setTwoFactorMessage('');
+    setTwoFactorLoading(false);
+  }, []);
 
   const handleLogout = useCallback((reason?: 'inactivity') => {
     localStorage.removeItem('token');
@@ -1245,7 +1300,12 @@ const App: React.FC = () => {
     setReadNotifications([]);
     setHighlightedRequestId(null);
     setLogoutReason(reason ?? null);
-  }, []);
+    setRequireTotp(false);
+    setLoginData({ login: '', password: '', totp: '' });
+    setLoginError('');
+    setLoginInfo('');
+    resetTwoFactorState();
+  }, [resetTwoFactorState]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -2365,6 +2425,7 @@ useEffect(() => {
         setPasswordTargetUser(null);
         setPasswordFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
         setShowPasswords({ current: false, new: false, confirm: false });
+        resetTwoFactorState();
       } else {
         alert(data.error || 'Erreur lors du changement de mot de passe');
       }
@@ -2375,10 +2436,142 @@ useEffect(() => {
     }
   };
 
+  const startTwoFactorSetup = async () => {
+    if (twoFactorLoading) return;
+    setTwoFactorLoading(true);
+    setTwoFactorError('');
+    setTwoFactorMessage('');
+    setTwoFactorCode('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/auth/2fa/setup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setTwoFactorSetup({
+          secret: data.secret,
+          otpauthUrl: data.otpauthUrl,
+          qrCode: data.qrCode
+        });
+        setTwoFactorMessage('Scannez le QR code puis saisissez le premier code généré pour activer l\'Authenticator.');
+      } else {
+        setTwoFactorError(data.error || 'Impossible de générer le secret TOTP');
+      }
+    } catch (error) {
+      setTwoFactorError('Erreur de connexion au serveur');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const confirmTwoFactorSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!twoFactorSetup) {
+      setTwoFactorError('Aucun secret TOTP en attente. Relancez la configuration.');
+      return;
+    }
+
+    if (!twoFactorCode.trim()) {
+      setTwoFactorError('Code TOTP requis');
+      return;
+    }
+
+    setTwoFactorLoading(true);
+    setTwoFactorError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/auth/2fa/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ token: twoFactorCode.trim() })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.user) {
+          setCurrentUser(data.user);
+          if (passwordTargetUser?.id === data.user.id) {
+            setPasswordTargetUser(data.user);
+          }
+        }
+        setTwoFactorSetup(null);
+        setTwoFactorCode('');
+        setTwoFactorMessage('Authentification à deux facteurs activée.');
+      } else {
+        setTwoFactorError(data.error || 'Impossible de valider le code TOTP');
+      }
+    } catch (error) {
+      setTwoFactorError('Erreur de connexion au serveur');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const disableTwoFactor = async () => {
+    if (twoFactorLoading) return;
+    setTwoFactorLoading(true);
+    setTwoFactorError('');
+    setTwoFactorMessage('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/auth/2fa', {
+        method: 'DELETE',
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.user) {
+          setCurrentUser(data.user);
+          if (passwordTargetUser?.id === data.user.id) {
+            setPasswordTargetUser(data.user);
+          }
+        }
+        setTwoFactorSetup(null);
+        setTwoFactorCode('');
+        setTwoFactorMessage('Authentification à deux facteurs désactivée.');
+      } else {
+        setTwoFactorError(data.error || 'Impossible de désactiver la double authentification');
+      }
+    } catch (error) {
+      setTwoFactorError('Erreur de connexion au serveur');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const cancelTwoFactorSetup = () => {
+    resetTwoFactorState();
+    setTwoFactorMessage(
+      currentUser?.otp_enabled === 1
+        ? 'La double authentification reste active.'
+        : 'Configuration annulée.'
+    );
+  };
+
   const openPasswordModal = (user: User | null = null) => {
     setPasswordTargetUser(user || currentUser);
     setPasswordFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     setShowPasswords({ current: false, new: false, confirm: false });
+    resetTwoFactorState();
     setShowPasswordModal(true);
   };
 
@@ -3616,6 +3809,37 @@ useEffect(() => {
                     onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                   />
                 </div>
+
+                {requireTotp && (
+                  <div>
+                    <label htmlFor="totp" className="block text-sm font-semibold text-gray-700 mb-2">
+                      Code Authenticator
+                    </label>
+                    <input
+                      id="totp"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      required={requireTotp}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all tracking-widest uppercase"
+                      placeholder="123456"
+                      value={loginData.totp}
+                      onChange={(e) =>
+                        setLoginData({
+                          ...loginData,
+                          totp: e.target.value.replace(/\D/g, '').slice(0, 6)
+                        })
+                      }
+                    />
+                  </div>
+                )}
+
+                {loginInfo && (
+                  <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm">
+                    {loginInfo}
+                  </div>
+                )}
 
                 {loginError && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -7661,6 +7885,130 @@ useEffect(() => {
                 </div>
               </div>
 
+              {passwordTargetUser?.id === currentUser?.id && (
+                <div className="pt-6 border-t border-gray-200 mt-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900">Sécurité / Authenticator</h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Activez la double authentification pour protéger votre compte avec une application OTP.
+                      </p>
+                    </div>
+                    <span
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                        currentUser?.otp_enabled === 1
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {currentUser?.otp_enabled === 1 ? 'Activée' : 'Désactivée'}
+                    </span>
+                  </div>
+
+                  {twoFactorMessage && (
+                    <p className="mt-3 text-sm text-emerald-600">{twoFactorMessage}</p>
+                  )}
+                  {twoFactorError && (
+                    <p className="mt-3 text-sm text-red-600">{twoFactorError}</p>
+                  )}
+
+                  {twoFactorSetup ? (
+                    <div className="mt-4 space-y-4">
+                      <p className="text-sm text-gray-600">
+                        Scannez le QR code avec votre application Authenticator ou saisissez la clé manuellement, puis entrez le
+                        premier code généré.
+                      </p>
+                      {twoFactorSetup.qrCode && (
+                        <div className="flex justify-center">
+                          <img
+                            src={twoFactorSetup.qrCode}
+                            alt="QR code d'activation Authenticator"
+                            className="w-40 h-40 border border-gray-200 rounded-lg shadow-sm"
+                          />
+                        </div>
+                      )}
+                      <div className="text-sm text-gray-600 text-center">
+                        Clé secrète :{' '}
+                        <span className="font-mono text-gray-900">
+                          {twoFactorSetup.secret}
+                        </span>
+                      </div>
+                      {twoFactorSetup.otpauthUrl && (
+                        <div className="text-xs text-gray-500 break-all text-center">
+                          URL OTPAUTH : {twoFactorSetup.otpauthUrl}
+                        </div>
+                      )}
+                      <form onSubmit={confirmTwoFactorSetup} className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Premier code à usage unique
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            maxLength={6}
+                            required
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent tracking-widest"
+                            placeholder="123456"
+                            value={twoFactorCode}
+                            onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="submit"
+                            disabled={twoFactorLoading}
+                            className="flex-1 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-60"
+                          >
+                            {twoFactorLoading ? 'Validation...' : 'Activer'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelTwoFactorSetup}
+                            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-4">
+                      {currentUser?.otp_enabled === 1 ? (
+                        <>
+                          <p className="text-sm text-gray-600">
+                            Votre compte est actuellement protégé par un code Authenticator. Pour le reconfigurer sur un nouvel appareil, désactivez puis relancez la configuration.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={disableTwoFactor}
+                            disabled={twoFactorLoading}
+                            className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg disabled:opacity-60"
+                          >
+                            {twoFactorLoading ? 'Patientez...' : 'Désactiver'}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-gray-600">
+                            Ajoutez une étape de sécurité supplémentaire en activant l'Authenticator sur votre compte.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={startTwoFactorSetup}
+                            disabled={twoFactorLoading}
+                            className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-60"
+                          >
+                            {twoFactorLoading ? 'Génération...' : 'Activer l\'Authenticator'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
@@ -7669,6 +8017,7 @@ useEffect(() => {
                     setPasswordTargetUser(null);
                     setPasswordFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
                     setShowPasswords({ current: false, new: false, confirm: false });
+                    resetTwoFactorState();
                   }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >

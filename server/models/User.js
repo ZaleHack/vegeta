@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import speakeasy from 'speakeasy';
 import database from '../config/database.js';
 
 class User {
@@ -18,7 +19,8 @@ class User {
       mdp: hashedPassword,
       admin,
       active,
-      division_id
+      division_id,
+      otp_enabled: 0
     };
   }
 
@@ -54,10 +56,10 @@ class User {
 
   static generateToken(user) {
     return jwt.sign(
-      { 
-        id: user.id, 
-        login: user.login, 
-        admin: user.admin 
+      {
+        id: user.id,
+        login: user.login,
+        admin: user.admin
       },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '24h' }
@@ -66,6 +68,12 @@ class User {
 
   static verifyToken(token) {
     return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+  }
+
+  static sanitize(user) {
+    if (!user) return null;
+    const { mdp, otp_secret, ...safeUser } = user;
+    return safeUser;
   }
 
   static async findAll() {
@@ -111,6 +119,33 @@ class User {
   static async delete(id) {
     await database.query('DELETE FROM autres.users WHERE id = ?', [id]);
     return true;
+  }
+
+  static generateOtpSecret(login) {
+    return speakeasy.generateSecret({
+      length: 32,
+      name: `Sora (${login})`
+    });
+  }
+
+  static async saveOtpSecret(id, secret) {
+    await database.query(
+      `UPDATE autres.users
+       SET otp_secret = ?, otp_enabled = 1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [secret, id]
+    );
+    return this.findById(id);
+  }
+
+  static async resetOtpSecret(id) {
+    await database.query(
+      `UPDATE autres.users
+       SET otp_secret = NULL, otp_enabled = 0, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [id]
+    );
+    return this.findById(id);
   }
 }
 

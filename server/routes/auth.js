@@ -3,13 +3,23 @@ import User from '../models/User.js';
 import { authenticate } from '../middleware/auth.js';
 import UserLog from '../models/UserLog.js';
 import UserSession from '../models/UserSession.js';
+import totpService from '../services/totpService.js';
 
 const router = express.Router();
+
+const sanitizeUserForResponse = (user) => {
+  const sanitized = User.sanitize(user);
+  if (!sanitized) return null;
+  return {
+    ...sanitized,
+    role: sanitized.admin === 1 ? 'ADMIN' : 'USER'
+  };
+};
 
 // Route de connexion
 router.post('/login', async (req, res) => {
   try {
-    const { login, password } = req.body;
+    const { login, password, totp } = req.body;
 
     if (!login || !password) {
       return res.status(400).json({ error: 'Login et mot de passe requis' });
@@ -31,15 +41,34 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
 
+    if (user.otp_enabled === 1) {
+      if (!user.otp_secret) {
+        return res.status(500).json({ error: 'Configuration 2FA invalide, contactez un administrateur' });
+      }
+
+      if (!totp) {
+        return res.status(200).json({
+          requireTotp: true,
+          message: 'Code de vérification requis'
+        });
+      }
+
+      const isValidTotp = totpService.verify(totp, user.otp_secret, 1);
+
+      if (!isValidTotp) {
+        return res.status(401).json({
+          error: 'Code de vérification invalide',
+          requireTotp: true
+        });
+      }
+    }
+
     const token = User.generateToken(user);
-    const { mdp, ...userResponse } = user;
+    const userResponse = sanitizeUserForResponse(user);
 
     res.json({
       message: 'Connexion réussie',
-      user: {
-        ...userResponse,
-        role: user.admin === 1 ? 'ADMIN' : 'USER'
-      },
+      user: userResponse,
       token
     });
 
@@ -96,15 +125,82 @@ router.get('/verify', async (req, res) => {
       return res.status(401).json({ error: 'Utilisateur non trouvé' });
     }
 
-    const { mdp, ...userResponse } = user;
     res.json({
-      user: {
-        ...userResponse,
-        role: user.admin === 1 ? 'ADMIN' : 'USER'
-      }
+      user: sanitizeUserForResponse(user)
     });
   } catch {
     res.status(401).json({ error: 'Token invalide' });
+  }
+});
+
+router.post('/2fa/setup', authenticate, async (req, res) => {
+  try {
+    if (req.user.otp_enabled === 1) {
+      return res.status(400).json({ error: 'La double authentification est déjà activée' });
+    }
+
+    const setupData = await totpService.generateSetup(req.user);
+
+    res.json({
+      message: 'Secret TOTP généré',
+      ...setupData
+    });
+  } catch (error) {
+    console.error('Erreur génération secret TOTP:', error);
+    res.status(500).json({ error: 'Erreur serveur lors de la génération du secret' });
+  }
+});
+
+router.post('/2fa/confirm', authenticate, async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Code de vérification requis' });
+    }
+
+    const pendingSecret = totpService.getPendingSecret(req.user.id);
+
+    if (!pendingSecret) {
+      if (req.user.otp_enabled === 1) {
+        return res.status(400).json({ error: 'La double authentification est déjà active' });
+      }
+      return res.status(400).json({ error: 'Aucun secret TOTP en attente, relancez la configuration' });
+    }
+
+    const isValid = totpService.verify(token, pendingSecret, 1);
+
+    if (!isValid) {
+      return res.status(400).json({ error: 'Code TOTP invalide' });
+    }
+
+    const updatedUser = await User.saveOtpSecret(req.user.id, pendingSecret);
+    totpService.clearPendingSecret(req.user.id);
+    req.user = updatedUser;
+
+    res.json({
+      message: 'Authentification à deux facteurs activée',
+      user: sanitizeUserForResponse(updatedUser)
+    });
+  } catch (error) {
+    console.error('Erreur confirmation TOTP:', error);
+    res.status(500).json({ error: 'Erreur serveur lors de la confirmation du code' });
+  }
+});
+
+router.delete('/2fa', authenticate, async (req, res) => {
+  try {
+    const updatedUser = await User.resetOtpSecret(req.user.id);
+    totpService.clearPendingSecret(req.user.id);
+    req.user = updatedUser;
+
+    res.json({
+      message: 'Authentification à deux facteurs désactivée',
+      user: sanitizeUserForResponse(updatedUser)
+    });
+  } catch (error) {
+    console.error('Erreur désactivation TOTP:', error);
+    res.status(500).json({ error: 'Erreur serveur lors de la désactivation du TOTP' });
   }
 });
 
