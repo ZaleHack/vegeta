@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import speakeasy from 'speakeasy';
+import { generateSecret as generateTotpSecret } from '../utils/totp.js';
 import database from '../config/database.js';
 
 class User {
@@ -122,10 +122,7 @@ class User {
   }
 
   static generateOtpSecret(login) {
-    return speakeasy.generateSecret({
-      length: 32,
-      name: `Sora (${login})`
-    });
+    return generateTotpSecret(login);
   }
 
   static async saveOtpSecret(id, secret) {

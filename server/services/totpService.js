@@ -1,6 +1,5 @@
-import QRCode from 'qrcode';
-import speakeasy from 'speakeasy';
 import User from '../models/User.js';
+import { buildQrCodeUrl, verifyTotp } from '../utils/totp.js';
 
 class TotpService {
   constructor() {
@@ -9,7 +8,7 @@ class TotpService {
 
   async generateSetup(user) {
     const secret = User.generateOtpSecret(user.login);
-    const qrCode = await QRCode.toDataURL(secret.otpauth_url);
+    const qrCode = buildQrCodeUrl(secret.otpauth_url);
 
     this.pendingSecrets.set(user.id, secret.base32);
 
@@ -30,12 +29,7 @@ class TotpService {
 
   verify(token, secret, window = 1) {
     if (!secret) return false;
-    return speakeasy.totp.verify({
-      secret,
-      token,
-      encoding: 'base32',
-      window
-    });
+    return verifyTotp(token, secret, window);
   }
 }
 
