@@ -48,11 +48,12 @@ class ProfileShare {
       );
     }
 
+    const insertShareSql =
+      `INSERT INTO autres.profile_shares (profile_id, user_id) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE created_at = VALUES(created_at)`;
+
     for (const userId of toAdd) {
-      await database.query(
-        `INSERT INTO autres.profile_shares (profile_id, user_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE created_at = VALUES(created_at)`,
-        [profileId, userId]
-      );
+      await database.query(insertShareSql, [profileId, userId]);
     }
 
     return { added: toAdd, removed: toRemove };
