@@ -320,6 +320,12 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
     [load]
   );
 
+  const handleCreateClick = useCallback(() => {
+    setView('active');
+    setPage(1);
+    onCreate?.();
+  }, [onCreate]);
+
   const exportProfile = async (id: number) => {
     const token = localStorage.getItem('token');
     const res = await fetch(`/api/profiles/${id}/pdf`, {
@@ -341,12 +347,12 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl bg-gradient-to-br from-blue-50 via-white to-white/60 p-6 shadow-inner shadow-blue-100">
+      <div className="rounded-3xl bg-gradient-to-br from-blue-50 via-white to-white/60 p-6 shadow-inner shadow-blue-100 dark:bg-none dark:bg-slate-900/60 dark:shadow-slate-900/60">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-slate-200 transition-all focus-within:ring-2 focus-within:ring-blue-500">
-            <Search className="h-5 w-5 text-slate-400" />
+          <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-slate-200 transition-all focus-within:ring-2 focus-within:ring-blue-500 dark:bg-slate-900/60 dark:ring-slate-700 dark:focus-within:ring-blue-500/70">
+            <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
             <input
-              className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+              className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-200 dark:placeholder:text-slate-500"
               placeholder="Rechercher par nom, téléphone ou email"
               value={query}
               onChange={e => setQuery(e.target.value)}
@@ -369,7 +375,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
           {onCreate && (
             <button
               type="button"
-              onClick={onCreate}
+              onClick={handleCreateClick}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl"
             >
               Créer une fiche
@@ -377,7 +383,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
           )}
         </div>
         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="inline-flex items-center gap-1 rounded-full bg-white/80 p-1 shadow-sm shadow-blue-200">
+          <div className="inline-flex items-center gap-1 rounded-full bg-white/80 p-1 shadow-sm shadow-blue-200 dark:bg-slate-900/50 dark:shadow-slate-900/40">
             {tabs.map(tab => {
               const isActive = view === tab.id;
               return (
@@ -393,7 +399,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                   className={`relative rounded-full px-4 py-2 text-xs font-semibold transition ${
                     isActive
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-400/50'
-                      : 'text-slate-500 hover:bg-blue-50'
+                      : 'text-slate-500 hover:bg-blue-50 dark:text-slate-400 dark:hover:bg-slate-800'
                   }`}
                 >
                   {tab.label}
@@ -401,7 +407,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
               );
             })}
           </div>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {view === 'archived'
               ? 'Visualisez et restaurez les fiches archivées de votre division.'
               : 'Les fiches actives sont partagées avec les membres de votre division.'}
@@ -419,11 +425,11 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
       {loading ? (
         <LoadingSpinner />
       ) : error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm shadow-red-200">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm shadow-red-200 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200 dark:shadow-red-900/30">
           {error}
         </div>
       ) : profiles.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 px-6 py-12 text-center text-sm font-medium text-slate-500 shadow-inner">
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 px-6 py-12 text-center text-sm font-medium text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400 dark:shadow-none">
           {emptyMessage}
         </div>
       ) : (
@@ -438,16 +444,18 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
               return (
                 <div
                   key={p.id}
-                  className={`group relative overflow-hidden rounded-3xl bg-white/90 p-6 shadow-lg ring-1 transition-all hover:-translate-y-1 hover:shadow-2xl ${
-                    isArchived ? 'ring-amber-200' : 'ring-slate-200'
+                  className={`group relative overflow-hidden rounded-3xl bg-white/90 p-6 shadow-lg ring-1 transition-all hover:-translate-y-1 hover:shadow-2xl dark:bg-slate-900/70 ${
+                    isArchived
+                      ? 'ring-amber-200 dark:ring-amber-500/40'
+                      : 'ring-slate-200 dark:ring-slate-700'
                   }`}
                 >
                   <div className="flex items-start gap-4">
-                    <div className="relative h-20 w-20 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 shadow-inner shadow-blue-100 ring-2 ring-blue-100">
+                    <div className="relative h-20 w-20 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 shadow-inner shadow-blue-100 ring-2 ring-blue-100 dark:from-slate-800 dark:to-slate-700 dark:shadow-slate-900 dark:ring-slate-700">
                       {photoUrl ? (
                         <img src={photoUrl} alt="profil" className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-slate-400">
+                        <div className="flex h-full w-full items-center justify-center text-slate-400 dark:text-slate-500">
                           <Users className="h-8 w-8" />
                         </div>
                       )}
@@ -455,36 +463,36 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                     <div className="flex-1 space-y-3">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div className="space-y-1">
-                          <h3 className="text-lg font-semibold text-slate-900">{displayName}</h3>
-                          <p className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                            <Users className="h-4 w-4 text-blue-500" />
+                          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{displayName}</h3>
+                          <p className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                            <Users className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                             {isOwner(p)
                               ? 'Créé par vous'
                               : `Partagé par ${p.owner_login || 'un membre de la division'}`}
                           </p>
                         </div>
                         {isArchived && (
-                          <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 shadow-sm shadow-amber-200">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 shadow-sm shadow-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:shadow-amber-900/30">
                             <Archive className="h-3.5 w-3.5" />
                             Archivé
                           </span>
                         )}
                       </div>
-                      <dl className="grid grid-cols-1 gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                      <dl className="grid grid-cols-1 gap-2 text-sm text-slate-600 sm:grid-cols-2 dark:text-slate-300">
                         {previewFields.map(field => (
                           <div
                             key={field.label}
-                            className="rounded-2xl bg-slate-50/80 px-3 py-2 shadow-inner shadow-slate-200"
+                            className="rounded-2xl bg-slate-50/80 px-3 py-2 shadow-inner shadow-slate-200 dark:bg-slate-800/70 dark:shadow-slate-900"
                           >
-                            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                               {field.label}
                             </dt>
-                            <dd className="mt-1 text-sm font-medium text-slate-700">{field.value}</dd>
+                            <dd className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-200">{field.value}</dd>
                           </div>
                         ))}
                       </dl>
                       {p.comment && (
-                        <p className="rounded-2xl bg-blue-50/70 px-3 py-2 text-sm text-blue-800 shadow-inner">
+                        <p className="rounded-2xl bg-blue-50/70 px-3 py-2 text-sm text-blue-800 shadow-inner dark:bg-blue-500/10 dark:text-blue-200 dark:shadow-blue-900/20">
                           {p.comment}
                         </p>
                       )}
@@ -494,7 +502,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                     <button
                       type="button"
                       onClick={() => setSelected(p)}
-                      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200"
+                      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                     >
                       <Eye className="h-4 w-4" /> Aperçu
                     </button>
@@ -513,8 +521,8 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                         onClick={() => toggleArchive(p)}
                         className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                           isArchived
-                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:hover:bg-amber-500/30'
+                            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-500/20 dark:text-indigo-200 dark:hover:bg-indigo-500/30'
                         }`}
                       >
                         {isArchived ? (
@@ -529,7 +537,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                       <button
                         type="button"
                         onClick={() => remove(p.id)}
-                        className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100"
+                        className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
                       >
                         <Trash2 className="h-4 w-4" /> Supprimer
                       </button>
@@ -537,7 +545,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                     <button
                       type="button"
                       onClick={() => exportProfile(p.id)}
-                      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200"
+                      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                     >
                       <Download className="h-4 w-4" /> Exporter
                     </button>
@@ -551,18 +559,18 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
               type="button"
               onClick={() => setPage(prev => Math.max(1, prev - 1))}
               disabled={page === 1}
-              className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               Précédent
             </button>
-            <span className="text-sm font-medium text-slate-500">
+            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
               Page {page} / {totalPages}
             </span>
             <button
               type="button"
               onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
               disabled={page >= totalPages}
-              className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               Suivant
             </button>
@@ -571,7 +579,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
       )}
       {selected && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur">
-          <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900 dark:shadow-slate-900/60">
             <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-5 text-white">
               <h2 className="text-2xl font-semibold">Détails du profil</h2>
               <p className="mt-1 text-sm text-white/80">
@@ -586,7 +594,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
             >
               <X className="h-5 w-5" />
             </button>
-            <div className="space-y-6 p-6 text-sm">
+            <div className="space-y-6 p-6 text-sm text-slate-700 dark:text-slate-200">
               <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
                 {selectedPhotoUrl ? (
                   <img
@@ -595,58 +603,58 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                     className="h-32 w-32 rounded-2xl object-cover shadow-lg ring-2 ring-blue-500"
                   />
                 ) : (
-                  <div className="flex h-32 w-32 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 shadow-inner">
+                  <div className="flex h-32 w-32 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 shadow-inner dark:bg-slate-800 dark:text-slate-500">
                     <Users className="h-10 w-10" />
                   </div>
                 )}
                 <div className="flex-1 space-y-3">
                   {selected.archived_at && (
-                    <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
                       <Archive className="h-4 w-4" /> Profil archivé
                     </div>
                   )}
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-slate-700 shadow-inner">
+                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
                     <p className="text-sm font-medium">
                       {selected.first_name || selected.last_name
                         ? `${selected.first_name ?? ''} ${selected.last_name ?? ''}`.trim() || 'Profil sans nom'
                         : 'Profil sans nom'}
                     </p>
                     {selected.email && (
-                      <p className="text-xs text-slate-500">{selected.email}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{selected.email}</p>
                     )}
                     {selected.phone && (
-                      <p className="text-xs text-slate-500">{selected.phone}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{selected.phone}</p>
                     )}
                   </div>
                 </div>
               </div>
               <div className="max-h-72 space-y-4 overflow-y-auto pr-2">
                 {buildCategories(selected).map((cat, idx) => (
-                  <div key={idx} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                  <div key={idx} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
                     {cat.title && (
-                      <div className="mb-2 text-sm font-semibold text-slate-700">{cat.title}</div>
+                      <div className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{cat.title}</div>
                     )}
-                    <div className="space-y-1 text-sm text-slate-600">
+                    <div className="space-y-1 text-sm text-slate-600 dark:text-slate-300">
                       {(cat.fields || [])
                         .filter((f: any) => f.value)
                         .map((f: any, i: number) => (
                           <div key={i} className="flex justify-between gap-3">
-                            <span className="font-medium text-slate-500">{f.key}</span>
-                            <span className="text-right text-slate-700">{f.value}</span>
+                            <span className="font-medium text-slate-500 dark:text-slate-400">{f.key}</span>
+                            <span className="text-right text-slate-700 dark:text-slate-200">{f.value}</span>
                           </div>
                         ))}
                     </div>
                   </div>
                 ))}
                 {selected.comment && (
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-slate-700 shadow-sm">
-                    <div className="text-sm font-semibold text-blue-700">Commentaire</div>
-                    <p className="mt-1 text-sm text-blue-800">{selected.comment}</p>
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-slate-700 shadow-sm dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-slate-200">
+                    <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">Commentaire</div>
+                    <p className="mt-1 text-sm text-blue-800 dark:text-blue-200">{selected.comment}</p>
                   </div>
                 )}
                 {selected.attachments && selected.attachments.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                       <Paperclip className="h-4 w-4" /> Pièces jointes
                     </div>
                     <ul className="space-y-2">
@@ -656,7 +664,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                         return (
                           <li
                             key={att.id}
-                            className="flex rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-blue-600 shadow-sm"
+                            className="flex rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-blue-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-blue-300"
                           >
                             <a
                               href={href || '#'}
@@ -665,7 +673,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                               className="flex w-full items-center justify-between gap-2 overflow-hidden hover:underline"
                             >
                               <span className="flex items-center gap-2 overflow-hidden">
-                                <Paperclip className="h-4 w-4 text-slate-400" />
+                                <Paperclip className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                                 <span className="truncate">{label}</span>
                               </span>
                               <Download className="h-4 w-4 flex-shrink-0" />
