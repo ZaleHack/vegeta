@@ -34,6 +34,21 @@
   }
 }
 
+[class*="bg-gradient-"] {
+  background-image: none !important;
+  background-color: var(--tw-gradient-from, transparent) !important;
+}
+
+[class*="bg-gradient-"].bg-clip-text,
+[class*="bg-gradient-"].bg-clip-text.text-transparent {
+  color: var(--tw-gradient-from, currentColor) !important;
+  background-color: transparent !important;
+}
+
+[class*="bg-[radial-gradient"] {
+  background-image: none !important;
+}
+
 @tailwind components;
 @tailwind utilities;
 

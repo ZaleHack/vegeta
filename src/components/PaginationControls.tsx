@@ -65,7 +65,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
           className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
         >
           <ChevronLeft className="h-4 w-4" />
-          Back
+          Précédent
         </button>
         {pages.map((page, index) =>
           typeof page === 'number' ? (
@@ -96,7 +96,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
           disabled={currentPage >= totalPages}
           className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
         >
-          Forward
+          Suivant
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
@@ -108,12 +108,12 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
             disabled={!canLoadMore}
             className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
           >
-            Load more
+            Charger plus
           </button>
         )}
         {showPageSize && pageSizeOptions && onPageSizeChange && (
           <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            Show
+            Afficher
             <select
               value={pageSize}
               onChange={(event) => onPageSizeChange(Number(event.target.value))}
