@@ -67,15 +67,10 @@ class Profile {
       if (userId == null) {
         throw new Error('User id requis');
       }
-      const normalizedDivisionId =
-        divisionId !== undefined && divisionId !== null ? Number(divisionId) : null;
-      if (normalizedDivisionId) {
-        conditions.push('(p.user_id = ? OR u.division_id = ?)');
-        params.push(userId, normalizedDivisionId);
-      } else {
-        conditions.push('p.user_id = ?');
-        params.push(userId);
-      }
+      conditions.push(
+        '(p.user_id = ? OR EXISTS (SELECT 1 FROM autres.profile_shares ps WHERE ps.profile_id = p.id AND ps.user_id = ?))'
+      );
+      params.push(userId, userId);
     }
 
     if (search) {

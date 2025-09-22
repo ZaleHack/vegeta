@@ -79,7 +79,7 @@ import { fr } from 'date-fns/locale';
 import PageHeader from './components/PageHeader';
 import SearchResultProfiles from './components/SearchResultProfiles';
 import LoadingSpinner from './components/LoadingSpinner';
-import ProfileList from './components/ProfileList';
+import ProfileList, { ProfileListItem } from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
 import CdrMap from './components/CdrMap';
 import LinkDiagram from './components/LinkDiagram';
@@ -287,6 +287,15 @@ interface CaseShareInfo {
   owner: { id: number | undefined; login: string | undefined };
   recipients: number[];
   users: CaseShareUser[];
+}
+
+type ProfileShareUser = CaseShareUser;
+
+interface ProfileShareInfo {
+  divisionId: number | null;
+  owner: { id: number | undefined; login: string | undefined };
+  recipients: number[];
+  users: ProfileShareUser[];
 }
 
 interface ServerNotification {
@@ -1016,11 +1025,37 @@ const App: React.FC = () => {
   const [shareMessage, setShareMessage] = useState('');
   const [shareOwnerId, setShareOwnerId] = useState<number | null>(null);
   const [pendingShareCaseId, setPendingShareCaseId] = useState<number | null>(null);
+  const [showProfileShareModal, setShowProfileShareModal] = useState(false);
+  const [profileShareTarget, setProfileShareTarget] = useState<ProfileListItem | null>(null);
+  const [profileShareUsers, setProfileShareUsers] = useState<ProfileShareUser[]>([]);
+  const [profileShareSelectedIds, setProfileShareSelectedIds] = useState<number[]>([]);
+  const [profileShareAll, setProfileShareAll] = useState(false);
+  const [profileShareOwnerId, setProfileShareOwnerId] = useState<number | null>(null);
+  const [profileShareMessage, setProfileShareMessage] = useState('');
+  const [profileShareLoading, setProfileShareLoading] = useState(false);
+  const [profileListRefreshKey, setProfileListRefreshKey] = useState(0);
   const hasFraudSuspiciousNumbers = useMemo(() => {
     if (!fraudResult) return false;
     return fraudResult.imeis.some((entry) =>
       entry.numbers.some((number) => number.status === 'nouveau')
     );
+  }, [fraudResult]);
+  const fraudStats = useMemo(() => {
+    if (!fraudResult) {
+      return { totalImeis: 0, totalNumbers: 0, newNumbers: 0, expectedNumbers: 0 };
+    }
+    let totalNumbers = 0;
+    let newNumbers = 0;
+    fraudResult.imeis.forEach((entry) => {
+      totalNumbers += entry.numbers.length;
+      newNumbers += entry.numbers.filter((number) => number.status === 'nouveau').length;
+    });
+    return {
+      totalImeis: fraudResult.imeis.length,
+      totalNumbers,
+      newNumbers,
+      expectedNumbers: Math.max(0, totalNumbers - newNumbers)
+    };
   }, [fraudResult]);
   const hasGlobalFraudImeiAlerts = useMemo(() => {
     if (!globalFraudResult) return false;
@@ -1030,9 +1065,16 @@ const App: React.FC = () => {
     if (!globalFraudResult) return false;
     return Array.isArray(globalFraudResult.numbers) && globalFraudResult.numbers.length > 0;
   }, [globalFraudResult]);
-  const totalGlobalFraudNumbers = useMemo(() => {
-    if (!globalFraudResult || !Array.isArray(globalFraudResult.imeis)) return 0;
-    return globalFraudResult.imeis.reduce((acc, entry) => acc + entry.numbers.length, 0);
+  const globalFraudStats = useMemo(() => {
+    if (!globalFraudResult) {
+      return { totalImeis: 0, totalNumbers: 0, alerts: 0 };
+    }
+    const imeiCount = Array.isArray(globalFraudResult.imeis) ? globalFraudResult.imeis.length : 0;
+    const numbersCount = Array.isArray(globalFraudResult.imeis)
+      ? globalFraudResult.imeis.reduce((acc, entry) => acc + entry.numbers.length, 0)
+      : 0;
+    const alertCount = Array.isArray(globalFraudResult.numbers) ? globalFraudResult.numbers.length : 0;
+    return { totalImeis: imeiCount, totalNumbers: numbersCount, alerts: alertCount };
   }, [globalFraudResult]);
 
   useEffect(() => {
@@ -2914,6 +2956,108 @@ useEffect(() => {
     }
   };
 
+  const openProfileShareModal = async (profile: ProfileListItem) => {
+    setProfileShareTarget(profile);
+    setProfileShareMessage('');
+    setProfileShareSelectedIds([]);
+    setProfileShareAll(false);
+    setProfileShareUsers([]);
+    setProfileShareOwnerId(null);
+    setShowProfileShareModal(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/profiles/${profile.id}/share`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      const data: ProfileShareInfo = await res.json();
+      if (res.ok) {
+        const users: ProfileShareUser[] = Array.isArray(data.users) ? data.users : [];
+        const recipients: number[] = Array.isArray(data.recipients) ? data.recipients : [];
+        const ownerId = typeof data.owner?.id === 'number' ? data.owner.id : null;
+        setProfileShareUsers(users);
+        setProfileShareSelectedIds(recipients);
+        setProfileShareOwnerId(ownerId);
+        const eligibleIds = users.filter((user) => user.id !== ownerId).map((user) => user.id);
+        setProfileShareAll(
+          eligibleIds.length > 0 && eligibleIds.every((id) => recipients.includes(id))
+        );
+      } else {
+        setProfileShareMessage(
+          (data as any)?.error || 'Erreur lors du chargement des informations de partage'
+        );
+      }
+    } catch (error) {
+      console.error('Erreur chargement informations partage profil:', error);
+      setProfileShareMessage('Erreur lors du chargement des informations de partage');
+    }
+  };
+
+  const toggleProfileShareUser = (userId: number) => {
+    setProfileShareSelectedIds((prev) => {
+      if (prev.includes(userId)) {
+        return prev.filter((id) => id !== userId);
+      }
+      return [...prev, userId];
+    });
+    setProfileShareAll(false);
+  };
+
+  const toggleProfileShareAll = () => {
+    const availableIds = profileShareUsers
+      .filter((user) => user.id !== profileShareOwnerId)
+      .map((user) => user.id);
+    if (profileShareAll) {
+      setProfileShareSelectedIds([]);
+      setProfileShareAll(false);
+    } else {
+      setProfileShareSelectedIds(availableIds);
+      setProfileShareAll(true);
+    }
+  };
+
+  const handleSubmitProfileShare = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileShareTarget) return;
+    setProfileShareLoading(true);
+    setProfileShareMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/profiles/${profileShareTarget.id}/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({
+          shareAll: profileShareAll,
+          userIds: profileShareAll ? [] : profileShareSelectedIds
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setProfileShareMessage('Partage mis à jour');
+        const recipients: number[] = Array.isArray(data.recipients) ? data.recipients : [];
+        setProfileShareSelectedIds(recipients);
+        if (profileShareAll) {
+          const availableIds = profileShareUsers
+            .filter((user) => user.id !== profileShareOwnerId)
+            .map((user) => user.id);
+          setProfileShareAll(
+            availableIds.length > 0 && availableIds.every((id) => recipients.includes(id))
+          );
+        }
+        setProfileListRefreshKey((prev) => prev + 1);
+      } else {
+        setProfileShareMessage(data.error || 'Erreur lors de la mise à jour du partage');
+      }
+    } catch (error) {
+      console.error('Erreur partage profil:', error);
+      setProfileShareMessage('Erreur lors de la mise à jour du partage');
+    } finally {
+      setProfileShareLoading(false);
+    }
+  };
+
   const markServerNotificationAsRead = async (notificationId: number) => {
     try {
       const token = localStorage.getItem('token');
@@ -3464,128 +3608,173 @@ useEffect(() => {
 
   const renderCdrSearchForm = () => {
     const detectionSection = !showCdrMap && selectedCase && (
-      <section className="rounded-3xl border border-slate-200/80 bg-white/95 text-slate-900 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100 dark:shadow-black/40">
-        <div className="flex flex-col gap-4 p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
-                <Shield className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">Détection de changement de numéro</h3>
-              </div>
+      <section className="overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-6 text-white">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-wide text-white/70">Détection de fraude</p>
+              <h3 className="text-2xl font-semibold">Changement de numéro</h3>
+              <p className="text-sm text-white/80">
+                Analysez les numéros utilisés par les terminaux identifiés dans l'opération en cours.
+              </p>
             </div>
             <button
               type="button"
               onClick={fetchFraudDetection}
               disabled={fraudLoading || !selectedCase || cdrIdentifiers.length === 0}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/20"
+              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {fraudLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
               <span>Analyser</span>
             </button>
           </div>
-
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm">
+              <p className="text-white/70">IMEI analysés</p>
+              <p className="mt-1 text-2xl font-semibold text-white">{fraudStats.totalImeis}</p>
+            </div>
+            <div className="rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm">
+              <p className="text-white/70">Numéros détectés</p>
+              <p className="mt-1 text-2xl font-semibold text-white">{fraudStats.totalNumbers}</p>
+            </div>
+            <div
+              className={`rounded-2xl px-4 py-3 text-sm ${
+                fraudStats.newNumbers > 0
+                  ? 'border border-rose-100/60 bg-rose-500/40 text-white'
+                  : 'border border-emerald-100/60 bg-emerald-500/30 text-white'
+              }`}
+            >
+              <p className="text-white/80">Nouveaux numéros</p>
+              <p className="mt-1 text-2xl font-semibold">{fraudStats.newNumbers}</p>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-6 p-6">
           {fraudError && (
-            <p className="text-sm text-rose-500 dark:text-rose-300">{fraudError}</p>
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+              {fraudError}
+            </div>
           )}
-
           {cdrIdentifiers.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-white/20 dark:bg-white/5 dark:text-slate-200">
-              Ajoutez au moins un numéro dans la recherche pour lancer l’analyse.
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
+              Ajoutez au moins un numéro dans la recherche pour lancer l’analyse de fraude.
             </div>
           ) : fraudLoading ? (
-            <div className="flex items-center justify-center py-6">
+            <div className="flex items-center justify-center py-10">
               <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-slate-100" />
             </div>
           ) : fraudResult ? (
-            <div className="space-y-4">
-              <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Dernière analyse&nbsp;: {formatFraudDateTime(fraudResult.updatedAt)}
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                <span>Dernière analyse&nbsp;: {formatFraudDateTime(fraudResult.updatedAt)}</span>
+                {hasFraudSuspiciousNumbers && (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-rose-500/10 px-3 py-1 font-semibold text-rose-500 dark:text-rose-300">
+                    <AlertTriangle className="h-3.5 w-3.5" /> Anomalies détectées
+                  </span>
+                )}
               </div>
               {fraudResult.imeis.length === 0 ? (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-400/10 dark:text-emerald-100">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700 shadow-inner dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100">
                   Aucun changement de numéro détecté pour les identifiants recherchés.
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {!hasFraudSuspiciousNumbers && (
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-400/10 dark:text-emerald-100">
-                      Aucune anomalie détectée : tous les numéros correspondent aux identifiants suivis.
-                    </div>
-                  )}
-                  {fraudResult.imeis.map((imeiEntry) => (
-                    <div key={imeiEntry.imei} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/60 dark:backdrop-blur">
-                      <div className="flex items-center justify-between border-b border-slate-200/70 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-white/10 dark:text-slate-100">
-                        <span>IMEI {imeiEntry.imei}</span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''}
+                fraudResult.imeis.map((imeiEntry) => (
+                  <div
+                    key={imeiEntry.imei}
+                    className="space-y-4 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/60"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">IMEI {imeiEntry.imei}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''} détecté{imeiEntry.numbers.length > 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100/70 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                          <Activity className="h-3.5 w-3.5" /> {imeiEntry.numbers.reduce((acc, item) => acc + item.occurrences, 0)} occurrences
                         </span>
                       </div>
-                      {imeiEntry.numbers.length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
-                          Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full text-xs text-slate-600 dark:text-slate-200">
-                            <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/5 dark:text-slate-400">
-                              <tr>
-                                <th className="px-4 py-2 text-left">Numéro</th>
-                                <th className="px-4 py-2 text-left">Statut</th>
-                                <th className="px-4 py-2 text-left">Première vue</th>
-                                <th className="px-4 py-2 text-left">Dernière vue</th>
-                                <th className="px-4 py-2 text-left">Occurrences</th>
-                                <th className="px-4 py-2 text-left">Rôles</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-white/10">
-                              {imeiEntry.numbers.map((numberEntry) => (
-                                <tr
-                                  key={`${imeiEntry.imei}-${numberEntry.number}`}
-                                  className={
-                                    numberEntry.status === 'nouveau'
-                                      ? 'bg-rose-50 dark:bg-rose-500/10'
-                                      : 'odd:bg-white even:bg-slate-50 dark:odd:bg-white/5 dark:even:bg-white/0'
-                                  }
-                                >
-                                  <td className="px-4 py-2 font-medium text-slate-700 dark:text-slate-100">{numberEntry.number}</td>
-                                  <td className="px-4 py-2">
+                    </div>
+                    {imeiEntry.numbers.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
+                        Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {imeiEntry.numbers.map((numberEntry) => {
+                          const isNew = numberEntry.status === 'nouveau';
+                          return (
+                            <div
+                              key={`${imeiEntry.imei}-${numberEntry.number}`}
+                              className={`rounded-2xl border px-4 py-3 transition shadow-sm ${
+                                isNew
+                                  ? 'border-rose-200 bg-rose-50 dark:border-rose-500/40 dark:bg-rose-500/10'
+                                  : 'border-slate-200 bg-slate-50/70 dark:border-slate-700/60 dark:bg-slate-900/50'
+                              }`}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-base font-semibold text-slate-800 dark:text-slate-100">{numberEntry.number}</p>
+                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                                     <span
-                                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                        numberEntry.status === 'nouveau'
-                                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-100'
-                                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
+                                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold ${
+                                        isNew
+                                          ? 'bg-rose-500/20 text-rose-600 dark:text-rose-200'
+                                          : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-200'
                                       }`}
                                     >
-                                      {numberEntry.status === 'nouveau' ? 'Nouveau' : 'Attendu'}
+                                      {isNew ? 'Nouveau numéro détecté' : 'Numéro attendu'}
                                     </span>
-                                  </td>
-                                  <td className="px-4 py-2 text-slate-600 dark:text-slate-200">{formatFraudDate(numberEntry.firstSeen)}</td>
-                                  <td className="px-4 py-2 text-slate-600 dark:text-slate-200">{formatFraudDate(numberEntry.lastSeen)}</td>
-                                  <td className="px-4 py-2 text-slate-700 dark:text-slate-100">{numberEntry.occurrences}</td>
-                                  <td className="px-4 py-2 text-slate-600 dark:text-slate-200">
-                                    {numberEntry.roles.length === 0
-                                      ? '-'
-                                      : numberEntry.roles
-                                          .map((role) => FRAUD_ROLE_LABELS[role] || role)
-                                          .join(', ')}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                                      <Clock className="h-3.5 w-3.5" /> {numberEntry.occurrences} occurrence{numberEntry.occurrences > 1 ? 's' : ''}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end text-xs text-slate-500 dark:text-slate-300">
+                                  <span>
+                                    Première vue :{' '}
+                                    <span className="font-semibold text-slate-700 dark:text-slate-100">
+                                      {formatFraudDate(numberEntry.firstSeen)}
+                                    </span>
+                                  </span>
+                                  <span>
+                                    Dernière vue :{' '}
+                                    <span className="font-semibold text-slate-700 dark:text-slate-100">
+                                      {formatFraudDate(numberEntry.lastSeen)}
+                                    </span>
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                {numberEntry.roles.length === 0 ? (
+                                  <span className="rounded-full bg-slate-200/80 px-3 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                                    Aucun rôle identifié
+                                  </span>
+                                ) : (
+                                  numberEntry.roles.map((role) => (
+                                    <span
+                                      key={role}
+                                      className="rounded-full bg-slate-200/80 px-3 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-200"
+                                    >
+                                      {FRAUD_ROLE_LABELS[role] || role}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
             </div>
           ) : (
-            <p className="text-sm text-slate-600 dark:text-slate-300">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
               Lancez une analyse pour détecter les nouveaux numéros associés aux identifiants recherchés.
-            </p>
+            </div>
           )}
         </div>
       </section>
@@ -5318,26 +5507,31 @@ useEffect(() => {
                 ) : (
                   <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
                     <div className="border-b border-slate-200/70 bg-gradient-to-r from-rose-500 via-purple-500 to-blue-500 px-8 py-6 text-white dark:border-slate-700/60">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold">Résultats de l'analyse</h3>
-                          <p className="text-sm text-white/80">
-                            Dernière exécution&nbsp;: {formatFraudDateTime(globalFraudResult.updatedAt)}
-                          </p>
+                      <div className="space-y-4">
+                        <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold">Résultats de l'analyse</h3>
+                            <p className="text-sm text-white/80">
+                              Dernière exécution&nbsp;: {formatFraudDateTime(globalFraudResult.updatedAt)}
+                            </p>
+                          </div>
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-white/80">
+                            <Scan className="h-3.5 w-3.5" /> Analyse globale des CDR
+                          </span>
                         </div>
-                        <div className="flex flex-wrap gap-3">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold">
-                            <AlertTriangle className="h-4 w-4" />
-                            {globalFraudResult.imeis.length} IMEI suspects
-                          </span>
-                          <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold">
-                            <Phone className="h-4 w-4" />
-                            {totalGlobalFraudNumbers} numéros liés
-                          </span>
-                          <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold">
-                            <Share2 className="h-4 w-4" />
-                            {globalFraudResult.numbers.length} numéros multi-IMEI
-                          </span>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm">
+                            <p className="text-white/70">IMEI suspects</p>
+                            <p className="mt-1 text-2xl font-semibold text-white">{globalFraudStats.totalImeis}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm">
+                            <p className="text-white/70">Numéros associés</p>
+                            <p className="mt-1 text-2xl font-semibold text-white">{globalFraudStats.totalNumbers}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm">
+                            <p className="text-white/70">Alertes multi-IMEI</p>
+                            <p className="mt-1 text-2xl font-semibold text-white">{globalFraudStats.alerts}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -5892,6 +6086,8 @@ useEffect(() => {
                   onEdit={openEditProfile}
                   currentUser={currentUser}
                   isAdmin={isAdmin}
+                  onShare={openProfileShareModal}
+                  refreshKey={profileListRefreshKey}
                 />
               </div>
             )}
@@ -7030,6 +7226,104 @@ useEffect(() => {
           <span className="absolute inset-0 bg-white/20 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
           <ArrowUp className="relative h-5 w-5 transition-transform duration-300 group-hover:-translate-y-1" />
         </button>
+      )}
+
+      {/* Modal de partage de profil */}
+      {showProfileShareModal && profileShareTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900/95">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  Partager la fiche de profil
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {[profileShareTarget.first_name, profileShareTarget.last_name]
+                    .filter(Boolean)
+                    .join(' ')
+                    .trim() || 'Profil sans nom'}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowProfileShareModal(false);
+                  setProfileShareTarget(null);
+                }}
+                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmitProfileShare} className="space-y-5 px-6 py-5">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Sélectionnez les membres de la division pour leur donner accès à cette fiche.
+                Seuls les utilisateurs actifs apparaissent dans la liste.
+              </p>
+              <label className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-800/60 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={profileShareAll}
+                  onChange={toggleProfileShareAll}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Partager avec tous les membres actifs de la division
+              </label>
+              <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200/80 bg-white/80 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
+                {profileShareUsers.length === 0 ? (
+                  <div className="p-4 text-sm text-slate-500 dark:text-slate-300">
+                    Aucun utilisateur disponible dans cette division.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                    {profileShareUsers.map((member) => {
+                      const disabled = member.id === profileShareOwnerId;
+                      const checked = profileShareAll || profileShareSelectedIds.includes(member.id);
+                      return (
+                        <li key={member.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                          <label className={`flex items-center gap-3 ${disabled ? 'opacity-60' : ''}`}>
+                            <input
+                              type="checkbox"
+                              disabled={disabled}
+                              checked={disabled ? true : checked}
+                              onChange={() => toggleProfileShareUser(member.id)}
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-slate-700 dark:text-slate-200">{member.login}</span>
+                          </label>
+                          <span className="text-xs text-slate-400 dark:text-slate-500">
+                            {disabled ? 'Créateur' : member.active === 1 ? 'Actif' : 'Inactif'}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+              {profileShareMessage && (
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">{profileShareMessage}</p>
+              )}
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileShareModal(false);
+                    setProfileShareTarget(null);
+                  }}
+                  className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  Fermer
+                </button>
+                <button
+                  type="submit"
+                  disabled={profileShareLoading}
+                  className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {profileShareLoading ? 'Enregistrement...' : 'Enregistrer le partage'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Modal utilisateur */}

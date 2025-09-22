@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { X, Paperclip, Download, Search, Users, Eye, PencilLine, Trash2 } from 'lucide-react';
+import { X, Paperclip, Download, Search, Users, Eye, PencilLine, Trash2, Share2 } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 
 interface ProfileAttachment {
@@ -8,7 +8,7 @@ interface ProfileAttachment {
   original_name: string | null;
 }
 
-interface Profile {
+export interface ProfileListItem {
   id: number;
   user_id: number;
   first_name: string | null;
@@ -23,6 +23,9 @@ interface Profile {
   owner_login?: string | null;
   owner_division_id?: number | null;
   created_at?: string;
+  shared_with_me?: boolean;
+  shared_user_ids?: number[];
+  is_owner?: boolean;
 }
 
 interface ProfileListProps {
@@ -30,20 +33,29 @@ interface ProfileListProps {
   onEdit?: (id: number) => void;
   currentUser?: { id: number } | null;
   isAdmin?: boolean;
+  onShare?: (profile: ProfileListItem) => void;
+  refreshKey?: number;
 }
 
-const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser, isAdmin }) => {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+const ProfileList: React.FC<ProfileListProps> = ({
+  onCreate,
+  onEdit,
+  currentUser,
+  isAdmin,
+  onShare,
+  refreshKey = 0
+}) => {
+  const [profiles, setProfiles] = useState<ProfileListItem[]>([]);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [selected, setSelected] = useState<Profile | null>(null);
+  const [selected, setSelected] = useState<ProfileListItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
 
-  const parseFieldCategories = useCallback((profile: Profile) => {
+  const parseFieldCategories = useCallback((profile: ProfileListItem) => {
     const raw = profile.extra_fields as unknown;
     if (!raw) return [] as any[];
     if (Array.isArray(raw)) {
@@ -85,7 +97,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
   }, []);
 
   const getPreviewFields = useCallback(
-    (profile: Profile) => {
+    (profile: ProfileListItem) => {
       const values: { label: string; value: string | null }[] = [];
       const categories = parseFieldCategories(profile);
       categories.forEach(cat => {
@@ -115,7 +127,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
   );
 
   const buildCategories = useCallback(
-    (profile: Profile) => {
+    (profile: ProfileListItem) => {
       const categories = parseFieldCategories(profile);
       if (!categories || categories.length === 0) {
         return [
@@ -135,14 +147,19 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
     [parseFieldCategories]
   );
 
-  const isOwner = useCallback((profile: Profile) => currentUser?.id === profile.user_id, [currentUser]);
+  const isOwner = useCallback((profile: ProfileListItem) => currentUser?.id === profile.user_id, [currentUser]);
 
   const canEditProfile = useCallback(
-    (profile: Profile) => Boolean(onEdit) && (isAdminUser || isOwner(profile)),
+    (profile: ProfileListItem) => Boolean(onEdit) && (isAdminUser || isOwner(profile)),
     [isAdminUser, isOwner, onEdit]
   );
 
-  const canDeleteProfile = useCallback((profile: Profile) => isOwner(profile), [isOwner]);
+  const canDeleteProfile = useCallback((profile: ProfileListItem) => isOwner(profile), [isOwner]);
+
+  const canShareProfile = useCallback(
+    (profile: ProfileListItem) => Boolean(onShare) && (isAdminUser || isOwner(profile)),
+    [isAdminUser, isOwner, onShare]
+  );
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total]);
 
@@ -187,7 +204,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
         return;
       }
       // Ensure the profiles field from the API is always an array and normalize attachments
-      const rawProfiles: Profile[] = Array.isArray(data.profiles) ? data.profiles : [];
+      const rawProfiles: ProfileListItem[] = Array.isArray(data.profiles) ? data.profiles : [];
       const normalized = rawProfiles.map(profile => ({
         ...profile,
         attachments: Array.isArray(profile.attachments) ? profile.attachments : []
@@ -205,7 +222,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   const handleSearch = useCallback(() => {
     if (page !== 1) {
@@ -309,7 +326,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
           )}
         </div>
         <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-          Les fiches sont partagées avec les membres de votre division.
+          Partagez vos fiches avec les membres actifs de votre division pour faciliter la collaboration.
         </p>
         <button
           type="button"
@@ -338,6 +355,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
               const previewFields = getPreviewFields(p);
               const displayName =
                 [p.first_name, p.last_name].filter(Boolean).join(' ').trim() || 'Profil sans nom';
+              const sharedCount = Array.isArray(p.shared_user_ids) ? p.shared_user_ids.length : 0;
               return (
                 <div
                   key={p.id}
@@ -383,6 +401,21 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                           {p.comment}
                         </p>
                       )}
+                      {(p.shared_with_me || (p.is_owner && sharedCount > 0)) && (
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {p.shared_with_me && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
+                              <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
+                            </span>
+                          )}
+                          {p.is_owner && sharedCount > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 font-semibold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                              <Users className="h-3.5 w-3.5" /> Partagé avec {sharedCount}{' '}
+                              {sharedCount > 1 ? 'membres' : 'membre'}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="mt-5 flex flex-wrap gap-2">
@@ -393,6 +426,15 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                     >
                       <Eye className="h-4 w-4" /> Aperçu
                     </button>
+                    {canShareProfile(p) && (
+                      <button
+                        type="button"
+                        onClick={() => onShare?.(p)}
+                        className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-200 dark:hover:bg-indigo-500/20"
+                      >
+                        <Share2 className="h-4 w-4" /> Partager
+                      </button>
+                    )}
                     {canEditProfile(p) && (
                       <button
                         type="button"
@@ -488,6 +530,17 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                     )}
                     {selected.phone && (
                       <p className="text-xs text-slate-500 dark:text-slate-400">{selected.phone}</p>
+                    )}
+                    {selected.shared_with_me && (
+                      <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
+                        <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
+                      </p>
+                    )}
+                    {selected.is_owner && Array.isArray(selected.shared_user_ids) && selected.shared_user_ids.length > 0 && (
+                      <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                        <Users className="h-3.5 w-3.5" /> Partagé avec {selected.shared_user_ids.length}{' '}
+                        {selected.shared_user_ids.length > 1 ? 'membres' : 'membre'}
+                      </p>
                     )}
                   </div>
                 </div>
