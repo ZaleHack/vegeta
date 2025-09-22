@@ -65,6 +65,8 @@ class DatabaseManager {
           division_id INT DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          otp_secret VARCHAR(255) DEFAULT NULL,
+          otp_enabled TINYINT(1) DEFAULT 0,
           INDEX idx_division_id (division_id),
           CONSTRAINT fk_users_division FOREIGN KEY (division_id) REFERENCES autres.divisions(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -145,6 +147,42 @@ class DatabaseManager {
           await this.pool.execute(`
             ALTER TABLE autres.users
             ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+          }
+        }
+      }
+
+      const hasOtpSecret = await this.queryOne(`
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'otp_secret'
+      `);
+
+      if (!hasOtpSecret) {
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD COLUMN otp_secret VARCHAR(255) DEFAULT NULL AFTER updated_at
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+          }
+        }
+      }
+
+      const hasOtpEnabled = await this.queryOne(`
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'otp_enabled'
+      `);
+
+      if (!hasOtpEnabled) {
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD COLUMN otp_enabled TINYINT(1) DEFAULT 0 AFTER otp_secret
           `);
         } catch (error) {
           if (error.code !== 'ER_DUP_FIELDNAME') {
