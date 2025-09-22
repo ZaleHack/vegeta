@@ -69,7 +69,9 @@ class Profile {
     const conditions = [];
     const params = [];
 
-    if (!includeArchived) {
+    if (includeArchived) {
+      conditions.push('p.archived_at IS NOT NULL');
+    } else {
       conditions.push('p.archived_at IS NULL');
     }
 
