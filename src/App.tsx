@@ -1231,14 +1231,32 @@ const App: React.FC = () => {
       'keydown',
       'touchstart',
       'scroll',
-      'focus'
+      'focus',
+      'wheel'
     ];
 
+    const scrollableElement = mainContentRef.current;
+    const elementActivityEvents: (keyof HTMLElementEventMap)[] = ['scroll', 'wheel'];
+    const handleElementActivity: EventListener = () => {
+      resetTimer();
+    };
+
     activityEvents.forEach((event) => window.addEventListener(event, resetTimer));
+    if (scrollableElement) {
+      elementActivityEvents.forEach((event) =>
+        scrollableElement.addEventListener(event, handleElementActivity)
+      );
+    }
+
     resetTimer();
 
     return () => {
       activityEvents.forEach((event) => window.removeEventListener(event, resetTimer));
+      if (scrollableElement) {
+        elementActivityEvents.forEach((event) =>
+          scrollableElement.removeEventListener(event, handleElementActivity)
+        );
+      }
       if (inactivityTimerRef.current !== null) {
         window.clearTimeout(inactivityTimerRef.current);
         inactivityTimerRef.current = null;
