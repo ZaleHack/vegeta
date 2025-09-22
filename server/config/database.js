@@ -7,6 +7,7 @@ class DatabaseManager {
   constructor() {
     this.pool = null;
     this.initPromise = null;
+    this.isInitialized = false;
     this.init();
   }
 
@@ -46,6 +47,7 @@ class DatabaseManager {
 
       // Créer les tables système
       await this.createSystemTables();
+      this.isInitialized = true;
     } catch (error) {
       console.error('❌ Erreur connexion MySQL:', error);
       throw error;
@@ -66,8 +68,11 @@ class DatabaseManager {
 
   async createSystemTables() {
     try {
+      const query = (sql, params = []) => this.query(sql, params, { skipInitWait: true });
+      const queryOne = (sql, params = []) => this.queryOne(sql, params, { skipInitWait: true });
+
       // Créer les tables de division et des utilisateurs
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.divisions (
           id INT AUTO_INCREMENT PRIMARY KEY,
           name VARCHAR(255) NOT NULL UNIQUE,
@@ -75,7 +80,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.users (
           id INT AUTO_INCREMENT PRIMARY KEY,
           login VARCHAR(255) UNIQUE NOT NULL,
@@ -92,7 +97,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      const hasActive = await this.queryOne(`
+      const hasActive = await queryOne(`
         SELECT 1 FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'active'
       `);
@@ -110,7 +115,7 @@ class DatabaseManager {
         }
       }
 
-      const hasDivision = await this.queryOne(`
+      const hasDivision = await queryOne(`
         SELECT 1 FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'division_id'
       `);
@@ -139,7 +144,7 @@ class DatabaseManager {
         }
       }
 
-      const hasCreatedAt = await this.queryOne(`
+      const hasCreatedAt = await queryOne(`
         SELECT 1 FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'created_at'
       `);
@@ -157,7 +162,7 @@ class DatabaseManager {
         }
       }
 
-      const hasUpdatedAt = await this.queryOne(`
+      const hasUpdatedAt = await queryOne(`
         SELECT 1 FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'updated_at'
       `);
@@ -175,7 +180,7 @@ class DatabaseManager {
         }
       }
 
-      const hasOtpSecret = await this.queryOne(`
+      const hasOtpSecret = await queryOne(`
         SELECT 1 FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'otp_secret'
       `);
@@ -193,7 +198,7 @@ class DatabaseManager {
         }
       }
 
-      const hasOtpEnabled = await this.queryOne(`
+      const hasOtpEnabled = await queryOne(`
         SELECT 1 FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'otp_enabled'
       `);
@@ -220,7 +225,7 @@ class DatabaseManager {
       ];
 
       for (const name of defaultDivisions) {
-        await this.query(
+        await query(
           `INSERT INTO autres.divisions (name)
            SELECT ? FROM DUAL WHERE NOT EXISTS (
              SELECT 1 FROM autres.divisions WHERE name = ?
@@ -229,7 +234,7 @@ class DatabaseManager {
         );
       }
 
-      const fallbackDivision = await this.queryOne(
+      const fallbackDivision = await queryOne(
         `SELECT id FROM autres.divisions ORDER BY id ASC LIMIT 1`
       );
 
@@ -251,7 +256,7 @@ class DatabaseManager {
       }
 
       // Créer la table search_logs
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.search_logs (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT,
@@ -270,7 +275,7 @@ class DatabaseManager {
       `);
 
       // Table de journalisation des actions utilisateur
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.user_logs (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT,
@@ -284,7 +289,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.annuaire_gendarmerie (
           id INT AUTO_INCREMENT PRIMARY KEY,
           Libelle VARCHAR(255) NOT NULL,
@@ -295,7 +300,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.uvs (
           id INT AUTO_INCREMENT PRIMARY KEY,
           date DATE DEFAULT NULL,
@@ -315,7 +320,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.collections (
           id INT AUTO_INCREMENT PRIMARY KEY,
           Nom VARCHAR(255) NOT NULL,
@@ -328,7 +333,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.profiles (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,
@@ -346,7 +351,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.profile_attachments (
           id INT AUTO_INCREMENT PRIMARY KEY,
           profile_id INT NOT NULL,
@@ -358,7 +363,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.profile_shares (
           id INT AUTO_INCREMENT PRIMARY KEY,
           profile_id INT NOT NULL,
@@ -372,7 +377,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.identified_numbers (
           id INT AUTO_INCREMENT PRIMARY KEY,
           phone VARCHAR(50) NOT NULL UNIQUE,
@@ -382,7 +387,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.identification_requests (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,
@@ -395,7 +400,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.blacklist (
           id INT AUTO_INCREMENT PRIMARY KEY,
           number VARCHAR(50) NOT NULL UNIQUE,
@@ -404,7 +409,7 @@ class DatabaseManager {
       `);
 
       // Table des dossiers CDR
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_cases (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,
@@ -415,7 +420,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_case_shares (
           id INT AUTO_INCREMENT PRIMARY KEY,
           case_id INT NOT NULL,
@@ -430,7 +435,7 @@ class DatabaseManager {
       `);
 
       // Table des fichiers importés par dossier
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_case_files (
           id INT AUTO_INCREMENT PRIMARY KEY,
           case_id INT NOT NULL,
@@ -444,7 +449,7 @@ class DatabaseManager {
       `);
 
       // Table des enregistrements CDR reliés à un dossier optionnel
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_records (
           id INT AUTO_INCREMENT PRIMARY KEY,
           case_id INT DEFAULT NULL,
@@ -481,7 +486,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.notifications (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,
@@ -495,7 +500,7 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.query(`
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.user_sessions (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,
@@ -514,9 +519,15 @@ class DatabaseManager {
     }
   }
 
-  async query(sql, params = []) {
+  async query(sql, params = [], options = {}) {
     try {
+      const skipInitWait = Boolean(options.skipInitWait);
+
       if (!this.pool) {
+        await this.ensureInitialized();
+      }
+
+      if (!skipInitWait && !this.isInitialized) {
         await this.ensureInitialized();
       }
       const [rows] = await this.pool.execute(sql, params);
@@ -527,11 +538,18 @@ class DatabaseManager {
     }
   }
 
-  async queryOne(sql, params = []) {
+  async queryOne(sql, params = [], options = {}) {
     try {
+      const skipInitWait = Boolean(options.skipInitWait);
+
       if (!this.pool) {
         await this.ensureInitialized();
       }
+
+      if (!skipInitWait && !this.isInitialized) {
+        await this.ensureInitialized();
+      }
+
       const [rows] = await this.pool.execute(sql, params);
       return rows[0] || null;
     } catch (error) {
