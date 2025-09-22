@@ -132,22 +132,42 @@ app.use((error, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Serveur SORA démarré sur le port ${PORT}`);
   console.log(`📊 Base de données: MySQL`);
   console.log(`🔒 Mode: ${process.env.NODE_ENV || 'development'}`);
-  
+
   // Initialiser la base de données après le démarrage
   setTimeout(() => {
     initDatabase().catch(console.error);
   }, 3000);
 });
 
-// Gestion propre de l'arrêt
-process.on('SIGINT', () => {
-  console.log('Arrêt du serveur SORA...');
-  database.close().then(() => {
-    console.log('✅ Connexions fermées');
-    process.exit(0);
-  });
+server.on('error', (error) => {
+  if (error?.code === 'EADDRINUSE') {
+    console.error(`❌ Impossible de démarrer: le port ${PORT} est déjà utilisé.`);
+    console.error('👉 Libérez le port ou définissez la variable d\'environnement PORT pour en utiliser un autre.');
+  } else {
+    console.error('❌ Erreur lors du démarrage du serveur:', error);
+  }
+  process.exit(1);
 });
+
+// Gestion propre de l'arrêt
+const shutdown = () => {
+  console.log('Arrêt du serveur SORA...');
+  server.close(() => {
+    database.close()
+      .then(() => {
+        console.log('✅ Connexions fermées');
+        process.exit(0);
+      })
+      .catch((error) => {
+        console.error('❌ Erreur lors de la fermeture de la base de données:', error);
+        process.exit(1);
+      });
+  });
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
