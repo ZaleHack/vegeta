@@ -6,10 +6,18 @@ dotenv.config();
 class DatabaseManager {
   constructor() {
     this.pool = null;
+    this.initPromise = null;
     this.init();
   }
 
   async init() {
+    if (!this.initPromise) {
+      this.initPromise = this.#initInternal();
+    }
+    return this.initPromise;
+  }
+
+  async #initInternal() {
     try {
       console.log('🔌 Initializing MySQL connection...');
       const baseConfig = {
@@ -41,6 +49,18 @@ class DatabaseManager {
     } catch (error) {
       console.error('❌ Erreur connexion MySQL:', error);
       throw error;
+    }
+  }
+
+  async ensureInitialized() {
+    try {
+      await this.init();
+    } catch (error) {
+      throw error;
+    }
+
+    if (!this.pool) {
+      throw new Error('Database pool not initialized');
     }
   }
 
@@ -496,6 +516,7 @@ class DatabaseManager {
 
   async query(sql, params = []) {
     try {
+      await this.ensureInitialized();
       const [rows] = await this.pool.execute(sql, params);
       return rows;
     } catch (error) {
@@ -506,6 +527,7 @@ class DatabaseManager {
 
   async queryOne(sql, params = []) {
     try {
+      await this.ensureInitialized();
       const [rows] = await this.pool.execute(sql, params);
       return rows[0] || null;
     } catch (error) {
@@ -515,6 +537,14 @@ class DatabaseManager {
   }
 
   async close() {
+    if (this.initPromise) {
+      try {
+        await this.initPromise;
+      } catch (_) {
+        // L'initialisation peut avoir échoué, dans ce cas il n'y a rien à fermer
+      }
+    }
+
     if (this.pool) {
       await this.pool.end();
       console.log('✅ Connexions MySQL fermées');
