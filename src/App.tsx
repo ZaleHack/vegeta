@@ -253,7 +253,7 @@ interface IdentificationRequest {
   updated_at?: string;
 }
 
-type NotificationType = 'request' | 'case_shared';
+type NotificationType = 'request' | 'case_shared' | 'profile_shared';
 
 interface NotificationItem {
   id: string;
@@ -266,6 +266,7 @@ interface NotificationItem {
   caseId?: number;
   notificationId?: number;
   read?: boolean;
+  profileId?: number;
 }
 
 interface DivisionEntry {
@@ -1034,6 +1035,7 @@ const App: React.FC = () => {
   const [profileShareMessage, setProfileShareMessage] = useState('');
   const [profileShareLoading, setProfileShareLoading] = useState(false);
   const [profileListRefreshKey, setProfileListRefreshKey] = useState(0);
+  const [highlightedProfileId, setHighlightedProfileId] = useState<number | null>(null);
   const hasFraudSuspiciousNumbers = useMemo(() => {
     if (!fraudResult) return false;
     return fraudResult.imeis.some((entry) =>
@@ -3265,6 +3267,12 @@ useEffect(() => {
   }, [currentPage, isAdmin]);
 
   useEffect(() => {
+    if (currentPage !== 'profiles') {
+      setHighlightedProfileId(null);
+    }
+  }, [currentPage]);
+
+  useEffect(() => {
     if (currentPage === 'logs' && isAdmin) {
       fetchLogs(1);
       fetchSessions(1);
@@ -3331,6 +3339,26 @@ useEffect(() => {
             read: Boolean(notif.read_at)
           });
         }
+      } else if (notif.type === 'profile_shared' && notif.data) {
+        const profileId = typeof notif.data.profileId === 'number' ? notif.data.profileId : undefined;
+        const profileName = typeof notif.data.profileName === 'string' ? notif.data.profileName : '';
+        const ownerLogin = typeof notif.data.owner === 'string' ? notif.data.owner : '';
+        if (profileId) {
+          items.push({
+            id: `profile-share-${notif.id}`,
+            notificationId: notif.id,
+            profileId,
+            status: 'pending',
+            message: 'Nouvelle fiche de profil partagée',
+            description: profileName
+              ? ownerLogin
+                ? `"${profileName}" partagé par ${ownerLogin}`
+                : `"${profileName}" est disponible`
+              : 'Une fiche de profil a été partagée avec vous',
+            type: 'profile_shared',
+            read: Boolean(notif.read_at)
+          });
+        }
       }
     });
 
@@ -3383,6 +3411,17 @@ useEffect(() => {
       } else {
         setCurrentPage('cdr');
       }
+      return;
+    } else if (notification.type === 'profile_shared') {
+      if (notification.notificationId) {
+        markServerNotificationAsRead(notification.notificationId);
+      }
+      setShowNotifications(false);
+      if (notification.profileId) {
+        setHighlightedProfileId(notification.profileId);
+        setProfileListRefreshKey((prev) => prev + 1);
+      }
+      setCurrentPage('profiles');
       return;
     }
     setShowNotifications(false);
@@ -6072,7 +6111,7 @@ useEffect(() => {
                 />
                 <div className="mt-4">
                   <button
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                    className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 border border-slate-200 rounded-lg transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-700"
                     onClick={() => setShowProfileForm(false)}
                   >
                     Retour à la liste
@@ -6088,6 +6127,8 @@ useEffect(() => {
                   isAdmin={isAdmin}
                   onShare={openProfileShareModal}
                   refreshKey={profileListRefreshKey}
+                  focusedProfileId={highlightedProfileId}
+                  onFocusedProfileHandled={() => setHighlightedProfileId(null)}
                 />
               </div>
             )}
