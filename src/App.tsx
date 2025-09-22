@@ -3709,7 +3709,7 @@ useEffect(() => {
 
   const renderCdrSearchForm = () => {
     const detectionSection = !showCdrMap && selectedCase && (
-      <section className="overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+      <section className="mt-8 overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
         <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-6 text-white">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-1">
