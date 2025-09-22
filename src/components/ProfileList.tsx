@@ -35,6 +35,8 @@ interface ProfileListProps {
   isAdmin?: boolean;
   onShare?: (profile: ProfileListItem) => void;
   refreshKey?: number;
+  focusedProfileId?: number | null;
+  onFocusedProfileHandled?: () => void;
 }
 
 const ProfileList: React.FC<ProfileListProps> = ({
@@ -43,7 +45,9 @@ const ProfileList: React.FC<ProfileListProps> = ({
   currentUser,
   isAdmin,
   onShare,
-  refreshKey = 0
+  refreshKey = 0,
+  focusedProfileId = null,
+  onFocusedProfileHandled
 }) => {
   const [profiles, setProfiles] = useState<ProfileListItem[]>([]);
   const [query, setQuery] = useState('');
@@ -223,6 +227,46 @@ const ProfileList: React.FC<ProfileListProps> = ({
   useEffect(() => {
     load();
   }, [load, refreshKey]);
+
+  useEffect(() => {
+    if (!focusedProfileId) return;
+    const existing = profiles.find(profile => profile.id === focusedProfileId);
+    if (existing) {
+      setSelected(existing);
+      onFocusedProfileHandled?.();
+      return;
+    }
+    let cancelled = false;
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/profiles/${focusedProfileId}`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : ''
+          }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.profile || cancelled) {
+          return;
+        }
+        const fetchedProfile: ProfileListItem = {
+          ...data.profile,
+          attachments: Array.isArray(data.profile.attachments) ? data.profile.attachments : []
+        };
+        setSelected(fetchedProfile);
+      } catch (_) {
+        // Ignore focus errors
+      } finally {
+        if (!cancelled) {
+          onFocusedProfileHandled?.();
+        }
+      }
+    };
+    fetchProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, [focusedProfileId, profiles, onFocusedProfileHandled]);
 
   const handleSearch = useCallback(() => {
     if (page !== 1) {

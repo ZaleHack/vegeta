@@ -7,6 +7,7 @@ import ProfileAttachment from '../models/ProfileAttachment.js';
 import ProfileShare from '../models/ProfileShare.js';
 import Division from '../models/Division.js';
 import User from '../models/User.js';
+import Notification from '../models/Notification.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -283,6 +284,29 @@ class ProfileService {
         : [];
 
     const { added, removed } = await ProfileShare.replaceShares(profileId, targetIds);
+
+    if (added.length > 0) {
+      const ownerLogin = owner?.login || '';
+      const profileName = [profile.first_name, profile.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const displayName = profileName || profile.email || profile.phone || `Profil #${profileId}`;
+
+      for (const addedId of added) {
+        const data = {
+          profileId,
+          profileName: displayName,
+          owner: ownerLogin,
+          divisionId
+        };
+        try {
+          await Notification.create({ user_id: addedId, type: 'profile_shared', data });
+        } catch (error) {
+          console.error('Erreur création notification partage profil:', error);
+        }
+      }
+    }
 
     return {
       added,
