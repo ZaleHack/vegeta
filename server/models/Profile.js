@@ -59,21 +59,9 @@ class Profile {
     return true;
   }
 
-  static buildAccessConditions({
-    userId,
-    divisionId,
-    isAdmin,
-    includeArchived,
-    search
-  }) {
+  static buildAccessConditions({ userId, divisionId, isAdmin, search }) {
     const conditions = [];
     const params = [];
-
-    if (includeArchived) {
-      conditions.push('p.archived_at IS NOT NULL');
-    } else {
-      conditions.push('p.archived_at IS NULL');
-    }
 
     if (!isAdmin) {
       if (userId == null) {
@@ -104,7 +92,6 @@ class Profile {
     userId = null,
     divisionId = null,
     isAdmin = false,
-    includeArchived = false,
     search = '',
     limit = 10,
     offset = 0
@@ -113,14 +100,13 @@ class Profile {
       userId,
       divisionId,
       isAdmin,
-      includeArchived,
       search: search ? String(search) : ''
     });
 
     const rows = await database.query(
       `${PROFILE_BASE_SELECT}
        ${whereClause}
-       ORDER BY p.archived_at IS NULL DESC, p.created_at DESC
+       ORDER BY p.created_at DESC
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
@@ -137,8 +123,8 @@ class Profile {
   }
 
   static async findAll(userId = null, limit = 10, offset = 0, options = {}) {
-    const { divisionId = null, isAdmin = false, includeArchived = false } = options;
-    return this.findAccessible({ userId, divisionId, isAdmin, includeArchived, limit, offset });
+    const { divisionId = null, isAdmin = false } = options;
+    return this.findAccessible({ userId, divisionId, isAdmin, limit, offset });
   }
 
   static async searchByNameOrPhone(
@@ -147,14 +133,12 @@ class Profile {
     isAdmin,
     limit = 10,
     offset = 0,
-    divisionId = null,
-    includeArchived = false
+    divisionId = null
   ) {
     return this.findAccessible({
       userId,
       divisionId,
       isAdmin,
-      includeArchived,
       search: term,
       limit,
       offset

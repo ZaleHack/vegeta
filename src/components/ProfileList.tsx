@@ -1,16 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import {
-  X,
-  Paperclip,
-  Download,
-  Search,
-  Users,
-  Eye,
-  PencilLine,
-  Archive,
-  ArchiveRestore,
-  Trash2
-} from 'lucide-react';
+import { X, Paperclip, Download, Search, Users, Eye, PencilLine, Trash2 } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 
 interface ProfileAttachment {
@@ -43,8 +32,6 @@ interface ProfileListProps {
   isAdmin?: boolean;
 }
 
-type ProfileView = 'active' | 'archived';
-
 const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser, isAdmin }) => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [query, setQuery] = useState('');
@@ -53,7 +40,6 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
   const [selected, setSelected] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [view, setView] = useState<ProfileView>('active');
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
 
@@ -156,34 +142,16 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
     [isAdminUser, isOwner, onEdit]
   );
 
-  const canArchiveProfile = useCallback(
-    (profile: Profile) => isAdminUser || isOwner(profile),
-    [isAdminUser, isOwner]
-  );
-
   const canDeleteProfile = useCallback((profile: Profile) => isOwner(profile), [isOwner]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total]);
 
   const emptyMessage = useMemo(() => {
     const trimmed = query.trim();
-    if (view === 'archived') {
-      return trimmed
-        ? "Aucune archive ne correspond à votre recherche."
-        : 'Aucun profil archivé pour le moment.';
-    }
     return trimmed
       ? "Aucun profil ne correspond à votre recherche."
       : 'Aucune fiche de profil disponible pour le moment.';
-  }, [query, view]);
-
-  const tabs = useMemo(
-    () => [
-      { id: 'active' as ProfileView, label: 'Profils actifs' },
-      { id: 'archived' as ProfileView, label: 'Archives' }
-    ],
-    []
-  );
+  }, [query]);
 
   useEffect(() => {
     setPage(prev => Math.min(prev, totalPages));
@@ -191,7 +159,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
 
   useEffect(() => {
     setPage(1);
-  }, [view, query]);
+  }, [query]);
 
   const load = useCallback(async () => {
     try {
@@ -200,8 +168,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
       const token = localStorage.getItem('token');
       const params = new URLSearchParams({
         page: String(page),
-        limit: String(limit),
-        archived: view === 'archived' ? '1' : '0'
+        limit: String(limit)
       });
       const trimmedQuery = query.trim();
       if (trimmedQuery) {
@@ -234,7 +201,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
     } finally {
       setLoading(false);
     }
-  }, [query, page, view]);
+  }, [query, page]);
 
   useEffect(() => {
     load();
@@ -280,48 +247,7 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
     }
   };
 
-  const toggleArchive = useCallback(
-    async (profile: Profile) => {
-      const shouldArchive = !profile.archived_at;
-      const confirmMessage = shouldArchive
-        ? 'Archiver ce profil ? Il sera déplacé dans les archives partagées de votre division.'
-        : 'Restaurer ce profil dans la liste principale ?';
-      if (!window.confirm(confirmMessage)) return;
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`/api/profiles/${profile.id}/archive`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: token ? `Bearer ${token}` : ''
-          },
-          body: JSON.stringify({ archived: shouldArchive })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setError(data.error || "Impossible de mettre à jour l'état d'archivage");
-          return;
-        }
-        const updatedProfile = data.profile as Profile | undefined;
-        if (updatedProfile) {
-          setSelected(prev =>
-            prev && prev.id === profile.id
-              ? { ...prev, archived_at: updatedProfile.archived_at }
-              : prev
-          );
-        }
-        setError('');
-        await load();
-      } catch (err: unknown) {
-        console.error(err);
-        setError("Erreur lors de la mise à jour de l'archivage");
-      }
-    },
-    [load]
-  );
-
   const handleCreateClick = useCallback(() => {
-    setView('active');
     setPage(1);
     onCreate?.();
   }, [onCreate]);
@@ -382,37 +308,9 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
             </button>
           )}
         </div>
-        <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="inline-flex items-center gap-1 rounded-full bg-white/80 p-1 shadow-sm shadow-blue-200 dark:bg-slate-900/50 dark:shadow-slate-900/40">
-            {tabs.map(tab => {
-              const isActive = view === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => {
-                    if (view !== tab.id) {
-                      setView(tab.id);
-                      setPage(1);
-                    }
-                  }}
-                  className={`relative rounded-full px-4 py-2 text-xs font-semibold transition ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-400/50'
-                      : 'text-slate-500 hover:bg-blue-50 dark:text-slate-400 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {view === 'archived'
-              ? 'Visualisez et restaurez les fiches archivées de votre division.'
-              : 'Les fiches actives sont partagées avec les membres de votre division.'}
-          </p>
-        </div>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+          Les fiches sont partagées avec les membres de votre division.
+        </p>
         <button
           type="button"
           onClick={handleSearch}
@@ -437,18 +335,13 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
           <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
             {profiles.map(p => {
               const photoUrl = buildProtectedUrl(p.photo_path);
-              const isArchived = Boolean(p.archived_at);
               const previewFields = getPreviewFields(p);
               const displayName =
                 [p.first_name, p.last_name].filter(Boolean).join(' ').trim() || 'Profil sans nom';
               return (
                 <div
                   key={p.id}
-                  className={`group relative overflow-hidden rounded-3xl bg-white/90 p-6 shadow-lg ring-1 transition-all hover:-translate-y-1 hover:shadow-2xl dark:bg-slate-900/70 ${
-                    isArchived
-                      ? 'ring-amber-200 dark:ring-amber-500/40'
-                      : 'ring-slate-200 dark:ring-slate-700'
-                  }`}
+                  className="group relative overflow-hidden rounded-3xl bg-white/90 p-6 shadow-lg ring-1 ring-slate-200 transition-all hover:-translate-y-1 hover:shadow-2xl dark:bg-slate-900/70 dark:ring-slate-700"
                 >
                   <div className="flex items-start gap-4">
                     <div className="relative h-20 w-20 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 shadow-inner shadow-blue-100 ring-2 ring-blue-100 dark:from-slate-800 dark:to-slate-700 dark:shadow-slate-900 dark:ring-slate-700">
@@ -471,12 +364,6 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                               : `Partagé par ${p.owner_login || 'un membre de la division'}`}
                           </p>
                         </div>
-                        {isArchived && (
-                          <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 shadow-sm shadow-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:shadow-amber-900/30">
-                            <Archive className="h-3.5 w-3.5" />
-                            Archivé
-                          </span>
-                        )}
                       </div>
                       <dl className="grid grid-cols-1 gap-2 text-sm text-slate-600 sm:grid-cols-2 dark:text-slate-300">
                         {previewFields.map(field => (
@@ -513,24 +400,6 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                         className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-blue-300 transition hover:-translate-y-0.5 hover:bg-blue-700"
                       >
                         <PencilLine className="h-4 w-4" /> Modifier
-                      </button>
-                    )}
-                    {canArchiveProfile(p) && (
-                      <button
-                        type="button"
-                        onClick={() => toggleArchive(p)}
-                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                          isArchived
-                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:hover:bg-amber-500/30'
-                            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-500/20 dark:text-indigo-200 dark:hover:bg-indigo-500/30'
-                        }`}
-                      >
-                        {isArchived ? (
-                          <ArchiveRestore className="h-4 w-4" />
-                        ) : (
-                          <Archive className="h-4 w-4" />
-                        )}
-                        {isArchived ? 'Restaurer' : 'Archiver'}
                       </button>
                     )}
                     {canDeleteProfile(p) && (
@@ -608,11 +477,6 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
                   </div>
                 )}
                 <div className="flex-1 space-y-3">
-                  {selected.archived_at && (
-                    <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
-                      <Archive className="h-4 w-4" /> Profil archivé
-                    </div>
-                  )}
                   <div className="rounded-2xl bg-slate-50 px-4 py-3 text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
                     <p className="text-sm font-medium">
                       {selected.first_name || selected.last_name
