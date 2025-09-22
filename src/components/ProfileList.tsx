@@ -193,25 +193,6 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
     setPage(1);
   }, [view, query]);
 
-  const handleSearch = useCallback(() => {
-    if (page !== 1) {
-      setPage(1);
-    } else {
-      load();
-    }
-  }, [load, page]);
-
-  const buildProtectedUrl = (relativePath?: string | null) => {
-    if (!relativePath) return null;
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const normalized = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
-    if (!token) return normalized;
-    const separator = normalized.includes('?') ? '&' : '?';
-    return `${normalized}${separator}token=${encodeURIComponent(token)}`;
-  };
-
-  const selectedPhotoUrl = selected ? buildProtectedUrl(selected.photo_path) : null;
-
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -258,6 +239,25 @@ const ProfileList: React.FC<ProfileListProps> = ({ onCreate, onEdit, currentUser
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleSearch = useCallback(() => {
+    if (page !== 1) {
+      setPage(1);
+    } else {
+      load();
+    }
+  }, [load, page]);
+
+  const buildProtectedUrl = (relativePath?: string | null) => {
+    if (!relativePath) return null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const normalized = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+    if (!token) return normalized;
+    const separator = normalized.includes('?') ? '&' : '?';
+    return `${normalized}${separator}token=${encodeURIComponent(token)}`;
+  };
+
+  const selectedPhotoUrl = selected ? buildProtectedUrl(selected.photo_path) : null;
 
   const remove = async (id: number) => {
     if (!window.confirm('Supprimer définitivement ce profil ?')) return;
