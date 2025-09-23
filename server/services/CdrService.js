@@ -66,6 +66,10 @@ class CdrService {
             if (isNaN(parsed.getTime())) return null;
             return parsed.toISOString().slice(11, 19);
           };
+          const normalizePhone = (value) => {
+            const normalized = normalizePhoneNumber(value);
+            return normalized || null;
+          };
 
           records.push({
             oce: row['OCE'] || null,
@@ -76,9 +80,9 @@ class CdrService {
             date_fin: normalizeDate(row['Date fin']),
             heure_fin: normalizeTime(row['Heure fin']),
             duree: row['Duree'] || null,
-            numero_intl_appelant: row['Numero intl appelant'] || null,
-            numero_intl_appele: row['Numero intl appele'] || null,
-            numero_intl_appele_original: row['Numero intl appele original'] || null,
+            numero_intl_appelant: normalizePhone(row['Numero intl appelant']),
+            numero_intl_appele: normalizePhone(row['Numero intl appele']),
+            numero_intl_appele_original: normalizePhone(row['Numero intl appele original']),
             imei_appelant: row['IMEI appelant'] || null,
             imei_appele: row['IMEI appele'] || null,
             imei_appele_original: row['IMEI appele original'] || null,
@@ -125,6 +129,11 @@ class CdrService {
       return parsed.toISOString().slice(11, 19);
     };
     const cdrNum = cdrNumber.startsWith('221') ? cdrNumber : `221${cdrNumber}`;
+    const normalizePhone = (value) => {
+      const normalized = normalizePhoneNumber(value);
+      return normalized || null;
+    };
+
     const records = rows.map((row) => ({
       oce: row['OCE'] || null,
       type_cdr: row['Type CDR'] || null,
@@ -134,9 +143,9 @@ class CdrService {
       date_fin: normalizeDate(row['Date fin']),
       heure_fin: normalizeTime(row['Heure fin']),
       duree: row['Duree'] || null,
-      numero_intl_appelant: row['Numero intl appelant'] || null,
-      numero_intl_appele: row['Numero intl appele'] || null,
-      numero_intl_appele_original: row['Numero intl appele original'] || null,
+      numero_intl_appelant: normalizePhone(row['Numero intl appelant']),
+      numero_intl_appele: normalizePhone(row['Numero intl appele']),
+      numero_intl_appele_original: normalizePhone(row['Numero intl appele original']),
       imei_appelant: row['IMEI appelant'] || null,
       imei_appele: row['IMEI appele'] || null,
       imei_appele_original: row['IMEI appele original'] || null,

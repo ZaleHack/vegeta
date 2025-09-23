@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
-import InMemoryCache from '../utils/cache.js';
+import statsCache from './stats-cache.js';
 
 /**
  * Service de génération de statistiques basées sur les journaux de recherche
@@ -14,7 +14,7 @@ class StatsService {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
-    this.cache = new InMemoryCache();
+    this.cache = statsCache;
   }
 
   loadCatalog() {

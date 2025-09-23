@@ -2,15 +2,29 @@ import database from '../config/database.js';
 import IdentifiedNumber from './IdentifiedNumber.js';
 import Profile from './Profile.js';
 import { normalizeExtraFields } from '../utils/profile-normalizer.js';
+import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
 
 class IdentificationRequest {
   static async create(data) {
     const { user_id, phone } = data;
-    const result = await database.query(
-      `INSERT INTO autres.identification_requests (user_id, phone, status) VALUES (?, ?, 'pending')`,
-      [user_id, phone]
-    );
-    return { id: result.insertId, user_id, phone, status: 'pending' };
+    const safeUserId = await ensureUserExists(user_id);
+    if (!safeUserId) {
+      console.warn('Demande d\'identification ignorée: utilisateur introuvable', user_id);
+      return null;
+    }
+    try {
+      const result = await database.query(
+        `INSERT INTO autres.identification_requests (user_id, phone, status) VALUES (?, ?, 'pending')`,
+        [safeUserId, phone]
+      );
+      return { id: result.insertId, user_id: safeUserId, phone, status: 'pending' };
+    } catch (error) {
+      const handled = await handleMissingUserForeignKey(error);
+      if (!handled) {
+        throw error;
+      }
+      return null;
+    }
   }
 
   static async findAll() {

@@ -4,6 +4,7 @@ import ElasticSearchService from '../services/ElasticSearchService.js';
 import { authenticate } from '../middleware/auth.js';
 import Blacklist from '../models/Blacklist.js';
 import UserLog from '../models/UserLog.js';
+import SearchLog from '../models/SearchLog.js';
 
 const router = express.Router();
 const searchService = new SearchService();
@@ -91,6 +92,23 @@ router.post('/', authenticate, async (req, res) => {
         { followLinks, maxDepth: parseInt(depth) }
       );
     }
+
+    const searchTypeValue = typeof search_type === 'string' && search_type ? search_type : 'global';
+    const userAgent = req.get('user-agent') || null;
+    const ipAddress = req.ip || null;
+    SearchLog.create({
+      user_id: req.user.id,
+      username: req.user.login,
+      search_term: trimmed,
+      search_type: searchTypeValue,
+      tables_searched: results.tables_searched,
+      results_count: results.total,
+      execution_time_ms: results.elapsed_ms,
+      ip_address: ipAddress,
+      user_agent: userAgent
+    }).catch((err) => {
+      console.error('Erreur journalisation recherche:', err);
+    });
 
     res.json(results);
   } catch (error) {

@@ -23,4 +23,16 @@ export default class InMemoryCache {
     const expiry = this._now() + this.ttl;
     this.store.set(key, { value, expiry });
   }
+
+  clear(prefix = null) {
+    if (!prefix) {
+      this.store.clear();
+      return;
+    }
+    for (const key of Array.from(this.store.keys())) {
+      if (String(key).startsWith(prefix)) {
+        this.store.delete(key);
+      }
+    }
+  }
 }
