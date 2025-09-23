@@ -42,6 +42,7 @@ import {
   MessageSquare,
   MapPin,
   AlertTriangle,
+  AlertCircle,
   Share2,
   GripVertical,
   X,
@@ -161,6 +162,14 @@ interface DashboardStats {
     today: number;
     recent: number;
   };
+}
+
+interface DataSourceEntry {
+  id: string;
+  label: string;
+  count: number;
+  database?: string | null;
+  error?: string | null;
 }
 
 type DashboardCard = {
@@ -1167,7 +1176,7 @@ const App: React.FC = () => {
   const [logUserFilter, setLogUserFilter] = useState('');
   const [loadingStats, setLoadingStats] = useState(false);
   const [timeSeries, setTimeSeries] = useState<any[]>([]);
-  const [tableDistribution, setTableDistribution] = useState<any[]>([]);
+  const [tableDistribution, setTableDistribution] = useState<DataSourceEntry[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat('fr-FR'), []);
@@ -1993,10 +2002,22 @@ useEffect(() => {
 
       if (distResponse.ok) {
         const dist = await distResponse.json();
-        const distribution = Object.entries(dist.distribution || {}).map(([key, info]: [string, any]) => ({
-          table: (info as any).table_name || key,
-          count: (info as any).total_records || (info as any).count || 0
-        }));
+        const distribution: DataSourceEntry[] = Object.entries(dist.distribution || {}).map(([key, info]: [string, any]) => {
+          const metadata = info ?? {};
+          const rawCount = metadata.total_records ?? metadata.count ?? 0;
+          const parsedCount = typeof rawCount === 'number' ? rawCount : Number(rawCount) || 0;
+          const database = typeof metadata.database === 'string'
+            ? metadata.database
+            : (key.includes('.') ? key.split('.')[0] : null);
+          const error = typeof metadata.error === 'string' ? metadata.error : null;
+          return {
+            id: key,
+            label: metadata.table_name || metadata.table || key,
+            count: parsedCount,
+            database,
+            error
+          };
+        });
         setTableDistribution(distribution);
         const total = distribution.reduce((sum, item) => sum + (item.count || 0), 0);
         setTotalRecords(total);
@@ -2076,6 +2097,10 @@ useEffect(() => {
       }
     ];
   }, [numberFormatter, statsData, totalRecords, tableDistribution.length]);
+
+  const sortedDataSources = useMemo(() => {
+    return [...tableDistribution].sort((a, b) => b.count - a.count);
+  }, [tableDistribution]);
 
   const orderedDashboardCards = useMemo(() => {
     const cardsMap = new Map(dashboardCards.map(card => [card.id, card]));
@@ -4378,6 +4403,9 @@ useEffect(() => {
                     </span>
                   )}
                 </div>
+                <p className="mt-2 inline-flex items-center rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800/70 dark:text-gray-300">
+                  Division : {currentUser?.division_name || 'Non renseignée'}
+                </p>
               </div>
             )}
           </div>
@@ -7075,12 +7103,83 @@ useEffect(() => {
                             )}
                           </div>
                         </div>
+                    </div>
+                  </div>
+
+                  {isAdmin && (
+                    <div className="bg-white rounded-2xl shadow-xl p-6 dark:bg-gray-800">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                            <Database className="h-6 w-6 text-blue-600" />
+                            Sources de données
+                          </h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Inventaire des bases synchronisées avec la plateforme Sora.
+                          </p>
+                        </div>
+                        <span className="inline-flex items-center self-start rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 dark:bg-blue-900/40 dark:text-blue-200">
+                          {tableDistribution.length} sources
+                        </span>
+                      </div>
+                      <div className="mt-6 space-y-4">
+                        {sortedDataSources.length > 0 ? (
+                          sortedDataSources.slice(0, 8).map((source, index) => {
+                            const ratio = totalRecords > 0 ? Math.min(100, (source.count / totalRecords) * 100) : 0;
+                            return (
+                              <div
+                                key={source.id}
+                                className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md dark:border-gray-700/60 dark:bg-gray-800/70"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-4">
+                                  <div className="flex items-start gap-3">
+                                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-sm font-semibold text-blue-600 dark:bg-blue-900/60 dark:text-blue-200">
+                                      #{index + 1}
+                                    </span>
+                                    <div>
+                                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{source.label}</p>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        {source.database ? `Base ${source.database}` : 'Base non renseignée'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                      {numberFormatter.format(source.count)}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Enregistrements</p>
+                                  </div>
+                                </div>
+                                <div className="mt-4 h-2 w-full rounded-full bg-white/80 dark:bg-gray-900/50">
+                                  <div
+                                    className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"
+                                    style={{ width: `${ratio}%` }}
+                                  ></div>
+                                </div>
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                  {ratio > 0 ? `${ratio.toFixed(1)}% du volume global` : 'Contribution non mesurée'}
+                                </p>
+                                {source.error && (
+                                  <p className="mt-2 flex items-center gap-2 text-xs font-medium text-rose-600 dark:text-rose-400">
+                                    <AlertCircle className="h-4 w-4" />
+                                    {source.error}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                            Aucune source de données disponible pour le moment.
+                          </p>
+                        )}
                       </div>
                     </div>
+                  )}
 
-                      {/* Logs de recherche récents */}
-                      <div className="lg:col-span-2">
-                        <div className="bg-white rounded-2xl shadow-xl p-6">
+                  {/* Logs de recherche récents */}
+                  <div className="lg:col-span-2">
+                    <div className="bg-white rounded-2xl shadow-xl p-6">
                           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                             <FileText className="h-6 w-6 mr-2 text-blue-600" />
                             Logs de recherche
