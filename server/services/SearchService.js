@@ -4,6 +4,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
+import {
+  decryptRows,
+  isColumnEncrypted
+} from '../utils/encrypted-storage.js';
 
 class SearchService {
   constructor() {
@@ -324,6 +328,19 @@ class SearchService {
       primaryKey,
     ]);
     const selectFields = Array.from(fields).join(', ');
+    const searchableFields = (config.searchable || []).filter(
+      (field) => !isColumnEncrypted(tableName, field)
+    );
+
+    if (searchableFields.length === 0) {
+      if ((config.searchable || []).length > 0) {
+        console.warn(
+          `⚠️ Recherche ignorée pour ${tableName} : toutes les colonnes indexables sont chiffrées.`
+        );
+      }
+      return results;
+    }
+
     let sql = `SELECT ${selectFields} FROM ${tableName} WHERE `;
     const params = [];
     let conditions = [];
@@ -346,23 +363,23 @@ class SearchService {
 
       if (term.type === 'exact') {
         // Recherche exacte
-        for (const field of config.searchable) {
+        for (const field of searchableFields) {
           termConditions.push(`${field} = ?`);
           params.push(term.value);
         }
       } else if (term.type === 'required') {
         // Terme obligatoire (doit être présent)
-        for (const field of config.searchable) {
+        for (const field of searchableFields) {
           termConditions.push(`${field} LIKE ?`);
           params.push(`${term.value}%`);
         }
       } else if (term.type === 'field') {
         // Recherche par champ spécifique
-        const matchingFields = config.searchable.filter(field => 
-          field.toLowerCase().includes(term.field) || 
+        const matchingFields = searchableFields.filter(field =>
+          field.toLowerCase().includes(term.field) ||
           term.field.includes(field.toLowerCase())
         );
-        
+
         if (matchingFields.length > 0) {
           for (const field of matchingFields) {
             termConditions.push(`${field} LIKE ?`);
@@ -374,7 +391,7 @@ class SearchService {
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
-        for (const field of config.searchable) {
+        for (const field of searchableFields) {
           termConditions.push(`${field} LIKE ?`);
           params.push(`${term.value}%`);
         }
@@ -411,7 +428,7 @@ class SearchService {
     const excludeTerms = searchTerms.filter(t => t.type === 'exclude');
     for (const term of excludeTerms) {
       const excludeConditions = [];
-      for (const field of config.searchable) {
+      for (const field of searchableFields) {
         excludeConditions.push(`${field} NOT LIKE ?`);
         params.push(`${term.value}%`);
       }
@@ -424,15 +441,16 @@ class SearchService {
 
     try {
       const rows = await database.query(sql, params);
+      const decryptedRows = decryptRows(tableName, rows);
 
-      for (const row of rows) {
+      for (const row of decryptedRows) {
         const preview = this.buildPreview(row, config);
         results.push({
           table: config.display,
           database: config.database,
           preview: preview,
           primary_keys: { [primaryKey]: row[primaryKey] },
-          score: this.calculateRelevanceScore(row, searchTerms, config),
+          score: this.calculateRelevanceScore(row, searchTerms, searchableFields),
           linkedFields: config.linkedFields || []
         });
       }
@@ -457,11 +475,11 @@ class SearchService {
     return preview;
   }
 
-  calculateRelevanceScore(record, searchTerms, config) {
+  calculateRelevanceScore(record, searchTerms, searchableFields) {
     let score = 0;
     let requiredTermsFound = 0;
     let requiredTermsTotal = 0;
-    
+
     for (const term of searchTerms) {
       if (term.type === 'exclude' || term.type === 'operator') continue;
       
@@ -472,7 +490,7 @@ class SearchService {
       const searchValue = term.value.toLowerCase();
       let termFound = false;
       
-      for (const field of config.searchable) {
+      for (const field of searchableFields) {
         const value = record[field];
         if (!value) continue;
         

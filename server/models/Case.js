@@ -1,16 +1,24 @@
 import database from '../config/database.js';
+import {
+  decryptRecord,
+  decryptRows,
+  encryptColumnValue
+} from '../utils/encrypted-storage.js';
+
+const CASES_TABLE = 'autres.cdr_cases';
 
 class Case {
   static async create(name, userId) {
+    const encryptedName = encryptColumnValue(CASES_TABLE, 'name', name);
     const result = await database.query(
       'INSERT INTO autres.cdr_cases (name, user_id, created_at) VALUES (?, ?, NOW())',
-      [name, userId]
+      [encryptedName, userId]
     );
     return { id: result.insertId, name, user_id: userId };
   }
 
   static async findById(id) {
-    return await database.queryOne(
+    const row = await database.queryOne(
       `SELECT c.*, u.login AS user_login, u.division_id, d.name AS division_name
        FROM autres.cdr_cases c
        JOIN autres.users u ON c.user_id = u.id
@@ -18,27 +26,30 @@ class Case {
        WHERE c.id = ?`,
       [id]
     );
+    return decryptRecord(CASES_TABLE, row);
   }
 
   static async findAllByUser(userId) {
-    return await database.query(
+    const rows = await database.query(
       'SELECT * FROM autres.cdr_cases WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     );
+    return decryptRows(CASES_TABLE, rows);
   }
 
   static async findAll() {
-    return await database.query(
+    const rows = await database.query(
       `SELECT c.*, u.login AS user_login, u.division_id, d.name AS division_name
        FROM autres.cdr_cases c
        JOIN autres.users u ON c.user_id = u.id
        LEFT JOIN autres.divisions d ON u.division_id = d.id
        ORDER BY c.created_at DESC`
     );
+    return decryptRows(CASES_TABLE, rows);
   }
 
   static async findAllForUser(userId) {
-    return await database.query(
+    const rows = await database.query(
       `SELECT DISTINCT c.*, u.login AS user_login, u.division_id, d.name AS division_name,
               CASE WHEN c.user_id = ? THEN 1 ELSE 0 END AS is_owner
          FROM autres.cdr_cases c
@@ -49,10 +60,11 @@ class Case {
          ORDER BY c.created_at DESC`,
       [userId, userId, userId, userId]
     );
+    return decryptRows(CASES_TABLE, rows);
   }
 
   static async findByIdForUser(caseId, userId) {
-    return await database.queryOne(
+    const row = await database.queryOne(
       `SELECT c.*, u.login AS user_login, u.division_id, d.name AS division_name,
               CASE WHEN c.user_id = ? THEN 1 ELSE 0 END AS is_owner
          FROM autres.cdr_cases c
@@ -63,6 +75,7 @@ class Case {
          LIMIT 1`,
       [userId, userId, caseId, userId, userId]
     );
+    return decryptRecord(CASES_TABLE, row);
   }
 
   static async getShareUserIds(caseId) {

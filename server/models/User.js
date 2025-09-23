@@ -2,6 +2,12 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { generateSecret as generateTotpSecret } from '../utils/totp.js';
 import database from '../config/database.js';
+import {
+  decryptRecord,
+  encryptColumnValue
+} from '../utils/encrypted-storage.js';
+
+const USERS_TABLE = 'autres.users';
 
 class User {
   static async create(userData) {
@@ -27,13 +33,14 @@ class User {
   }
 
   static async findById(id) {
-    return await database.queryOne(
+    const row = await database.queryOne(
       `SELECT u.*, d.name AS division_name
        FROM autres.users u
        LEFT JOIN autres.divisions d ON u.division_id = d.id
        WHERE u.id = ?`,
       [id]
     );
+    return decryptRecord(USERS_TABLE, row);
   }
 
   static async findByLogin(login) {
@@ -45,7 +52,7 @@ class User {
          WHERE u.login = ?`,
         [login]
       );
-      return user;
+      return decryptRecord(USERS_TABLE, user);
     } catch (error) {
       console.error('❌ Erreur lors de la recherche utilisateur:', error);
       throw error;
@@ -79,12 +86,13 @@ class User {
   }
 
   static async findAll() {
-    return await database.query(
+    const rows = await database.query(
       `SELECT u.id, u.login, u.admin, u.active, u.created_at, u.division_id, d.name AS division_name
        FROM autres.users u
        LEFT JOIN autres.divisions d ON u.division_id = d.id
        ORDER BY u.id DESC`
     );
+    return rows.map((row) => decryptRecord(USERS_TABLE, row));
   }
 
   static async findActive({ excludeId } = {}) {
@@ -100,13 +108,14 @@ class User {
 
     sql += ' ORDER BY u.login';
 
-    return await database.query(sql, params);
+    const rows = await database.query(sql, params);
+    return rows.map((row) => decryptRecord(USERS_TABLE, row));
   }
 
   static async update(id, userData) {
     const fields = [];
     const values = [];
-    
+
     Object.keys(userData).forEach(key => {
       if (key !== 'id' && userData[key] !== undefined) {
         if (key === 'mdp') {
@@ -115,6 +124,9 @@ class User {
         } else if (key === 'division_id') {
           fields.push('division_id = ?');
           values.push(userData[key]);
+        } else if (key === 'otp_secret') {
+          fields.push('otp_secret = ?');
+          values.push(encryptColumnValue(USERS_TABLE, 'otp_secret', userData[key]));
         } else {
           fields.push(`${key} = ?`);
           values.push(userData[key]);
@@ -148,7 +160,7 @@ class User {
       `UPDATE autres.users
        SET otp_secret = ?, otp_enabled = 1, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [secret, id]
+      [encryptColumnValue(USERS_TABLE, 'otp_secret', secret), id]
     );
     return this.findById(id);
   }
