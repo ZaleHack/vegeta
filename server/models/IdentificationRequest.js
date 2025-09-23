@@ -1,11 +1,7 @@
 import database from '../config/database.js';
 import IdentifiedNumber from './IdentifiedNumber.js';
-import {
-  decryptColumnValue,
-  decryptRecord
-} from '../utils/encrypted-storage.js';
-
-const PROFILES_TABLE = 'autres.profiles';
+import Profile from './Profile.js';
+import { normalizeExtraFields } from '../utils/profile-normalizer.js';
 
 class IdentificationRequest {
   static async create(data) {
@@ -40,17 +36,18 @@ class IdentificationRequest {
       profile_id: row.profile_id,
       created_at: row.created_at,
       user_login: row.user_login,
-      profile: row.profile_id ? {
-        id: row.profile_id,
-        first_name: decryptColumnValue(PROFILES_TABLE, 'first_name', row.profile_first_name),
-        last_name: decryptColumnValue(PROFILES_TABLE, 'last_name', row.profile_last_name),
-        phone: decryptColumnValue(PROFILES_TABLE, 'phone', row.profile_phone),
-        email: decryptColumnValue(PROFILES_TABLE, 'email', row.profile_email),
-        comment: decryptColumnValue(PROFILES_TABLE, 'comment', row.profile_comment),
-        extra_fields:
-          decryptColumnValue(PROFILES_TABLE, 'extra_fields', row.profile_extra_fields) ?? [],
-        photo_path: row.profile_photo_path
-      } : null
+      profile: row.profile_id
+        ? {
+            id: row.profile_id,
+            first_name: row.profile_first_name,
+            last_name: row.profile_last_name,
+            phone: row.profile_phone,
+            email: row.profile_email,
+            comment: row.profile_comment ?? '',
+            extra_fields: normalizeExtraFields(row.profile_extra_fields),
+            photo_path: row.profile_photo_path
+          }
+        : null
     }));
   }
 
@@ -77,17 +74,18 @@ class IdentificationRequest {
       status: row.status,
       profile_id: row.profile_id,
       created_at: row.created_at,
-      profile: row.profile_id ? {
-        id: row.profile_id,
-        first_name: decryptColumnValue(PROFILES_TABLE, 'first_name', row.profile_first_name),
-        last_name: decryptColumnValue(PROFILES_TABLE, 'last_name', row.profile_last_name),
-        phone: decryptColumnValue(PROFILES_TABLE, 'phone', row.profile_phone),
-        email: decryptColumnValue(PROFILES_TABLE, 'email', row.profile_email),
-        comment: decryptColumnValue(PROFILES_TABLE, 'comment', row.profile_comment),
-        extra_fields:
-          decryptColumnValue(PROFILES_TABLE, 'extra_fields', row.profile_extra_fields) ?? [],
-        photo_path: row.profile_photo_path
-      } : null
+      profile: row.profile_id
+        ? {
+            id: row.profile_id,
+            first_name: row.profile_first_name,
+            last_name: row.profile_last_name,
+            phone: row.profile_phone,
+            email: row.profile_email,
+            comment: row.profile_comment ?? '',
+            extra_fields: normalizeExtraFields(row.profile_extra_fields),
+            photo_path: row.profile_photo_path
+          }
+        : null
     }));
   }
 
@@ -115,19 +113,15 @@ class IdentificationRequest {
       [id]
     );
     if (status === 'identified' && profile_id) {
-      const profile = await database.queryOne(
-        `SELECT * FROM autres.profiles WHERE id = ?`,
-        [profile_id]
-      );
+      const profile = await Profile.findById(profile_id);
       if (profile) {
-        const decryptedProfile = decryptRecord(PROFILES_TABLE, profile);
         const data = {
-          first_name: decryptedProfile.first_name,
-          last_name: decryptedProfile.last_name,
-          phone: decryptedProfile.phone,
-          email: decryptedProfile.email,
-          comment: decryptedProfile.comment,
-          extra_fields: decryptedProfile.extra_fields ?? []
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          phone: profile.phone,
+          email: profile.email,
+          comment: profile.comment,
+          extra_fields: profile.extra_fields ?? []
         };
         await IdentifiedNumber.upsert(updated.phone, data);
       }

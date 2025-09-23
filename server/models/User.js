@@ -2,11 +2,6 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { generateSecret as generateTotpSecret } from '../utils/totp.js';
 import database from '../config/database.js';
-import {
-  decryptRecord,
-  encryptColumnValue
-} from '../utils/encrypted-storage.js';
-
 const USERS_TABLE = 'autres.users';
 
 class User {
@@ -40,7 +35,7 @@ class User {
        WHERE u.id = ?`,
       [id]
     );
-    return decryptRecord(USERS_TABLE, row);
+    return row;
   }
 
   static async findByLogin(login) {
@@ -52,7 +47,7 @@ class User {
          WHERE u.login = ?`,
         [login]
       );
-      return decryptRecord(USERS_TABLE, user);
+      return user;
     } catch (error) {
       console.error('❌ Erreur lors de la recherche utilisateur:', error);
       throw error;
@@ -92,7 +87,7 @@ class User {
        LEFT JOIN autres.divisions d ON u.division_id = d.id
        ORDER BY u.id DESC`
     );
-    return rows.map((row) => decryptRecord(USERS_TABLE, row));
+    return rows;
   }
 
   static async findActive({ excludeId } = {}) {
@@ -109,7 +104,7 @@ class User {
     sql += ' ORDER BY u.login';
 
     const rows = await database.query(sql, params);
-    return rows.map((row) => decryptRecord(USERS_TABLE, row));
+    return rows;
   }
 
   static async update(id, userData) {
@@ -126,7 +121,7 @@ class User {
           values.push(userData[key]);
         } else if (key === 'otp_secret') {
           fields.push('otp_secret = ?');
-          values.push(encryptColumnValue(USERS_TABLE, 'otp_secret', userData[key]));
+          values.push(userData[key]);
         } else {
           fields.push(`${key} = ?`);
           values.push(userData[key]);
@@ -160,7 +155,7 @@ class User {
       `UPDATE autres.users
        SET otp_secret = ?, otp_enabled = 1, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [encryptColumnValue(USERS_TABLE, 'otp_secret', secret), id]
+      [secret, id]
     );
     return this.findById(id);
   }

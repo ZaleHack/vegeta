@@ -4,10 +4,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
-import {
-  decryptRows,
-  isColumnEncrypted
-} from '../utils/encrypted-storage.js';
 
 class SearchService {
   constructor() {
@@ -328,16 +324,9 @@ class SearchService {
       primaryKey,
     ]);
     const selectFields = Array.from(fields).join(', ');
-    const searchableFields = (config.searchable || []).filter(
-      (field) => !isColumnEncrypted(tableName, field)
-    );
+    const searchableFields = config.searchable || [];
 
     if (searchableFields.length === 0) {
-      if ((config.searchable || []).length > 0) {
-        console.warn(
-          `⚠️ Recherche ignorée pour ${tableName} : toutes les colonnes indexables sont chiffrées.`
-        );
-      }
       return results;
     }
 
@@ -441,9 +430,8 @@ class SearchService {
 
     try {
       const rows = await database.query(sql, params);
-      const decryptedRows = decryptRows(tableName, rows);
 
-      for (const row of decryptedRows) {
+      for (const row of rows) {
         const preview = this.buildPreview(row, config);
         results.push({
           table: config.display,
