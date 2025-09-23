@@ -413,8 +413,8 @@ class CaseService {
       const drawSignature = () => {
         const previousX = doc.x;
         const previousY = doc.y;
-        const previousFontSize = doc._fontSize;
-        const previousFillColor = doc._fillColor;
+
+        doc.save();
 
         const signatureWidth = 120;
         const signatureX = doc.page.width - doc.page.margins.right - signatureWidth;
@@ -435,7 +435,7 @@ class CaseService {
             align: 'right'
           });
 
-        doc.fontSize(previousFontSize).fillColor(previousFillColor);
+        doc.restore();
         doc.x = previousX;
         doc.y = previousY;
       };
