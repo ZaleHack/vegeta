@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { X, Paperclip, Download, Search, Users, Eye, PencilLine, Trash2, Share2 } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
+import PaginationControls from './PaginationControls';
 
 interface ProfileAttachment {
   id: number;
@@ -509,26 +510,19 @@ const ProfileList: React.FC<ProfileListProps> = ({
               );
             })}
           </div>
-          <div className="flex items-center justify-center gap-4 pt-4">
-            <button
-              type="button"
-              onClick={() => setPage(prev => Math.max(1, prev - 1))}
-              disabled={page === 1}
-              className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            >
-              Précédent
-            </button>
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
-              Page {page} / {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={page >= totalPages}
-              className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            >
-              Suivant
-            </button>
+          <div className="border-t border-slate-200/70 pt-4 dark:border-slate-700/60">
+            <div className="flex flex-col gap-3">
+              <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                Page {page} / {totalPages}
+              </span>
+              <PaginationControls
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                onLoadMore={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                canLoadMore={page < totalPages}
+              />
+            </div>
           </div>
         </>
       )}
