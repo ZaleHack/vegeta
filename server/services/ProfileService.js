@@ -334,24 +334,32 @@ class ProfileService {
         const margin = doc.page.margins.left;
         const innerWidth = pageWidth - margin * 2;
 
+        const accentColor = '#1D4ED8';
+        const accentDark = '#1E3A8A';
+        const accentSoft = '#DBEAFE';
+        const borderColor = '#BFDBFE';
+        const textPrimary = '#0F172A';
+        const textSecondary = '#1F2937';
+
         const addSignature = () => {
           const { x, y } = doc;
           const size = doc._fontSize;
           const color = doc._fillColor;
 
-          const signatureWidth = 100;
+          const signatureWidth = 120;
           const signatureX = pageWidth - margin - signatureWidth;
-          const signatureY = doc.page.height - doc.page.margins.bottom - 40;
+          const signatureY = doc.page.height - doc.page.margins.bottom - 42;
 
           doc
             .moveTo(signatureX, signatureY)
             .lineTo(pageWidth - margin, signatureY)
-            .stroke('#E5E7EB');
+            .lineWidth(1)
+            .stroke(borderColor);
 
           doc
             .font('Helvetica-Bold')
             .fontSize(12)
-            .fillColor('#4F46E5')
+            .fillColor(accentDark)
             .text('SORA', signatureX, signatureY + 6, {
               width: signatureWidth,
               align: 'right'
@@ -364,16 +372,24 @@ class ProfileService {
         addSignature();
         doc.on('pageAdded', addSignature);
 
-        doc.rect(0, 0, pageWidth, headerHeight).fill('#4F46E5');
+        doc.rect(0, 0, pageWidth, headerHeight).fill(accentColor);
         doc
           .fillColor('white')
           .fontSize(26)
           .font('Helvetica-Bold')
-          .text('FICHE PROFIL', 0, headerHeight / 2 - 13, {
+          .text('FICHE PROFIL', 0, headerHeight / 2 - 16, {
             width: pageWidth,
             align: 'center'
           });
-        doc.fillColor('black');
+        doc
+          .font('Helvetica')
+          .fontSize(12)
+          .fillColor('#E0ECFF')
+          .text('Profil confidentiel', 0, headerHeight / 2 + 14, {
+            width: pageWidth,
+            align: 'center'
+          });
+        doc.fillColor(textPrimary);
 
         // Body positioning
         let y = headerHeight + 30;
@@ -405,7 +421,10 @@ class ProfileService {
                 align: 'center',
                 valign: 'center'
               });
-              doc.rect(photoX, y, photoSize, photoSize).stroke('#4F46E5');
+              doc
+                .lineWidth(1.5)
+                .roundedRect(photoX - 4, y - 4, photoSize + 8, photoSize + 8, 12)
+                .stroke(borderColor);
               y += photoSize + 30;
             }
           } catch (_) {
@@ -417,26 +436,49 @@ class ProfileService {
         doc
           .moveTo(margin, y)
           .lineTo(pageWidth - margin, y)
-          .stroke('#E5E7EB');
-        y += 20;
+          .lineWidth(1)
+          .stroke(borderColor);
+        y += 24;
 
-        let textX = margin;
-        let textWidth = innerWidth;
+        const sectionPadding = 18;
+        let textX = margin + sectionPadding;
+        let textWidth = innerWidth - sectionPadding * 2;
 
-        const addField = (label, value) => {
-          if (!value) return;
+        const drawSectionHeader = (title) => {
+          const headerTitle = title ? String(title) : 'Informations';
+          doc.save();
+          doc.lineWidth(1);
+          doc.fillColor(accentSoft);
+          doc.strokeColor(borderColor);
+          const headerHeightBox = 32;
+          doc.roundedRect(margin, y, innerWidth, headerHeightBox, 12).fillAndStroke();
           doc
-            .fillColor('#111827')
+            .fillColor(accentDark)
             .font('Helvetica-Bold')
             .fontSize(12)
-            .text(`${label}:`, textX, y, { continued: true });
-          doc
-            .fillColor('#374151')
-            .font('Helvetica')
-            .text(String(value), { width: textWidth });
-          y = doc.y + 8;
+            .text(headerTitle.toUpperCase(), margin + 16, y + 10);
+          doc.restore();
+          y += headerHeightBox + 14;
         };
 
+        const addField = (label, value) => {
+          if (!value && value !== 0) return;
+          const safeLabel = label ? String(label) : '';
+          doc
+            .fillColor(accentDark)
+            .font('Helvetica-Bold')
+            .fontSize(9)
+            .text(safeLabel.toUpperCase(), textX, y);
+          y = doc.y + 3;
+          doc
+            .fillColor(textSecondary)
+            .font('Helvetica')
+            .fontSize(12)
+            .text(String(value), textX, y, { width: textWidth });
+          y = doc.y + 12;
+        };
+
+        drawSectionHeader('Informations principales');
         addField('Nom', profile.last_name);
         addField('Prénom', profile.first_name);
         addField('Téléphone', profile.phone);
@@ -448,16 +490,11 @@ class ProfileService {
               ? profile.extra_fields
               : JSON.parse(profile.extra_fields);
             extras.forEach(cat => {
-              if (cat.title) {
-                doc
-                  .moveDown(0.5)
-                  .fillColor('#4F46E5')
-                  .font('Helvetica-Bold')
-                  .fontSize(14)
-                  .text(cat.title, textX, y);
-                y = doc.y + 6;
-              }
-              (cat.fields || []).forEach(f => {
+              const title = cat && typeof cat.title === 'string' && cat.title.trim()
+                ? cat.title.trim()
+                : 'Informations supplémentaires';
+              drawSectionHeader(title);
+              (Array.isArray(cat?.fields) ? cat.fields : []).forEach(f => {
                 addField(f.key, f.value);
               });
             });
@@ -467,18 +504,13 @@ class ProfileService {
         }
 
         if (profile.comment) {
-          doc.moveDown(0.5);
+          drawSectionHeader('Commentaire');
           doc
-            .fillColor('#111827')
-            .font('Helvetica-Bold')
-            .fontSize(12)
-            .text('Commentaire', textX, y);
-          y = doc.y + 4;
-          doc
-            .fillColor('#374151')
+            .fillColor(textSecondary)
             .font('Helvetica')
             .fontSize(12)
             .text(String(profile.comment), textX, y, { width: textWidth });
+          y = doc.y + 12;
         }
 
         doc.end();

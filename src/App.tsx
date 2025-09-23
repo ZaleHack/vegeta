@@ -45,7 +45,8 @@ import {
   Share2,
   GripVertical,
   X,
-  Scan
+  Scan,
+  MapPinOff
 } from 'lucide-react';
 import ToggleSwitch from './components/ToggleSwitch';
 import PaginationControls from './components/PaginationControls';
@@ -2713,8 +2714,8 @@ useEffect(() => {
       setCdrResult(result);
 
       const hasPath = allPaths.length > 0;
-      setShowCdrMap(hasPath);
-      setCdrInfoMessage(hasPath ? '' : 'Aucun CDR trouvé pour le filtre sélectionné');
+      setShowCdrMap(true);
+      setCdrInfoMessage(hasPath ? '' : 'Aucun résultat trouvé pour le filtre sélectionné');
     } catch (error) {
       console.error('Erreur recherche CDR:', error);
       setCdrError('Erreur lors de la recherche');
@@ -5885,19 +5886,37 @@ useEffect(() => {
               )}
               {cdrError && <p className="text-red-600">{cdrError}</p>}
               {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
-              {showCdrMap && cdrResult && !cdrLoading && cdrResult.total > 0 && (
+              {showCdrMap && cdrResult && !cdrLoading && (
                 <>
                   <div className="fixed inset-0 z-0 flex">
                     {renderCdrSearchForm()}
                     <div className="flex-1 relative h-screen">
-                      <CdrMap
-                        points={cdrResult.path}
-                        showRoute={cdrItinerary}
-                        showMeetingPoints={showMeetingPoints}
-                        onToggleMeetingPoints={() => setShowMeetingPoints((v) => !v)}
-                        zoneMode={zoneMode}
-                        onZoneCreated={() => setZoneMode(false)}
-                      />
+                      {cdrResult.total > 0 ? (
+                        <CdrMap
+                          points={cdrResult.path}
+                          showRoute={cdrItinerary}
+                          showMeetingPoints={showMeetingPoints}
+                          onToggleMeetingPoints={() => setShowMeetingPoints((v) => !v)}
+                          zoneMode={zoneMode}
+                          onZoneCreated={() => setZoneMode(false)}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full flex-col items-center justify-center bg-white/90 text-slate-600 dark:bg-slate-900/80 dark:text-slate-300">
+                          <div className="flex flex-col items-center gap-3 px-6 text-center">
+                            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-inner shadow-blue-500/20 dark:bg-blue-500/20 dark:text-blue-200">
+                              <MapPinOff className="h-8 w-8" />
+                            </span>
+                            <div className="space-y-1">
+                              <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                                Aucun résultat cartographique
+                              </p>
+                              <p className="text-sm text-slate-500 dark:text-slate-300">
+                                Ajustez vos filtres ou élargissez votre recherche pour afficher des points sur la carte.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <button
@@ -6255,7 +6274,6 @@ useEffect(() => {
                       <tr>
                         <th className="px-6 py-4">Utilisateur</th>
                         <th className="px-6 py-4">Action</th>
-                        <th className="px-6 py-4">Détails</th>
                         <th className="px-6 py-4">Page</th>
                         <th className="px-6 py-4">Profil</th>
                         <th className="px-6 py-4">Durée (min)</th>
@@ -6288,15 +6306,27 @@ useEffect(() => {
                           ? details.context.trim()
                           : '';
 
-                      const detailContent = (() => {
-                        if (isAlertLog) {
-                          return (
-                            <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm shadow-sm shadow-rose-300/30 backdrop-blur-sm">
+                      const descriptionText = (() => {
+                        if (isAlertLog || hasPageName) {
+                          return '';
+                        }
+                        if (typeof details.description === 'string' && details.description.trim() !== '') {
+                          return details.description.trim();
+                        }
+                        if (typeof log.details === 'string' && log.details.trim() !== '') {
+                          return log.details.trim();
+                        }
+                        return '';
+                      })();
+
+                      const detailContent = isAlertLog
+                        ? (
+                            <div className="mt-2 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm shadow-sm shadow-rose-300/30 backdrop-blur-sm">
                               <div className="flex items-start gap-3">
                                 <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-sm shadow-rose-500/40">
                                   <AlertTriangle className="h-4 w-4" />
                                 </span>
-                                <div className="space-y-1">
+                                <div className="space-y-1 text-left">
                                   <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-rose-600 dark:text-rose-200/80">
                                     Alerte prioritaire
                                   </p>
@@ -6310,19 +6340,12 @@ useEffect(() => {
                                 </div>
                               </div>
                             </div>
-                          );
-                        }
-                        if (hasPageName) {
-                          return pageName;
-                        }
-                        if (typeof details.description === 'string' && details.description.trim() !== '') {
-                          return details.description;
-                        }
-                        if (typeof log.details === 'string' && log.details.trim() !== '') {
-                          return log.details;
-                        }
-                        return '-';
-                      })();
+                          )
+                        : descriptionText
+                        ? (
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{descriptionText}</p>
+                          )
+                        : null;
 
                       return (
                         <tr
@@ -6336,20 +6359,20 @@ useEffect(() => {
                           <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold ${isAlertLog ? 'text-rose-700 dark:text-rose-100' : 'text-slate-900 dark:text-slate-100'}`}>
                             {log.username || 'Inconnu'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            {isAlertLog ? (
-                              <div className="inline-flex items-center gap-2 rounded-full border border-rose-400/60 bg-rose-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-rose-600 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200">
-                                <AlertTriangle className="h-4 w-4" />
-                                {log.action}
-                              </div>
-                            ) : (
-                              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-slate-100/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-600 dark:border-slate-700/60 dark:bg-slate-800/60 dark:text-slate-300">
-                                {log.action}
-                              </span>
-                            )}
-                          </td>
-                          <td className={`px-6 py-4 text-sm ${isAlertLog ? 'align-top text-rose-700 dark:text-rose-100' : 'text-slate-900 dark:text-slate-100'}`}>
-                            {detailContent}
+                          <td className="px-6 py-4 align-top text-sm">
+                            <div className={`flex flex-col gap-3 ${isAlertLog ? 'text-rose-700 dark:text-rose-100' : 'text-slate-900 dark:text-slate-100'}`}>
+                              {isAlertLog ? (
+                                <div className="inline-flex items-center gap-2 self-start rounded-full border border-rose-400/60 bg-rose-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-rose-600 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  {log.action}
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200/70 bg-slate-100/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-600 dark:border-slate-700/60 dark:bg-slate-800/60 dark:text-slate-300">
+                                  {log.action}
+                                </span>
+                              )}
+                              {detailContent}
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             {pageName ? (
