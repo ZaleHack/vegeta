@@ -1,10 +1,18 @@
 import database from '../config/database.js';
-import {
-  decryptRows,
-  encryptColumnValue
-} from '../utils/encrypted-storage.js';
 
-const NOTIFICATIONS_TABLE = 'autres.notifications';
+function serializeData(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch (_) {
+    return null;
+  }
+}
 
 class Notification {
   static async create({ user_id, type, data = null }) {
@@ -13,7 +21,7 @@ class Notification {
     }
     const result = await database.query(
       `INSERT INTO autres.notifications (user_id, type, data) VALUES (?, ?, ?)`,
-      [user_id, type, encryptColumnValue(NOTIFICATIONS_TABLE, 'data', data)]
+      [user_id, type, serializeData(data)]
     );
     return { id: result.insertId, user_id, type, data };
   }
@@ -30,7 +38,7 @@ class Notification {
        LIMIT ?`,
       [userId, limit]
     );
-    return decryptRows(NOTIFICATIONS_TABLE, rows);
+    return rows;
   }
 
   static async markAsRead(id, userId) {

@@ -1,9 +1,10 @@
 import database from '../config/database.js';
 import {
-  decryptRecord,
-  decryptRows,
-  encryptRecord
-} from '../utils/encrypted-storage.js';
+  normalizeExtraFields,
+  normalizeProfileRecord,
+  normalizeProfileRows,
+  serializeExtraFields
+} from '../utils/profile-normalizer.js';
 
 const PROFILES_TABLE = 'autres.profiles';
 
@@ -28,42 +29,71 @@ class Profile {
       extra_fields = [],
       photo_path
     } = data;
-    const encrypted = encryptRecord(PROFILES_TABLE, {
-      first_name,
-      last_name,
-      phone,
-      email,
-      comment,
-      extra_fields
-    });
     const result = await database.query(
       `INSERT INTO autres.profiles (user_id, first_name, last_name, phone, email, comment, extra_fields, photo_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_id,
-        encrypted.first_name,
-        encrypted.last_name,
-        encrypted.phone,
-        encrypted.email,
-        encrypted.comment,
-        encrypted.extra_fields,
+        first_name,
+        last_name,
+        phone,
+        email,
+        comment ?? '',
+        serializeExtraFields(extra_fields),
         photo_path
       ]
     );
-    return { id: result.insertId, ...data };
+    return {
+      id: result.insertId,
+      user_id,
+      first_name,
+      last_name,
+      phone,
+      email,
+      comment: comment ?? '',
+      extra_fields: normalizeExtraFields(extra_fields),
+      photo_path
+    };
   }
 
   static async findById(id) {
     const row = await database.queryOne(`${PROFILE_BASE_SELECT} WHERE p.id = ?`, [id]);
-    return decryptRecord(PROFILES_TABLE, row);
+    return normalizeProfileRecord(row);
   }
 
   static async update(id, data) {
     const fields = [];
     const params = [];
-    const encrypted = encryptRecord(PROFILES_TABLE, data);
-    for (const [key, value] of Object.entries(encrypted)) {
-      fields.push(`${key} = ?`);
-      params.push(value);
+    if (data.first_name !== undefined) {
+      fields.push('first_name = ?');
+      params.push(data.first_name);
+    }
+    if (data.last_name !== undefined) {
+      fields.push('last_name = ?');
+      params.push(data.last_name);
+    }
+    if (data.phone !== undefined) {
+      fields.push('phone = ?');
+      params.push(data.phone);
+    }
+    if (data.email !== undefined) {
+      fields.push('email = ?');
+      params.push(data.email);
+    }
+    if (data.comment !== undefined) {
+      fields.push('comment = ?');
+      params.push(data.comment ?? '');
+    }
+    if (data.extra_fields !== undefined) {
+      fields.push('extra_fields = ?');
+      params.push(serializeExtraFields(data.extra_fields));
+    }
+    if (data.photo_path !== undefined) {
+      fields.push('photo_path = ?');
+      params.push(data.photo_path);
+    }
+    if (data.user_id !== undefined) {
+      fields.push('user_id = ?');
+      params.push(data.user_id);
     }
     if (fields.length === 0) return this.findById(id);
     params.push(id);
@@ -122,8 +152,6 @@ class Profile {
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
-    const decryptedRows = decryptRows(PROFILES_TABLE, rows);
-
     const totalRes = await database.queryOne(
       `SELECT COUNT(*) as count
        FROM autres.profiles p
@@ -132,7 +160,7 @@ class Profile {
       params
     );
 
-    return { rows: decryptedRows, total: totalRes?.count ?? 0 };
+    return { rows: normalizeProfileRows(rows), total: totalRes?.count ?? 0 };
   }
 
   static async findAll(userId = null, limit = 10, offset = 0, options = {}) {

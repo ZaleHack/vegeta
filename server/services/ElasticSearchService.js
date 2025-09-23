@@ -1,35 +1,33 @@
 import client from '../config/elasticsearch.js';
-import { decryptRecord } from '../utils/encrypted-storage.js';
-
-const PROFILES_TABLE = 'autres.profiles';
+import { normalizeProfileRecord } from '../utils/profile-normalizer.js';
 
 class ElasticSearchService {
   buildProfileDocument(profile) {
-    const decrypted = decryptRecord(PROFILES_TABLE, profile);
-    if (!decrypted) {
+    const normalized = normalizeProfileRecord(profile);
+    if (!normalized) {
       return null;
     }
 
-    const fullName = [decrypted.first_name, decrypted.last_name]
+    const fullName = [normalized.first_name, normalized.last_name]
       .filter((part) => part && String(part).trim().length > 0)
       .join(' ')
       .trim();
 
-    const comment = decrypted.comment ? String(decrypted.comment) : '';
+    const comment = normalized.comment ? String(normalized.comment) : '';
     const commentPreview = comment ? comment.slice(0, 200) : null;
 
     return {
-      id: decrypted.id,
-      user_id: decrypted.user_id ?? null,
-      division_id: decrypted.division_id ?? null,
-      first_name: decrypted.first_name || null,
-      last_name: decrypted.last_name || null,
+      id: normalized.id,
+      user_id: normalized.user_id ?? null,
+      division_id: normalized.division_id ?? null,
+      first_name: normalized.first_name || null,
+      last_name: normalized.last_name || null,
       full_name: fullName || null,
-      phone: decrypted.phone || null,
-      email: decrypted.email || null,
+      phone: normalized.phone || null,
+      email: normalized.email || null,
       comment_preview: commentPreview,
-      extra_fields: Array.isArray(decrypted.extra_fields) ? decrypted.extra_fields : [],
-      search_tokens: this.buildSearchTokens(decrypted)
+      extra_fields: Array.isArray(normalized.extra_fields) ? normalized.extra_fields : [],
+      search_tokens: this.buildSearchTokens(normalized)
     };
   }
 
