@@ -369,22 +369,23 @@ class CaseService {
       const colors = {
         title: '#0F172A',
         text: '#1F2937',
-        muted: '#6B7280',
-        accent: '#2563EB',
-        border: '#E5E7EB',
+        muted: '#64748B',
+        accent: '#1D4ED8',
+        accentSecondary: '#60A5FA',
+        border: '#E2E8F0',
         highlight: '#F97316',
         danger: '#DC2626',
-        card: '#F8FAFC'
+        card: '#F8FAFC',
+        sectionBackground: '#EEF2FF',
+        heroBackground: '#1E3A8A',
+        heroOverlay: '#3B82F6',
+        signatureBg: '#0F172A',
+        signatureText: '#E2E8F0'
       };
 
       const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-
-      const formatDateValue = (value) => {
-        if (!value) return '-';
-        const date = value instanceof Date ? value : new Date(value);
-        if (Number.isNaN(date.getTime())) return '-';
-        return date.toLocaleDateString('fr-FR');
-      };
+      const footerHeight = 90;
+      const reportGeneratedAt = new Date();
 
       const formatDateTimeValue = (value) => {
         if (!value) return '-';
@@ -399,36 +400,169 @@ class CaseService {
         });
       };
 
+      const reportGeneratedAtLabel = formatDateTimeValue(reportGeneratedAt);
+
       const ensureSpace = (height = 60) => {
-        const bottom = doc.page.height - doc.page.margins.bottom;
-        if (doc.y + height > bottom) {
+        const bottomLimit = doc.page.height - doc.page.margins.bottom - footerHeight;
+        if (doc.y + height > bottomLimit) {
           doc.addPage();
         }
       };
 
-      const drawSectionHeader = (title) => {
-        ensureSpace(40);
+      const drawSignature = () => {
+        const previousX = doc.x;
+        const previousY = doc.y;
+
+        const signatureWidth = 190;
+        const signatureHeight = 74;
+        const signatureX = doc.page.width - doc.page.margins.right - signatureWidth;
+        const signatureY = doc.page.height - doc.page.margins.bottom - signatureHeight;
+
+        doc.save();
+        doc.roundedRect(signatureX, signatureY, signatureWidth, signatureHeight, 18).fill(colors.signatureBg);
+        doc
+          .font('Helvetica')
+          .fontSize(8)
+          .fillColor(colors.signatureText)
+          .text('Signature officielle', signatureX + 20, signatureY + 16, {
+            width: signatureWidth - 40,
+            align: 'right'
+          });
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(20)
+          .fillColor('#FFFFFF')
+          .text('SORA', signatureX + 20, signatureY + 28, {
+            width: signatureWidth - 40,
+            align: 'right'
+          });
+        doc
+          .font('Helvetica')
+          .fontSize(9)
+          .fillColor(colors.accentSecondary)
+          .text('Division Intelligence & Analyse', signatureX + 20, signatureY + 50, {
+            width: signatureWidth - 40,
+            align: 'right'
+          });
+        doc.restore();
+
+        doc.x = previousX;
+        doc.y = previousY;
+      };
+
+      drawSignature();
+      doc.on('pageAdded', drawSignature);
+
+      const drawSectionHeader = (title, subtitle = null) => {
+        ensureSpace(72);
         const headerX = doc.page.margins.left;
         const headerY = doc.y;
+
         doc.save();
-        doc.roundedRect(headerX, headerY, availableWidth, 26, 8).fill(colors.accent);
+        doc.roundedRect(headerX, headerY, availableWidth, 56, 16).fill(colors.sectionBackground);
+        doc
+          .fillColor(colors.accent)
+          .font('Helvetica-Bold')
+          .fontSize(12)
+          .text(title.toUpperCase(), headerX + 24, headerY + 18);
+        if (subtitle) {
+          doc
+            .font('Helvetica')
+            .fontSize(9)
+            .fillColor(colors.muted)
+            .text(subtitle, headerX + 24, headerY + 32);
+        }
+        doc.restore();
+
+        doc.y = headerY + 68;
+        doc.x = headerX;
+      };
+
+      const drawHeroHeader = () => {
+        const heroHeight = 188;
+        const heroX = doc.page.margins.left;
+        const heroY = doc.page.margins.top;
+
+        doc.save();
+        doc.roundedRect(heroX, heroY, availableWidth, heroHeight, 28).fill(colors.heroBackground);
+        doc.opacity(0.3);
+        doc
+          .fillColor(colors.heroOverlay)
+          .circle(heroX + availableWidth - 80, heroY + 70, 90)
+          .fill();
+        doc.opacity(1);
         doc
           .fillColor('#FFFFFF')
           .font('Helvetica-Bold')
-          .fontSize(13)
-          .text(title, headerX + 14, headerY + 7);
+          .fontSize(26)
+          .text("Rapport opérationnel", heroX + 32, heroY + 32);
+        doc
+          .font('Helvetica')
+          .fontSize(12)
+          .fillColor('#C7D2FE')
+          .text('Synthèse stratégique générée automatiquement par Sora Intelligence', heroX + 32, heroY + 58, {
+            width: availableWidth - 240
+          });
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(20)
+          .fillColor('#FFFFFF')
+          .text(existingCase.name, heroX + 32, heroY + 96, {
+            width: availableWidth - 240
+          });
+        doc
+          .font('Helvetica')
+          .fontSize(10)
+          .fillColor('#C7D2FE')
+          .text(`Généré le ${reportGeneratedAtLabel}`, heroX + 32, heroY + 128);
+
+        const heroStats = [
+          {
+            label: 'Fichiers analysés',
+            value: files.length ? `${files.length}` : '0'
+          },
+          {
+            label: 'Numéros suivis',
+            value: caseNumbers.length ? `${caseNumbers.length}` : '—'
+          },
+          {
+            label: 'Dernière activité CDR',
+            value: insights?.lastActivity ? formatDateTimeValue(insights.lastActivity) : 'Aucune donnée'
+          }
+        ];
+
+        const statWidth = (availableWidth - 96) / heroStats.length;
+        const statY = heroY + heroHeight - 72;
+        heroStats.forEach((stat, index) => {
+          const statX = heroX + 32 + index * (statWidth + 16);
+          doc
+            .roundedRect(statX, statY, statWidth, 60, 16)
+            .fill('#FFFFFF');
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(9)
+            .fillColor(colors.muted)
+            .text(stat.label.toUpperCase(), statX + 18, statY + 16, { width: statWidth - 36 });
+          doc
+            .font('Helvetica')
+            .fontSize(12)
+            .fillColor(colors.title)
+            .text(stat.value, statX + 18, statY + 34, { width: statWidth - 36 });
+        });
+
         doc.restore();
-        doc.y = headerY + 32;
-        doc.x = headerX;
+        doc.y = heroY + heroHeight + 28;
+        doc.x = heroX;
       };
 
       const drawInfoGrid = () => {
         const infoEntries = [
           ["Nom de l'opération", existingCase.name],
-          ['Responsable', owner?.login || 'Inconnu'],
+          ['Division opérationnelle', owner?.division_name || 'Non renseignée'],
           ['Créée le', formatDateTimeValue(existingCase.created_at)],
-          ['Date du rapport', formatDateTimeValue(new Date())],
-          ['Fichiers importés', files.length.toString()]
+          ['Date du rapport', reportGeneratedAtLabel],
+          ['Fichiers importés', files.length.toString()],
+          ['Numéros CDR suivis', caseNumbers.length ? caseNumbers.length.toString() : '—']
         ];
 
         if (insights?.lastActivity) {
@@ -436,42 +570,46 @@ class CaseService {
         }
 
         const columns = 2;
-        const columnWidth = (availableWidth - 20) / columns;
-        const cellHeight = 64;
+        const columnWidth = (availableWidth - 32) / columns;
+        const cellHeight = 88;
         const rows = Math.ceil(infoEntries.length / columns);
-        ensureSpace(rows * cellHeight + 20);
+        ensureSpace(rows * cellHeight + 28);
         const startY = doc.y;
         let maxBottom = startY;
 
         infoEntries.forEach(([label, value], idx) => {
           const columnIndex = idx % columns;
           const rowIndex = Math.floor(idx / columns);
-          const x = doc.page.margins.left + columnIndex * (columnWidth + 20);
+          const x = doc.page.margins.left + columnIndex * (columnWidth + 32);
           const y = startY + rowIndex * cellHeight;
 
           doc.save();
-          doc.roundedRect(x, y, columnWidth, cellHeight - 12, 12).fill(colors.card);
+          doc.roundedRect(x, y, columnWidth, cellHeight - 20, 18).fill('#FFFFFF');
           doc.restore();
 
           doc
             .font('Helvetica-Bold')
             .fontSize(9)
             .fillColor(colors.muted)
-            .text(label.toUpperCase(), x + 16, y + 12, { width: columnWidth - 32 });
+            .text(label.toUpperCase(), x + 20, y + 18, { width: columnWidth - 40 });
 
           doc
             .font('Helvetica')
             .fontSize(12)
             .fillColor(colors.text)
-            .text(value, x + 16, y + 30, { width: columnWidth - 32 });
+            .text(value, x + 20, y + 40, { width: columnWidth - 40 });
 
-          const cardBottom = y + cellHeight - 12;
+          doc
+            .rect(x, y, columnWidth, 4)
+            .fill(colors.accent);
+
+          const cardBottom = y + cellHeight - 20;
           if (cardBottom > maxBottom) {
             maxBottom = cardBottom;
           }
         });
 
-        doc.y = maxBottom + 12;
+        doc.y = maxBottom + 24;
         doc.x = doc.page.margins.left;
       };
 
@@ -957,85 +1095,41 @@ class CaseService {
         doc.x = mapX;
       };
 
-      const drawSignature = () => {
-        ensureSpace(80);
-        const lineY = doc.y;
-        doc
-          .moveTo(doc.page.margins.left, lineY)
-          .lineTo(doc.page.width - doc.page.margins.right, lineY)
-          .strokeColor(colors.border)
-          .lineWidth(1)
-          .stroke();
-        doc.moveDown(1);
-        doc
-          .font('Helvetica')
-          .fontSize(10)
-          .fillColor(colors.muted)
-          .text('Rapport généré automatiquement.', { align: 'right' });
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(14)
-          .fillColor(colors.title)
-          .text('Signature Sora', { align: 'right' });
-        doc
-          .font('Helvetica')
-          .fontSize(10)
-          .fillColor(colors.accent)
-          .text('Sora Intelligence Division', { align: 'right' });
-      };
+      drawHeroHeader();
 
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(24)
-        .fillColor(colors.title)
-        .text("Rapport d'opération", { align: 'center' });
-      doc
-        .font('Helvetica')
-        .fontSize(12)
-        .fillColor(colors.muted)
-        .text('Analyse stratégique générée par Sora Intelligence', { align: 'center' });
-      doc.moveDown(1.2);
-      doc
-        .moveTo(doc.page.margins.left, doc.y)
-        .lineTo(doc.page.width - doc.page.margins.right, doc.y)
-        .strokeColor(colors.border)
-        .lineWidth(1)
-        .stroke();
-      doc.moveDown(1.2);
-
-      drawSectionHeader('Synthèse opérationnelle');
+      drawSectionHeader('Synthèse opérationnelle', 'Vue d\'ensemble des données clés de la mission.');
       drawInfoGrid();
-      doc.moveDown(0.4);
+      doc.moveDown(0.6);
 
-      drawSectionHeader('Historique des fichiers importés');
+      drawSectionHeader('Historique des fichiers importés', 'Chronologie et volumétrie des pièces intégrées.');
       drawFilesTable();
-      doc.moveDown(0.4);
+      doc.moveDown(0.6);
 
       if (insights) {
-        drawSectionHeader('Contacts clés & interactions');
+        drawSectionHeader('Contacts clés & interactions', 'Analyse des acteurs et de la densité relationnelle.');
         drawContactsTable(insights.contacts || []);
-        doc.moveDown(0.4);
+        doc.moveDown(0.6);
 
-        drawSectionHeader('Analyse des localisations');
+        drawSectionHeader('Analyse des localisations', 'Points d\'activité récents et zones de présence.');
         drawLocationCards(insights.recentLocations || [], insights.topLocations || []);
-        doc.moveDown(0.4);
+        doc.moveDown(0.6);
 
-        drawSectionHeader('Points de rencontre stratégiques');
+        drawSectionHeader('Points de rencontre stratégiques', 'Fenêtres temporelles et participants identifiés.');
         drawMeetingPoints(insights.meetingPoints || []);
-        doc.moveDown(0.4);
+        doc.moveDown(0.6);
 
-        drawSectionHeader('Trajectoires similaires');
+        drawSectionHeader('Trajectoires similaires', 'Segments convergents détectés entre plusieurs numéros.');
         drawSimilarTrajectories(insights.similarTrajectories || []);
-        doc.moveDown(0.4);
+        doc.moveDown(0.6);
 
-        drawSectionHeader('Localisation approximative');
+        drawSectionHeader('Localisation approximative', 'Estimation consolidée à partir des données CDR.');
         drawApproximateLocation(insights.approximateLocation || null);
-        doc.moveDown(0.4);
+        doc.moveDown(0.6);
 
-        drawSectionHeader('Cartographie opérationnelle');
+        drawSectionHeader('Cartographie opérationnelle', 'Visualisation synthétique des déplacements.');
         drawMap(insights);
       } else {
-        drawSectionHeader('Analyse des données CDR');
+        drawSectionHeader('Analyse des données CDR', 'Aucune information exploitée pour cette opération.');
         doc
           .font('Helvetica')
           .fontSize(12)

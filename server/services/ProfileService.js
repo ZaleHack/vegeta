@@ -319,6 +319,13 @@ class ProfileService {
     try {
       const { default: PDFDocument } = await import('pdfkit');
       const doc = new PDFDocument({ margin: 50 });
+      const exportDateLabel = new Intl.DateTimeFormat('fr-FR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(new Date());
       const stream = new PassThrough();
       const chunks = [];
       doc.pipe(stream);
@@ -383,9 +390,9 @@ class ProfileService {
           });
         doc
           .font('Helvetica')
-          .fontSize(12)
+          .fontSize(11)
           .fillColor('#E0ECFF')
-          .text('Profil confidentiel', 0, headerHeight / 2 + 14, {
+          .text(`Exporté le ${exportDateLabel}`, 0, headerHeight / 2 + 10, {
             width: pageWidth,
             align: 'center'
           });
