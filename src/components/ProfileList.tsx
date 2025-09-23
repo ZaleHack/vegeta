@@ -334,12 +334,12 @@ const ProfileList: React.FC<ProfileListProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl bg-gradient-to-br from-blue-50 via-white to-white/60 p-6 shadow-inner shadow-blue-100 dark:bg-none dark:bg-slate-900/60 dark:shadow-slate-900/60">
+      <div className="rounded-3xl bg-gradient-to-br from-blue-50 via-white to-white/60 p-6 shadow-inner shadow-blue-100 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:shadow-slate-900/70">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-slate-200 transition-all focus-within:ring-2 focus-within:ring-blue-500 dark:bg-slate-900/60 dark:ring-slate-700 dark:focus-within:ring-blue-500/70">
+          <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-slate-200 transition-all focus-within:ring-2 focus-within:ring-blue-500 dark:bg-white/5 dark:ring-slate-700/60 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06)] dark:focus-within:ring-blue-500/60">
             <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
             <input
-              className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-200 dark:placeholder:text-slate-500"
+              className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
               placeholder="Rechercher par nom, téléphone ou email"
               value={query}
               onChange={e => setQuery(e.target.value)}
