@@ -108,7 +108,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
             disabled={!canLoadMore}
             className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800/60"
           >
-            Charger plus
+            Afficher plus
           </button>
         )}
         {showPageSize && pageSizeOptions && onPageSizeChange && (

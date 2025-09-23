@@ -1173,6 +1173,7 @@ const App: React.FC = () => {
   });
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
   const [searchLogs, setSearchLogs] = useState([]);
+  const [blacklistAlerts, setBlacklistAlerts] = useState<any[]>([]);
   const [logUserFilter, setLogUserFilter] = useState('');
   const [loadingStats, setLoadingStats] = useState(false);
   const [timeSeries, setTimeSeries] = useState<any[]>([]);
@@ -1675,55 +1676,6 @@ const App: React.FC = () => {
     setHasAppliedInitialRoute(true);
   }, [isAuthenticated, hasAppliedInitialRoute, initialRoute, handleSearch]);
 
-  const exportToCSV = () => {
-    if (!searchResults || searchResults.hits.length === 0) {
-      alert('Aucun résultat à exporter');
-      return;
-    }
-
-    try {
-      const allFields = new Set<string>();
-      searchResults.hits.forEach(hit => {
-        Object.keys(hit.preview).forEach(field => allFields.add(field));
-      });
-
-      const fields = ['Score', ...Array.from(allFields)];
-
-      let csvContent = fields.map(field => `"${field}"`).join(',') + '\n';
-
-      searchResults.hits.forEach(hit => {
-        const row = [
-          `"${hit.score || 0}"`,
-          ...Array.from(allFields).map(field => {
-            const value = hit.preview[field];
-            if (value === null || value === undefined) return '""';
-            return `"${String(value).replace(/"/g, '""')}"`;
-          })
-        ];
-        csvContent += row.join(',') + '\n';
-      });
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-      const searchTerm = searchQuery.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_');
-      link.setAttribute('download', `sora-export-${searchTerm}-${timestamp}.csv`);
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      alert(`Export réussi ! ${searchResults.hits.length} résultats exportés.`);
-    } catch (error) {
-      console.error('Erreur export:', error);
-      alert('Erreur lors de l\'export');
-    }
-  };
-
   const handleRequestIdentification = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -1979,17 +1931,38 @@ useEffect(() => {
 
     try {
       setLoadingStats(true);
-      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
+
+      if (!isAdmin) {
+        setBlacklistAlerts([]);
+      }
 
       const logQuery = isAdmin && logUserFilter
         ? `?username=${encodeURIComponent(logUserFilter)}`
         : '';
 
-    const [statsResponse, logsResponse, timeResponse] = await Promise.all([
-      fetch('/api/stats/overview', { headers }),
-      fetch(`/api/stats/search-logs${logQuery}`, { headers }),
-      fetch('/api/stats/time-series?days=7', { headers })
-    ]);
+      const alertLogsPromise = (() => {
+        if (!isAdmin) {
+          return null;
+        }
+        const params = new URLSearchParams({
+          page: '1',
+          limit: String(LOGS_LIMIT)
+        });
+        if (logUserFilter) {
+          params.set('username', logUserFilter);
+        }
+        return fetch(`/api/logs?${params.toString()}`, { headers });
+      })();
+
+      const responses = await Promise.all([
+        fetch('/api/stats/overview', { headers }),
+        fetch(`/api/stats/search-logs${logQuery}`, { headers }),
+        fetch('/api/stats/time-series?days=7', { headers }),
+        ...(alertLogsPromise ? [alertLogsPromise] : [])
+      ]);
+
+      const [statsResponse, logsResponse, timeResponse, alertResponse] = responses;
 
       if (statsResponse.ok) {
         const stats = await statsResponse.json();
@@ -2001,12 +1974,38 @@ useEffect(() => {
         setSearchLogs(logs.logs || []);
       }
 
-    if (timeResponse.ok) {
-      const ts = await timeResponse.json();
-      setTimeSeries(ts.time_series || []);
-    }
+      if (timeResponse.ok) {
+        const ts = await timeResponse.json();
+        setTimeSeries(ts.time_series || []);
+      }
+
+      if (alertResponse) {
+        if (alertResponse.ok) {
+          const data = await alertResponse.json();
+          const alertLogs = Array.isArray(data.logs)
+            ? data.logs.filter((log: any) => {
+                if (!log) return false;
+                if (log.action === 'blacklist_search_attempt' || log.action === 'blacklist_fraud_detection') {
+                  return true;
+                }
+                try {
+                  const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+                  return details?.alert === true;
+                } catch {
+                  return false;
+                }
+              })
+            : [];
+          setBlacklistAlerts(alertLogs);
+        } else {
+          setBlacklistAlerts([]);
+        }
+      }
     } catch (error) {
       console.error('Erreur chargement statistiques:', error);
+      if (isAdmin) {
+        setBlacklistAlerts([]);
+      }
     } finally {
       setLoadingStats(false);
     }
@@ -4604,7 +4603,7 @@ useEffect(() => {
                       <div className="flex space-x-2">
                         <button
                           onClick={() => setViewMode(viewMode === 'list' ? 'profile' : 'list')}
-                          className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
+                          className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg transition-colors hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white"
                         >
                           {viewMode === 'list' ? (
                             <>
@@ -4618,15 +4617,6 @@ useEffect(() => {
                             </>
                           )}
                         </button>
-                        {searchResults.hits.length > 0 && (
-                          <button
-                            onClick={exportToCSV}
-                            className="flex items-center px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-gray-100 dark:hover:bg-blue-600 dark:hover:text-white dark:active:bg-blue-600 dark:active:text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 transition-colors"
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            Export CSV
-                          </button>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -7249,6 +7239,153 @@ useEffect(() => {
                               )}
                             </div>
                           </div>
+                          {isAdmin && (
+                            <div className="mt-6 rounded-2xl border border-rose-200/60 bg-rose-50/70 p-4 shadow-inner dark:border-rose-500/40 dark:bg-rose-500/10">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <h4 className="flex items-center text-sm font-semibold uppercase tracking-[0.25em] text-rose-600 dark:text-rose-200">
+                                  <AlertTriangle className="mr-2 h-4 w-4" />
+                                  Alertes blacklist
+                                </h4>
+                                <span className="inline-flex items-center rounded-full border border-rose-300/60 bg-white/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-rose-600 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-100">
+                                  {blacklistAlerts.length} alerte{blacklistAlerts.length > 1 ? 's' : ''}
+                                </span>
+                              </div>
+                              <div className="mt-4 space-y-3">
+                                {blacklistAlerts.length > 0 ? (
+                                  blacklistAlerts.map((alertLog, index) => {
+                                    let details: Record<string, any> = {};
+                                    if (alertLog?.details) {
+                                      if (typeof alertLog.details === 'string') {
+                                        try {
+                                          details = JSON.parse(alertLog.details);
+                                        } catch {
+                                          details = {};
+                                        }
+                                      } else if (typeof alertLog.details === 'object') {
+                                        details = alertLog.details as Record<string, any>;
+                                      }
+                                    }
+
+                                    const appendNumber = (value: unknown, collector: Set<string>) => {
+                                      if (Array.isArray(value)) {
+                                        value.forEach((entry) => appendNumber(entry, collector));
+                                        return;
+                                      }
+                                      if (value === null || value === undefined) {
+                                        return;
+                                      }
+                                      const normalized = typeof value === 'string' ? value.trim() : String(value);
+                                      if (!normalized) {
+                                        return;
+                                      }
+                                      collector.add(normalized);
+                                    };
+
+                                    const numbersSet = new Set<string>();
+                                    appendNumber(details?.numbers, numbersSet);
+                                    appendNumber(details?.number, numbersSet);
+                                    appendNumber(details?.phone, numbersSet);
+                                    appendNumber(details?.search_term, numbersSet);
+                                    appendNumber(details?.target, numbersSet);
+                                    const numbersLabel = Array.from(numbersSet).join(', ');
+
+                                    const baseMessage = typeof details?.message === 'string' && details.message.trim()
+                                      ? details.message.trim()
+                                      : alertLog?.action === 'blacklist_fraud_detection'
+                                      ? 'Détection de fraude - numéro blacklisté'
+                                      : 'Tentative de recherche sur un numéro blacklisté';
+
+                                    const contextText = typeof details?.context === 'string' ? details.context.trim() : '';
+                                    const pageName = typeof details?.page === 'string' ? details.page.trim() : '';
+
+                                    const rawProfileId =
+                                      details?.profile_id !== undefined ? details.profile_id : details?.profileId;
+                                    let profileId: number | null = null;
+                                    if (typeof rawProfileId === 'number' && Number.isFinite(rawProfileId)) {
+                                      profileId = rawProfileId;
+                                    } else if (typeof rawProfileId === 'string' && rawProfileId.trim() !== '') {
+                                      const parsed = Number(rawProfileId.trim());
+                                      profileId = Number.isNaN(parsed) ? null : parsed;
+                                    }
+
+                                    const createdAtLabel = (() => {
+                                      if (!alertLog?.created_at) {
+                                        return 'Date inconnue';
+                                      }
+                                      try {
+                                        const parsed = parseISO(alertLog.created_at);
+                                        if (!Number.isNaN(parsed.getTime())) {
+                                          return format(parsed, 'Pp', { locale: fr });
+                                        }
+                                      } catch {
+                                        // Ignore ISO parsing errors
+                                      }
+                                      try {
+                                        const parsed = new Date(alertLog.created_at);
+                                        if (!Number.isNaN(parsed.getTime())) {
+                                          return format(parsed, 'Pp', { locale: fr });
+                                        }
+                                      } catch {
+                                        // Ignore generic parsing errors
+                                      }
+                                      return alertLog.created_at;
+                                    })();
+
+                                    return (
+                                      <div
+                                        key={alertLog?.id ?? `${alertLog?.created_at ?? 'alert'}-${index}`}
+                                        className="flex items-start gap-3 rounded-2xl border border-rose-400/60 bg-white/90 px-4 py-3 text-sm text-rose-700 shadow-sm shadow-rose-200/40 dark:border-rose-500/40 dark:bg-rose-500/15 dark:text-rose-100"
+                                      >
+                                        <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-sm shadow-rose-500/40">
+                                          <AlertTriangle className="h-4 w-4" />
+                                        </span>
+                                        <div className="flex-1 space-y-2">
+                                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <span className="inline-flex items-center gap-2 rounded-full border border-rose-400/60 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-rose-600 dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-200">
+                                                {alertLog?.action || 'blacklist_alert'}
+                                              </span>
+                                              {pageName && (
+                                                <span className="inline-flex items-center rounded-full border border-blue-200/60 bg-blue-50/70 px-3 py-1 text-xs font-medium text-blue-600 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-200">
+                                                  {pageName}
+                                                </span>
+                                              )}
+                                            </div>
+                                            <span className="text-xs text-rose-600/80 dark:text-rose-200/80">{createdAtLabel}</span>
+                                          </div>
+                                          <p className="text-sm font-semibold text-rose-700 dark:text-rose-100">{baseMessage}</p>
+                                          {numbersLabel && (
+                                            <p className="text-xs font-medium text-rose-600/80 dark:text-rose-200/70">
+                                              Numéro(s) : <span className="font-semibold">{numbersLabel}</span>
+                                            </p>
+                                          )}
+                                          <p className="text-xs text-rose-600/70 dark:text-rose-200/70">
+                                            Déclenché par{' '}
+                                            <span className="font-semibold">{alertLog?.username || 'Utilisateur inconnu'}</span>
+                                          </p>
+                                          {contextText && (
+                                            <p className="text-xs text-rose-600/70 dark:text-rose-200/70">Contexte : {contextText}</p>
+                                          )}
+                                          {profileId !== null && (
+                                            <button
+                                              onClick={() => openEditProfile(profileId!)}
+                                              className="inline-flex w-max items-center gap-2 rounded-full border border-rose-400/50 bg-white/80 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-white dark:border-rose-400/40 dark:bg-rose-500/20 dark:text-rose-100 dark:hover:bg-rose-500/30"
+                                            >
+                                              Voir le profil
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })
+                                ) : (
+                                  <p className="rounded-2xl border border-dashed border-rose-300/70 bg-white/80 px-4 py-3 text-sm text-rose-600/80 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200/80">
+                                    Aucune alerte blacklist récente.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
