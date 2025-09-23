@@ -1,4 +1,5 @@
 import database from '../config/database.js';
+import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
 
 function serializeData(value) {
   if (value === null || value === undefined) {
@@ -16,14 +17,31 @@ function serializeData(value) {
 
 class Notification {
   static async create({ user_id, type, data = null }) {
-    if (!user_id || !type) {
-      throw new Error('user_id and type are required');
+    if (!type) {
+      throw new Error('type is required');
     }
-    const result = await database.query(
-      `INSERT INTO autres.notifications (user_id, type, data) VALUES (?, ?, ?)`,
-      [user_id, type, serializeData(data)]
-    );
-    return { id: result.insertId, user_id, type, data };
+    if (user_id === undefined || user_id === null) {
+      console.warn('Notification ignorée: user_id manquant');
+      return null;
+    }
+    const safeUserId = await ensureUserExists(user_id);
+    if (!safeUserId) {
+      console.warn('Notification ignorée car utilisateur introuvable:', user_id);
+      return null;
+    }
+    try {
+      const result = await database.query(
+        `INSERT INTO autres.notifications (user_id, type, data) VALUES (?, ?, ?)`,
+        [safeUserId, type, serializeData(data)]
+      );
+      return { id: result.insertId, user_id: safeUserId, type, data };
+    } catch (error) {
+      const handled = await handleMissingUserForeignKey(error);
+      if (handled) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   static async findRecentByUser(userId, limit = 20) {

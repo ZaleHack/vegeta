@@ -1,13 +1,27 @@
 import database from '../config/database.js';
+import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
 
 class UserSession {
   static async start(userId) {
     if (!userId) return null;
-    const result = await database.query(
-      `INSERT INTO autres.user_sessions (user_id, login_at) VALUES (?, NOW())`,
-      [userId]
-    );
-    return { id: result.insertId, user_id: userId };
+    const safeUserId = await ensureUserExists(userId);
+    if (!safeUserId) {
+      console.warn('Session utilisateur ignorée car utilisateur introuvable:', userId);
+      return null;
+    }
+    try {
+      const result = await database.query(
+        `INSERT INTO autres.user_sessions (user_id, login_at) VALUES (?, NOW())`,
+        [safeUserId]
+      );
+      return { id: result.insertId, user_id: safeUserId };
+    } catch (error) {
+      const handled = await handleMissingUserForeignKey(error);
+      if (!handled) {
+        throw error;
+      }
+      return null;
+    }
   }
 
   static async endLatest(userId) {

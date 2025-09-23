@@ -1,15 +1,5 @@
 import database from '../config/database.js';
-
-const ensureUserExists = async userId => {
-  if (userId === undefined || userId === null) return null;
-
-  const existing = await database.queryOne(
-    'SELECT id FROM autres.users WHERE id = ? LIMIT 1',
-    [userId]
-  );
-
-  return existing ? userId : null;
-};
+import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
 
 class UserLog {
   static async create({ user_id, action, details = null, duration_ms = null }) {
@@ -21,14 +11,15 @@ class UserLog {
         [safeUserId, action, details, duration_ms]
       );
     } catch (error) {
-      if (error?.code === 'ER_NO_REFERENCED_ROW_2') {
+      const handled = await handleMissingUserForeignKey(error, async () => {
         await database.query(
           `INSERT INTO autres.user_logs (user_id, action, details, duration_ms) VALUES (?, ?, ?, ?)`,
           [null, action, details, duration_ms]
         );
-        return;
+      });
+      if (!handled) {
+        throw error;
       }
-      throw error;
     }
   }
 
