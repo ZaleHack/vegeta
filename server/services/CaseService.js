@@ -89,15 +89,18 @@ class CaseService {
     }
 
     const owner = await User.findById(existingCase.user_id);
+    const ownerIsAdmin = this._isAdmin(owner);
     const divisionId = owner?.division_id || null;
-    const divisionUsers = divisionId ? await Division.findUsers(divisionId, { includeInactive: false }) : [];
+    const availableUsers = ownerIsAdmin || !divisionId
+      ? await User.findActive()
+      : await Division.findUsers(divisionId, { includeInactive: false });
     const recipientIds = await CaseShare.getUserIds(caseId);
 
     return {
-      divisionId,
+      divisionId: ownerIsAdmin ? null : divisionId,
       owner: { id: owner?.id, login: owner?.login },
       recipients: recipientIds,
-      users: divisionUsers
+      users: availableUsers
     };
   }
 
@@ -115,14 +118,14 @@ class CaseService {
     }
 
     const owner = await User.findById(existingCase.user_id);
-    const divisionId = owner?.division_id;
+    const ownerIsAdmin = this._isAdmin(owner);
+    const divisionId = owner?.division_id || null;
 
-    if (!divisionId) {
-      throw new Error('Division not found for owner');
-    }
+    const availableUsers = ownerIsAdmin || !divisionId
+      ? await User.findActive()
+      : await Division.findUsers(divisionId, { includeInactive: false });
 
-    const divisionUsers = await Division.findUsers(divisionId, { includeInactive: false });
-    const allowedIds = divisionUsers
+    const allowedIds = availableUsers
       .filter((u) => u.id !== owner.id)
       .map((u) => u.id);
 

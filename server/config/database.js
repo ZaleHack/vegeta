@@ -240,13 +240,13 @@ class DatabaseManager {
 
       if (fallbackDivision?.id) {
         await this.pool.execute(
-          `UPDATE autres.users SET division_id = ? WHERE division_id IS NULL`,
+          `UPDATE autres.users SET division_id = ? WHERE division_id IS NULL AND admin = 0`,
           [fallbackDivision.id]
         );
         try {
           await this.pool.execute(`
             ALTER TABLE autres.users
-            MODIFY COLUMN division_id INT NOT NULL
+            MODIFY COLUMN division_id INT NULL
           `);
         } catch (error) {
           if (error.code !== 'ER_CANT_CREATE_TABLE') {
