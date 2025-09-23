@@ -1,4 +1,11 @@
 import database from '../config/database.js';
+import {
+  decryptRecord,
+  decryptRows,
+  encryptRecord
+} from '../utils/encrypted-storage.js';
+
+const PROFILES_TABLE = 'autres.profiles';
 
 const PROFILE_BASE_SELECT = `
   SELECT
@@ -21,16 +28,24 @@ class Profile {
       extra_fields = [],
       photo_path
     } = data;
+    const encrypted = encryptRecord(PROFILES_TABLE, {
+      first_name,
+      last_name,
+      phone,
+      email,
+      comment,
+      extra_fields
+    });
     const result = await database.query(
       `INSERT INTO autres.profiles (user_id, first_name, last_name, phone, email, comment, extra_fields, photo_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_id,
-        first_name,
-        last_name,
-        phone,
-        email,
-        comment,
-        JSON.stringify(extra_fields),
+        encrypted.first_name,
+        encrypted.last_name,
+        encrypted.phone,
+        encrypted.email,
+        encrypted.comment,
+        encrypted.extra_fields,
         photo_path
       ]
     );
@@ -38,15 +53,17 @@ class Profile {
   }
 
   static async findById(id) {
-    return database.queryOne(`${PROFILE_BASE_SELECT} WHERE p.id = ?`, [id]);
+    const row = await database.queryOne(`${PROFILE_BASE_SELECT} WHERE p.id = ?`, [id]);
+    return decryptRecord(PROFILES_TABLE, row);
   }
 
   static async update(id, data) {
     const fields = [];
     const params = [];
-    for (const [key, value] of Object.entries(data)) {
+    const encrypted = encryptRecord(PROFILES_TABLE, data);
+    for (const [key, value] of Object.entries(encrypted)) {
       fields.push(`${key} = ?`);
-      params.push(key === 'extra_fields' ? JSON.stringify(value) : value);
+      params.push(value);
     }
     if (fields.length === 0) return this.findById(id);
     params.push(id);
@@ -105,6 +122,7 @@ class Profile {
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
+    const decryptedRows = decryptRows(PROFILES_TABLE, rows);
 
     const totalRes = await database.queryOne(
       `SELECT COUNT(*) as count
@@ -114,7 +132,7 @@ class Profile {
       params
     );
 
-    return { rows, total: totalRes?.count ?? 0 };
+    return { rows: decryptedRows, total: totalRes?.count ?? 0 };
   }
 
   static async findAll(userId = null, limit = 10, offset = 0, options = {}) {
