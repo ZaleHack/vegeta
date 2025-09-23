@@ -381,9 +381,7 @@ class CaseService {
         card: '#F8FAFC',
         sectionBackground: '#EEF2FF',
         heroBackground: '#1E3A8A',
-        heroOverlay: '#3B82F6',
-        signatureBg: '#0F172A',
-        signatureText: '#E2E8F0'
+        heroOverlay: '#3B82F6'
       };
 
       const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -415,24 +413,29 @@ class CaseService {
       const drawSignature = () => {
         const previousX = doc.x;
         const previousY = doc.y;
+        const previousFontSize = doc._fontSize;
+        const previousFillColor = doc._fillColor;
 
-        const signatureWidth = 190;
-        const signatureHeight = 74;
+        const signatureWidth = 120;
         const signatureX = doc.page.width - doc.page.margins.right - signatureWidth;
-        const signatureY = doc.page.height - doc.page.margins.bottom - signatureHeight;
+        const signatureY = doc.page.height - doc.page.margins.bottom - 42;
 
-        doc.save();
-        doc.roundedRect(signatureX, signatureY, signatureWidth, signatureHeight, 18).fill(colors.signatureBg);
+        doc
+          .moveTo(signatureX, signatureY)
+          .lineTo(signatureX + signatureWidth, signatureY)
+          .lineWidth(1)
+          .stroke(colors.border);
+
         doc
           .font('Helvetica-Bold')
-          .fontSize(22)
-          .fillColor('#FFFFFF')
-          .text('SORA', signatureX + 20, signatureY + 34, {
-            width: signatureWidth - 40,
+          .fontSize(12)
+          .fillColor(colors.title)
+          .text('SORA', signatureX, signatureY + 6, {
+            width: signatureWidth,
             align: 'right'
           });
-        doc.restore();
 
+        doc.fontSize(previousFontSize).fillColor(previousFillColor);
         doc.x = previousX;
         doc.y = previousY;
       };
