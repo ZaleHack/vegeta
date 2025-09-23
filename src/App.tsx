@@ -145,6 +145,11 @@ interface DashboardStats {
   active_users: number;
   top_search_terms: SearchTermStat[];
   searches_by_type: SearchTypeStat[];
+  data?: {
+    total_records: number;
+    sources: number;
+    tables: number;
+  };
   profiles?: {
     total: number;
     today: number;
@@ -193,7 +198,7 @@ type InitialRoute = {
 };
 
 const DASHBOARD_CARD_STORAGE_KEY = 'sora.dashboard.cardOrder';
-const DEFAULT_CARD_ORDER = ['total-searches', 'profiles', 'requests', 'operations'];
+const DEFAULT_CARD_ORDER = ['total-searches', 'data', 'profiles', 'requests', 'operations'];
 
 interface GendarmerieEntry {
   id: number;
@@ -2010,6 +2015,7 @@ useEffect(() => {
     const profiles = statsData?.profiles;
     const requests = statsData?.requests;
     const operations = statsData?.operations;
+    const dataStats = statsData?.data;
 
     return [
       {
@@ -2023,6 +2029,18 @@ useEffect(() => {
           tone: 'bg-white/20 text-white'
         },
         description: 'Suivi global des requêtes effectuées sur la plateforme'
+      },
+      {
+        id: 'data',
+        title: 'Données disponibles',
+        value: numberFormatter.format(dataStats?.total_records ?? 0),
+        icon: Database,
+        gradient: 'from-emerald-500 via-teal-500 to-cyan-600',
+        badge: {
+          label: `${numberFormatter.format(dataStats?.sources ?? 0)} sources`,
+          tone: 'bg-white/20 text-white'
+        },
+        description: 'Volume total de données exploitables via la plateforme'
       },
       {
         id: 'profiles',

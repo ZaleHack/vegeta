@@ -55,7 +55,8 @@ class StatsService {
         searchesByType,
         profileStats,
         requestStats,
-        operationStats
+        operationStats,
+        dataStats
       ] = await Promise.all([
         database.queryOne(
           `SELECT COUNT(*) as count FROM autres.search_logs${userId ? ' WHERE user_id = ?' : ''}`,
@@ -105,8 +106,26 @@ class StatsService {
             SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS recent
           FROM autres.cdr_cases${userId ? ' WHERE user_id = ?' : ''}`,
           userId ? [userId] : []
-        )
+        ),
+        this.getDataStatistics()
       ]);
+
+      const totalRecords = Object.values(dataStats || {}).reduce(
+        (sum, entry) => sum + Number(entry?.total_records ?? 0),
+        0
+      );
+      const sourceCount = (() => {
+        if (!dataStats) {
+          return 0;
+        }
+        const databases = new Set(
+          Object.values(dataStats)
+            .map(entry => entry?.database)
+            .filter(Boolean)
+        );
+        return databases.size;
+      })();
+      const tableCount = Object.keys(dataStats || {}).length;
 
       const stats = {
         total_searches: Number(totalSearches?.count ?? 0),
@@ -131,6 +150,11 @@ class StatsService {
           total: Number(operationStats?.total ?? 0),
           today: Number(operationStats?.today ?? 0),
           recent: Number(operationStats?.recent ?? 0)
+        },
+        data: {
+          total_records: totalRecords,
+          sources: sourceCount,
+          tables: tableCount
         }
       };
 
