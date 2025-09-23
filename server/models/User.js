@@ -87,6 +87,22 @@ class User {
     );
   }
 
+  static async findActive({ excludeId } = {}) {
+    const params = [];
+    let sql = `SELECT u.id, u.login, u.admin, u.active, u.created_at
+               FROM autres.users u
+               WHERE u.active = 1`;
+
+    if (excludeId) {
+      sql += ' AND u.id != ?';
+      params.push(excludeId);
+    }
+
+    sql += ' ORDER BY u.login';
+
+    return await database.query(sql, params);
+  }
+
   static async update(id, userData) {
     const fields = [];
     const values = [];
