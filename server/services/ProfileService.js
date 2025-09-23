@@ -126,13 +126,37 @@ class ProfileService {
       }
       photoPath = null;
     }
+    const toArray = (candidate) => (Array.isArray(candidate) ? candidate : [candidate]);
+    const normalizeExtraFields = (value) => {
+      if (value === null || value === undefined || value === '') {
+        return [];
+      }
+      if (Array.isArray(value)) {
+        return value;
+      }
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          return toArray(parsed);
+        } catch (_) {
+          return [value];
+        }
+      }
+      return toArray(value);
+    };
+
+    const extraFields =
+      data.extra_fields !== undefined
+        ? normalizeExtraFields(data.extra_fields)
+        : normalizeExtraFields(existing.extra_fields);
+
     const updateData = {
       first_name: data.first_name ?? existing.first_name,
       last_name: data.last_name ?? existing.last_name,
       phone: data.phone ?? existing.phone,
       email: data.email ?? existing.email,
       comment: data.comment ?? existing.comment ?? '',
-      extra_fields: data.extra_fields || JSON.parse(existing.extra_fields || '[]'),
+      extra_fields: extraFields,
       // Normalize existing paths to use forward slashes to avoid issues on different OSes
       photo_path: photoPath
     };
