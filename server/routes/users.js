@@ -60,14 +60,22 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Rôle invalide' });
     }
 
-    const division_id = Number(divisionId);
-    if (!Number.isInteger(division_id) || division_id <= 0) {
-      return res.status(400).json({ error: 'Division invalide' });
-    }
+    const isAdminRole = role === 'ADMIN';
+    let division_id = null;
+    let divisionName = null;
+    if (!isAdminRole) {
+      const parsedDivisionId = Number(divisionId);
+      if (!Number.isInteger(parsedDivisionId) || parsedDivisionId <= 0) {
+        return res.status(400).json({ error: 'Division invalide' });
+      }
 
-    const division = await Division.findById(division_id);
-    if (!division) {
-      return res.status(400).json({ error: 'Division inexistante' });
+      const division = await Division.findById(parsedDivisionId);
+      if (!division) {
+        return res.status(400).json({ error: 'Division inexistante' });
+      }
+
+      division_id = parsedDivisionId;
+      divisionName = division.name;
     }
 
     // Vérifier l'unicité
@@ -77,7 +85,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
     }
 
     // Créer l'utilisateur
-    const admin = role === 'ADMIN' ? 1 : 0;
+    const admin = isAdminRole ? 1 : 0;
     const newUser = await User.create({ login, mdp: password, admin, active: active ? 1 : 0, division_id });
 
     const { mdp, ...userResponse } = newUser;
@@ -85,7 +93,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       message: 'Utilisateur créé avec succès',
       user: {
         ...userResponse,
-        division_name: division.name,
+        division_name: divisionName,
         role: admin === 1 ? 'ADMIN' : 'USER'
       }
     });
@@ -117,15 +125,19 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
     }
 
     if (divisionId !== undefined) {
-      const division_id = Number(divisionId);
-      if (!Number.isInteger(division_id) || division_id <= 0) {
-        return res.status(400).json({ error: 'Division invalide' });
+      if (divisionId === null) {
+        updates.division_id = null;
+      } else {
+        const division_id = Number(divisionId);
+        if (!Number.isInteger(division_id) || division_id <= 0) {
+          return res.status(400).json({ error: 'Division invalide' });
+        }
+        const division = await Division.findById(division_id);
+        if (!division) {
+          return res.status(400).json({ error: 'Division inexistante' });
+        }
+        updates.division_id = division_id;
       }
-      const division = await Division.findById(division_id);
-      if (!division) {
-        return res.status(400).json({ error: 'Division inexistante' });
-      }
-      updates.division_id = division_id;
     }
 
     if (Object.keys(updates).length === 0) {

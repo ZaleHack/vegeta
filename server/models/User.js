@@ -8,9 +8,11 @@ class User {
     const { login, mdp, admin = 0, active = 1, division_id } = userData;
     const hashedPassword = await bcrypt.hash(mdp, 12);
 
+    const normalizedDivisionId = division_id ?? null;
+
     const result = await database.query(
       'INSERT INTO autres.users (login, mdp, admin, active, division_id) VALUES (?, ?, ?, ?, ?)',
-      [login, hashedPassword, admin, active, division_id]
+      [login, hashedPassword, admin, active, normalizedDivisionId]
     );
 
     return {
@@ -19,7 +21,7 @@ class User {
       mdp: hashedPassword,
       admin,
       active,
-      division_id,
+      division_id: normalizedDivisionId,
       otp_enabled: 0
     };
   }

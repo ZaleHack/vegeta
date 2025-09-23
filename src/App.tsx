@@ -104,7 +104,7 @@ interface User {
   admin: number;
   created_at: string;
   active: number;
-  division_id: number;
+  division_id: number | null;
   division_name?: string | null;
   otp_enabled?: number;
   role?: 'ADMIN' | 'USER';
@@ -164,14 +164,6 @@ interface DashboardStats {
   };
 }
 
-interface DataSourceEntry {
-  id: string;
-  label: string;
-  count: number;
-  database?: string | null;
-  error?: string | null;
-}
-
 type DashboardCard = {
   id: string;
   title: string;
@@ -201,7 +193,7 @@ type InitialRoute = {
 };
 
 const DASHBOARD_CARD_STORAGE_KEY = 'sora.dashboard.cardOrder';
-const DEFAULT_CARD_ORDER = ['total-searches', 'total-records', 'profiles', 'requests', 'operations'];
+const DEFAULT_CARD_ORDER = ['total-searches', 'profiles', 'requests', 'operations'];
 
 interface GendarmerieEntry {
   id: number;
@@ -1160,7 +1152,9 @@ const App: React.FC = () => {
         try {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            const sanitized = parsed.filter((item): item is string => typeof item === 'string');
+            const sanitized = parsed.filter((item): item is string =>
+              typeof item === 'string' && DEFAULT_CARD_ORDER.includes(item)
+            );
             const missing = DEFAULT_CARD_ORDER.filter(id => !sanitized.includes(id));
             return [...sanitized, ...missing];
           }
@@ -1176,8 +1170,6 @@ const App: React.FC = () => {
   const [logUserFilter, setLogUserFilter] = useState('');
   const [loadingStats, setLoadingStats] = useState(false);
   const [timeSeries, setTimeSeries] = useState<any[]>([]);
-  const [tableDistribution, setTableDistribution] = useState<DataSourceEntry[]>([]);
-  const [totalRecords, setTotalRecords] = useState(0);
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat('fr-FR'), []);
 
@@ -1897,9 +1889,18 @@ useEffect(() => {
         const entries: DivisionEntry[] = Array.isArray(data.divisions) ? data.divisions : [];
         setDivisions(entries);
         setUserFormData(prev => {
-          const hasSelection = prev.divisionId && entries.some((division) => division.id === prev.divisionId);
-          const nextDivisionId = hasSelection ? prev.divisionId : (entries[0]?.id ?? 0);
-          if (nextDivisionId === prev.divisionId) {
+          if (prev.admin === 1) {
+            return prev.divisionId === 0
+              ? prev
+              : {
+                  ...prev,
+                  divisionId: 0
+                };
+          }
+          const currentDivisionId = typeof prev.divisionId === 'number' ? prev.divisionId : 0;
+          const hasSelection = currentDivisionId > 0 && entries.some((division) => division.id === currentDivisionId);
+          const nextDivisionId = hasSelection ? currentDivisionId : (entries[0]?.id ?? 0);
+          if (nextDivisionId === currentDivisionId) {
             return prev;
           }
           return {
@@ -1978,12 +1979,11 @@ useEffect(() => {
         ? `?username=${encodeURIComponent(logUserFilter)}`
         : '';
 
-      const [statsResponse, logsResponse, timeResponse, distResponse] = await Promise.all([
-        fetch('/api/stats/overview', { headers }),
-        fetch(`/api/stats/search-logs${logQuery}`, { headers }),
-        fetch('/api/stats/time-series?days=7', { headers }),
-        fetch('/api/stats/data-distribution', { headers })
-      ]);
+    const [statsResponse, logsResponse, timeResponse] = await Promise.all([
+      fetch('/api/stats/overview', { headers }),
+      fetch(`/api/stats/search-logs${logQuery}`, { headers }),
+      fetch('/api/stats/time-series?days=7', { headers })
+    ]);
 
       if (statsResponse.ok) {
         const stats = await statsResponse.json();
@@ -1995,33 +1995,10 @@ useEffect(() => {
         setSearchLogs(logs.logs || []);
       }
 
-      if (timeResponse.ok) {
-        const ts = await timeResponse.json();
-        setTimeSeries(ts.time_series || []);
-      }
-
-      if (distResponse.ok) {
-        const dist = await distResponse.json();
-        const distribution: DataSourceEntry[] = Object.entries(dist.distribution || {}).map(([key, info]: [string, any]) => {
-          const metadata = info ?? {};
-          const rawCount = metadata.total_records ?? metadata.count ?? 0;
-          const parsedCount = typeof rawCount === 'number' ? rawCount : Number(rawCount) || 0;
-          const database = typeof metadata.database === 'string'
-            ? metadata.database
-            : (key.includes('.') ? key.split('.')[0] : null);
-          const error = typeof metadata.error === 'string' ? metadata.error : null;
-          return {
-            id: key,
-            label: metadata.table_name || metadata.table || key,
-            count: parsedCount,
-            database,
-            error
-          };
-        });
-        setTableDistribution(distribution);
-        const total = distribution.reduce((sum, item) => sum + (item.count || 0), 0);
-        setTotalRecords(total);
-      }
+    if (timeResponse.ok) {
+      const ts = await timeResponse.json();
+      setTimeSeries(ts.time_series || []);
+    }
     } catch (error) {
       console.error('Erreur chargement statistiques:', error);
     } finally {
@@ -2046,18 +2023,6 @@ useEffect(() => {
           tone: 'bg-white/20 text-white'
         },
         description: 'Suivi global des requêtes effectuées sur la plateforme'
-      },
-      {
-        id: 'total-records',
-        title: 'Enregistrements indexés',
-        value: numberFormatter.format(totalRecords),
-        icon: Database,
-        gradient: 'from-emerald-500 via-emerald-600 to-teal-600',
-        badge: {
-          label: `${tableDistribution.length} sources actives`,
-          tone: 'bg-white/20 text-white'
-        },
-        description: 'Volume agrégé des données disponibles pour la recherche'
       },
       {
         id: 'profiles',
@@ -2096,11 +2061,7 @@ useEffect(() => {
         description: 'Dossiers d’analyse et investigations actives'
       }
     ];
-  }, [numberFormatter, statsData, totalRecords, tableDistribution.length]);
-
-  const sortedDataSources = useMemo(() => {
-    return [...tableDistribution].sort((a, b) => b.count - a.count);
-  }, [tableDistribution]);
+    }, [numberFormatter, statsData]);
 
   const orderedDashboardCards = useMemo(() => {
     const cardsMap = new Map(dashboardCards.map(card => [card.id, card]));
@@ -2213,18 +2174,41 @@ useEffect(() => {
 
   const topSearchTerms = useMemo(() => statsData?.top_search_terms ?? [], [statsData]);
 
+  const handleUserRoleChange = (adminValue: number) => {
+    setUserFormData(prev => {
+      if (adminValue === 1) {
+        return {
+          ...prev,
+          admin: 1,
+          divisionId: 0
+        };
+      }
+
+      const currentDivisionId = typeof prev.divisionId === 'number' ? prev.divisionId : 0;
+      const hasSelection = currentDivisionId > 0 && divisions.some((division) => division.id === currentDivisionId);
+      const nextDivisionId = hasSelection ? currentDivisionId : (divisions[0]?.id ?? 0);
+
+      return {
+        ...prev,
+        admin: 0,
+        divisionId: nextDivisionId
+      };
+    });
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      if (!userFormData.divisionId || userFormData.divisionId <= 0) {
+      const isAdminRole = userFormData.admin === 1;
+      if (!isAdminRole && (!userFormData.divisionId || userFormData.divisionId <= 0)) {
         alert('Veuillez sélectionner une division');
         setLoading(false);
         return;
       }
       const token = localStorage.getItem('token');
-      
+
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: {
@@ -2236,7 +2220,7 @@ useEffect(() => {
           password: userFormData.password,
           role: userFormData.admin === 1 ? 'ADMIN' : 'USER',
           active: userFormData.active === 1 ? 1 : 0,
-          divisionId: userFormData.divisionId
+          divisionId: isAdminRole ? null : userFormData.divisionId
         })
       });
 
@@ -2273,6 +2257,12 @@ useEffect(() => {
     setLoading(true);
 
     try {
+      const isAdminRole = userFormData.admin === 1;
+      if (!isAdminRole && (!userFormData.divisionId || userFormData.divisionId <= 0)) {
+        alert('Veuillez sélectionner une division');
+        setLoading(false);
+        return;
+      }
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/users/${editingUser.id}`, {
         method: 'PATCH',
@@ -2284,7 +2274,7 @@ useEffect(() => {
           login: userFormData.login,
           admin: userFormData.admin,
           active: userFormData.active === 1 ? 1 : 0,
-          divisionId: userFormData.divisionId
+          divisionId: isAdminRole ? null : userFormData.divisionId
         })
       });
 
@@ -2466,17 +2456,21 @@ useEffect(() => {
     setShowPasswordModal(true);
   };
 
-  const openEditModal = (user: User) => {
-    setEditingUser(user);
-    setUserFormData({
-      login: user.login,
-      password: '',
-      admin: user.admin,
-      active: user.active,
-      divisionId: user.division_id || divisions[0]?.id || 0
-    });
-    setShowUserModal(true);
-  };
+    const openEditModal = (user: User) => {
+      setEditingUser(user);
+      setUserFormData({
+        login: user.login,
+        password: '',
+        admin: user.admin,
+        active: user.active,
+        divisionId: (user.admin === 1)
+          ? 0
+          : (typeof user.division_id === 'number' && user.division_id > 0
+            ? user.division_id
+            : divisions[0]?.id || 0)
+      });
+      setShowUserModal(true);
+    };
 
   const openCreateModal = () => {
     setEditingUser(null);
@@ -7106,77 +7100,6 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  {isAdmin && (
-                    <div className="bg-white rounded-2xl shadow-xl p-6 dark:bg-gray-800">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                            <Database className="h-6 w-6 text-blue-600" />
-                            Sources de données
-                          </h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Inventaire des bases synchronisées avec la plateforme Sora.
-                          </p>
-                        </div>
-                        <span className="inline-flex items-center self-start rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 dark:bg-blue-900/40 dark:text-blue-200">
-                          {tableDistribution.length} sources
-                        </span>
-                      </div>
-                      <div className="mt-6 space-y-4">
-                        {sortedDataSources.length > 0 ? (
-                          sortedDataSources.slice(0, 8).map((source, index) => {
-                            const ratio = totalRecords > 0 ? Math.min(100, (source.count / totalRecords) * 100) : 0;
-                            return (
-                              <div
-                                key={source.id}
-                                className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md dark:border-gray-700/60 dark:bg-gray-800/70"
-                              >
-                                <div className="flex flex-wrap items-center justify-between gap-4">
-                                  <div className="flex items-start gap-3">
-                                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-sm font-semibold text-blue-600 dark:bg-blue-900/60 dark:text-blue-200">
-                                      #{index + 1}
-                                    </span>
-                                    <div>
-                                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{source.label}</p>
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        {source.database ? `Base ${source.database}` : 'Base non renseignée'}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                                      {numberFormatter.format(source.count)}
-                                    </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">Enregistrements</p>
-                                  </div>
-                                </div>
-                                <div className="mt-4 h-2 w-full rounded-full bg-white/80 dark:bg-gray-900/50">
-                                  <div
-                                    className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"
-                                    style={{ width: `${ratio}%` }}
-                                  ></div>
-                                </div>
-                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                  {ratio > 0 ? `${ratio.toFixed(1)}% du volume global` : 'Contribution non mesurée'}
-                                </p>
-                                {source.error && (
-                                  <p className="mt-2 flex items-center gap-2 text-xs font-medium text-rose-600 dark:text-rose-400">
-                                    <AlertCircle className="h-4 w-4" />
-                                    {source.error}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                            Aucune source de données disponible pour le moment.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Logs de recherche récents */}
                   <div className="lg:col-span-2">
                     <div className="bg-white rounded-2xl shadow-xl p-6">
@@ -7519,7 +7442,7 @@ useEffect(() => {
                 <select
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={userFormData.admin}
-                  onChange={(e) => setUserFormData({ ...userFormData, admin: parseInt(e.target.value) })}
+                  onChange={(e) => handleUserRoleChange(parseInt(e.target.value, 10))}
                 >
                   <option value={0}>Utilisateur</option>
                   <option value={1}>Administrateur</option>
@@ -7530,11 +7453,14 @@ useEffect(() => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Division</label>
                 <select
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={userFormData.divisionId}
-                  onChange={(e) => setUserFormData({ ...userFormData, divisionId: parseInt(e.target.value) })}
-                  required
+                  value={userFormData.divisionId ?? 0}
+                  onChange={(e) => setUserFormData({ ...userFormData, divisionId: parseInt(e.target.value, 10) })}
+                  required={userFormData.admin !== 1}
+                  disabled={userFormData.admin === 1}
                 >
-                  {divisions.length === 0 ? (
+                  {userFormData.admin === 1 ? (
+                    <option value={0}>Aucune division (administrateur)</option>
+                  ) : divisions.length === 0 ? (
                     <option value={0}>Aucune division disponible</option>
                   ) : (
                     divisions.map((division) => (
@@ -7544,6 +7470,11 @@ useEffect(() => {
                     ))
                   )}
                 </select>
+                {userFormData.admin === 1 && (
+                  <p className="mt-1 text-sm text-gray-500">
+                    Les administrateurs n'appartiennent à aucune division.
+                  </p>
+                )}
               </div>
 
               <div>

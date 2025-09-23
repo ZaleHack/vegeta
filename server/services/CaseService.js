@@ -421,26 +421,10 @@ class CaseService {
         doc.save();
         doc.roundedRect(signatureX, signatureY, signatureWidth, signatureHeight, 18).fill(colors.signatureBg);
         doc
-          .font('Helvetica')
-          .fontSize(8)
-          .fillColor(colors.signatureText)
-          .text('Signature officielle', signatureX + 20, signatureY + 16, {
-            width: signatureWidth - 40,
-            align: 'right'
-          });
-        doc
           .font('Helvetica-Bold')
-          .fontSize(20)
+          .fontSize(22)
           .fillColor('#FFFFFF')
-          .text('SORA', signatureX + 20, signatureY + 28, {
-            width: signatureWidth - 40,
-            align: 'right'
-          });
-        doc
-          .font('Helvetica')
-          .fontSize(9)
-          .fillColor(colors.accentSecondary)
-          .text('Division Intelligence & Analyse', signatureX + 20, signatureY + 50, {
+          .text('SORA', signatureX + 20, signatureY + 34, {
             width: signatureWidth - 40,
             align: 'right'
           });
