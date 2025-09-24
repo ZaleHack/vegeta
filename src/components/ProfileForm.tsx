@@ -48,7 +48,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
 
   const buildInitialFields = (): FieldCategory[] => {
     if (initialValues.extra_fields && initialValues.extra_fields.length) {
-      return initialValues.extra_fields;
+      return initialValues.extra_fields.map(category => ({
+        title: category.title,
+        fields:
+          Array.isArray(category.fields) && category.fields.length
+            ? category.fields.map(field => ({ key: field.key, value: field.value }))
+            : [{ key: '', value: '' }]
+      }));
     }
     return [
       {

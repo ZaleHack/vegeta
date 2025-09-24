@@ -703,6 +703,140 @@ const App: React.FC = () => {
     title: string;
     fields: ExtraField[];
   }
+  const toFieldValue = (input: unknown): string => {
+    if (input === null || input === undefined) {
+      return '';
+    }
+    return typeof input === 'string' ? input : String(input);
+  };
+
+  const normalizeProfileExtraFields = (raw: unknown): FieldCategory[] => {
+    const toFieldArray = (input: unknown): ExtraField[] => {
+      if (Array.isArray(input)) {
+        return input.map((field) => ({
+          key: typeof field?.key === 'string' ? field.key : '',
+          value: toFieldValue(field?.value)
+        }));
+      }
+      if (input && typeof input === 'object') {
+        return Object.entries(input as Record<string, unknown>).map(([key, value]) => ({
+          key: typeof key === 'string' ? key : String(key),
+          value: toFieldValue(value)
+        }));
+      }
+      return [];
+    };
+
+    if (!raw) {
+      return [];
+    }
+    if (typeof raw === 'string') {
+      try {
+        return normalizeProfileExtraFields(JSON.parse(raw));
+      } catch {
+        return [];
+      }
+    }
+    if (Array.isArray(raw)) {
+      return raw.map((item) => ({
+        title: typeof item?.title === 'string' ? item.title : '',
+        fields: toFieldArray(item?.fields)
+      }));
+    }
+    if (typeof raw === 'object') {
+      const entries = Object.entries(raw as Record<string, unknown>);
+      if (!entries.length) {
+        return [];
+      }
+      return [
+        {
+          title: 'Informations',
+          fields: entries.map(([key, value]) => ({
+            key: typeof key === 'string' ? key : String(key),
+            value: toFieldValue(value)
+          }))
+        }
+      ];
+    }
+    return [];
+  };
+
+  const ensureEditableCategories = (categories: FieldCategory[]): FieldCategory[] => {
+    if (!categories.length) {
+      return [
+        {
+          title: 'Informations',
+          fields: [{ key: '', value: '' }]
+        }
+      ];
+    }
+    return categories.map((category) => ({
+      title: typeof category.title === 'string' ? category.title : '',
+      fields:
+        Array.isArray(category.fields) && category.fields.length
+          ? category.fields.map((field) => ({
+              key: typeof field.key === 'string' ? field.key : '',
+              value: toFieldValue(field.value)
+            }))
+          : [{ key: '', value: '' }]
+    }));
+  };
+
+  const upsertField = (
+    categories: FieldCategory[],
+    label: string,
+    value: unknown,
+    options: { includeWhenEmpty?: boolean; matchLabels?: string[] } = {}
+  ): FieldCategory[] => {
+    const targets = new Set(
+      [label, ...(options.matchLabels ?? [])]
+        .map((target) => target.trim().toLowerCase())
+        .filter(Boolean)
+    );
+    let found = false;
+    const updated = categories.map((category) => ({
+      ...category,
+      fields: category.fields.map((field) => {
+        const normalizedKey = (field.key || '').trim().toLowerCase();
+        if (targets.has(normalizedKey)) {
+          found = true;
+          return {
+            key: field.key || label,
+            value: toFieldValue(value)
+          };
+        }
+        return field;
+      })
+    }));
+    if (found) {
+      return updated;
+    }
+    const shouldAdd = options.includeWhenEmpty ? value !== undefined : Boolean(value);
+    if (!shouldAdd) {
+      return updated;
+    }
+    if (!updated.length) {
+      return [
+        {
+          title: 'Informations',
+          fields: [{ key: label, value: toFieldValue(value) }]
+        }
+      ];
+    }
+    const [first, ...rest] = updated;
+    const placeholderIndex = first.fields.findIndex((field) => {
+      const key = (field.key || '').trim();
+      const fieldValue = (field.value || '').trim();
+      return key === '' && fieldValue === '';
+    });
+    const newField = { key: label, value: toFieldValue(value) };
+    if (placeholderIndex !== -1) {
+      const newFields = [...first.fields];
+      newFields[placeholderIndex] = newField;
+      return [{ ...first, fields: newFields }, ...rest];
+    }
+    return [{ ...first, fields: [...first.fields, newField] }, ...rest];
+  };
   const [profileDefaults, setProfileDefaults] = useState<{
     comment?: string;
     extra_fields?: FieldCategory[];
@@ -899,16 +1033,12 @@ const App: React.FC = () => {
     comment?: string;
     extra_fields?: Record<string, string>;
   }) => {
-    const infoFields: ExtraField[] = [
-      { key: 'Email', value: data.email || '' }
-    ];
-    const extraFields: ExtraField[] = Object.entries(data.extra_fields || {}).map(([k, v]) => ({
-      key: k,
-      value: v
-    }));
-    const categories: FieldCategory[] = [
-      { title: 'Informations', fields: [...infoFields, ...extraFields] }
-    ];
+    let categories = ensureEditableCategories(
+      normalizeProfileExtraFields(data.extra_fields || {})
+    );
+    if (data.email) {
+      categories = upsertField(categories, 'Email', data.email, { matchLabels: ['email'] });
+    }
     setProfileDefaults({
       comment: data.comment || '',
       extra_fields: categories,
@@ -930,35 +1060,25 @@ const App: React.FC = () => {
     const data = await res.json();
     if (res.ok && data.profile) {
       const profile = data.profile;
-      let extras: FieldCategory[] = [];
-      try {
-        extras = profile.extra_fields ? JSON.parse(profile.extra_fields) : [];
-      } catch {
-        try {
-          const obj = profile.extra_fields ? JSON.parse(profile.extra_fields) : {};
-          extras = [
-            {
-              title: 'Informations',
-              fields: Object.entries(obj).map(([k, v]) => ({
-                key: k,
-                value: v as string
-              }))
-            }
-          ];
-        } catch {
-          extras = [];
-        }
-      }
-      if (extras.length === 0) {
-        extras = [
-          {
-            title: 'Informations',
-            fields: [
-              { key: 'Email', value: profile.email || '' }
-            ]
-          }
-        ];
-      }
+      let extras = ensureEditableCategories(
+        normalizeProfileExtraFields(profile.extra_fields)
+      );
+      extras = upsertField(extras, 'Email', profile.email, {
+        includeWhenEmpty: Boolean(profile.email),
+        matchLabels: ['email']
+      });
+      extras = upsertField(extras, 'Téléphone', profile.phone, {
+        includeWhenEmpty: Boolean(profile.phone),
+        matchLabels: ['téléphone', 'telephone', 'phone']
+      });
+      extras = upsertField(extras, 'Prénom', profile.first_name, {
+        includeWhenEmpty: Boolean(profile.first_name),
+        matchLabels: ['prénom', 'prenom', 'first name']
+      });
+      extras = upsertField(extras, 'Nom', profile.last_name, {
+        includeWhenEmpty: Boolean(profile.last_name),
+        matchLabels: ['nom', 'last name']
+      });
       setProfileDefaults({
         comment: profile.comment || '',
         extra_fields: extras,
