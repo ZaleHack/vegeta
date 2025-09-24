@@ -8067,7 +8067,7 @@ useEffect(() => {
                       divisionId: divisions[0]?.id || 0
                     });
                   }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-slate-200 dark:bg-slate-700/70 dark:hover:bg-slate-600/70 rounded-lg transition-colors"
                 >
                   Annuler
                 </button>
