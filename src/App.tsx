@@ -4120,7 +4120,7 @@ useEffect(() => {
 
     if (showCdrMap) {
       return (
-        <div className="fixed bottom-6 left-6 z-[1000] w-[28rem] max-h-[88vh] overflow-y-auto rounded-3xl border border-white/60 bg-white/90 p-5 shadow-2xl shadow-blue-500/20 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/85">
+        <div className="fixed bottom-6 left-6 z-[1000] w-[32rem] max-h-[88vh] overflow-y-auto rounded-3xl border border-white/60 bg-white/90 p-5 shadow-2xl shadow-blue-500/20 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/85">
           {combinedSection}
         </div>
       );
@@ -4659,12 +4659,6 @@ useEffect(() => {
                                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Résultat {index + 1}</h3>
                                   </div>
                                 </div>
-                                {(result.table || result.database) && (
-                                  <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                                    <Database className="w-3 h-3 mr-1" />
-                                    {result.table || result.database}
-                                  </div>
-                                )}
                               </div>
 
                               {/* Contenu des données */}
