@@ -47,28 +47,6 @@ class CaseService {
     return await Case.create(name, userId);
   }
 
-  async renameCase(caseId, name, user) {
-    const trimmedName = typeof name === 'string' ? name.trim() : '';
-    if (!trimmedName) {
-      throw new Error('Invalid name');
-    }
-
-    const existingCase = await this.getCaseById(caseId, user);
-    if (!existingCase) {
-      throw new Error('Case not found');
-    }
-
-    const isOwner = existingCase.user_id === user.id || existingCase.is_owner === 1 || existingCase.is_owner === true;
-    const isAdmin = this._isAdmin(user);
-
-    if (!isOwner && !isAdmin) {
-      throw new Error('Forbidden');
-    }
-
-    await Case.updateName(caseId, trimmedName);
-    return { id: existingCase.id, name: trimmedName };
-  }
-
   async getCaseById(id, user) {
     if (this._isAdmin(user)) {
       return await Case.findById(id);

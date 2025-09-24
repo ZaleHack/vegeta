@@ -155,8 +155,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const isOwner = useCallback((profile: ProfileListItem) => currentUser?.id === profile.user_id, [currentUser]);
 
   const canEditProfile = useCallback(
-    (profile: ProfileListItem) =>
-      Boolean(onEdit) && (isAdminUser || isOwner(profile) || Boolean(profile.shared_with_me)),
+    (profile: ProfileListItem) => Boolean(onEdit) && (isAdminUser || isOwner(profile)),
     [isAdminUser, isOwner, onEdit]
   );
 
