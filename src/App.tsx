@@ -1091,10 +1091,6 @@ const App: React.FC = () => {
   const [casePage, setCasePage] = useState(1);
   const [casesPerPage, setCasesPerPage] = useState(CASE_PAGE_SIZE_OPTIONS[0]);
   const totalCasePages = Math.ceil(cases.length / casesPerPage);
-  const [renamingCaseId, setRenamingCaseId] = useState<number | null>(null);
-  const [renamingCaseName, setRenamingCaseName] = useState('');
-  const [renamingCaseError, setRenamingCaseError] = useState('');
-  const [renamingCaseLoading, setRenamingCaseLoading] = useState(false);
   const paginatedCases = useMemo(
     () =>
       cases.slice(
@@ -3084,57 +3080,6 @@ useEffect(() => {
       }
     } catch (error) {
       console.error('Erreur chargement cases:', error);
-    }
-  };
-
-  const startRenamingCase = (cdrCase: CdrCase) => {
-    setRenamingCaseId(cdrCase.id);
-    setRenamingCaseName(cdrCase.name || '');
-    setRenamingCaseError('');
-    setRenamingCaseLoading(false);
-  };
-
-  const cancelRenamingCase = () => {
-    setRenamingCaseId(null);
-    setRenamingCaseName('');
-    setRenamingCaseError('');
-    setRenamingCaseLoading(false);
-  };
-
-  const submitRenameCase = async () => {
-    if (!renamingCaseId) return;
-    const caseId = renamingCaseId;
-    const trimmedName = renamingCaseName.trim();
-    if (!trimmedName) {
-      setRenamingCaseError('Nom requis');
-      return;
-    }
-    setRenamingCaseLoading(true);
-    setRenamingCaseError('');
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/cases/${caseId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify({ name: trimmedName })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setCases((prev) => prev.map((item) => (item.id === caseId ? { ...item, name: trimmedName } : item)));
-        setSelectedCase((prev) => (prev && prev.id === caseId ? { ...prev, name: trimmedName } : prev));
-        cancelRenamingCase();
-        await fetchCases();
-      } else {
-        setRenamingCaseError(data?.error || "Erreur lors de la mise à jour du nom");
-      }
-    } catch (error) {
-      console.error('Erreur renommage opération:', error);
-      setRenamingCaseError("Erreur lors de la mise à jour du nom");
-    } finally {
-      setRenamingCaseLoading(false);
     }
   };
 
@@ -5515,68 +5460,27 @@ useEffect(() => {
                       Aucune opération enregistrée pour le moment.
                     </div>
                   ) : (
-                    paginatedCases.map((c) => {
-                      const isOwnerCase = Boolean(c.is_owner);
-                      const isSharedWithMe = Boolean(!isOwnerCase && c.shared_with_me);
-                      return (
-                        <div
-                          key={c.id}
-                          className="group relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-xl shadow-slate-200/60 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl dark:border-slate-700/60 dark:bg-slate-900/70"
-                        >
+                    paginatedCases.map((c) => (
+                      <div
+                        key={c.id}
+                        className="group relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-xl shadow-slate-200/60 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl dark:border-slate-700/60 dark:bg-slate-900/70"
+                      >
                         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-500/0 via-indigo-500/10 to-purple-500/20 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                         <div className="relative flex h-full flex-col gap-5">
                           <div className="flex items-start justify-between gap-4">
-                            <div className="space-y-2 flex-1">
-                              {renamingCaseId === c.id ? (
-                                <div className="space-y-3">
-                                  <input
-                                    type="text"
-                                    value={renamingCaseName}
-                                    onChange={(e) => setRenamingCaseName(e.target.value)}
-                                    className="w-full rounded-2xl border border-blue-200/60 bg-white/90 px-3 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-200"
-                                    placeholder="Nom de l'opération"
-                                  />
-                                  {renamingCaseError && (
-                                    <p className="text-xs font-medium text-rose-500 dark:text-rose-300">{renamingCaseError}</p>
-                                  )}
-                                  <div className="flex flex-wrap gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={submitRenameCase}
-                                      disabled={renamingCaseLoading}
-                                      className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm shadow-blue-400/40 transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                      {renamingCaseLoading ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <CheckCircle2 className="h-4 w-4" />
-                                      )}
-                                      <span>Enregistrer</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={cancelRenamingCase}
-                                      className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:border-slate-500/70 dark:hover:text-slate-100"
-                                    >
-                                      <X className="h-4 w-4" />
-                                      <span>Annuler</span>
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h4>
-                              )}
+                            <div className="space-y-2">
+                              <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h4>
                               {isAdmin && c.user_login && (
                                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                   {c.user_login}
                                 </p>
                               )}
-                              {isSharedWithMe ? (
+                              {Boolean(!c.is_owner && c.shared_with_me) ? (
                                 <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
                                   <Share2 className="h-3.5 w-3.5" />
                                   Partagée avec vous
                                 </span>
-                              ) : isOwnerCase ? (
+                              ) : Boolean(c.is_owner) ? (
                                 <span className="inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
                                   <User className="h-3.5 w-3.5" />
                                   Propriétaire
@@ -5611,16 +5515,6 @@ useEffect(() => {
                               <ArrowRight className="h-4 w-4" />
                               <span>Ouvrir</span>
                             </button>
-                            {(isAdmin || isOwnerCase) && renamingCaseId !== c.id && (
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
-                                onClick={() => startRenamingCase(c)}
-                              >
-                                <Edit className="h-4 w-4" />
-                                <span>Renommer</span>
-                              </button>
-                            )}
                             <button
                               type="button"
                               className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
@@ -5629,7 +5523,7 @@ useEffect(() => {
                               <Download className="h-4 w-4" />
                               <span>Exporter</span>
                             </button>
-                            {(isAdmin || isOwnerCase) && (
+                            {(isAdmin || c.is_owner) && (
                               <button
                                 type="button"
                                 className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
@@ -5639,7 +5533,7 @@ useEffect(() => {
                                 <span>Partager</span>
                               </button>
                             )}
-                            {isOwnerCase && (
+                            {Boolean(c.is_owner) && (
                               <button
                                 type="button"
                                 className="inline-flex items-center gap-2 rounded-full border border-rose-300/70 bg-rose-50/80 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:border-rose-400 hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:border-rose-400/60"
@@ -5651,9 +5545,8 @@ useEffect(() => {
                             )}
                           </div>
                         </div>
-                        </div>
-                      );
-                    })
+                      </div>
+                    ))
                   )}
                 </div>
                 {cases.length > 0 && (
