@@ -78,7 +78,7 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, formatDistanceToNow, intervalToDuration, formatDuration } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import PageHeader from './components/PageHeader';
 import SearchResultProfiles from './components/SearchResultProfiles';
@@ -1473,14 +1473,38 @@ const App: React.FC = () => {
         const data = await res.json();
         setSessionLogs(data.sessions || []);
         setSessionTotal(data.total || 0);
-        setSessionPage(page);
-      }
-    } catch (err) {
-      console.error('Erreur chargement sessions:', err);
-    } finally {
-      setSessionLoading(false);
+      setSessionPage(page);
     }
+  } catch (err) {
+    console.error('Erreur chargement sessions:', err);
+  } finally {
+    setSessionLoading(false);
+  }
   }, [logUserFilter]);
+
+  const formatSessionDuration = useCallback((durationSeconds?: number | null) => {
+    if (!durationSeconds || durationSeconds < 1) {
+      return 'Moins d\'une minute';
+    }
+
+    const duration = intervalToDuration({ start: 0, end: durationSeconds * 1000 });
+    const units: string[] = [];
+
+    if (duration.days) units.push('days');
+    if (duration.hours) units.push('hours');
+    if (duration.minutes) units.push('minutes');
+
+    if (units.length === 0 || (!duration.minutes && duration.seconds)) {
+      units.push('seconds');
+    } else if (units.length < 3 && duration.seconds && durationSeconds < 3600) {
+      units.push('seconds');
+    }
+
+    return formatDuration(duration, {
+      format: units,
+      locale: fr
+    });
+  }, []);
 
   const exportLogs = async () => {
     try {
@@ -6361,7 +6385,6 @@ useEffect(() => {
                         <th className="px-6 py-4">Action</th>
                         <th className="px-6 py-4">Page</th>
                         <th className="px-6 py-4">Profil</th>
-                        <th className="px-6 py-4">Durée (min)</th>
                         <th className="px-6 py-4">Date</th>
                       </tr>
                     </thead>
@@ -6480,7 +6503,6 @@ useEffect(() => {
                               <span className="text-slate-500 dark:text-slate-400">-</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">{log.duration_ms ? Math.round(log.duration_ms / 60000) : '-'}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">
                             {log.created_at ? format(parseISO(log.created_at), 'Pp', { locale: fr }) : '-'}
                           </td>
@@ -6530,42 +6552,86 @@ useEffect(() => {
                   </span>
                 </div>
                 <div className="overflow-hidden rounded-2xl border border-white/60 bg-white/90 shadow-inner backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
-                  <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
-                    <thead className="bg-white/75 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 backdrop-blur-sm dark:bg-slate-800/80 dark:text-slate-300">
-                      <tr>
-                        <th className="px-6 py-4">Utilisateur</th>
-                        <th className="px-6 py-4">Connexion</th>
-                        <th className="px-6 py-4">Déconnexion</th>
-                        <th className="px-6 py-4">Durée</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                      {sessionLogs.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-6 text-center text-sm text-slate-500 dark:text-slate-300">
-                            Aucune session enregistrée.
-                          </td>
-                        </tr>
-                      ) : (
-                        sessionLogs.map((session) => {
-                          const loginAt = session.login_at ? format(parseISO(session.login_at), 'Pp', { locale: fr }) : '-';
-                          const logoutAt = session.logout_at ? format(parseISO(session.logout_at), 'Pp', { locale: fr }) : 'Session active';
-                          const durationMinutes = Math.max(0, Math.round((session.duration_seconds ?? 0) / 60));
-                          return (
-                            <tr
-                              key={session.id}
-                              className="transition-colors odd:bg-white/95 even:bg-slate-50/70 hover:bg-blue-50/40 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40 dark:hover:bg-slate-800/60"
-                            >
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">{session.username}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{loginAt}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">{logoutAt}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">{durationMinutes} min</td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                  {sessionLogs.length === 0 ? (
+                    <div className="px-6 py-12 text-center text-sm text-slate-500 dark:text-slate-300">
+                      {sessionLoading ? 'Chargement des sessions...' : 'Aucune session enregistrée.'}
+                    </div>
+                  ) : (
+                    <ul className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                      {sessionLogs.map((session) => {
+                        const loginDate = session.login_at ? parseISO(session.login_at) : null;
+                        const logoutDate = session.logout_at ? parseISO(session.logout_at) : null;
+                        const loginLabel = loginDate ? format(loginDate, 'Pp', { locale: fr }) : '-';
+                        const logoutLabel = logoutDate ? format(logoutDate, 'Pp', { locale: fr }) : 'Session active';
+                        const loginRelative = loginDate ? formatDistanceToNow(loginDate, { addSuffix: true, locale: fr }) : '';
+                        const logoutRelative = logoutDate ? formatDistanceToNow(logoutDate, { addSuffix: true, locale: fr }) : '';
+                        const durationLabel = formatSessionDuration(session.duration_seconds);
+                        const isActive = !session.logout_at;
+                        return (
+                          <li
+                            key={session.id}
+                            className="group px-6 py-5 transition-colors duration-200 hover:bg-blue-50/40 dark:hover:bg-slate-800/60"
+                          >
+                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                              <div className="flex items-start gap-4">
+                                <span
+                                  className={`mt-1 flex h-10 w-10 items-center justify-center rounded-full ${
+                                    isActive
+                                      ? 'bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200'
+                                      : 'bg-slate-200/70 text-slate-600 dark:bg-slate-800/50 dark:text-slate-300'
+                                  }`}
+                                >
+                                  <Clock className="h-5 w-5" />
+                                </span>
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{session.username}</p>
+                                    <span
+                                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.3em] ${
+                                        isActive
+                                          ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200'
+                                          : 'bg-slate-200/60 text-slate-600 dark:bg-slate-800/60 dark:text-slate-300'
+                                      }`}
+                                    >
+                                      {isActive ? 'Active' : 'Terminée'}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-slate-500 dark:text-slate-300">
+                                    {isActive
+                                      ? `Connecté ${loginRelative}`
+                                      : logoutRelative
+                                        ? `Déconnexion ${logoutRelative}`
+                                        : loginRelative}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-3">
+                                <div className="rounded-xl border border-slate-200/70 bg-white/80 p-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Connexion</p>
+                                  <p className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">{loginLabel}</p>
+                                  {loginRelative && (
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{loginRelative}</p>
+                                  )}
+                                </div>
+                                <div className="rounded-xl border border-slate-200/70 bg-white/80 p-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Déconnexion</p>
+                                  <p className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">{logoutLabel}</p>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    {isActive ? `En cours depuis ${durationLabel.toLowerCase()}` : logoutRelative || '—'}
+                                  </p>
+                                </div>
+                                <div className="rounded-xl border border-slate-200/70 bg-white/80 p-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Durée totale</p>
+                                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{durationLabel}</p>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400">Calculée à la seconde près</p>
+                                </div>
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
                 <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
                   <button
@@ -7470,29 +7536,101 @@ useEffect(() => {
                   {uploadHistory.length === 0 ? (
                     <p className="text-center text-gray-500">Aucune base importée pour le moment</p>
                   ) : (
-                    <div className="bg-white rounded-2xl shadow overflow-hidden max-h-64 overflow-y-auto">
-                      {uploadHistory.map((item, index) => (
-                        <div
-                          key={index}
-                          className="p-4 flex items-center justify-between border-b last:border-b-0 border-gray-200"
-                        >
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-gray-100">{item.table_name}</p>
-                            <p className="text-sm text-gray-500">{item.file_name}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {item.created_at && (
-                              <span className="text-xs text-gray-400">{format(parseISO(item.created_at), 'dd/MM/yyyy HH:mm')}</span>
-                            )}
-                            <button
-                              onClick={() => handleDeleteUpload(item.id)}
-                              className="text-xs text-red-600 hover:underline"
+                    <div className="rounded-3xl border border-slate-200/80 bg-white/95 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/70">
+                      <div className="max-h-[28rem] space-y-4 overflow-y-auto p-4 sm:p-6">
+                        {uploadHistory.map((item, index) => {
+                          const createdAt = item.created_at ? parseISO(item.created_at) : null;
+                          const createdLabel = createdAt ? format(createdAt, 'dd/MM/yyyy HH:mm', { locale: fr }) : null;
+                          const createdRelative = createdAt ? formatDistanceToNow(createdAt, { addSuffix: true, locale: fr }) : null;
+                          const totalRows = typeof item.total_rows === 'number' ? item.total_rows : (typeof item.success_rows === 'number' ? item.success_rows : 0);
+                          const successRows = typeof item.success_rows === 'number' ? item.success_rows : null;
+                          const errorRows = typeof item.error_rows === 'number' ? item.error_rows : 0;
+                          const hasErrors = (errorRows ?? 0) > 0 || Boolean(item.errors);
+                          const uploadModeLabel = (() => {
+                            switch (item.upload_mode) {
+                              case 'new_table':
+                                return 'Nouvelle table';
+                              case 'existing':
+                                return 'Table existante';
+                              case 'sql':
+                                return 'Import SQL';
+                              default:
+                                return item.upload_mode || 'Mode inconnu';
+                            }
+                          })();
+
+                          return (
+                            <div
+                              key={item.id ?? `${item.table_name}-${index}`}
+                              className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-700/60 dark:bg-slate-900/70"
                             >
-                              Supprimer
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                              <div className="absolute -right-16 -top-10 h-32 w-32 rounded-full bg-blue-200/40 blur-3xl transition-opacity duration-300 group-hover:opacity-80 dark:bg-blue-500/20" />
+                              <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                <div className="flex items-start gap-3">
+                                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                                    <Database className="h-5 w-5" />
+                                  </span>
+                                  <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-400 dark:text-slate-500">Base importée</p>
+                                    <h3 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{item.table_name}</h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-300">{item.file_name}</p>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-1 text-right">
+                                  <span className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-400 dark:text-slate-500">Enregistrements</span>
+                                  <span className="text-3xl font-bold text-slate-900 dark:text-slate-100">{totalRows.toLocaleString('fr-FR')}</span>
+                                  {createdLabel && (
+                                    <span className="text-xs text-slate-400 dark:text-slate-500">Importé le {createdLabel}</span>
+                                  )}
+                                  {createdRelative && (
+                                    <span className="text-xs text-slate-400 dark:text-slate-500">{createdRelative}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="relative z-10 mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                <div className="rounded-xl border border-emerald-200/60 bg-emerald-500/5 px-4 py-3 text-sm shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-200">Réussis</p>
+                                  <p className="mt-1 text-base font-semibold text-emerald-600 dark:text-emerald-200">{(successRows ?? totalRows).toLocaleString('fr-FR')}</p>
+                                </div>
+                                <div
+                                  className={`rounded-xl border px-4 py-3 text-sm shadow-sm ${
+                                    hasErrors
+                                      ? 'border-rose-300/70 bg-rose-500/10 text-rose-600 dark:border-rose-400/50 dark:bg-rose-500/20 dark:text-rose-200'
+                                      : 'border-slate-200/70 bg-white/80 text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300'
+                                  }`}
+                                >
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.3em]">Erreurs</p>
+                                  <p className="mt-1 text-base font-semibold">{errorRows.toLocaleString('fr-FR')}</p>
+                                </div>
+                                <div className="rounded-xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Mode</p>
+                                  <p className="mt-1 text-base font-semibold text-slate-700 dark:text-slate-100">{uploadModeLabel}</p>
+                                </div>
+                              </div>
+                              <div className="relative z-10 mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                                <div className="flex flex-wrap items-center gap-3">
+                                  {item.username && (
+                                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100/80 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+                                      <User className="h-3.5 w-3.5" />
+                                      {item.username}
+                                    </span>
+                                  )}
+                                  <span className="rounded-full bg-slate-100/80 px-3 py-1 text-xs font-medium text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
+                                    ID #{item.id}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteUpload(item.id)}
+                                  className="inline-flex items-center gap-2 rounded-full border border-rose-400/60 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:bg-rose-50 dark:border-rose-400/50 dark:text-rose-200 dark:hover:bg-rose-500/20"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Supprimer
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
