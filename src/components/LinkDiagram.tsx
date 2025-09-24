@@ -50,7 +50,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('network');
   const [selectedRoot, setSelectedRoot] = useState<string | null>(null);
-  const graphRef = useRef<ForceGraphMethods>();
+  const graphRef = useRef<ForceGraphMethods | null>(null);
   const nodeTypes = useMemo(() => Array.from(new Set(data.nodes.map((n) => n.type))), [data]);
 
   const colorByType = useMemo(() => {
