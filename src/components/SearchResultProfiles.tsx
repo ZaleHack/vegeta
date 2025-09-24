@@ -34,11 +34,6 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
             <div>
               <h3 className="text-xl font-semibold text-white">Résultat {idx + 1}</h3>
             </div>
-            {(hit.table || hit.database) && (
-              <span className="ml-auto inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white">
-                {hit.table || hit.database}
-              </span>
-            )}
           </div>
           <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {Object.entries(hit.preview).flatMap(([key, value]) => {
