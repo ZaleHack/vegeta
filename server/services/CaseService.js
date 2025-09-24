@@ -188,15 +188,26 @@ class CaseService {
     return await this.cdrService.search(identifier, { ...options, caseName: existingCase.name });
   }
 
-  async linkDiagram(caseId, numbers, user) {
+  async linkDiagram(caseId, numbers, user, options = {}) {
     const existingCase = await this.getCaseById(caseId, user);
     if (!existingCase) {
       throw new Error('Case not found');
     }
+    const {
+      startDate = null,
+      endDate = null,
+      startTime = null,
+      endTime = null
+    } = options;
     const filteredNumbers = Array.isArray(numbers)
       ? numbers.filter(n => ALLOWED_PREFIXES.some(p => String(n).startsWith(p)))
       : [];
-    return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.name);
+    return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.name, {
+      startDate,
+      endDate,
+      startTime,
+      endTime
+    });
   }
 
   async detectFraud(caseId, options = {}, user) {

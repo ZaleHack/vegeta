@@ -3022,13 +3022,19 @@ useEffect(() => {
     try {
       setCdrLoading(true);
       const token = localStorage.getItem('token');
+      const payload: Record<string, unknown> = { numbers };
+      if (cdrStart) payload.start = new Date(cdrStart).toISOString().split('T')[0];
+      if (cdrEnd) payload.end = new Date(cdrEnd).toISOString().split('T')[0];
+      if (cdrStartTime) payload.startTime = cdrStartTime;
+      if (cdrEndTime) payload.endTime = cdrEndTime;
+
       const res = await fetch(`/api/cases/${selectedCase.id}/link-diagram`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ numbers })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok && data.links && data.links.length > 0) {
