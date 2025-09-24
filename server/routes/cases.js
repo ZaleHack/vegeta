@@ -92,6 +92,32 @@ router.post('/', authenticate, async (req, res) => {
   }
 });
 
+router.put('/:id', authenticate, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(caseId)) {
+      return res.status(400).json({ error: 'ID de dossier invalide' });
+    }
+
+    const { name } = req.body;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Nom requis' });
+    }
+
+    const updated = await caseService.renameCase(caseId, name.trim(), req.user);
+    res.json({ id: updated.id, name: updated.name });
+  } catch (err) {
+    if (err.message === 'Forbidden') {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+    if (err.message === 'Case not found') {
+      return res.status(404).json({ error: 'Opération introuvable' });
+    }
+    console.error('Erreur renommage case:', err);
+    res.status(500).json({ error: "Erreur lors de la mise à jour de l'opération" });
+  }
+});
+
 router.post('/:id/upload', authenticate, upload.single('file'), async (req, res) => {
   try {
     const caseId = parseInt(req.params.id, 10);

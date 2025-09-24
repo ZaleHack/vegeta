@@ -47,6 +47,23 @@ class CaseService {
     return await Case.create(name, userId);
   }
 
+  async renameCase(caseId, newName, user) {
+    const existingCase = await Case.findById(caseId);
+    if (!existingCase) {
+      throw new Error('Case not found');
+    }
+
+    const isOwner = existingCase.user_id === user.id;
+    const isAdmin = this._isAdmin(user);
+
+    if (!isOwner && !isAdmin) {
+      throw new Error('Forbidden');
+    }
+
+    await Case.updateName(caseId, newName);
+    return { ...existingCase, name: newName };
+  }
+
   async getCaseById(id, user) {
     if (this._isAdmin(user)) {
       return await Case.findById(id);
