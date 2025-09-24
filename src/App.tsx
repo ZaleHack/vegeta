@@ -4985,13 +4985,18 @@ useEffect(() => {
                               </td>
                             </tr>
                           ) : (
-                            <tr key={entry.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60">
+                            <tr
+                              key={entry.id}
+                              className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60"
+                            >
                               <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.Libelle}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.SousCategorie}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.Secteur}</td>
-                              <td className="px-6 py-4 whitespace-nowrap">{entry.created_at ? new Date(entry.created_at).toLocaleDateString() : ''}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {entry.created_at ? new Date(entry.created_at).toLocaleDateString() : ''}
+                              </td>
                             </tr>
                           );
                         })}
@@ -6684,8 +6689,12 @@ useEffect(() => {
                         const logoutDate = session.logout_at ? parseISO(session.logout_at) : null;
                         const loginLabel = loginDate ? format(loginDate, 'Pp', { locale: fr }) : '-';
                         const logoutLabel = logoutDate ? format(logoutDate, 'Pp', { locale: fr }) : 'Session active';
-                        const loginRelative = loginDate ? formatDistanceToNow(loginDate, { addSuffix: true, locale: fr }) : '';
-                        const logoutRelative = logoutDate ? formatDistanceToNow(logoutDate, { addSuffix: true, locale: fr }) : '';
+                        const loginRelative = loginDate
+                          ? formatDistanceToNow(loginDate, { addSuffix: true, locale: fr })
+                          : '';
+                        const logoutRelative = logoutDate
+                          ? formatDistanceToNow(logoutDate, { addSuffix: true, locale: fr })
+                          : '';
                         const durationLabel = formatSessionDuration(session.duration_seconds);
                         const isActive = !session.logout_at;
                         return (
@@ -6750,8 +6759,7 @@ useEffect(() => {
                             </div>
                           </li>
                         );
-                      })
-                    )}
+                      })}
                     </ul>
                   )}
                 </div>
