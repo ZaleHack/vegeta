@@ -4280,7 +4280,8 @@ useEffect(() => {
                                     </div>
                                   </div>
                                 );
-                              })}
+                      })
+                    )}
                           </div>
                         )}
                       </div>
@@ -5653,7 +5654,8 @@ useEffect(() => {
                         </div>
                         </div>
                       );
-                    })}
+                    })
+                  )}
                 </div>
                 {cases.length > 0 && (
                   <div className="border-t border-slate-200/80 pt-4 dark:border-slate-800/60">
@@ -6850,7 +6852,8 @@ useEffect(() => {
                             </div>
                           </li>
                         );
-                      })}
+                      })
+                    )}
                     </ul>
                   )}
                 </div>
