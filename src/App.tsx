@@ -93,6 +93,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
+const CASE_PAGE_SIZE_OPTIONS = [6, 12, 24];
 const FRAUD_ROLE_LABELS: Record<string, string> = {
   caller: 'Appelant',
   callee: 'Appelé',
@@ -116,7 +117,7 @@ interface SearchResult {
   database: string;
   preview: Record<string, any>;
   primary_keys: { id: number };
-  score: number;
+  score?: number;
 }
 
 interface SearchResponse {
@@ -1010,11 +1011,15 @@ const App: React.FC = () => {
   const [cdrCaseMessage, setCdrCaseMessage] = useState('');
   const [cases, setCases] = useState<CdrCase[]>([]);
   const [casePage, setCasePage] = useState(1);
-  const CASES_PER_PAGE = 20;
-  const totalCasePages = Math.ceil(cases.length / CASES_PER_PAGE);
-  const paginatedCases = cases.slice(
-    (casePage - 1) * CASES_PER_PAGE,
-    casePage * CASES_PER_PAGE
+  const [casesPerPage, setCasesPerPage] = useState(CASE_PAGE_SIZE_OPTIONS[0]);
+  const totalCasePages = Math.ceil(cases.length / casesPerPage);
+  const paginatedCases = useMemo(
+    () =>
+      cases.slice(
+        (casePage - 1) * casesPerPage,
+        casePage * casesPerPage
+      ),
+    [cases, casePage, casesPerPage]
   );
   const ownedCasesCount = useMemo(
     () => cases.filter((caseItem) => Boolean(caseItem.is_owner)).length,
@@ -1026,10 +1031,8 @@ const App: React.FC = () => {
     [cases]
   );
   useEffect(() => {
-    if (casePage > totalCasePages) {
-      setCasePage(totalCasePages || 1);
-    }
-  }, [casePage, totalCasePages]);
+    setCasePage((page) => Math.min(page, Math.max(totalCasePages, 1)));
+  }, [totalCasePages]);
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
   const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
@@ -1848,11 +1851,11 @@ useEffect(() => {
         setDivisions(entries);
         setUserFormData(prev => {
           if (prev.admin === 1) {
-            return prev.divisionId === 0
+            return prev.divisionId == null
               ? prev
               : {
                   ...prev,
-                  divisionId: 0
+                  divisionId: null
                 };
           }
           const currentDivisionId = typeof prev.divisionId === 'number' ? prev.divisionId : 0;
@@ -1879,7 +1882,9 @@ useEffect(() => {
     }
     return users.filter((user) => {
       const login = (user.login || '').toLowerCase();
-      const divisionName = (user.division_name || '').toLowerCase();
+      const divisionName = (user.admin === 1 || user.admin === '1')
+        ? 'admin'
+        : (user.division_name || '').toLowerCase();
       const idMatch = String(user.id || '').includes(term);
       const roleLabel = (user.admin === 1 || user.admin === '1') ? 'administrateur' : 'utilisateur';
       const statusLabel = (user.active === 1 || user.active === '1') ? 'actif' : 'inactif';
@@ -2198,7 +2203,7 @@ useEffect(() => {
         return {
           ...prev,
           admin: 1,
-          divisionId: 0
+          divisionId: null
         };
       }
 
@@ -4654,12 +4659,12 @@ useEffect(() => {
                                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Résultat {index + 1}</h3>
                                   </div>
                                 </div>
-                                <div className="flex items-center space-x-2">
-                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                                    <Activity className="w-3 h-3 mr-1" />
-                                    Score: {result.score.toFixed(1)}
-                                  </span>
-                                </div>
+                                {(result.table || result.database) && (
+                                  <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                                    <Database className="w-3 h-3 mr-1" />
+                                    {result.table || result.database}
+                                  </div>
+                                )}
                               </div>
 
                               {/* Contenu des données */}
@@ -5323,9 +5328,9 @@ useEffect(() => {
                       Retrouvez l'ensemble des opérations accessibles.
                     </p>
                   </div>
-                  {totalCasePages > 1 && (
+                  {Math.max(totalCasePages, 1) > 1 && (
                     <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
-                      Page {casePage} sur {totalCasePages}
+                      Page {casePage} sur {Math.max(totalCasePages, 1)}
                     </span>
                   )}
                 </div>
@@ -5424,26 +5429,19 @@ useEffect(() => {
                     ))
                   )}
                 </div>
-                {totalCasePages > 1 && (
-                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
-                      onClick={() => setCasePage((p) => p - 1)}
-                      disabled={casePage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Précédent
-                    </button>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
-                      onClick={() => setCasePage((p) => p + 1)}
-                      disabled={casePage === totalCasePages}
-                    >
-                      Suivant
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
+                {cases.length > 0 && (
+                  <div className="border-t border-slate-200/80 pt-4 dark:border-slate-800/60">
+                    <PaginationControls
+                      currentPage={casePage}
+                      totalPages={Math.max(totalCasePages, 1)}
+                      onPageChange={setCasePage}
+                      pageSize={casesPerPage}
+                      pageSizeOptions={CASE_PAGE_SIZE_OPTIONS}
+                      onPageSizeChange={(size) => {
+                        setCasesPerPage(size);
+                        setCasePage(1);
+                      }}
+                    />
                   </div>
                 )}
               </section>
@@ -6821,7 +6819,9 @@ useEffect(() => {
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">
-                            {user.division_name || '—'}
+                            {(user.admin === 1 || user.admin === '1')
+                              ? 'Admin'
+                              : (user.division_name || '—')}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {(user.active === 1 || user.active === '1') ? (

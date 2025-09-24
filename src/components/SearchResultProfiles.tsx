@@ -1,11 +1,11 @@
 import React from 'react';
-import { User, Activity } from 'lucide-react';
+import { User } from 'lucide-react';
 
 interface SearchResult {
   table: string;
   database: string;
   preview: Record<string, any>;
-  score: number;
+  score?: number;
 }
 
 interface ProfilesProps {
@@ -34,10 +34,11 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
             <div>
               <h3 className="text-xl font-semibold text-white">Résultat {idx + 1}</h3>
             </div>
-            <span className="ml-auto inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white">
-              <Activity className="w-3 h-3 mr-1" />
-              {hit.score.toFixed(1)}
-            </span>
+            {(hit.table || hit.database) && (
+              <span className="ml-auto inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white">
+                {hit.table || hit.database}
+              </span>
+            )}
           </div>
           <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {Object.entries(hit.preview).flatMap(([key, value]) => {
