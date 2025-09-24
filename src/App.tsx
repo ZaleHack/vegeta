@@ -3009,14 +3009,13 @@ useEffect(() => {
     if (!selectedCase) return;
     const numbers = Array.from(
       new Set(
-        caseFiles
-          .map((f) => (f.cdr_number ? String(f.cdr_number) : null))
-          .filter((n): n is string => !!n)
-          .filter((n) => LINK_DIAGRAM_PREFIXES.some((p) => n.startsWith(p)))
+        cdrIdentifiers
+          .map((identifier) => normalizeCdrNumber(identifier))
+          .filter((n) => n && LINK_DIAGRAM_PREFIXES.some((p) => n.startsWith(p)))
       )
     );
     if (numbers.length < 2) {
-      setCdrError('Au moins deux fichiers avec un numéro sont requis');
+      setCdrError('Au moins deux numéros de recherche valides sont requis');
       return;
     }
     try {
@@ -6040,65 +6039,65 @@ useEffect(() => {
                             </div>
                           )}
                         </form>
+
+                        {caseFiles.length > 0 && (
+                          <div className="space-y-4 border-t border-slate-200/80 pt-6 dark:border-slate-700/60">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <h4 className="text-base font-semibold text-slate-700 dark:text-slate-200">Historique des imports</h4>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Suivez les fichiers déjà analysés pour ce dossier.</p>
+                              </div>
+                              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                                <Clock className="h-4 w-4" />
+                                {caseFiles.length} importation{caseFiles.length > 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            <div className="w-full overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
+                              <table className="min-w-full text-sm text-slate-600 dark:text-slate-200">
+                                <thead className="bg-slate-100/80 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 dark:bg-slate-800/80 dark:text-slate-300">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left">Nom du fichier</th>
+                                    <th className="px-4 py-3 text-left">Numéro</th>
+                                    <th className="px-4 py-3 text-left">Lignes</th>
+                                    <th className="px-4 py-3 text-right">Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                                  {paginatedCaseFiles.map((f) => (
+                                    <tr key={f.id} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
+                                      <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-100">{f.filename}</td>
+                                      <td className="px-4 py-3">{f.cdr_number || '-'}</td>
+                                      <td className="px-4 py-3">{f.line_count}</td>
+                                      <td className="px-4 py-3 text-right">
+                                        <button
+                                          className="text-sm font-semibold text-rose-600 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+                                          onClick={() => handleDeleteFile(f.id)}
+                                        >
+                                          Supprimer
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <PaginationControls
+                              currentPage={caseFilesPage}
+                              totalPages={Math.max(totalCaseFilesPages, 1)}
+                              onPageChange={setCaseFilesPage}
+                              pageSize={caseFilesPerPage}
+                              pageSizeOptions={CASE_FILE_PAGE_SIZE_OPTIONS}
+                              onPageSizeChange={(size) => {
+                                setCaseFilesPerPage(size);
+                                setCaseFilesPage(1);
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                     {renderCdrSearchForm()}
                   </div>
-
-                  {caseFiles.length > 0 && (
-                    <section className="mt-6 w-full space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h4 className="text-base font-semibold text-slate-700 dark:text-slate-200">Historique des imports</h4>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">Suivez les fichiers déjà analysés pour ce dossier.</p>
-                        </div>
-                        <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                          <Clock className="h-4 w-4" />
-                          {caseFiles.length} importation{caseFiles.length > 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      <div className="w-full overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                        <table className="min-w-full text-sm text-slate-600 dark:text-slate-200">
-                          <thead className="bg-slate-100/80 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 dark:bg-slate-800/80 dark:text-slate-300">
-                            <tr>
-                              <th className="px-4 py-3 text-left">Nom du fichier</th>
-                              <th className="px-4 py-3 text-left">Numéro</th>
-                              <th className="px-4 py-3 text-left">Lignes</th>
-                              <th className="px-4 py-3 text-right">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                            {paginatedCaseFiles.map((f) => (
-                              <tr key={f.id} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
-                                <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-100">{f.filename}</td>
-                                <td className="px-4 py-3">{f.cdr_number || '-'}</td>
-                                <td className="px-4 py-3">{f.line_count}</td>
-                                <td className="px-4 py-3 text-right">
-                                  <button
-                                    className="text-sm font-semibold text-rose-600 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-                                    onClick={() => handleDeleteFile(f.id)}
-                                  >
-                                    Supprimer
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      <PaginationControls
-                        currentPage={caseFilesPage}
-                        totalPages={Math.max(totalCaseFilesPages, 1)}
-                        onPageChange={setCaseFilesPage}
-                        pageSize={caseFilesPerPage}
-                        pageSizeOptions={CASE_FILE_PAGE_SIZE_OPTIONS}
-                        onPageSizeChange={(size) => {
-                          setCaseFilesPerPage(size);
-                          setCaseFilesPage(1);
-                        }}
-                      />
-                    </section>
-                  )}
                 </>
               )}
 
