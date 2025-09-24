@@ -132,6 +132,7 @@ interface SearchResult {
   preview: Record<string, any>;
   primary_keys: { id: number };
   score?: number;
+  table_name?: string;
 }
 
 interface SearchResponse {

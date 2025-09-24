@@ -4,8 +4,32 @@ import { authenticate } from '../middleware/auth.js';
 import UserLog from '../models/UserLog.js';
 import UserSession from '../models/UserSession.js';
 import totpService from '../services/totpService.js';
+import { loginRateLimiter, formatRetryAfter } from '../middleware/rateLimit.js';
+import searchAccessManager from '../utils/search-access-manager.js';
 
 const router = express.Router();
+
+const appendRemainingAttempts = (attempt, payload = {}) => {
+  if (attempt && typeof attempt.remaining === 'number' && attempt.remaining >= 0) {
+    return { ...payload, remainingAttempts: attempt.remaining };
+  }
+  return payload;
+};
+
+const handleLoginFailure = (req, res, statusCode, payload) => {
+  const attempt = req.loginRateLimit?.recordFailure?.();
+  if (attempt?.blocked) {
+    if (attempt.retryAfterMs) {
+      res.setHeader('Retry-After', Math.ceil(attempt.retryAfterMs / 1000));
+    }
+    return res.status(429).json({
+      error: `Trop de tentatives de connexion. Veuillez réessayer dans ${formatRetryAfter(attempt.retryAfterMs)}.`
+    });
+  }
+
+  const responsePayload = appendRemainingAttempts(attempt, payload);
+  return res.status(statusCode).json(responsePayload);
+};
 
 const sanitizeUserForResponse = (user) => {
   const sanitized = User.sanitize(user);
@@ -17,28 +41,28 @@ const sanitizeUserForResponse = (user) => {
 };
 
 // Route de connexion
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimiter, async (req, res) => {
   try {
     const { login, password, totp } = req.body;
 
     if (!login || !password) {
-      return res.status(400).json({ error: 'Login et mot de passe requis' });
+      return handleLoginFailure(req, res, 400, { error: 'Login et mot de passe requis' });
     }
 
     const user = await User.findByLogin(login);
 
     if (!user) {
-      return res.status(401).json({ error: 'Identifiants invalides' });
+      return handleLoginFailure(req, res, 401, { error: 'Identifiants invalides' });
     }
 
     if (user.active !== 1) {
-      return res.status(403).json({ error: 'Compte désactivé' });
+      return handleLoginFailure(req, res, 403, { error: 'Compte désactivé' });
     }
 
     const isValidPassword = await User.validatePassword(password, user.mdp);
 
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Identifiants invalides' });
+      return handleLoginFailure(req, res, 401, { error: 'Identifiants invalides' });
     }
 
     if (user.otp_enabled === 1) {
@@ -47,6 +71,7 @@ router.post('/login', async (req, res) => {
       }
 
       if (!totp) {
+        req.loginRateLimit?.recordSuccess?.();
         return res.status(200).json({
           requireTotp: true,
           message: 'Code de vérification requis'
@@ -56,15 +81,19 @@ router.post('/login', async (req, res) => {
       const isValidTotp = totpService.verify(totp, user.otp_secret, 1);
 
       if (!isValidTotp) {
-        return res.status(401).json({
-          error: 'Code de vérification invalide',
-          requireTotp: true
-        });
+        const payload = { error: 'Code de vérification invalide', requireTotp: true };
+        return handleLoginFailure(req, res, 401, payload);
       }
     }
 
     const token = User.generateToken(user);
     const userResponse = sanitizeUserForResponse(user);
+
+    req.loginRateLimit?.recordSuccess?.();
+
+    try {
+      searchAccessManager.revokeUser(user.id);
+    } catch (_) {}
 
     res.json({
       message: 'Connexion réussie',
@@ -105,6 +134,10 @@ router.post('/logout', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Erreur clôture session utilisateur:', error);
   }
+
+  try {
+    searchAccessManager.revokeUser(req.user.id);
+  } catch (_) {}
 
   res.json({ message: 'Déconnexion réussie' });
 });
