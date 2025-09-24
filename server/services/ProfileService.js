@@ -106,8 +106,12 @@ class ProfileService {
     const existing = await Profile.findById(id);
     if (!existing) throw new Error('Profil non trouvé');
     const isAdmin = this._isAdmin(user);
-    if (!isAdmin && existing.user_id !== user.id) {
-      throw new Error('Accès refusé');
+    const isOwner = existing.user_id === user.id;
+    if (!isAdmin && !isOwner) {
+      const hasSharedAccess = await ProfileShare.isSharedWithUser(id, user.id);
+      if (!hasSharedAccess) {
+        throw new Error('Accès refusé');
+      }
     }
     const photoFile = Array.isArray(files.photo) ? files.photo[0] : null;
     const attachmentFiles = Array.isArray(files.attachments) ? files.attachments : [];

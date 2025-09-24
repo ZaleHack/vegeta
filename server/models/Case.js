@@ -77,6 +77,14 @@ class Case {
     return rows.map((row) => row.user_id);
   }
 
+  static async updateName(id, name) {
+    await database.query(
+      'UPDATE autres.cdr_cases SET name = ? WHERE id = ?',
+      [name, id]
+    );
+    return { id, name };
+  }
+
   static async delete(id) {
     await database.query('DELETE FROM autres.cdr_cases WHERE id = ?', [id]);
   }

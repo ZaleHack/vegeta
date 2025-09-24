@@ -40,9 +40,12 @@ class StatsService {
    */
   async getOverviewStats(userId = null) {
     const cacheKey = `overview:${userId || 'all'}`;
-    const cached = this.cache.get(cacheKey);
-    if (cached) {
-      return cached;
+    const shouldUseCache = !userId;
+    if (shouldUseCache) {
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
     }
 
     try {
@@ -158,7 +161,9 @@ class StatsService {
         }
       };
 
-      this.cache.set(cacheKey, stats);
+      if (shouldUseCache) {
+        this.cache.set(cacheKey, stats);
+      }
       return stats;
     } catch (error) {
       console.error('Erreur statistiques overview:', error);
@@ -209,9 +214,12 @@ class StatsService {
    */
   async getTimeSeriesData(days = 30, userId = null) {
     const cacheKey = `timeSeries:${days}:${userId || 'all'}`;
-    const cached = this.cache.get(cacheKey);
-    if (cached) {
-      return cached;
+    const shouldUseCache = !userId;
+    if (shouldUseCache) {
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
     }
 
     try {
@@ -240,7 +248,9 @@ class StatsService {
         avg_time: Math.round(row.avg_time || 0)
       }));
 
-      this.cache.set(cacheKey, data);
+      if (shouldUseCache) {
+        this.cache.set(cacheKey, data);
+      }
       return data;
     } catch (error) {
       console.error('Erreur données temporelles:', error);
@@ -314,9 +324,12 @@ class StatsService {
    */
   async getSearchLogs(limit = 20, username = '', userId = null) {
     const cacheKey = `searchLogs:${limit}:${username}:${userId || 'all'}`;
-    const cached = this.cache.get(cacheKey);
-    if (cached) {
-      return cached;
+    const shouldUseCache = !userId;
+    if (shouldUseCache) {
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
     }
 
     try {
@@ -345,7 +358,9 @@ class StatsService {
       params.push(limit);
 
       const logs = await database.query(sql, params);
-      this.cache.set(cacheKey, logs || []);
+      if (shouldUseCache) {
+        this.cache.set(cacheKey, logs || []);
+      }
       return logs || [];
     } catch (error) {
       console.error('Erreur logs de recherche:', error);
