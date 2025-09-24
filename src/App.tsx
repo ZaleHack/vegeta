@@ -7189,46 +7189,49 @@ useEffect(() => {
                       </button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
-                      {orderedDashboardCards.map(card => (
-                        <div
-                          key={card.id}
-                          draggable
-                          onDragStart={handleCardDragStart(card.id)}
-                          onDragOver={handleCardDragOver}
-                          onDrop={handleCardDrop(card.id)}
-                          onDragEnd={handleCardDragEnd}
-                          className={`relative overflow-hidden rounded-3xl p-6 shadow-xl transition-transform duration-200 cursor-grab active:cursor-grabbing ${draggedCard === card.id ? 'ring-2 ring-white/70 scale-[1.02]' : 'hover:-translate-y-1'}`}
-                        >
-                          <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-95`}></div>
-                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent)]"></div>
-                          <div className="relative z-10 flex flex-col h-full text-white">
-                            <div className="flex items-start justify-between gap-4">
-                              <div>
-                                <p className="text-sm font-medium text-white/80">{card.title}</p>
-                                <p className="mt-2 text-3xl font-bold">{card.value}</p>
-                                {card.description && (
-                                  <p className="mt-3 text-sm text-white/70 leading-relaxed">
-                                    {card.description}
-                                  </p>
-                                )}
+                      {orderedDashboardCards.map((card) => {
+                        const Icon = card.icon;
+                        return (
+                          <div
+                            key={card.id}
+                            draggable
+                            onDragStart={handleCardDragStart(card.id)}
+                            onDragOver={handleCardDragOver}
+                            onDrop={handleCardDrop(card.id)}
+                            onDragEnd={handleCardDragEnd}
+                            className={`relative overflow-hidden rounded-3xl p-6 shadow-xl transition-transform duration-200 cursor-grab active:cursor-grabbing ${draggedCard === card.id ? 'ring-2 ring-white/70 scale-[1.02]' : 'hover:-translate-y-1'}`}
+                          >
+                            <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-95`}></div>
+                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent)]"></div>
+                            <div className="relative z-10 flex flex-col h-full text-white">
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <p className="text-sm font-medium text-white/80">{card.title}</p>
+                                  <p className="mt-2 text-3xl font-bold">{card.value}</p>
+                                  {card.description && (
+                                    <p className="mt-3 text-sm text-white/70 leading-relaxed">
+                                      {card.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex flex-col items-end gap-3">
+                                  <span className="inline-flex items-center justify-center p-3 rounded-full bg-white/20 backdrop-blur-sm">
+                                    <Icon className="h-7 w-7" />
+                                  </span>
+                                  <GripVertical className="h-5 w-5 text-white/70" />
+                                </div>
                               </div>
-                              <div className="flex flex-col items-end gap-3">
-                                <span className="inline-flex items-center justify-center p-3 rounded-full bg-white/20 backdrop-blur-sm">
-                                  <card.icon className="h-7 w-7" />
-                                </span>
-                                <GripVertical className="h-5 w-5 text-white/70" />
-                              </div>
+                              {card.badge && (
+                                <div className="mt-auto pt-6">
+                                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-sm border border-white/30 ${card.badge.tone}`}>
+                                    {card.badge.label}
+                                  </span>
+                                </div>
+                              )}
                             </div>
-                            {card.badge && (
-                              <div className="mt-auto pt-6">
-                                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-sm border border-white/30 ${card.badge.tone}`}>
-                                  {card.badge.label}
-                                </span>
-                              </div>
-                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
