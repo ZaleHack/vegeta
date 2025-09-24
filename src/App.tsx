@@ -970,6 +970,23 @@ const App: React.FC = () => {
     }
   };
   const [uploadHistory, setUploadHistory] = useState<any[]>([]);
+  const [uploadHistoryPage, setUploadHistoryPage] = useState(1);
+  const [uploadHistoryPerPage, setUploadHistoryPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
+  const totalUploadHistoryPages = Math.ceil(uploadHistory.length / uploadHistoryPerPage) || 1;
+  const paginatedUploadHistory = useMemo(
+    () =>
+      uploadHistory.slice(
+        (uploadHistoryPage - 1) * uploadHistoryPerPage,
+        uploadHistoryPage * uploadHistoryPerPage
+      ),
+    [uploadHistory, uploadHistoryPage, uploadHistoryPerPage]
+  );
+  useEffect(() => {
+    setUploadHistoryPage((page) => Math.min(page, Math.max(totalUploadHistoryPages, 1)));
+  }, [totalUploadHistoryPages]);
+  useEffect(() => {
+    setUploadHistoryPage(1);
+  }, [uploadHistoryPerPage]);
 
   const uploadSummary = useMemo(() => {
     if (!uploadHistory.length) {
@@ -7733,13 +7750,14 @@ useEffect(() => {
                         <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Vos imports apparaîtront ici dès qu'ils seront terminés.</p>
                       </div>
                     ) : (
-                      <div className="max-h-[28rem] space-y-4 overflow-y-auto pt-6 pr-1 sm:pr-2">
-                        {uploadHistory.map((item, index) => {
-                          const createdAt = item.created_at ? parseISO(item.created_at) : null;
-                          const createdLabel = createdAt ? format(createdAt, 'dd/MM/yyyy HH:mm', { locale: fr }) : null;
-                          const createdRelative = createdAt ? formatDistanceToNow(createdAt, { addSuffix: true, locale: fr }) : null;
-                          const totalRows = typeof item.total_rows === 'number' ? item.total_rows : (typeof item.success_rows === 'number' ? item.success_rows : 0);
-                          const successRows = typeof item.success_rows === 'number' ? item.success_rows : null;
+                      <div className="flex flex-col gap-6 pt-6">
+                        <div className="space-y-4">
+                          {paginatedUploadHistory.map((item, index) => {
+                            const createdAt = item.created_at ? parseISO(item.created_at) : null;
+                            const createdLabel = createdAt ? format(createdAt, 'dd/MM/yyyy HH:mm', { locale: fr }) : null;
+                            const createdRelative = createdAt ? formatDistanceToNow(createdAt, { addSuffix: true, locale: fr }) : null;
+                            const totalRows = typeof item.total_rows === 'number' ? item.total_rows : (typeof item.success_rows === 'number' ? item.success_rows : 0);
+                            const successRows = typeof item.success_rows === 'number' ? item.success_rows : null;
                           const errorRows = typeof item.error_rows === 'number' ? item.error_rows : 0;
                           const hasErrors = (errorRows ?? 0) > 0 || Boolean(item.errors);
                           const uploadModeLabel = getUploadModeLabel(item.upload_mode);
@@ -7815,6 +7833,16 @@ useEffect(() => {
                             </div>
                           );
                         })}
+                        </div>
+                        <PaginationControls
+                          currentPage={uploadHistoryPage}
+                          totalPages={totalUploadHistoryPages}
+                          onPageChange={setUploadHistoryPage}
+                          pageSize={uploadHistoryPerPage}
+                          pageSizeOptions={PAGE_SIZE_OPTIONS}
+                          onPageSizeChange={setUploadHistoryPerPage}
+                          className="pt-2"
+                        />
                       </div>
                     )}
                   </div>
