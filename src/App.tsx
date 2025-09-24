@@ -1531,13 +1531,13 @@ const App: React.FC = () => {
         const data = await res.json();
         setSessionLogs(data.sessions || []);
         setSessionTotal(data.total || 0);
-      setSessionPage(page);
+        setSessionPage(page);
+      }
+    } catch (err) {
+      console.error('Erreur chargement sessions:', err);
+    } finally {
+      setSessionLoading(false);
     }
-  } catch (err) {
-    console.error('Erreur chargement sessions:', err);
-  } finally {
-    setSessionLoading(false);
-  }
   }, [logUserFilter]);
 
   const formatSessionDuration = useCallback((durationSeconds?: number | null) => {
