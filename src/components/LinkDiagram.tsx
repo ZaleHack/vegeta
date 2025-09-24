@@ -219,7 +219,9 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
           .strength(0.85)
       );
     }
-    graphRef.current.d3VelocityDecay(0.25);
+    if (typeof graphRef.current.d3VelocityDecay === 'function') {
+      graphRef.current.d3VelocityDecay(0.25);
+    }
   }, [viewMode]);
 
   useEffect(() => {

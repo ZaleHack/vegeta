@@ -76,7 +76,8 @@ import {
   LineElement,
   BarElement,
   Tooltip,
-  Legend
+  Legend,
+  Filler
 } from 'chart.js';
 import { format, parseISO, formatDistanceToNow, intervalToDuration, formatDuration } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -89,7 +90,7 @@ import CdrMap from './components/CdrMap';
 import LinkDiagram from './components/LinkDiagram';
 import SoraLogo from './components/SoraLogo';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler);
 
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
