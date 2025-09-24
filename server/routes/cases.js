@@ -281,11 +281,17 @@ router.get('/:id/fraud-detection', authenticate, async (req, res) => {
 router.post('/:id/link-diagram', authenticate, async (req, res) => {
   try {
     const caseId = parseInt(req.params.id, 10);
-    const { numbers } = req.body;
+    const { numbers, start: startDate, end: endDate, startTime, endTime } = req.body;
     if (!Array.isArray(numbers) || numbers.length === 0) {
       return res.status(400).json({ error: 'Liste de numéros requise' });
     }
-    const result = await caseService.linkDiagram(caseId, numbers, req.user);
+    const filters = {
+      startDate: typeof startDate === 'string' && startDate.trim() ? startDate.trim() : null,
+      endDate: typeof endDate === 'string' && endDate.trim() ? endDate.trim() : null,
+      startTime: typeof startTime === 'string' && startTime.trim() ? startTime.trim() : null,
+      endTime: typeof endTime === 'string' && endTime.trim() ? endTime.trim() : null
+    };
+    const result = await caseService.linkDiagram(caseId, numbers, req.user, filters);
     res.json(result);
   } catch (err) {
     console.error('Erreur diagramme des liens:', err);

@@ -324,17 +324,59 @@ class CdrService {
     };
   }
 
-  async findCommonContacts(numbers, caseName) {
+  async findCommonContacts(numbers, caseName, options = {}) {
     const isAllowed = (n) => ALLOWED_PREFIXES.some((p) => String(n).startsWith(p));
     const filteredNumbers = Array.isArray(numbers) ? numbers.filter(isAllowed) : [];
     if (filteredNumbers.length === 0) {
       return { nodes: [], links: [] };
     }
 
+    const {
+      startDate = null,
+      endDate = null,
+      startTime = null,
+      endTime = null
+    } = options;
+
+    const normalizeDate = (value) => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      return trimmed || null;
+    };
+    const normalizeTime = (value) => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      return trimmed.length === 5 ? `${trimmed}:00` : trimmed;
+    };
+
+    const normalizedStartDate = normalizeDate(startDate);
+    const normalizedEndDate = normalizeDate(endDate);
+    const normalizedStartTime = normalizeTime(startTime);
+    const normalizedEndTime = normalizeTime(endTime);
+
     const placeholders = filteredNumbers.map(() => '?').join(',');
     const table = Cdr.escapeIdentifier(caseName);
-    const query = `SELECT numero_intl_appelant, numero_intl_appele, type_cdr FROM ${table} WHERE numero_intl_appelant IN (${placeholders}) OR numero_intl_appele IN (${placeholders})`;
+    let query = `SELECT numero_intl_appelant, numero_intl_appele, type_cdr FROM ${table} WHERE (numero_intl_appelant IN (${placeholders}) OR numero_intl_appele IN (${placeholders}))`;
     const params = [...filteredNumbers, ...filteredNumbers];
+
+    if (normalizedStartDate) {
+      query += ' AND date_debut >= ?';
+      params.push(normalizedStartDate);
+    }
+    if (normalizedEndDate) {
+      query += ' AND date_debut <= ?';
+      params.push(normalizedEndDate);
+    }
+    if (normalizedStartTime) {
+      query += ' AND heure_debut >= ?';
+      params.push(normalizedStartTime);
+    }
+    if (normalizedEndTime) {
+      query += ' AND heure_debut <= ?';
+      params.push(normalizedEndTime);
+    }
+
     const rows = await database.query(query, params);
 
     const contactSources = {};
