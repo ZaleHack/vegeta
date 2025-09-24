@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import ForceGraph2D from 'react-force-graph-2d';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
 import { GitBranch, Maximize2, Minimize2, Network, X } from 'lucide-react';
+import { forceLink, forceManyBody } from 'd3-force';
+import type { ForceLink } from 'd3-force';
 
 interface GraphNode {
   id: string;
@@ -48,6 +50,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('network');
   const [selectedRoot, setSelectedRoot] = useState<string | null>(null);
+  const graphRef = useRef<ForceGraphMethods>();
   const nodeTypes = useMemo(() => Array.from(new Set(data.nodes.map((n) => n.type))), [data]);
 
   const colorByType = useMemo(() => {
@@ -196,6 +199,37 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
     [graphLinks, graphNodes]
   );
 
+  useEffect(() => {
+    if (!graphRef.current) return;
+
+    const chargeForce = forceManyBody()
+      .strength(viewMode === 'network' ? -260 : -160)
+      .distanceMax(650);
+    graphRef.current.d3Force('charge', chargeForce);
+
+    const linkForce = graphRef.current.d3Force('link') as ForceLink<NormalizedNode, NormalizedLink> | undefined;
+
+    if (linkForce) {
+      linkForce.distance(() => (viewMode === 'network' ? 190 : 150)).strength(0.85);
+    } else {
+      graphRef.current.d3Force(
+        'link',
+        forceLink<NormalizedNode, NormalizedLink>()
+          .distance(() => (viewMode === 'network' ? 190 : 150))
+          .strength(0.85)
+      );
+    }
+    graphRef.current.d3VelocityDecay(0.25);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (!graphRef.current) return;
+    const timeout = setTimeout(() => {
+      graphRef.current?.zoomToFit(600, 80);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [graphData, hierarchicalGraph, viewMode]);
+
   const overlayClasses = `fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 ${
     isFullscreen ? '' : 'p-4'
   }`;
@@ -277,10 +311,16 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
         </div>
         <div className="relative flex-1">
           <ForceGraph2D
+            ref={graphRef}
             graphData={viewMode === 'network' ? graphData : hierarchicalGraph}
             enableNodeDrag={viewMode === 'network'}
             dagMode={viewMode === 'hierarchical' ? 'radialinout' : undefined}
-            dagLevelDistance={viewMode === 'hierarchical' ? 140 : undefined}
+            dagLevelDistance={viewMode === 'hierarchical' ? 200 : undefined}
+            backgroundColor={document.documentElement.classList.contains('dark') ? '#0f172a' : '#f8fafc'}
+            warmupTicks={viewMode === 'network' ? 80 : 40}
+            cooldownTicks={viewMode === 'network' ? 140 : 90}
+            minZoom={0.35}
+            maxZoom={3}
             onNodeDragStart={(node: any) => {
               if (viewMode !== 'network') return;
               node.fx = node.x;
