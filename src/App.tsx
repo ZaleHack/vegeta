@@ -94,6 +94,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 const CASE_PAGE_SIZE_OPTIONS = [6, 12, 24];
+const CASE_FILE_PAGE_SIZE_OPTIONS = [5, 10, 20];
 const FRAUD_ROLE_LABELS: Record<string, string> = {
   caller: 'Appelant',
   callee: 'Appelé',
@@ -1094,6 +1095,23 @@ const App: React.FC = () => {
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
   const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
+  const [caseFilesPage, setCaseFilesPage] = useState(1);
+  const [caseFilesPerPage, setCaseFilesPerPage] = useState(CASE_FILE_PAGE_SIZE_OPTIONS[0]);
+  const totalCaseFilesPages = Math.ceil(caseFiles.length / caseFilesPerPage) || 1;
+  const paginatedCaseFiles = useMemo(
+    () =>
+      caseFiles.slice(
+        (caseFilesPage - 1) * caseFilesPerPage,
+        caseFilesPage * caseFilesPerPage
+      ),
+    [caseFiles, caseFilesPage, caseFilesPerPage]
+  );
+  useEffect(() => {
+    setCaseFilesPage((page) => Math.min(page, Math.max(totalCaseFilesPages, 1)));
+  }, [totalCaseFilesPages]);
+  useEffect(() => {
+    setCaseFilesPage(1);
+  }, [selectedCase?.id]);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
   const [showMeetingPoints, setShowMeetingPoints] = useState(false);
   const [zoneMode, setZoneMode] = useState(false);
@@ -5910,141 +5928,154 @@ useEffect(() => {
               </button>
 
               {!showCdrMap && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
-                    <div className="border-b border-white/30 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-6 text-white">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="space-y-2">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-white/80">
-                            <UploadCloud className="h-4 w-4" />
-                            Importation CDR
-                          </span>
-                          <h3 className="text-2xl font-semibold leading-tight">Ajoutez vos relevés d'appels</h3>
-                          <p className="text-sm text-white/80 sm:max-w-sm">
-                            Associez un fichier CDR à un numéro pivot pour l'analyse de l'opération en cours.
-                          </p>
-                        </div>
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 text-white">
-                          <Phone className="h-7 w-7" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-6 p-6">
-                      <form onSubmit={handleCdrUpload} className="space-y-6">
-                        <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+                <>
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+                      <div className="border-b border-white/30 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-6 text-white">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="space-y-2">
-                            <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Numéro associé</label>
-                            <div className="relative">
-                              <Phone className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
-                              <input
-                                type="text"
-                                value={cdrNumber}
-                                onChange={(e) => setCdrNumber(e.target.value)}
-                                onBlur={(e) => setCdrNumber(normalizeCdrNumber(e.target.value))}
-                                placeholder="Ex. 770000000"
-                                className="block w-full rounded-3xl border border-slate-200/80 bg-white/80 py-3 pl-12 pr-4 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
-                              />
-                            </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              Le numéro sera utilisé pour indexer le fichier importé.
+                            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-white/80">
+                              <UploadCloud className="h-4 w-4" />
+                              Importation CDR
+                            </span>
+                            <h3 className="text-2xl font-semibold leading-tight">Ajoutez vos relevés d'appels</h3>
+                            <p className="text-sm text-white/80 sm:max-w-sm">
+                              Associez un fichier CDR à un numéro pivot pour l'analyse de l'opération en cours.
                             </p>
                           </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Fichier CDR (.csv)</label>
-                            <label className="group relative flex min-h-[150px] cursor-pointer flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 px-6 text-center text-sm font-medium text-slate-600 transition hover:border-blue-500 hover:bg-blue-50/70 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-300 dark:hover:border-blue-400 dark:hover:bg-blue-500/10">
-                              <UploadCloud className="h-8 w-8 text-blue-500 transition duration-200 group-hover:scale-105 dark:text-blue-300" />
-                              <div>Glissez-déposez ou cliquez pour importer</div>
-                              <span className="text-xs font-normal text-slate-500 dark:text-slate-400">Format pris en charge : CSV</span>
-                              <input
-                                type="file"
-                                accept=".csv"
-                                onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
-                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                              />
-                            </label>
-                            {cdrFile && (
-                              <p className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-200">
-                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                {cdrFile.name}
+                          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 text-white">
+                            <Phone className="h-7 w-7" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-6 p-6">
+                        <form onSubmit={handleCdrUpload} className="space-y-6">
+                          <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+                            <div className="space-y-2">
+                              <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Numéro associé</label>
+                              <div className="relative">
+                                <Phone className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
+                                <input
+                                  type="text"
+                                  value={cdrNumber}
+                                  onChange={(e) => setCdrNumber(e.target.value)}
+                                  onBlur={(e) => setCdrNumber(normalizeCdrNumber(e.target.value))}
+                                  placeholder="Ex. 770000000"
+                                  className="block w-full rounded-3xl border border-slate-200/80 bg-white/80 py-3 pl-12 pr-4 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
+                                />
+                              </div>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Le numéro sera utilisé pour indexer le fichier importé.
                               </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <button
-                            type="submit"
-                            disabled={cdrUploading || !cdrFile || !cdrNumber}
-                            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {cdrUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-4 w-4" />}
-                            <span>Importer le fichier</span>
-                          </button>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            Seuls les fichiers .csv fournis par les opérateurs sont acceptés.
-                          </span>
-                        </div>
-                        {cdrUploadMessage && (
-                          <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/90 px-4 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
-                            <CheckCircle2 className="h-4 w-4" />
-                            {cdrUploadMessage}
-                          </div>
-                        )}
-                        {cdrUploadError && (
-                          <div className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-2 text-sm font-medium text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
-                            <AlertCircle className="h-4 w-4" />
-                            {cdrUploadError}
-                          </div>
-                        )}
-                      </form>
-                      {caseFiles.length > 0 && (
-                        <div className="space-y-4">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <h4 className="text-base font-semibold text-slate-700 dark:text-slate-200">Historique des imports</h4>
-                              <p className="text-sm text-slate-500 dark:text-slate-400">Suivez les fichiers déjà analysés pour ce dossier.</p>
                             </div>
-                            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                              <Clock className="h-4 w-4" />
-                              {caseFiles.length} importation{caseFiles.length > 1 ? 's' : ''}
+                            <div className="space-y-2">
+                              <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Fichier CDR (.csv)</label>
+                              <label className="group relative flex min-h-[150px] cursor-pointer flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 px-6 text-center text-sm font-medium text-slate-600 transition hover:border-blue-500 hover:bg-blue-50/70 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-300 dark:hover:border-blue-400 dark:hover:bg-blue-500/10">
+                                <UploadCloud className="h-8 w-8 text-blue-500 transition duration-200 group-hover:scale-105 dark:text-blue-300" />
+                                <div>Glissez-déposez ou cliquez pour importer</div>
+                                <span className="text-xs font-normal text-slate-500 dark:text-slate-400">Format pris en charge : CSV</span>
+                                <input
+                                  type="file"
+                                  accept=".csv"
+                                  onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
+                                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                />
+                              </label>
+                              {cdrFile && (
+                                <p className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-200">
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                  {cdrFile.name}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              type="submit"
+                              disabled={cdrUploading || !cdrFile || !cdrNumber}
+                              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {cdrUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-4 w-4" />}
+                              <span>Importer le fichier</span>
+                            </button>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              Seuls les fichiers .csv fournis par les opérateurs sont acceptés.
                             </span>
                           </div>
-                          <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                            <table className="min-w-full text-sm text-slate-600 dark:text-slate-200">
-                              <thead className="bg-slate-100/80 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 dark:bg-slate-800/80 dark:text-slate-300">
-                                <tr>
-                                  <th className="px-4 py-3 text-left">Nom du fichier</th>
-                                  <th className="px-4 py-3 text-left">Numéro</th>
-                                  <th className="px-4 py-3 text-left">Lignes</th>
-                                  <th className="px-4 py-3 text-right">Action</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                                {caseFiles.map((f) => (
-                                  <tr key={f.id} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
-                                    <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-100">{f.filename}</td>
-                                    <td className="px-4 py-3">{f.cdr_number || '-'}</td>
-                                    <td className="px-4 py-3">{f.line_count}</td>
-                                    <td className="px-4 py-3 text-right">
-                                      <button
-                                        className="text-sm font-semibold text-rose-600 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-                                        onClick={() => handleDeleteFile(f.id)}
-                                      >
-                                        Supprimer
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
+                          {cdrUploadMessage && (
+                            <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/90 px-4 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
+                              <CheckCircle2 className="h-4 w-4" />
+                              {cdrUploadMessage}
+                            </div>
+                          )}
+                          {cdrUploadError && (
+                            <div className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-2 text-sm font-medium text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+                              <AlertCircle className="h-4 w-4" />
+                              {cdrUploadError}
+                            </div>
+                          )}
+                        </form>
+                      </div>
                     </div>
-                  </div>
-
                     {renderCdrSearchForm()}
                   </div>
-                )}
+
+                  {caseFiles.length > 0 && (
+                    <section className="mt-6 w-full space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-base font-semibold text-slate-700 dark:text-slate-200">Historique des imports</h4>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">Suivez les fichiers déjà analysés pour ce dossier.</p>
+                        </div>
+                        <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                          <Clock className="h-4 w-4" />
+                          {caseFiles.length} importation{caseFiles.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="w-full overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
+                        <table className="min-w-full text-sm text-slate-600 dark:text-slate-200">
+                          <thead className="bg-slate-100/80 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 dark:bg-slate-800/80 dark:text-slate-300">
+                            <tr>
+                              <th className="px-4 py-3 text-left">Nom du fichier</th>
+                              <th className="px-4 py-3 text-left">Numéro</th>
+                              <th className="px-4 py-3 text-left">Lignes</th>
+                              <th className="px-4 py-3 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                            {paginatedCaseFiles.map((f) => (
+                              <tr key={f.id} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
+                                <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-100">{f.filename}</td>
+                                <td className="px-4 py-3">{f.cdr_number || '-'}</td>
+                                <td className="px-4 py-3">{f.line_count}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <button
+                                    className="text-sm font-semibold text-rose-600 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+                                    onClick={() => handleDeleteFile(f.id)}
+                                  >
+                                    Supprimer
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <PaginationControls
+                        currentPage={caseFilesPage}
+                        totalPages={Math.max(totalCaseFilesPages, 1)}
+                        onPageChange={setCaseFilesPage}
+                        pageSize={caseFilesPerPage}
+                        pageSizeOptions={CASE_FILE_PAGE_SIZE_OPTIONS}
+                        onPageSizeChange={(size) => {
+                          setCaseFilesPerPage(size);
+                          setCaseFilesPage(1);
+                        }}
+                      />
+                    </section>
+                  )}
+                </>
+              )}
 
               {cdrLoading && (
                 <div className="loading-bar-container my-4">
