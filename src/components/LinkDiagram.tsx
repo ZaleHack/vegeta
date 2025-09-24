@@ -200,27 +200,24 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
   );
 
   useEffect(() => {
-    if (!graphRef.current) return;
+    const graphInstance = graphRef.current;
+    if (!graphInstance) return;
 
-    const chargeForce = forceManyBody()
-      .strength(viewMode === 'network' ? -260 : -160)
-      .distanceMax(650);
-    graphRef.current.d3Force('charge', chargeForce);
+    const distance = () => (viewMode === 'network' ? 190 : 150);
+    const chargeForce = forceManyBody().strength(viewMode === 'network' ? -260 : -160).distanceMax(650);
+    graphInstance.d3Force('charge', chargeForce);
 
-    const linkForce = graphRef.current.d3Force('link') as ForceLink<NormalizedNode, NormalizedLink> | undefined;
+    const linkForce = graphInstance.d3Force('link') as ForceLink<NormalizedNode, NormalizedLink> | undefined;
 
     if (linkForce) {
-      linkForce.distance(() => (viewMode === 'network' ? 190 : 150)).strength(0.85);
+      linkForce.distance(distance).strength(0.85);
     } else {
-      graphRef.current.d3Force(
-        'link',
-        forceLink<NormalizedNode, NormalizedLink>()
-          .distance(() => (viewMode === 'network' ? 190 : 150))
-          .strength(0.85)
-      );
+      graphInstance.d3Force('link', forceLink<NormalizedNode, NormalizedLink>().distance(distance).strength(0.85));
     }
-    if (typeof graphRef.current.d3VelocityDecay === 'function') {
-      graphRef.current.d3VelocityDecay(0.25);
+
+    const velocityDecay = (graphInstance as ForceGraphMethods & { d3VelocityDecay?: (decay: number) => void }).d3VelocityDecay;
+    if (typeof velocityDecay === 'function') {
+      velocityDecay.call(graphInstance, 0.25);
     }
   }, [viewMode]);
 

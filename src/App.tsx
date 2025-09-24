@@ -50,8 +50,30 @@ import {
   MapPinOff,
   CheckCircle2
 } from 'lucide-react';
+import { Line, Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
+import { format, parseISO, formatDistanceToNow, intervalToDuration, formatDuration } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import ToggleSwitch from './components/ToggleSwitch';
 import PaginationControls from './components/PaginationControls';
+import PageHeader from './components/PageHeader';
+import SearchResultProfiles from './components/SearchResultProfiles';
+import LoadingSpinner from './components/LoadingSpinner';
+import ProfileList, { ProfileListItem } from './components/ProfileList';
+import ProfileForm from './components/ProfileForm';
+import CdrMap from './components/CdrMap';
+import LinkDiagram from './components/LinkDiagram';
+import SoraLogo from './components/SoraLogo';
 
 const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...props}>
@@ -67,28 +89,6 @@ const HiddenIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <line x1="1" y1="1" x2="23" y2="23" />
   </svg>
 );
-import { Line, Bar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Tooltip,
-  Legend,
-  Filler
-} from 'chart.js';
-import { format, parseISO, formatDistanceToNow, intervalToDuration, formatDuration } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import PageHeader from './components/PageHeader';
-import SearchResultProfiles from './components/SearchResultProfiles';
-import LoadingSpinner from './components/LoadingSpinner';
-import ProfileList, { ProfileListItem } from './components/ProfileList';
-import ProfileForm from './components/ProfileForm';
-import CdrMap from './components/CdrMap';
-import LinkDiagram from './components/LinkDiagram';
-import SoraLogo from './components/SoraLogo';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler);
 
