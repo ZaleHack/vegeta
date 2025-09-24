@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth.js';
 import Blacklist from '../models/Blacklist.js';
 import UserLog from '../models/UserLog.js';
 import SearchLog from '../models/SearchLog.js';
+import searchAccessManager from '../utils/search-access-manager.js';
 
 const router = express.Router();
 const searchService = new SearchService();
@@ -93,6 +94,10 @@ router.post('/', authenticate, async (req, res) => {
       );
     }
 
+    if (!useElastic) {
+      searchAccessManager.remember(req.user.id, results.hits || []);
+    }
+
     const searchTypeValue = typeof search_type === 'string' && search_type ? search_type : 'global';
     const userAgent = req.get('user-agent') || null;
     const ipAddress = req.ip || null;
@@ -126,6 +131,14 @@ router.get('/details/:table/:id', authenticate, async (req, res) => {
 
     if (!id) {
       return res.status(400).json({ error: 'ID invalide' });
+    }
+
+    const isAdmin = req.user?.admin === 1 || req.user?.admin === '1';
+    if (!isAdmin) {
+      const authorized = searchAccessManager.isAllowed(req.user.id, table, id);
+      if (!authorized) {
+        return res.status(403).json({ error: 'Accès aux détails non autorisé ou expiré. Relancez la recherche.' });
+      }
     }
 
     const details = await searchService.getRecordDetails(table, id);

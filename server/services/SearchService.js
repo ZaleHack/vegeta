@@ -153,7 +153,11 @@ class SearchService {
     const tableSearches = await Promise.all(searchPromises);
     for (const { tableName, tableResults } of tableSearches) {
       if (tableResults.length > 0) {
-        results.push(...tableResults);
+        const enrichedResults = tableResults.map(result => ({
+          ...result,
+          table_name: tableName
+        }));
+        results.push(...enrichedResults);
         tablesSearched.push(tableName);
       }
     }
@@ -216,7 +220,8 @@ class SearchService {
     // Déduplication des résultats combinés
     const uniqueMap = new Map();
     for (const r of results) {
-      const key = `${r.database}:${r.table}:${Object.values(r.primary_keys || {}).join(':')}`;
+      const tableIdentifier = r.table_name || `${r.database}:${r.table}`;
+      const key = `${tableIdentifier}:${Object.values(r.primary_keys || {}).join(':')}`;
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, r);
       }
