@@ -4096,7 +4096,7 @@ useEffect(() => {
               <Search className="h-4 w-4" />
               <span>Rechercher</span>
             </button>
-            {caseFiles.filter((f) => f.cdr_number).length >= 2 && (
+            {cdrIdentifiers.length >= 2 && (
               <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
@@ -6042,60 +6042,66 @@ useEffect(() => {
                           )}
                         </form>
 
-                        {caseFiles.length > 0 && (
-                          <div className="space-y-4 border-t border-slate-200/80 pt-6 dark:border-slate-700/60">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div>
-                                <h4 className="text-base font-semibold text-slate-700 dark:text-slate-200">Historique des imports</h4>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">Suivez les fichiers déjà analysés pour ce dossier.</p>
-                              </div>
-                              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                                <Clock className="h-4 w-4" />
-                                {caseFiles.length} importation{caseFiles.length > 1 ? 's' : ''}
-                              </span>
+                        <div className="space-y-4 border-t border-slate-200/80 pt-6 dark:border-slate-700/60">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <h4 className="text-base font-semibold text-slate-700 dark:text-slate-200">Historique des imports</h4>
+                              <p className="text-sm text-slate-500 dark:text-slate-400">Suivez les fichiers déjà analysés pour ce dossier.</p>
                             </div>
-                            <div className="w-full overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                              <table className="min-w-full text-sm text-slate-600 dark:text-slate-200">
-                                <thead className="bg-slate-100/80 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 dark:bg-slate-800/80 dark:text-slate-300">
-                                  <tr>
-                                    <th className="px-4 py-3 text-left">Nom du fichier</th>
-                                    <th className="px-4 py-3 text-left">Numéro</th>
-                                    <th className="px-4 py-3 text-left">Lignes</th>
-                                    <th className="px-4 py-3 text-right">Action</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                                  {paginatedCaseFiles.map((f) => (
-                                    <tr key={f.id} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
-                                      <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-100">{f.filename}</td>
-                                      <td className="px-4 py-3">{f.cdr_number || '-'}</td>
-                                      <td className="px-4 py-3">{f.line_count}</td>
-                                      <td className="px-4 py-3 text-right">
-                                        <button
-                                          className="text-sm font-semibold text-rose-600 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-                                          onClick={() => handleDeleteFile(f.id)}
-                                        >
-                                          Supprimer
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                            <PaginationControls
-                              currentPage={caseFilesPage}
-                              totalPages={Math.max(totalCaseFilesPages, 1)}
-                              onPageChange={setCaseFilesPage}
-                              pageSize={caseFilesPerPage}
-                              pageSizeOptions={CASE_FILE_PAGE_SIZE_OPTIONS}
-                              onPageSizeChange={(size) => {
-                                setCaseFilesPerPage(size);
-                                setCaseFilesPage(1);
-                              }}
-                            />
+                            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                              <Clock className="h-4 w-4" />
+                              {caseFiles.length} importation{caseFiles.length > 1 ? 's' : ''}
+                            </span>
                           </div>
-                        )}
+                          {caseFiles.length === 0 ? (
+                            <div className="rounded-3xl border border-dashed border-slate-200 bg-white/80 px-4 py-6 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                              Aucun fichier CDR importé pour le moment. Importez un relevé pour l'afficher ici.
+                            </div>
+                          ) : (
+                            <>
+                              <div className="w-full overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
+                                <table className="min-w-full text-sm text-slate-600 dark:text-slate-200">
+                                  <thead className="bg-slate-100/80 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 dark:bg-slate-800/80 dark:text-slate-300">
+                                    <tr>
+                                      <th className="px-4 py-3 text-left">Nom du fichier</th>
+                                      <th className="px-4 py-3 text-left">Numéro</th>
+                                      <th className="px-4 py-3 text-left">Lignes</th>
+                                      <th className="px-4 py-3 text-right">Action</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                                    {paginatedCaseFiles.map((f) => (
+                                      <tr key={f.id} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
+                                        <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-100">{f.filename}</td>
+                                        <td className="px-4 py-3">{f.cdr_number || '-'}</td>
+                                        <td className="px-4 py-3">{f.line_count}</td>
+                                        <td className="px-4 py-3 text-right">
+                                          <button
+                                            className="text-sm font-semibold text-rose-600 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+                                            onClick={() => handleDeleteFile(f.id)}
+                                          >
+                                            Supprimer
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              <PaginationControls
+                                currentPage={caseFilesPage}
+                                totalPages={Math.max(totalCaseFilesPages, 1)}
+                                onPageChange={setCaseFilesPage}
+                                pageSize={caseFilesPerPage}
+                                pageSizeOptions={CASE_FILE_PAGE_SIZE_OPTIONS}
+                                onPageSizeChange={(size) => {
+                                  setCaseFilesPerPage(size);
+                                  setCaseFilesPage(1);
+                                }}
+                              />
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {renderCdrSearchForm()}
