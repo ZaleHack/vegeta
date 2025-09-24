@@ -100,6 +100,19 @@ const FRAUD_ROLE_LABELS: Record<string, string> = {
   target: 'Cible'
 };
 
+const getUploadModeLabel = (mode?: string | null) => {
+  switch (mode) {
+    case 'new_table':
+      return 'Nouvelle table';
+    case 'existing':
+      return 'Table existante';
+    case 'sql':
+      return 'Import SQL';
+    default:
+      return mode || 'Mode inconnu';
+  }
+};
+
 interface User {
   id: number;
   login: string;
@@ -956,6 +969,51 @@ const App: React.FC = () => {
     }
   };
   const [uploadHistory, setUploadHistory] = useState<any[]>([]);
+
+  const uploadSummary = useMemo(() => {
+    if (!uploadHistory.length) {
+      return {
+        totalImports: 0,
+        totalRows: 0,
+        successRate: null as number | null,
+        lastImportRelative: null as string | null,
+        lastImportTable: null as string | null,
+        lastImportUser: null as string | null,
+        lastImportMode: null as string | null
+      };
+    }
+
+    let totalRows = 0;
+    let errorRows = 0;
+
+    uploadHistory.forEach((item) => {
+      const currentTotal =
+        typeof item.total_rows === 'number'
+          ? item.total_rows
+          : typeof item.success_rows === 'number'
+            ? item.success_rows
+            : 0;
+      totalRows += currentTotal;
+      if (typeof item.error_rows === 'number') {
+        errorRows += item.error_rows;
+      }
+    });
+
+    const lastImport = uploadHistory[0];
+    const lastImportDate = lastImport?.created_at ? parseISO(lastImport.created_at) : null;
+
+    return {
+      totalImports: uploadHistory.length,
+      totalRows,
+      successRate: totalRows > 0 ? Math.round(((totalRows - errorRows) / totalRows) * 100) : null,
+      lastImportRelative: lastImportDate
+        ? formatDistanceToNow(lastImportDate, { addSuffix: true, locale: fr })
+        : null,
+      lastImportTable: lastImport?.table_name ?? null,
+      lastImportUser: lastImport?.username ?? null,
+      lastImportMode: getUploadModeLabel(lastImport?.upload_mode)
+    };
+  }, [uploadHistory]);
 
   // États annuaire gendarmerie
   const [gendarmerieData, setGendarmerieData] = useState<GendarmerieEntry[]>([]);
@@ -7488,56 +7546,163 @@ useEffect(() => {
           )}
 
           {currentPage === 'upload' && isAdmin && (
-            <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-              <div className="w-full max-w-2xl">
-                <div className="bg-white rounded-2xl shadow-xl p-8">
-                  <div className="text-center mb-8">
-                    <UploadCloud className="h-12 w-12 mx-auto text-blue-600" />
-                    <PageHeader icon={<UploadCloud className="h-6 w-6" />} title="Charger des données" />
-                    <p className="mt-2 text-gray-600">Importez un fichier CSV dans la table de votre choix.</p>
+            <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
+              <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-blue-200/40 blur-3xl dark:bg-blue-500/10" />
+              <div className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-indigo-200/40 blur-3xl dark:bg-indigo-500/10" />
+              <div className="relative mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+                <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
+                  <div className="flex h-full flex-col justify-between gap-8 rounded-3xl border border-white/70 bg-white/80 p-8 shadow-2xl ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/60 dark:ring-white/10">
+                    <div className="space-y-6">
+                      <PageHeader
+                        icon={<UploadCloud className="h-6 w-6" />}
+                        title="Charger des données"
+                        subtitle="Importez vos bases CSV et gardez une traçabilité claire de vos opérations."
+                      />
+                      <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                        Déposez vos fichiers structurés pour alimenter vos analyses et partager des jeux de données fiables avec vos équipes.
+                      </p>
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-blue-100/70 bg-blue-50/80 p-4 text-left shadow-sm dark:border-blue-500/30 dark:bg-blue-950/30">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-blue-700 dark:text-blue-200">Imports réalisés</p>
+                          <p className="mt-2 text-3xl font-bold text-blue-900 dark:text-blue-100">{uploadSummary.totalImports}</p>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-100/70 bg-emerald-50/80 p-4 text-left shadow-sm dark:border-emerald-500/30 dark:bg-emerald-950/30">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-700 dark:text-emerald-200">Enregistrements traités</p>
+                          <p className="mt-2 text-3xl font-bold text-emerald-800 dark:text-emerald-200">{uploadSummary.totalRows.toLocaleString('fr-FR')}</p>
+                        </div>
+                        <div className="rounded-2xl border border-purple-100/70 bg-purple-50/80 p-4 text-left shadow-sm dark:border-purple-500/30 dark:bg-purple-950/30">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-purple-700 dark:text-purple-200">Taux de réussite</p>
+                          <p className="mt-2 text-3xl font-bold text-purple-800 dark:text-purple-200">
+                            {uploadSummary.successRate !== null ? `${uploadSummary.successRate}%` : '—'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                          <span className="mt-1 rounded-xl bg-blue-500/10 p-2 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                            <FileText className="h-4 w-4" />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Préparez votre fichier CSV</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Assurez-vous d'utiliser un encodage UTF-8 et un séparateur cohérent.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                          <span className="mt-1 rounded-xl bg-emerald-500/10 p-2 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                            <Shield className="h-4 w-4" />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Contrôles automatisés</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Nous vérifions automatiquement les lignes pour identifier les erreurs potentielles.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                          <span className="mt-1 rounded-xl bg-purple-500/10 p-2 text-purple-600 dark:bg-purple-500/20 dark:text-purple-200">
+                            <BarChart3 className="h-4 w-4" />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Suivi en temps réel</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Visualisez instantanément l'impact de vos imports sur vos tableaux de bord.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {uploadSummary.lastImportRelative && (
+                      <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Dernier import</p>
+                        <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                          {uploadSummary.lastImportTable ?? 'Table inconnue'}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {uploadSummary.lastImportRelative}
+                          {uploadSummary.lastImportUser ? ` par ${uploadSummary.lastImportUser}` : ''}
+                        </p>
+                        {uploadSummary.lastImportMode && (
+                          <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-slate-100/80 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800/70 dark:text-slate-300">
+                            <Settings className="h-3.5 w-3.5" />
+                            {uploadSummary.lastImportMode}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <form onSubmit={handleUploadData} className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Nom de la table</label>
-                      <input
-                        type="text"
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={uploadTable}
-                        onChange={(e) => setUploadTable(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Fichier à importer</label>
-                      <input
-                        type="file"
-                        accept=".csv"
-                        required
-                        onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
-                    >
-                      {loading ? (
-                        <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                      ) : (
-                        'Importer'
-                      )}
-                    </button>
-                  </form>
+                  <div className="rounded-3xl border border-white/70 bg-white/90 p-8 shadow-2xl ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:ring-white/10">
+                    <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Importer un fichier CSV</h3>
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      Choisissez la table cible et téléchargez votre fichier. Les champs seront automatiquement validés.
+                    </p>
+                    <form onSubmit={handleUploadData} className="mt-6 space-y-6">
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                          Nom de la table
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="ex: transactions_2024"
+                          className="mt-2 w-full rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:focus:border-blue-400"
+                          value={uploadTable}
+                          onChange={(e) => setUploadTable(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                          Fichier à importer
+                        </label>
+                        <input
+                          type="file"
+                          accept=".csv"
+                          required
+                          onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                          className="mt-2 block w-full cursor-pointer rounded-2xl border border-dashed border-slate-300/80 bg-white/60 px-4 py-5 text-sm text-slate-500 shadow-sm transition file:mr-4 file:rounded-full file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-blue-400 hover:bg-blue-50 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-300 dark:file:bg-blue-500 dark:hover:border-blue-400"
+                        />
+                        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                          Formats supportés : CSV (UTF-8). Conservez la première ligne pour les en-têtes de colonnes.
+                        </p>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 focus:outline-none focus:ring-4 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {loading ? (
+                          <span className="flex items-center gap-2">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            Import en cours...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            <Upload className="h-5 w-5" />
+                            Importer le fichier
+                          </span>
+                        )}
+                      </button>
+                    </form>
+                  </div>
                 </div>
-
-                <div className="mt-8">
-                  <h2 className="text-xl font-semibold text-center text-gray-900 dark:text-gray-100 mb-4">Bases importées</h2>
-                  {uploadHistory.length === 0 ? (
-                    <p className="text-center text-gray-500">Aucune base importée pour le moment</p>
-                  ) : (
-                    <div className="rounded-3xl border border-slate-200/80 bg-white/95 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/70">
-                      <div className="max-h-[28rem] space-y-4 overflow-y-auto p-4 sm:p-6">
+                <div className="relative mt-12">
+                  <div className="rounded-3xl border border-white/70 bg-white/85 p-6 shadow-2xl ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:ring-white/10">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 pb-4 dark:border-slate-700/60">
+                      <div>
+                        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Historique des imports</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Suivez vos dernières opérations et consultez les éventuelles erreurs.</p>
+                      </div>
+                      {uploadSummary.lastImportRelative && (
+                        <span className="inline-flex items-center gap-2 rounded-full bg-blue-100/70 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-200">
+                          <Clock className="h-3.5 w-3.5" />
+                          Dernier import {uploadSummary.lastImportRelative}
+                        </span>
+                      )}
+                    </div>
+                    {uploadHistory.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <Database className="h-10 w-10 text-slate-300 dark:text-slate-600" />
+                        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Aucune base importée pour le moment.</p>
+                        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Vos imports apparaîtront ici dès qu'ils seront terminés.</p>
+                      </div>
+                    ) : (
+                      <div className="max-h-[28rem] space-y-4 overflow-y-auto pt-6 pr-1 sm:pr-2">
                         {uploadHistory.map((item, index) => {
                           const createdAt = item.created_at ? parseISO(item.created_at) : null;
                           const createdLabel = createdAt ? format(createdAt, 'dd/MM/yyyy HH:mm', { locale: fr }) : null;
@@ -7546,25 +7711,14 @@ useEffect(() => {
                           const successRows = typeof item.success_rows === 'number' ? item.success_rows : null;
                           const errorRows = typeof item.error_rows === 'number' ? item.error_rows : 0;
                           const hasErrors = (errorRows ?? 0) > 0 || Boolean(item.errors);
-                          const uploadModeLabel = (() => {
-                            switch (item.upload_mode) {
-                              case 'new_table':
-                                return 'Nouvelle table';
-                              case 'existing':
-                                return 'Table existante';
-                              case 'sql':
-                                return 'Import SQL';
-                              default:
-                                return item.upload_mode || 'Mode inconnu';
-                            }
-                          })();
+                          const uploadModeLabel = getUploadModeLabel(item.upload_mode);
 
                           return (
                             <div
                               key={item.id ?? `${item.table_name}-${index}`}
-                              className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-700/60 dark:bg-slate-900/70"
+                              className="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white/85 to-white/60 p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-700/60 dark:from-slate-900/60 dark:to-slate-900/40"
                             >
-                              <div className="absolute -right-16 -top-10 h-32 w-32 rounded-full bg-blue-200/40 blur-3xl transition-opacity duration-300 group-hover:opacity-80 dark:bg-blue-500/20" />
+                              <div className="absolute -right-20 -top-16 h-36 w-36 rounded-full bg-blue-200/40 blur-3xl transition-opacity duration-300 group-hover:opacity-80 dark:bg-blue-500/20" />
                               <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                 <div className="flex items-start gap-3">
                                   <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
@@ -7610,12 +7764,12 @@ useEffect(() => {
                               <div className="relative z-10 mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
                                 <div className="flex flex-wrap items-center gap-3">
                                   {item.username && (
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100/80 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+                                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100/80 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-300">
                                       <User className="h-3.5 w-3.5" />
                                       {item.username}
                                     </span>
                                   )}
-                                  <span className="rounded-full bg-slate-100/80 px-3 py-1 text-xs font-medium text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
+                                  <span className="rounded-full bg-slate-100/80 px-3 py-1 text-xs font-medium text-slate-500 dark:bg-slate-800/70 dark:text-slate-300">
                                     ID #{item.id}
                                   </span>
                                 </div>
@@ -7631,8 +7785,8 @@ useEffect(() => {
                           );
                         })}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
