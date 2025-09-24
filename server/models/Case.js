@@ -81,6 +81,10 @@ class Case {
     await database.query('DELETE FROM autres.cdr_cases WHERE id = ?', [id]);
   }
 
+  static async updateName(id, name) {
+    await database.query('UPDATE autres.cdr_cases SET name = ? WHERE id = ?', [name, id]);
+  }
+
   static async addFile(caseId, filename, cdrNumber, lineCount = 0) {
     const result = await database.query(
       'INSERT INTO autres.cdr_case_files (case_id, filename, cdr_number, line_count, uploaded_at) VALUES (?, ?, ?, ?, NOW())',

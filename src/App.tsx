@@ -1088,6 +1088,10 @@ const App: React.FC = () => {
   const [cdrCaseName, setCdrCaseName] = useState('');
   const [cdrCaseMessage, setCdrCaseMessage] = useState('');
   const [cases, setCases] = useState<CdrCase[]>([]);
+  const [renamingCaseId, setRenamingCaseId] = useState<number | null>(null);
+  const [renamingCaseName, setRenamingCaseName] = useState('');
+  const [renamingCaseError, setRenamingCaseError] = useState('');
+  const [renamingCaseLoading, setRenamingCaseLoading] = useState(false);
   const [casePage, setCasePage] = useState(1);
   const [casesPerPage, setCasesPerPage] = useState(CASE_PAGE_SIZE_OPTIONS[0]);
   const totalCasePages = Math.ceil(cases.length / casesPerPage);
@@ -3373,6 +3377,73 @@ useEffect(() => {
     }
   };
 
+  const startRenameCase = (cdrCase: CdrCase) => {
+    setRenamingCaseId(cdrCase.id);
+    setRenamingCaseName(cdrCase.name || '');
+    setRenamingCaseError('');
+    setRenamingCaseLoading(false);
+  };
+
+  const cancelRenameCase = () => {
+    setRenamingCaseId(null);
+    setRenamingCaseName('');
+    setRenamingCaseError('');
+    setRenamingCaseLoading(false);
+  };
+
+  const submitRenameCase = async () => {
+    if (!renamingCaseId) return;
+    const trimmedName = renamingCaseName.trim();
+    if (!trimmedName) {
+      setRenamingCaseError('Nom requis');
+      return;
+    }
+    setRenamingCaseLoading(true);
+    setRenamingCaseError('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/cases/${renamingCaseId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ name: trimmedName })
+      });
+      if (res.ok) {
+        await fetchCases();
+        setSelectedCase((prev) => (prev && prev.id === renamingCaseId ? { ...prev, name: trimmedName } : prev));
+        cancelRenameCase();
+      } else {
+        let message = 'Erreur lors de la mise à jour du nom';
+        try {
+          const data = await res.json();
+          if (data?.error) {
+            message = data.error;
+          }
+        } catch {
+          // Ignorer les erreurs de parsing
+        }
+        setRenamingCaseError(message);
+      }
+    } catch (error) {
+      console.error('Erreur renommage opération:', error);
+      setRenamingCaseError('Erreur lors de la mise à jour du nom');
+    } finally {
+      setRenamingCaseLoading(false);
+    }
+  };
+
+  const handleRenameKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitRenameCase();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelRenameCase();
+    }
+  };
+
   const handleDeleteCase = async (id: number) => {
     if (!window.confirm('Supprimer cette opération ?')) return;
     try {
@@ -5474,7 +5545,19 @@ useEffect(() => {
                         <div className="relative flex h-full flex-col gap-5">
                           <div className="flex items-start justify-between gap-4">
                             <div className="space-y-2">
-                              <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h4>
+                              {renamingCaseId === c.id ? (
+                                <input
+                                  type="text"
+                                  value={renamingCaseName}
+                                  onChange={(event) => setRenamingCaseName(event.target.value)}
+                                  onKeyDown={handleRenameKeyDown}
+                                  className="w-full rounded-2xl border border-slate-300/70 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-100"
+                                  placeholder="Nouveau nom de l'opération"
+                                  autoFocus
+                                />
+                              ) : (
+                                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h4>
+                              )}
                               {isAdmin && c.user_login && (
                                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                   {c.user_login}
@@ -5499,54 +5582,93 @@ useEffect(() => {
                                   Créée le {format(parseISO(c.created_at), 'd MMM yyyy', { locale: fr })}
                                 </p>
                               )}
+                              {renamingCaseId === c.id && renamingCaseError && (
+                                <p className="text-xs font-medium text-rose-600 dark:text-rose-300">{renamingCaseError}</p>
+                              )}
                             </div>
                             <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-slate-500 shadow-sm dark:bg-white/5 dark:text-slate-300">
                               #{c.id}
                             </span>
                           </div>
                           <div className="mt-auto flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-                              onClick={() => {
-                                setSelectedCase(c);
-                                setCdrResult(null);
-                                setShowCdrMap(false);
-                                setCdrUploadMessage('');
-                                setCdrUploadError('');
-                                setCurrentPage('cdr-case');
-                              }}
-                            >
-                              <ArrowRight className="h-4 w-4" />
-                              <span>Ouvrir</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
-                              onClick={() => handleExportCaseReport(c)}
-                            >
-                              <Download className="h-4 w-4" />
-                              <span>Exporter</span>
-                            </button>
-                            {(isAdmin || c.is_owner) && (
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
-                                onClick={() => openShareModalForCase(c)}
-                              >
-                                <Share2 className="h-4 w-4" />
-                                <span>Partager</span>
-                              </button>
-                            )}
-                            {Boolean(c.is_owner) && (
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-2 rounded-full border border-rose-300/70 bg-rose-50/80 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:border-rose-400 hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:border-rose-400/60"
-                                onClick={() => handleDeleteCase(c.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span>Supprimer</span>
-                              </button>
+                            {renamingCaseId === c.id ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                  onClick={submitRenameCase}
+                                  disabled={renamingCaseLoading}
+                                >
+                                  {renamingCaseLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                  <span>Enregistrer</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-slate-100"
+                                  onClick={cancelRenameCase}
+                                  disabled={renamingCaseLoading}
+                                >
+                                  <X className="h-4 w-4" />
+                                  <span>Annuler</span>
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                                  onClick={() => {
+                                    cancelRenameCase();
+                                    setSelectedCase(c);
+                                    setCdrResult(null);
+                                    setShowCdrMap(false);
+                                    setCdrUploadMessage('');
+                                    setCdrUploadError('');
+                                    setCurrentPage('cdr-case');
+                                  }}
+                                >
+                                  <ArrowRight className="h-4 w-4" />
+                                  <span>Ouvrir</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
+                                  onClick={() => handleExportCaseReport(c)}
+                                >
+                                  <Download className="h-4 w-4" />
+                                  <span>Exporter</span>
+                                </button>
+                                {(isAdmin || c.is_owner) && (
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
+                                    onClick={() => openShareModalForCase(c)}
+                                  >
+                                    <Share2 className="h-4 w-4" />
+                                    <span>Partager</span>
+                                  </button>
+                                )}
+                                {(isAdmin || c.is_owner) && (
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
+                                    onClick={() => startRenameCase(c)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                    <span>Renommer</span>
+                                  </button>
+                                )}
+                                {Boolean(c.is_owner) && (
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-2 rounded-full border border-rose-300/70 bg-rose-50/80 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:border-rose-400 hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:border-rose-400/60"
+                                    onClick={() => handleDeleteCase(c.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span>Supprimer</span>
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -5950,6 +6072,7 @@ useEffect(() => {
               <PageHeader icon={<Clock className="h-6 w-6" />} title={`CDR - ${selectedCase.name}`} />
               <button
                 onClick={() => {
+                  cancelRenameCase();
                   setCurrentPage('cdr');
                   setSelectedCase(null);
                 }}
@@ -5957,6 +6080,65 @@ useEffect(() => {
               >
                 &larr; Retour
               </button>
+
+              {(isAdmin || selectedCase.is_owner) && (
+                <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Nom de l'opération</h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-300">Mettez à jour l'intitulé pour garder vos dossiers organisés.</p>
+                    </div>
+                    {renamingCaseId === selectedCase.id ? (
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                        <input
+                          type="text"
+                          value={renamingCaseName}
+                          onChange={(event) => setRenamingCaseName(event.target.value)}
+                          onKeyDown={handleRenameKeyDown}
+                          className="w-full rounded-2xl border border-slate-300/70 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-100"
+                          placeholder="Nouveau nom de l'opération"
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={submitRenameCase}
+                            disabled={renamingCaseLoading}
+                          >
+                            {renamingCaseLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                            <span>Enregistrer</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-slate-100"
+                            onClick={cancelRenameCase}
+                            disabled={renamingCaseLoading}
+                          >
+                            <X className="h-4 w-4" />
+                            <span>Annuler</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+                        <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">{selectedCase.name}</span>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
+                          onClick={() => startRenameCase(selectedCase)}
+                        >
+                          <Edit className="h-4 w-4" />
+                          <span>Renommer</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {renamingCaseId === selectedCase.id && renamingCaseError && (
+                    <p className="mt-3 text-sm font-medium text-rose-600 dark:text-rose-300">{renamingCaseError}</p>
+                  )}
+                </div>
+              )}
 
               {!showCdrMap && (
                 <>
