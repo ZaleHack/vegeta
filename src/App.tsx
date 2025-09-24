@@ -4193,98 +4193,100 @@ useEffect(() => {
                       Aucun changement de numéro détecté pour les identifiants recherchés.
                     </div>
                   ) : (
-                    fraudResult.imeis.map((imeiEntry) => (
-                      <div
-                        key={imeiEntry.imei}
-                        className="space-y-4 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/60"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">IMEI {imeiEntry.imei}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''} détecté{imeiEntry.numbers.length > 1 ? 's' : ''}
-                            </p>
+                    <div className="space-y-4">
+                      {fraudResult.imeis.map((imeiEntry) => (
+                        <div
+                          key={imeiEntry.imei}
+                          className="space-y-4 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/60"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">IMEI {imeiEntry.imei}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''} détecté{imeiEntry.numbers.length > 1 ? 's' : ''}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100/70 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                                <Activity className="h-3.5 w-3.5" /> {imeiEntry.numbers.reduce((acc, item) => acc + item.occurrences, 0)} occurrences
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 text-xs">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100/70 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
-                              <Activity className="h-3.5 w-3.5" /> {imeiEntry.numbers.reduce((acc, item) => acc + item.occurrences, 0)} occurrences
-                            </span>
-                          </div>
-                        </div>
-                        {imeiEntry.numbers.length === 0 ? (
-                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
-                            Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            {imeiEntry.numbers.map((numberEntry) => {
-                              const isNew = numberEntry.status === 'nouveau';
-                              return (
-                                <div
-                                  key={`${imeiEntry.imei}-${numberEntry.number}`}
-                                  className={`rounded-2xl border px-4 py-3 transition shadow-sm ${
-                                    isNew
-                                      ? 'border-rose-200 bg-rose-50 dark:border-rose-500/40 dark:bg-rose-500/10'
-                                      : 'border-slate-200 bg-slate-50/70 dark:border-slate-700/60 dark:bg-slate-900/50'
-                                  }`}
-                                >
-                                  <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div>
-                                      <p className="text-base font-semibold text-slate-800 dark:text-slate-100">{numberEntry.number}</p>
-                                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                                        <span
-                                          className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold ${
-                                            isNew
-                                              ? 'bg-rose-500/20 text-rose-600 dark:text-rose-200'
-                                              : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-200'
-                                          }`}
-                                        >
-                                          {isNew ? 'Nouveau numéro détecté' : 'Numéro attendu'}
+                          {imeiEntry.numbers.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
+                              Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {imeiEntry.numbers.map((numberEntry) => {
+                                const isNew = numberEntry.status === 'nouveau';
+                                return (
+                                  <div
+                                    key={`${imeiEntry.imei}-${numberEntry.number}`}
+                                    className={`rounded-2xl border px-4 py-3 transition shadow-sm ${
+                                      isNew
+                                        ? 'border-rose-200 bg-rose-50 dark:border-rose-500/40 dark:bg-rose-500/10'
+                                        : 'border-slate-200 bg-slate-50/70 dark:border-slate-700/60 dark:bg-slate-900/50'
+                                    }`}
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                      <div>
+                                        <p className="text-base font-semibold text-slate-800 dark:text-slate-100">{numberEntry.number}</p>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                                          <span
+                                            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold ${
+                                              isNew
+                                                ? 'bg-rose-500/20 text-rose-600 dark:text-rose-200'
+                                                : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-200'
+                                            }`}
+                                          >
+                                            {isNew ? 'Nouveau numéro détecté' : 'Numéro attendu'}
+                                          </span>
+                                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                                            <Clock className="h-3.5 w-3.5" /> {numberEntry.occurrences} occurrence{numberEntry.occurrences > 1 ? 's' : ''}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-col items-end text-xs text-slate-500 dark:text-slate-300">
+                                        <span>
+                                          Première vue :{' '}
+                                          <span className="font-semibold text-slate-700 dark:text-slate-100">
+                                            {formatFraudDate(numberEntry.firstSeen)}
+                                          </span>
                                         </span>
-                                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
-                                          <Clock className="h-3.5 w-3.5" /> {numberEntry.occurrences} occurrence{numberEntry.occurrences > 1 ? 's' : ''}
+                                        <span>
+                                          Dernière vue :{' '}
+                                          <span className="font-semibold text-slate-700 dark:text-slate-100">
+                                            {formatFraudDate(numberEntry.lastSeen)}
+                                          </span>
                                         </span>
                                       </div>
                                     </div>
-                                    <div className="flex flex-col items-end text-xs text-slate-500 dark:text-slate-300">
-                                      <span>
-                                        Première vue :{' '}
-                                        <span className="font-semibold text-slate-700 dark:text-slate-100">
-                                          {formatFraudDate(numberEntry.firstSeen)}
+                                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                      {numberEntry.roles.length === 0 ? (
+                                        <span className="rounded-full bg-slate-200/80 px-3 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                                          Aucun rôle identifié
                                         </span>
-                                      </span>
-                                      <span>
-                                        Dernière vue :{' '}
-                                        <span className="font-semibold text-slate-700 dark:text-slate-100">
-                                          {formatFraudDate(numberEntry.lastSeen)}
-                                        </span>
-                                      </span>
+                                      ) : (
+                                        numberEntry.roles.map((role) => (
+                                          <span
+                                            key={role}
+                                            className="rounded-full bg-slate-200/80 px-3 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-200"
+                                          >
+                                            {FRAUD_ROLE_LABELS[role] || role}
+                                          </span>
+                                        ))
+                                      )}
                                     </div>
                                   </div>
-                                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                                    {numberEntry.roles.length === 0 ? (
-                                      <span className="rounded-full bg-slate-200/80 px-3 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
-                                        Aucun rôle identifié
-                                      </span>
-                                    ) : (
-                                      numberEntry.roles.map((role) => (
-                                        <span
-                                          key={role}
-                                          className="rounded-full bg-slate-200/80 px-3 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-200"
-                                        >
-                                          {FRAUD_ROLE_LABELS[role] || role}
-                                        </span>
-                                      ))
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
                           </div>
                         )}
                       </div>
-                    ))
-                  )}
+                    ))}
+                  </div>
+                )}
                 </div>
               ) : (
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
