@@ -180,7 +180,11 @@ const getPointColor = (type: string, direction?: string) => {
   return '#16a34a';
 };
 
-const getIcon = (type: string, direction: string | undefined) => {
+const getIcon = (
+  type: string,
+  direction: string | undefined,
+  colorOverride?: string
+) => {
   const size = 32;
   let inner: React.ReactElement;
 
@@ -200,7 +204,7 @@ const getIcon = (type: string, direction: string | undefined) => {
   const icon = (
     <div
       style={{
-        backgroundColor: getPointColor(type, direction),
+        backgroundColor: colorOverride || getPointColor(type, direction),
         borderRadius: '9999px',
         width: size,
         height: size,
@@ -274,9 +278,14 @@ const createLabelIcon = (text: string, bgColor: string) => {
   });
 };
 
-const getGroupIcon = (count: number, type: string, direction: string | undefined) => {
+const getGroupIcon = (
+  count: number,
+  type: string,
+  direction: string | undefined,
+  colorOverride?: string
+) => {
   const size = 32;
-  const color = getPointColor(type, direction);
+  const color = colorOverride || getPointColor(type, direction);
   const icon = (
     <div className="relative">
       <div
@@ -649,6 +658,26 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       return pointInPolygon(L.latLng(lat, lng), zoneShape);
     });
   }, [points, zoneShape, selectedSource, visibleSources]);
+
+  const activeSourceCount = useMemo(() => {
+    const set = new Set<string>();
+    displayedPoints.forEach((p) => {
+      if (p.source) {
+        set.add(p.source);
+      }
+    });
+    return set.size;
+  }, [displayedPoints]);
+
+  const usePerNumberColors = activeSourceCount >= 2;
+
+  const resolveSourceColor = useCallback(
+    (src?: string) => {
+      if (!usePerNumberColors || !src) return undefined;
+      return colorMap.get(src);
+    },
+    [usePerNumberColors, colorMap]
+  );
 
   const handleTriangulation = () => {
     if (triangulationZones.length > 0) {
@@ -1286,21 +1315,25 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
   const groupedPoints = useMemo(() => {
-    const map = new Map<string, Point[]>();
+    const groups = new Map<
+      string,
+      { lat: number; lng: number; events: Point[] }
+    >();
     displayedPoints.forEach((p) => {
       const lat = parseFloat(p.latitude);
       const lng = parseFloat(p.longitude);
       if (isNaN(lat) || isNaN(lng)) return;
-      const key = `${lat},${lng}`;
-      const arr = map.get(key) || [];
-      arr.push(p);
-      map.set(key, arr);
+      const sourceKey = usePerNumberColors ? p.source || '__no_source__' : '__all__';
+      const key = `${lat},${lng},${sourceKey}`;
+      const group = groups.get(key);
+      if (group) {
+        group.events.push(p);
+      } else {
+        groups.set(key, { lat, lng, events: [p] });
+      }
     });
-    return Array.from(map.entries()).map(([key, events]) => {
-      const [lat, lng] = key.split(',').map(Number);
-      return { lat, lng, events };
-    });
-  }, [displayedPoints]);
+    return Array.from(groups.values());
+  }, [displayedPoints, usePerNumberColors]);
   return (
     <>
         <div className="relative w-full h-screen">
@@ -1357,7 +1390,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 position={[group.lat, group.lng]}
                 icon={getIcon(
                   loc.type,
-                  loc.direction
+                  loc.direction,
+                  resolveSourceColor(loc.source)
                 )}
               >
                 <Popup>
@@ -1439,7 +1473,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               icon={getGroupIcon(
                 group.events.length,
                 first.type,
-                first.direction
+                first.direction,
+                resolveSourceColor(first.source)
               )}
             >
               <Popup>
@@ -1588,7 +1623,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 parseFloat(loc.latitude),
                 parseFloat(loc.longitude)
               ]}
-              icon={getIcon(loc.type, loc.direction)}
+              icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
             >
               <Popup>
                 <div className="space-y-2 text-sm">
