@@ -679,18 +679,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           <div
             key={`${label}-${value}`}
             className={`flex items-center justify-between rounded-xl ${visuals.participantContainer} ${
-              compact ? 'gap-2 px-3 py-2' : 'gap-3 px-3 py-3'
+              compact ? 'gap-2 px-3 py-2' : 'gap-2.5 px-2.5 py-2.5'
             }`}
           >
             <div className="flex items-center gap-3">
               <span
-                className={`flex ${compact ? 'h-7 w-7' : 'h-9 w-9'} items-center justify-center rounded-full ${visuals.participantIconClass}`}
+                className={`flex ${compact ? 'h-7 w-7' : 'h-8 w-8'} items-center justify-center rounded-full ${visuals.participantIconClass}`}
               >
                 <IconComponent className={`h-4 w-4 ${visuals.accentText}`} />
               </span>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
-                <p className="text-sm font-semibold text-slate-700">{formatPhoneForDisplay(value)}</p>
+                <p className="text-[13px] font-semibold text-slate-700">{formatPhoneForDisplay(value)}</p>
               </div>
             </div>
             {button && <span className="shrink-0">{button}</span>}
@@ -759,7 +759,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         filteredDetails.length > 0 ? (
           <div
             className={`grid ${filteredDetails.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} ${
-              compact ? 'gap-2' : 'gap-3'
+              compact ? 'gap-2' : 'gap-2.5'
             }`}
           >
             {filteredDetails.map((item, index) => {
@@ -770,12 +770,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               return (
                 <div
                   key={`${item.label}-${index}`}
-                  className={`rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 ${
+                  className={`rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-1.5 ${
                     spanTwoColumns ? 'col-span-2' : ''
                   }`}
                 >
                   <p className="text-[10px] uppercase tracking-wide text-slate-400">{item.label}</p>
-                  <p className={`mt-1 font-semibold text-slate-700 ${compact ? 'text-xs' : 'text-sm'}`}>
+                  <p className={`mt-0.5 font-semibold text-slate-700 ${compact ? 'text-xs' : 'text-[13px]'}`}>
                     {item.value}
                   </p>
                 </div>
@@ -815,16 +815,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       }
 
       return (
-        <div className="w-fit max-w-[16rem] rounded-2xl border border-slate-200 bg-white/95 shadow-xl">
+        <div className="w-fit max-w-[14rem] rounded-2xl border border-slate-200 bg-white/95 shadow-xl">
           <div
-            className={`flex items-start gap-2.5 px-3 py-2.5 text-white ${visuals.gradient}`}
+            className={`flex items-start gap-2 px-2.5 py-2 text-white ${visuals.gradient}`}
           >
             <div
-              className={`flex ${compact ? 'h-9 w-9' : 'h-10 w-10'} items-center justify-center rounded-full bg-white/20 backdrop-blur`}
+              className={`flex ${compact ? 'h-8 w-8' : 'h-9 w-9'} items-center justify-center rounded-full bg-white/20 backdrop-blur`}
             >
               <Icon className="h-5 w-5 text-white" />
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-0.5">
               {visuals.pill && (
                 <span className="inline-flex w-fit items-center rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                   {visuals.pill}
@@ -832,18 +832,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               )}
               <p className="text-xs uppercase tracking-wide text-white/80">{visuals.label}</p>
               {showLocation && (
-                <p className="text-sm font-semibold leading-snug text-white">
+                <p className="text-[13px] font-semibold leading-snug text-white">
                   {point.nom || 'Localisation'}
                 </p>
               )}
-              <p className="text-xs text-white/80">
+              <p className="text-[11px] text-white/80">
                 {point.callDate ? formatDate(point.callDate) : ''}
                 {point.startTime ? ` • ${point.startTime}` : ''}
               </p>
             </div>
           </div>
-          <div className="space-y-2 px-3 py-2.5 text-sm text-slate-600">
-            {participants.length > 0 && <div className="space-y-1.5">{participants}</div>}
+          <div className="space-y-1.5 px-2.5 py-2 text-[13px] text-slate-600">
+            {participants.length > 0 && <div className="space-y-1">{participants}</div>}
             {detailGrid}
           </div>
         </div>
