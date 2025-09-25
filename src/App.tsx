@@ -36,6 +36,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  RefreshCw,
   Bell,
   PhoneIncoming,
   PhoneOutgoing,
@@ -939,6 +940,7 @@ const App: React.FC = () => {
   const [requestSearch, setRequestSearch] = useState('');
   const [requestPage, setRequestPage] = useState(1);
   const [requestsPerPage, setRequestsPerPage] = useState(10);
+  const [requestStatusFilter, setRequestStatusFilter] = useState<'all' | 'identified' | 'in-progress'>('all');
 
   const visibleRequests = useMemo(() => {
     let base = requests;
@@ -953,6 +955,11 @@ const App: React.FC = () => {
       const hiddenSet = new Set(hiddenRequestIds);
       base = base.filter((r) => !hiddenSet.has(r.id));
     }
+    if (requestStatusFilter === 'identified') {
+      base = base.filter((r) => r.status === 'identified');
+    } else if (requestStatusFilter === 'in-progress') {
+      base = base.filter((r) => r.status !== 'identified');
+    }
     const trimmedSearch = requestSearch.trim();
     if (!trimmedSearch) {
       return base;
@@ -963,7 +970,7 @@ const App: React.FC = () => {
         r.phone.includes(trimmedSearch) ||
         (r.user_login || '').toLowerCase().includes(lowered)
     );
-  }, [requests, isAdmin, currentUser, hiddenRequestIds, requestSearch]);
+  }, [requests, isAdmin, currentUser, hiddenRequestIds, requestSearch, requestStatusFilter]);
 
   const totalRequestPages = Math.ceil(visibleRequests.length / requestsPerPage);
   const paginatedRequests = useMemo(
@@ -974,6 +981,14 @@ const App: React.FC = () => {
       ),
     [visibleRequests, requestPage, requestsPerPage]
   );
+
+  const requestStats = useMemo(() => {
+    const total = visibleRequests.length;
+    const identified = visibleRequests.filter((r) => r.status === 'identified').length;
+    const inProgress = visibleRequests.filter((r) => r.status !== 'identified').length;
+    const identificationRate = total > 0 ? Math.round((identified / total) * 100) : 0;
+    return { total, identified, inProgress, identificationRate };
+  }, [visibleRequests]);
 
   const totalBlacklistPages = Math.max(
     1,
@@ -6498,149 +6513,370 @@ useEffect(() => {
             )}
 
           {currentPage === 'requests' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               <PageHeader icon={<ClipboardList className="h-6 w-6" />} title="Liste des demandes" />
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div className="flex w-full md:max-w-md">
-                  <input
-                    type="text"
-                    placeholder="Rechercher..."
-                    value={requestSearchInput}
-                    onChange={(e) => setRequestSearchInput(e.target.value)}
-                    className="flex-grow px-4 py-2 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    onClick={() => {
-                      setRequestSearch(requestSearchInput);
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="relative overflow-hidden rounded-2xl border border-white/60 bg-white/95 p-5 shadow-lg shadow-blue-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                  <div className="absolute -right-16 top-0 h-32 w-32 rounded-full bg-blue-200/40 blur-3xl dark:bg-blue-900/30" />
+                  <div className="relative z-10 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Total des demandes</p>
+                      <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-100">{requestStats.total}</p>
+                    </div>
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 shadow-inner shadow-blue-400/30 dark:bg-blue-500/20 dark:text-blue-200">
+                      <ClipboardList className="h-5 w-5" />
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Toutes les demandes visibles selon vos droits d'accès.</p>
+                </div>
+                <div className="relative overflow-hidden rounded-2xl border border-white/60 bg-white/95 p-5 shadow-lg shadow-emerald-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                  <div className="absolute -right-20 bottom-0 h-32 w-32 rounded-full bg-emerald-200/40 blur-3xl dark:bg-emerald-900/30" />
+                  <div className="relative z-10 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Demandes identifiées</p>
+                      <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-100">{requestStats.identified}</p>
+                    </div>
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 shadow-inner shadow-emerald-400/30 dark:bg-emerald-500/20 dark:text-emerald-200">
+                      <CheckCircle2 className="h-5 w-5" />
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Profils confirmés et demandes résolues.</p>
+                </div>
+                <div className="relative overflow-hidden rounded-2xl border border-white/60 bg-white/95 p-5 shadow-lg shadow-amber-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                  <div className="absolute -left-16 top-0 h-32 w-32 rounded-full bg-amber-200/40 blur-3xl dark:bg-amber-900/30" />
+                  <div className="relative z-10 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Demandes en cours</p>
+                      <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-100">{requestStats.inProgress}</p>
+                    </div>
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 shadow-inner shadow-amber-400/30 dark:bg-amber-500/20 dark:text-amber-200">
+                      <Clock className="h-5 w-5" />
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Demandes nécessitant une identification.</p>
+                </div>
+                <div className="relative overflow-hidden rounded-2xl border border-white/60 bg-white/95 p-5 shadow-lg shadow-indigo-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                  <div className="absolute -right-16 -top-6 h-32 w-32 rounded-full bg-indigo-200/40 blur-3xl dark:bg-indigo-900/30" />
+                  <div className="relative z-10 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Taux d'identification</p>
+                      <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-slate-100">{requestStats.identificationRate}%</p>
+                    </div>
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-600 shadow-inner shadow-indigo-400/30 dark:bg-indigo-500/20 dark:text-indigo-200">
+                      <TrendingUp className="h-5 w-5" />
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Part des demandes résolues sur l'ensemble visible.</p>
+                </div>
+              </div>
+
+              <div className="relative overflow-hidden rounded-3xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-blue-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70">
+                <div className="absolute -left-24 top-0 h-48 w-48 rounded-full bg-sky-200/40 blur-3xl dark:bg-sky-900/30" />
+                <div className="absolute -right-20 bottom-0 h-48 w-48 rounded-full bg-indigo-200/40 blur-3xl dark:bg-indigo-900/30" />
+                <div className="relative z-10 space-y-6">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Centre de suivi des demandes</h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-300">
+                        Affinez votre recherche et suivez les demandes en temps réel. {requestStats.total === 0 ? 'Aucune demande visible actuellement.' : `${requestStats.total} demande${requestStats.total > 1 ? 's' : ''} au total.`}
+                      </p>
+                    </div>
+                    {requestSearch && (
+                      <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/60 bg-blue-500/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 dark:border-blue-500/40 dark:bg-blue-500/20 dark:text-blue-200">
+                        Filtre texte actif
+                      </span>
+                    )}
+                  </div>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      setRequestSearch(requestSearchInput.trim());
                       setRequestPage(1);
                     }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-r-lg hover:bg-blue-700"
+                    className="flex flex-col gap-3 lg:flex-row lg:items-center"
                   >
-                    <Search className="h-5 w-5" />
-                  </button>
-                </div>
-                {isAdmin && hiddenRequestIds.length > 0 && (
-                  <button
-                    onClick={handleResetHiddenRequests}
-                    className="text-sm text-blue-600 hover:underline self-start"
-                  >
-                    Réafficher les demandes supprimées
-                  </button>
-                )}
-              </div>
-              {identifyingRequest && (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-xl font-semibold mb-4">Identifier {identifyingRequest.phone}</h3>
-                  <ProfileForm
-                    initialValues={identifyingInitialValues}
-                    onSaved={handleProfileSaved}
-                  />
-                  <div className="mt-4 text-right">
+                    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="flex flex-1 items-center overflow-hidden rounded-full border border-slate-200/70 bg-white/90 shadow-inner focus-within:border-blue-400/60 focus-within:ring-2 focus-within:ring-blue-500/30 dark:border-slate-700/70 dark:bg-slate-900/60">
+                        <span className="pl-4 text-slate-400 dark:text-slate-500">
+                          <Search className="h-4 w-4" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Rechercher un numéro ou un utilisateur"
+                          value={requestSearchInput}
+                          onChange={(e) => setRequestSearchInput(e.target.value)}
+                          className="flex-1 bg-transparent px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-100"
+                        />
+                        {requestSearch && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRequestSearchInput('');
+                              setRequestSearch('');
+                              setRequestPage(1);
+                            }}
+                            className="mr-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100/80 text-slate-500 transition hover:text-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:text-white"
+                            aria-label="Effacer la recherche"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="submit"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                      >
+                        <Search className="h-4 w-4" />
+                        Lancer la recherche
+                      </button>
+                    </div>
+                  </form>
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
-                      className="text-sm text-gray-600 hover:underline"
-                      onClick={() => setIdentifyingRequest(null)}
+                      type="button"
+                      onClick={() => {
+                        setRequestStatusFilter('all');
+                        setRequestPage(1);
+                      }}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                        requestStatusFilter === 'all'
+                          ? 'border-blue-400/70 bg-blue-500/10 text-blue-600 dark:border-blue-400/50 dark:bg-blue-500/20 dark:text-blue-200'
+                          : 'border-slate-200/70 bg-white/80 text-slate-600 hover:border-blue-300 hover:text-blue-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-blue-400/50 dark:hover:text-blue-200'
+                      }`}
                     >
-                      Annuler
+                      Toutes
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
+                        {requestStats.total}
+                      </span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRequestStatusFilter('in-progress');
+                        setRequestPage(1);
+                      }}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                        requestStatusFilter === 'in-progress'
+                          ? 'border-amber-400/70 bg-amber-500/10 text-amber-600 dark:border-amber-400/50 dark:bg-amber-500/20 dark:text-amber-200'
+                          : 'border-slate-200/70 bg-white/80 text-slate-600 hover:border-amber-300 hover:text-amber-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-amber-400/50 dark:hover:text-amber-200'
+                      }`}
+                    >
+                      En cours
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
+                        {requestStats.inProgress}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRequestStatusFilter('identified');
+                        setRequestPage(1);
+                      }}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                        requestStatusFilter === 'identified'
+                          ? 'border-emerald-400/70 bg-emerald-500/10 text-emerald-600 dark:border-emerald-400/50 dark:bg-emerald-500/20 dark:text-emerald-200'
+                          : 'border-slate-200/70 bg-white/80 text-slate-600 hover:border-emerald-300 hover:text-emerald-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-emerald-400/50 dark:hover:text-emerald-200'
+                      }`}
+                    >
+                      Identifiées
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
+                        {requestStats.identified}
+                      </span>
+                    </button>
+                    {isAdmin && hiddenRequestIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleResetHiddenRequests}
+                        className="inline-flex items-center gap-2 rounded-full border border-blue-200/70 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-600 transition hover:-translate-y-0.5 hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/50 dark:border-blue-500/40 dark:bg-blue-500/20 dark:text-blue-200"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Réafficher les demandes supprimées
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {identifyingRequest && (
+                <div className="relative overflow-hidden rounded-3xl border border-emerald-200/70 bg-emerald-50/70 p-6 shadow-lg shadow-emerald-200/50 dark:border-emerald-500/30 dark:bg-emerald-950/40">
+                  <div className="absolute -right-20 top-0 h-48 w-48 rounded-full bg-emerald-200/50 blur-3xl dark:bg-emerald-900/30" />
+                  <div className="absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-teal-200/50 blur-3xl dark:bg-teal-900/30" />
+                  <div className="relative z-10 space-y-6">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <h3 className="text-xl font-semibold text-emerald-700 dark:text-emerald-200">Identification en cours</h3>
+                        <p className="text-sm text-emerald-700/80 dark:text-emerald-200/80">
+                          Complétez le profil associé pour finaliser l'identification de ce numéro.
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 bg-white/80 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm dark:border-emerald-500/40 dark:bg-slate-900/70 dark:text-emerald-200">
+                        <Phone className="h-4 w-4" />
+                        {identifyingRequest.phone}
+                      </span>
+                    </div>
+                    <div className="rounded-2xl border border-white/60 bg-white/95 p-4 shadow-inner dark:border-emerald-500/20 dark:bg-slate-950/60">
+                      <ProfileForm initialValues={identifyingInitialValues} onSaved={handleProfileSaved} />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 bg-white/80 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:border-emerald-500 hover:text-emerald-800 dark:border-emerald-500/40 dark:bg-slate-900/60 dark:text-emerald-200 dark:hover:border-emerald-400 dark:hover:text-emerald-100"
+                        onClick={() => setIdentifyingRequest(null)}
+                      >
+                        <X className="h-4 w-4" />
+                        Annuler
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
+
               {requestsLoading ? (
                 <LoadingSpinner />
               ) : (
                 <>
-                  <div className="grid gap-4">
+                  <div className="grid gap-5">
                     {paginatedRequests.length === 0 && (
-                      <div className="text-center text-gray-500 py-10 border border-dashed border-gray-300 rounded-xl">
-                        Aucune demande à afficher.
+                      <div className="flex flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-slate-300/70 bg-white/70 px-6 py-12 text-center text-slate-500 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                          <ClipboardList className="h-6 w-6" />
+                        </span>
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-slate-600 dark:text-slate-200">Aucune demande à afficher</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-400">Modifiez vos filtres ou revenez plus tard.</p>
+                        </div>
                       </div>
                     )}
-                    {paginatedRequests.map(r => {
+                    {paginatedRequests.map((r) => {
                       const isHighlighted = highlightedRequestId === r.id;
+                      const createdAt = r.created_at ? parseISO(r.created_at) : null;
+                      const updatedAt = r.updated_at ? parseISO(r.updated_at) : null;
+                      const createdLabel = createdAt ? format(createdAt, 'Pp', { locale: fr }) : null;
+                      const createdAgo = createdAt ? formatDistanceToNow(createdAt, { addSuffix: true, locale: fr }) : null;
+                      const updatedLabel = updatedAt ? format(updatedAt, 'Pp', { locale: fr }) : null;
+                      const updatedAgo = updatedAt ? formatDistanceToNow(updatedAt, { addSuffix: true, locale: fr }) : null;
+                      const statusLabel = r.status === 'identified' ? 'Identifiée' : 'En cours';
+                      const statusClasses =
+                        r.status === 'identified'
+                          ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-600 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200'
+                          : 'border-amber-400/60 bg-amber-500/10 text-amber-600 dark:border-amber-400/40 dark:bg-amber-500/20 dark:text-amber-200';
+                      const baseProfileFields = r.profile
+                        ? [
+                            { label: 'Prénom', value: r.profile.first_name },
+                            { label: 'Nom', value: r.profile.last_name },
+                            { label: 'Téléphone', value: r.profile.phone },
+                            { label: 'Email', value: r.profile.email }
+                          ].filter((field) => field.value)
+                        : [];
+                      const extraCategories = r.profile && Array.isArray(r.profile.extra_fields)
+                        ? r.profile.extra_fields
+                        : [];
                       return (
                         <div
                           id={`request-${r.id}`}
                           key={r.id}
-                          className={`bg-white rounded-2xl border border-gray-100 shadow-md p-6 flex flex-col md:flex-row md:items-center md:justify-between transition-all duration-200 ${
-                            isHighlighted
-                              ? 'ring-2 ring-blue-500/70 shadow-xl bg-blue-50/60 dark:bg-blue-950/30 dark:ring-blue-400/40'
-                              : 'hover:shadow-lg hover:-translate-y-0.5'
+                          className={`group relative overflow-hidden rounded-3xl border border-white/70 bg-white/95 p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl dark:border-slate-700/60 dark:bg-slate-900/70 ${
+                            isHighlighted ? 'ring-2 ring-blue-500/70 shadow-blue-200/50 dark:ring-blue-400/40' : ''
                           }`}
                         >
-                        <div className="space-y-1">
-                          <div className="text-lg font-semibold">{r.phone}</div>
-                          {isAdmin && <div className="text-sm text-gray-500">{r.user_login}</div>}
-                          <div className="text-sm flex items-center">
-                            <span className="mr-1">Statut:</span>
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                r.status === 'identified'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}
-                            >
-                              {r.status === 'identified' ? 'identifié' : 'en cours'}
-                            </span>
-                          </div>
-                          {r.status === 'identified' && r.profile && (
-                            <div className="mt-2 text-sm text-gray-700 space-y-1">
-                              {r.profile.first_name && (
-                                <div>
-                                  <span className="font-medium">Prénom:</span> {r.profile.first_name}
+                          <div className="absolute -right-24 top-0 h-48 w-48 rounded-full bg-blue-200/40 blur-3xl dark:bg-blue-900/30" />
+                          <div className="absolute -left-20 bottom-0 h-48 w-48 rounded-full bg-indigo-200/40 blur-3xl dark:bg-indigo-900/30" />
+                          <div className="relative z-10 space-y-6">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                              <div className="flex items-start gap-4">
+                                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 shadow-inner shadow-blue-400/30 dark:bg-blue-500/20 dark:text-blue-200">
+                                  <PhoneIncoming className="h-6 w-6" />
+                                </span>
+                                <div className="space-y-2">
+                                  <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">{r.phone}</p>
+                                  {isAdmin && (
+                                    <p className="text-sm text-slate-500 dark:text-slate-300">Ajoutée par {r.user_login}</p>
+                                  )}
+                                  <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] ${statusClasses}`}>
+                                    {r.status === 'identified' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                                    {statusLabel}
+                                  </span>
                                 </div>
-                              )}
-                              {r.profile.last_name && (
-                                <div>
-                                  <span className="font-medium">Nom:</span> {r.profile.last_name}
-                                </div>
-                              )}
-                              {r.profile.phone && (
-                                <div>
-                                  <span className="font-medium">Téléphone:</span> {r.profile.phone}
-                                </div>
-                              )}
-                              {r.profile.email && (
-                                <div>
-                                  <span className="font-medium">Email:</span> {r.profile.email}
-                                </div>
-                              )}
-                              {r.profile.extra_fields &&
-                                r.profile.extra_fields.map((cat: any, idx: number) => (
-                                  <div key={idx} className="mt-2">
-                                    <div className="font-medium">{cat.title}</div>
-                                    {cat.fields.map((f: any, fi: number) => (
-                                      <div key={fi} className="flex text-xs">
-                                        <span className="w-32 text-gray-500">{f.key}:</span>
-                                        <span>{f.value}</span>
+                              </div>
+                              <div className="flex flex-col items-start gap-2 text-sm text-slate-500 dark:text-slate-300 lg:items-end">
+                                {createdAgo && (
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="h-4 w-4 text-blue-500/70 dark:text-blue-300/80" />
+                                    <span>Créée {createdAgo}</span>
+                                  </div>
+                                )}
+                                {createdLabel && (
+                                  <span className="rounded-full bg-slate-100/70 px-3 py-1 text-xs font-medium text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">{createdLabel}</span>
+                                )}
+                                {updatedAgo && updatedLabel && updatedLabel !== createdLabel && (
+                                  <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                                    Mise à jour {updatedAgo}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {r.status === 'identified' && r.profile && (
+                              <div className="rounded-2xl border border-white/60 bg-white/90 p-4 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
+                                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Profil associé</p>
+                                {baseProfileFields.length > 0 && (
+                                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                    {baseProfileFields.map((field) => (
+                                      <div key={field.label} className="rounded-xl border border-slate-200/60 bg-white/95 p-3 text-sm shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                                        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">{field.label}</p>
+                                        <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">{field.value as string}</p>
                                       </div>
                                     ))}
                                   </div>
-                                ))}
+                                )}
+                                {extraCategories.length > 0 && (
+                                  <div className="mt-4 space-y-3">
+                                    {extraCategories.map((category: any, categoryIndex: number) => (
+                                      <div key={`${category.title}-${categoryIndex}`} className="rounded-xl border border-slate-200/60 bg-slate-50/60 p-4 dark:border-slate-700/60 dark:bg-slate-900/50">
+                                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">{category.title}</p>
+                                        <div className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+                                          {Array.isArray(category.fields) &&
+                                            category.fields.map((field: any, fieldIndex: number) => (
+                                              <div key={fieldIndex} className="flex flex-wrap items-baseline gap-2">
+                                                <span className="min-w-[6rem] text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500">
+                                                  {field.key}
+                                                </span>
+                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{field.value}</span>
+                                              </div>
+                                            ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="flex flex-wrap items-center gap-3">
+                              {isAdmin && r.status !== 'identified' && (
+                                <button
+                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                                  onClick={() => startIdentify(r)}
+                                >
+                                  <UserCheck className="h-4 w-4" />
+                                  Identifier
+                                </button>
+                              )}
+                              <button
+                                className="inline-flex items-center gap-2 rounded-full border border-rose-300/60 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:bg-rose-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-rose-500/40 dark:bg-rose-500/20 dark:text-rose-200"
+                                onClick={() => deleteRequest(r.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Supprimer
+                              </button>
                             </div>
-                          )}
+                          </div>
                         </div>
-                        <div className="mt-4 md:mt-0 flex space-x-2">
-                          {isAdmin && r.status !== 'identified' && (
-                            <button
-                              className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                              onClick={() => startIdentify(r)}
-                            >
-                              Identifier
-                            </button>
-                          )}
-                          <button
-                            className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                            onClick={() => deleteRequest(r.id)}
-                          >
-                            Supprimer
-                          </button>
-                        </div>
-                      </div>
-                    );
+                      );
                     })}
                   </div>
                   {visibleRequests.length > 0 && (
-                    <div className="mt-6 rounded-2xl border border-white/60 bg-white/85 p-4 shadow-inner shadow-slate-200/50 dark:border-slate-700/60 dark:bg-slate-900/70">
+                    <div className="mt-6 rounded-3xl border border-white/70 bg-white/85 p-4 shadow-inner shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-900/70">
                       <PaginationControls
                         currentPage={requestPage}
                         totalPages={totalRequestPages}
