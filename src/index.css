@@ -163,6 +163,22 @@
   color: #111827 !important;
 }
 
+.cdr-popup .leaflet-popup-content-wrapper {
+  border-radius: 1.25rem !important;
+  padding: 0.5rem !important;
+  box-shadow: 0 25px 50px -25px rgba(15, 23, 42, 0.45) !important;
+}
+
+.cdr-popup .leaflet-popup-content {
+  margin: 0 !important;
+  width: auto !important;
+  line-height: 1.5;
+}
+
+.cdr-popup .leaflet-popup-tip {
+  border-radius: 0.5rem;
+}
+
 /* Offset layer control from close button */
 .leaflet-top.leaflet-right {
   margin-top: 0;

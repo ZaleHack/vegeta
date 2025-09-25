@@ -30,6 +30,7 @@ import {
   Plus,
   Minus
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -88,6 +89,17 @@ interface MeetingPoint {
   end: string;
   total: string;
 }
+
+type EventVisuals = {
+  label: string;
+  gradient: string;
+  icon: LucideIcon;
+  accentText: string;
+  badgeClass: string;
+  participantContainer: string;
+  participantIconClass: string;
+  pill?: string;
+};
 
 interface Props {
   points: Point[];
@@ -152,6 +164,32 @@ const getPointDurationInSeconds = (point: Point): number => {
   }
 
   return diff > 0 ? diff : 0;
+};
+
+const formatPointDuration = (point: Point): string | null => {
+  if (point.type === 'sms') return null;
+
+  const raw = point.duration?.trim();
+  if (!raw) {
+    const seconds = getPointDurationInSeconds(point);
+    return seconds > 0 ? formatDuration(seconds) : null;
+  }
+
+  if (raw.toLowerCase() === 'n/a') {
+    return 'N/A';
+  }
+
+  const seconds = parseDurationToSeconds(raw);
+  if (seconds > 0) {
+    return formatDuration(seconds);
+  }
+
+  const fallback = getPointDurationInSeconds(point);
+  if (fallback > 0) {
+    return formatDuration(fallback);
+  }
+
+  return raw || null;
 };
 
 const formatDuration = (seconds: number): string => {
@@ -323,6 +361,18 @@ const formatDate = (d: string) => {
   return `${day}/${month}/${year}`;
 };
 
+const formatDateTime = (timestamp: number) => {
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} à ${hours}h${minutes}`;
+};
+
 const getLocationRadius = (nom: string) => {
   const name = nom.toLowerCase();
   if (name.includes('urbain')) return 200;
@@ -448,33 +498,57 @@ const MeetingPointMarker: React.FC<{
         iconAnchor: [16, 16]
       })}
     >
-      <Popup>
-        <div className="space-y-2 text-sm">
-          <p className="font-semibold">{mp.nom || 'Point de rencontre'}</p>
-          <table className="min-w-full text-xs border border-gray-200 rounded">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-2 py-1 text-left">Numéro</th>
-                <th className="px-2 py-1 text-left">Heures & durées</th>
-                <th className="px-2 py-1 text-left">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mp.perNumber.map((d, idx) => (
-                <tr key={idx} className="border-t">
-                  <td className="px-2 py-1 font-medium">{formatPhoneForDisplay(d.number)}</td>
-                  <td className="px-2 py-1">
-                    <div className="max-h-24 overflow-y-auto space-y-1">
-                      {d.events.map((ev, i) => (
-                        <div key={i}>{ev.date} {ev.start} - {ev.end} ({ev.duration})</div>
-                      ))}
+      <Popup className="cdr-popup">
+        <div className="w-[320px] rounded-2xl border border-rose-200 bg-white/95 shadow-xl">
+          <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-orange-500 px-4 py-4 text-white">
+            <p className="text-xs uppercase tracking-wide text-white/80">Point de rencontre</p>
+            <p className="text-lg font-semibold">{mp.nom || 'Point de rencontre'}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-white/80">
+              {mp.date && <span>{mp.date}</span>}
+              {mp.start && mp.end && (
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {mp.start} – {mp.end}
+                </span>
+              )}
+              {mp.total && (
+                <span className="inline-flex items-center rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                  Total {mp.total}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="max-h-64 space-y-3 overflow-y-auto px-4 py-4 text-sm text-rose-600">
+            {mp.perNumber.map((d, idx) => (
+              <div key={idx} className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-rose-500">Numéro</p>
+                    <p className="text-sm font-semibold text-rose-600">
+                      {formatPhoneForDisplay(d.number)}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-rose-500 shadow-sm">
+                    {d.total}
+                  </span>
+                </div>
+                <div className="mt-2 space-y-1.5 text-xs text-rose-600">
+                  {d.events.map((ev, i) => (
+                    <div
+                      key={i}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/80 px-3 py-1.5"
+                    >
+                      <span className="font-semibold text-rose-600">{ev.date}</span>
+                      <span className="text-rose-500">
+                        {ev.start} – {ev.end}
+                      </span>
+                      <span className="text-[11px] font-semibold text-rose-400">{ev.duration}</span>
                     </div>
-                  </td>
-                  <td className="px-2 py-1 font-semibold">{d.total}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </Popup>
     </Marker>
@@ -532,13 +606,250 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             event.stopPropagation();
             handleIdentifyNumber(normalized);
           }}
-          className="ml-2 inline-flex items-center rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition-all hover:from-blue-600 hover:via-indigo-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+          className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition-all hover:from-blue-600 hover:via-indigo-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
         >
           Identifier
         </button>
       );
     },
     [handleIdentifyNumber]
+  );
+
+  const getEventVisuals = useCallback(
+    (point: Point): EventVisuals => {
+      if (point.type === 'web') {
+        return {
+          label: 'Position web',
+          gradient: 'bg-gradient-to-r from-rose-500 via-orange-500 to-amber-500',
+          icon: MapPin,
+          accentText: 'text-rose-600',
+          badgeClass: 'bg-rose-100 text-rose-700',
+          participantContainer: 'border border-rose-100 bg-rose-50',
+          participantIconClass: 'bg-rose-500/15 text-rose-600'
+        };
+      }
+      if (point.type === 'sms') {
+        return {
+          label: 'SMS',
+          gradient: 'bg-gradient-to-r from-emerald-500 via-green-500 to-lime-500',
+          icon: MessageSquare,
+          accentText: 'text-emerald-600',
+          badgeClass: 'bg-emerald-100 text-emerald-700',
+          participantContainer: 'border border-emerald-100 bg-emerald-50',
+          participantIconClass: 'bg-emerald-500/15 text-emerald-600'
+        };
+      }
+      if (point.direction === 'outgoing') {
+        return {
+          label: 'Appel',
+          pill: 'Sortant',
+          gradient: 'bg-gradient-to-r from-sky-500 via-indigo-500 to-blue-600',
+          icon: PhoneOutgoing,
+          accentText: 'text-blue-600',
+          badgeClass: 'bg-blue-100 text-blue-700',
+          participantContainer: 'border border-blue-100 bg-blue-50',
+          participantIconClass: 'bg-blue-500/15 text-blue-600'
+        };
+      }
+      return {
+        label: 'Appel',
+        pill: 'Entrant',
+        gradient: 'bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-600',
+        icon: PhoneIncoming,
+        accentText: 'text-indigo-600',
+        badgeClass: 'bg-indigo-100 text-indigo-700',
+        participantContainer: 'border border-indigo-100 bg-indigo-50',
+        participantIconClass: 'bg-indigo-500/15 text-indigo-600'
+      };
+    },
+    []
+  );
+
+  const renderEventPopupContent = useCallback(
+    (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
+      const { compact = false, showLocation = true } = options;
+      const visuals = getEventVisuals(point);
+      const Icon = visuals.icon;
+
+      const participants: JSX.Element[] = [];
+      const addParticipant = (label: string, value: string | undefined, IconComponent: LucideIcon) => {
+        if (!value) return;
+        const button = renderIdentifyButton(value);
+        participants.push(
+          <div
+            key={`${label}-${value}`}
+            className={`flex items-center justify-between rounded-xl ${visuals.participantContainer} ${
+              compact ? 'gap-2 px-3 py-2' : 'gap-3 px-3 py-3'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span
+                className={`flex ${compact ? 'h-7 w-7' : 'h-9 w-9'} items-center justify-center rounded-full ${visuals.participantIconClass}`}
+              >
+                <IconComponent className={`h-4 w-4 ${visuals.accentText}`} />
+              </span>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
+                <p className="text-sm font-semibold text-slate-700">{formatPhoneForDisplay(value)}</p>
+              </div>
+            </div>
+            {button && <span className="shrink-0">{button}</span>}
+          </div>
+        );
+      };
+
+      if (point.type === 'sms') {
+        addParticipant('Expéditeur', point.caller, MessageSquare);
+        addParticipant('Destinataire', point.callee, MessageSquare);
+      } else if (point.type !== 'web') {
+        addParticipant('Appelant', point.caller, PhoneOutgoing);
+        addParticipant('Appelé', point.callee, PhoneIncoming);
+      }
+
+      const details: { label: string; value?: React.ReactNode }[] = [];
+      const formattedDuration = formatPointDuration(point) ?? point.duration ?? undefined;
+
+      if (point.type === 'web') {
+        if (point.callDate) {
+          details.push({ label: 'Date', value: formatDate(point.callDate) });
+        }
+        if (point.endDate && point.endDate !== point.callDate) {
+          details.push({ label: 'Date fin', value: formatDate(point.endDate) });
+        }
+        if (point.startTime) {
+          details.push({ label: 'Début', value: point.startTime });
+        }
+        if (point.endTime) {
+          details.push({ label: 'Fin', value: point.endTime });
+        }
+        if (formattedDuration) {
+          details.push({ label: 'Durée', value: formattedDuration });
+        }
+      } else if (point.type === 'sms') {
+        if (point.callDate) {
+          details.push({ label: 'Date', value: formatDate(point.callDate) });
+        }
+        if (point.startTime) {
+          details.push({ label: 'Heure', value: point.startTime });
+        }
+      } else {
+        if (point.callDate) {
+          details.push({ label: 'Date', value: formatDate(point.callDate) });
+        }
+        if (point.startTime) {
+          details.push({ label: 'Début', value: point.startTime });
+        }
+        if (point.endTime) {
+          details.push({ label: 'Fin', value: point.endTime });
+        }
+        if (formattedDuration) {
+          details.push({ label: 'Durée', value: formattedDuration });
+        }
+      }
+
+      if (point.source) {
+        details.push({ label: 'Numéro suivi', value: formatPhoneForDisplay(point.source) });
+      }
+
+      const filteredDetails = details.filter(
+        (item) => item.value !== undefined && item.value !== null && item.value !== ''
+      );
+
+      const detailGrid =
+        filteredDetails.length > 0 ? (
+          <div
+            className={`grid ${filteredDetails.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} ${
+              compact ? 'gap-2' : 'gap-3'
+            }`}
+          >
+            {filteredDetails.map((item, index) => {
+              const spanTwoColumns =
+                filteredDetails.length % 2 === 1 &&
+                index === filteredDetails.length - 1 &&
+                filteredDetails.length !== 1;
+              return (
+                <div
+                  key={`${item.label}-${index}`}
+                  className={`rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 ${
+                    spanTwoColumns ? 'col-span-2' : ''
+                  }`}
+                >
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">{item.label}</p>
+                  <p className={`mt-1 font-semibold text-slate-700 ${compact ? 'text-xs' : 'text-sm'}`}>
+                    {item.value}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        ) : null;
+
+      if (compact) {
+        return (
+          <div className="rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-sm text-sm text-slate-600">
+            <div className="flex items-center gap-3">
+              <span
+                className={`flex ${compact ? 'h-9 w-9' : 'h-10 w-10'} items-center justify-center rounded-full ${visuals.participantIconClass}`}
+              >
+                <Icon className={`h-4 w-4 ${visuals.accentText}`} />
+              </span>
+              <div className="flex flex-col">
+                <span className={`text-xs font-semibold ${visuals.accentText}`}>{visuals.label}</span>
+                <span className="text-xs text-slate-500">
+                  {point.callDate ? formatDate(point.callDate) : ''}
+                  {point.startTime ? ` • ${point.startTime}` : ''}
+                </span>
+              </div>
+              {visuals.pill && (
+                <span
+                  className={`ml-auto inline-flex items-center rounded-full ${visuals.badgeClass} px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide`}
+                >
+                  {visuals.pill}
+                </span>
+              )}
+            </div>
+            {participants.length > 0 && <div className="mt-3 space-y-2">{participants}</div>}
+            {detailGrid && <div className="mt-3">{detailGrid}</div>}
+          </div>
+        );
+      }
+
+      return (
+        <div className="w-[280px] rounded-2xl border border-slate-200 bg-white/95 shadow-xl">
+          <div
+            className={`flex items-start gap-3 px-4 py-4 text-white ${visuals.gradient}`}
+          >
+            <div
+              className={`flex ${compact ? 'h-9 w-9' : 'h-10 w-10'} items-center justify-center rounded-full bg-white/20 backdrop-blur`}
+            >
+              <Icon className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex flex-col gap-1">
+              {visuals.pill && (
+                <span className="inline-flex w-fit items-center rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  {visuals.pill}
+                </span>
+              )}
+              <p className="text-xs uppercase tracking-wide text-white/80">{visuals.label}</p>
+              {showLocation && (
+                <p className="text-sm font-semibold leading-snug text-white">
+                  {point.nom || 'Localisation'}
+                </p>
+              )}
+              <p className="text-xs text-white/80">
+                {point.callDate ? formatDate(point.callDate) : ''}
+                {point.startTime ? ` • ${point.startTime}` : ''}
+              </p>
+            </div>
+          </div>
+          <div className="space-y-3 px-4 py-4 text-sm text-slate-600">
+            {participants.length > 0 && <div className="space-y-2">{participants}</div>}
+            {detailGrid}
+          </div>
+        </div>
+      );
+    },
+    [getEventVisuals, renderIdentifyButton]
   );
 
   const closeInfoPanels = useCallback(() => {
@@ -678,6 +989,92 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     },
     [usePerNumberColors, colorMap]
   );
+
+  const renderLocationStatPopup = useCallback(
+    (loc: LocationMarker) => {
+      const showSource = selectedSource === null && sourceNumbers.length > 1 && loc.source;
+      const accent = showSource && loc.source ? colorMap.get(loc.source) || '#f97316' : '#f97316';
+      const modeLabel =
+        activeInfo === 'popular'
+          ? 'Fréquentation'
+          : activeInfo === 'recent'
+          ? 'Activité récente'
+          : 'Synthèse';
+
+      return (
+        <div className="w-[260px] rounded-2xl border border-amber-200 bg-white/95 shadow-xl">
+          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 px-4 py-4 text-white">
+            <p className="text-xs uppercase tracking-wide text-white/80">Point d'intérêt</p>
+            <p className="text-sm font-semibold">{loc.nom || `${loc.latitude},${loc.longitude}`}</p>
+            <p className="text-xs text-white/80">
+              {loc.latitude}, {loc.longitude}
+            </p>
+          </div>
+          <div className="space-y-3 px-4 py-4 text-sm text-slate-700">
+            <div className="flex items-center justify-between">
+              <span className="text-xs uppercase tracking-wide text-slate-400">Occurrences</span>
+              <span className="text-2xl font-semibold text-slate-900">{loc.count}</span>
+            </div>
+            {loc.lastDate && (
+              <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-amber-500">Dernière visite</p>
+                <p className="text-sm font-semibold text-amber-700">
+                  {formatDate(loc.lastDate)}
+                  {loc.lastTime ? ` • ${loc.lastTime}` : ''}
+                </p>
+              </div>
+            )}
+            {showSource && (
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">Numéro</p>
+                  <p className="text-sm font-semibold text-slate-700">
+                    {formatPhoneForDisplay(loc.source!)}
+                  </p>
+                </div>
+                <span
+                  className="inline-flex h-3 w-3 rounded-full"
+                  style={{ backgroundColor: accent }}
+                />
+              </div>
+            )}
+            <div className="text-xs text-slate-500">Vue actuelle : {modeLabel}</div>
+          </div>
+        </div>
+      );
+    },
+    [selectedSource, sourceNumbers, colorMap, activeInfo]
+  );
+
+  const renderTriangulationPopup = useCallback((zone: TriangulationZone) => {
+    const observed = formatDateTime(zone.timestamp);
+    return (
+      <div className="w-[240px] rounded-2xl border border-purple-200 bg-white/95 shadow-xl">
+        <div className="bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 px-4 py-4 text-white">
+          <p className="text-xs uppercase tracking-wide text-white/80">Triangulation</p>
+          <p className="text-sm font-semibold">Localisation approximative</p>
+        </div>
+        <div className="space-y-3 px-4 py-4 text-sm text-slate-700">
+          <div className="rounded-xl border border-purple-100 bg-purple-50 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-purple-500">Numéro suivi</p>
+            <p className="text-sm font-semibold text-purple-600">
+              {formatPhoneForDisplay(zone.source)}
+            </p>
+          </div>
+          {observed && (
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>Dernière activité</span>
+              <span className="font-semibold text-slate-700">{observed}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span className="inline-flex h-2 w-2 rounded-full bg-purple-400" />
+            Basé sur {zone.cells.length} cellule{zone.cells.length > 1 ? 's' : ''} active{zone.cells.length > 1 ? 's' : ''}
+          </div>
+        </div>
+      </div>
+    );
+  }, []);
 
   const handleTriangulation = () => {
     if (triangulationZones.length > 0) {
@@ -1394,73 +1791,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   resolveSourceColor(loc.source)
                 )}
               >
-                <Popup>
-                  <div className="space-y-2 text-sm">
-                    <p className="font-semibold text-blue-600">{loc.nom || 'Localisation'}</p>
-                    {loc.type === 'sms' ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="flex items-center space-x-2">
-                          <span>{formatPhoneForDisplay(loc.caller)}</span>
-                          {renderIdentifyButton(loc.caller)}
-                        </div>
-                        <MessageSquare size={16} className="text-gray-700" />
-                        <div className="flex items-center space-x-2">
-                          <span>{formatPhoneForDisplay(loc.callee)}</span>
-                          {renderIdentifyButton(loc.callee)}
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center space-x-2">
-                          <PhoneOutgoing size={16} className="text-gray-700" />
-                          <span>Appelant: {formatPhoneForDisplay(loc.caller)}</span>
-                          {renderIdentifyButton(loc.caller)}
-                        </div>
-                        {loc.type !== 'web' && (
-                          <div className="flex items-center space-x-2">
-                            <PhoneIncoming size={16} className="text-gray-700" />
-                            <span>Appelé: {formatPhoneForDisplay(loc.callee)}</span>
-                            {renderIdentifyButton(loc.callee)}
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {loc.type === 'web' ? (
-                      <>
-                        <p>Type: Position</p>
-                        {loc.callDate === loc.endDate ? (
-                          <p>Date: {formatDate(loc.callDate)}</p>
-                        ) : (
-                          <>
-                            <p>Date début: {formatDate(loc.callDate)}</p>
-                            <p>Date fin: {loc.endDate && formatDate(loc.endDate)}</p>
-                          </>
-                        )}
-                        <p>Début: {loc.startTime}</p>
-                        <p>Fin: {loc.endTime}</p>
-                        <p>Durée: {loc.duration || 'N/A'}</p>
-                      </>
-                    ) : loc.type === 'sms' ? (
-                      <>
-                        <p>Type: SMS</p>
-                        <p>Date: {formatDate(loc.callDate)}</p>
-                        <p>Heure: {loc.startTime}</p>
-                      </>
-                    ) : (
-                      <>
-                        <p>
-                          Type:{' '}
-                          {loc.direction === 'outgoing'
-                            ? 'Appel Sortant'
-                            : 'Appel Entrant'}
-                        </p>
-                        <p>Date: {formatDate(loc.callDate)}</p>
-                        <p>Début: {loc.startTime}</p>
-                        <p>Fin: {loc.endTime}</p>
-                        <p>Durée: {loc.duration || 'N/A'}</p>
-                      </>
-                    )}
-                  </div>
+                <Popup className="cdr-popup">
+                  {renderEventPopupContent(loc)}
                 </Popup>
               </Marker>
             );
@@ -1477,77 +1809,51 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 resolveSourceColor(first.source)
               )}
             >
-              <Popup>
-                <div className="space-y-2 text-sm max-h-60 overflow-y-auto pr-1 bg-white dark:!bg-white text-gray-900 dark:!text-gray-900">
-                  <p className="font-semibold text-blue-600 text-center">{first.nom || 'Localisation'}</p>
-                  {group.events.map((loc, i) => (
-                    <div key={i} className="mt-2 p-2 bg-white dark:!bg-white rounded-lg shadow text-gray-900 dark:!text-gray-900">
-                      <p className="font-semibold">{loc.source || 'N/A'}</p>
-                      {loc.type === 'sms' ? (
-                        <div className="flex items-center space-x-2">
-                          <div className="flex items-center space-x-2">
-                            <span>{formatPhoneForDisplay(loc.caller)}</span>
-                            {renderIdentifyButton(loc.caller)}
-                          </div>
-                          <MessageSquare size={16} className="text-gray-700 dark:!text-gray-700" />
-                          <div className="flex items-center space-x-2">
-                            <span>{formatPhoneForDisplay(loc.callee)}</span>
-                            {renderIdentifyButton(loc.callee)}
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center space-x-2">
-                            <PhoneOutgoing size={16} className="text-gray-700 dark:!text-gray-700" />
-                            <span>Appelant: {formatPhoneForDisplay(loc.caller)}</span>
-                            {renderIdentifyButton(loc.caller)}
-                          </div>
-                          {loc.type !== 'web' && (
-                            <div className="flex items-center space-x-2">
-                              <PhoneIncoming size={16} className="text-gray-700 dark:!text-gray-700" />
-                              <span>Appelé: {formatPhoneForDisplay(loc.callee)}</span>
-                              {renderIdentifyButton(loc.callee)}
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {loc.type === 'web' ? (
-                        <>
-                          <p>Type: Position</p>
-                          {loc.callDate === loc.endDate ? (
-                            <p>Date: {formatDate(loc.callDate)}</p>
-                          ) : (
-                            <>
-                              <p>Date début: {formatDate(loc.callDate)}</p>
-                              <p>Date fin: {loc.endDate && formatDate(loc.endDate!)}</p>
-                            </>
-                          )}
-                          <p>Début: {loc.startTime}</p>
-                          <p>Fin: {loc.endTime}</p>
-                          <p>Durée: {loc.duration || 'N/A'}</p>
-                        </>
-                      ) : loc.type === 'sms' ? (
-                        <>
-                          <p>Type: SMS</p>
-                          <p>Date: {formatDate(loc.callDate)}</p>
-                          <p>Heure: {loc.startTime}</p>
-                        </>
-                      ) : (
-                        <>
-                          <p>
-                            Type:{' '}
-                            {loc.direction === 'outgoing'
-                              ? 'Appel Sortant'
-                              : 'Appel Entrant'}
-                          </p>
-                          <p>Date: {formatDate(loc.callDate)}</p>
-                          <p>Début: {loc.startTime}</p>
-                          <p>Fin: {loc.endTime}</p>
-                          <p>Durée: {loc.duration || 'N/A'}</p>
-                        </>
-                      )}
+              <Popup className="cdr-popup">
+                <div className="w-[320px] space-y-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
+                        <MapPin className="h-5 w-5 text-slate-500" />
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-xs uppercase tracking-wide text-slate-400">Localisation</p>
+                        <p className="text-sm font-semibold text-slate-800">
+                          {first.nom || 'Localisation'}
+                        </p>
+                      </div>
                     </div>
-                  ))}
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
+                        {group.events.length} évènement{group.events.length > 1 ? 's' : ''}
+                      </span>
+                      {Array.from(
+                        new Set(
+                          group.events
+                            .map((ev) => ev.source)
+                            .filter((src): src is string => Boolean(src))
+                        )
+                      ).map((src) => (
+                        <span
+                          key={src}
+                          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600"
+                        >
+                          <span
+                            className="inline-flex h-2 w-2 rounded-full"
+                            style={{ backgroundColor: resolveSourceColor(src) || '#6366f1' }}
+                          />
+                          {formatPhoneForDisplay(src)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {group.events.map((loc, i) => (
+                      <div key={i}>
+                        {renderEventPopupContent(loc, { compact: true, showLocation: false })}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </Popup>
             </Marker>
@@ -1625,79 +1931,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               ]}
               icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
             >
-              <Popup>
-                <div className="space-y-2 text-sm">
-                  <p className="font-semibold text-blue-600">
-                    {loc.nom || 'Localisation'}
-                  </p>
-                  {loc.type === 'sms' ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="flex items-center space-x-2">
-                        <span>{formatPhoneForDisplay(loc.caller)}</span>
-                        {renderIdentifyButton(loc.caller)}
-                      </div>
-                      <MessageSquare size={16} className="text-gray-700" />
-                      <div className="flex items-center space-x-2">
-                        <span>{formatPhoneForDisplay(loc.callee)}</span>
-                        {renderIdentifyButton(loc.callee)}
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center space-x-2">
-                        <PhoneOutgoing size={16} className="text-gray-700" />
-                        <span>Appelant: {formatPhoneForDisplay(loc.caller)}</span>
-                        {renderIdentifyButton(loc.caller)}
-                      </div>
-                      {loc.type !== 'web' && (
-                        <div className="flex items-center space-x-2">
-                          <PhoneIncoming size={16} className="text-gray-700" />
-                          <span>Appelé: {formatPhoneForDisplay(loc.callee)}</span>
-                          {renderIdentifyButton(loc.callee)}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {loc.type === 'web' ? (
-                      <>
-                        <p>Type: Position</p>
-                        {loc.callDate === loc.endDate ? (
-                          <p>Date: {formatDate(loc.callDate)}</p>
-                        ) : (
-                          <>
-                            <p>Date début: {formatDate(loc.callDate)}</p>
-                            <p>
-                              Date fin: {loc.endDate && formatDate(loc.endDate)}
-                            </p>
-                          </>
-                        )}
-                        <p>Début: {loc.startTime}</p>
-                        <p>Fin: {loc.endTime}</p>
-                        <p>Durée: {loc.duration || 'N/A'}</p>
-                      </>
-                    ) : loc.type === 'sms' ? (
-                      <>
-                        <p>Type: SMS</p>
-                        <p>Date: {formatDate(loc.callDate)}</p>
-                        <p>Heure: {loc.startTime}</p>
-                      </>
-                    ) : (
-                      <>
-                        <p>
-                          Type:{' '}
-                          {loc.direction === 'outgoing'
-                            ? 'Appel Sortant'
-                            : 'Appel Entrant'}
-                        </p>
-                        <p>Date: {formatDate(loc.callDate)}</p>
-                        <p>Début: {loc.startTime}</p>
-                        <p>Fin: {loc.endTime}</p>
-                        <p>Durée: {loc.duration || 'N/A'}</p>
-                      </>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
+              <Popup className="cdr-popup">
+                {renderEventPopupContent(loc)}
+              </Popup>
+            </Marker>
             ))}
         {locationMarkers.map((loc, idx) => (
           <Marker
@@ -1715,20 +1952,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             )}
             zIndexOffset={1000}
           >
-            <Popup>
-              <div>
-                <p>{loc.nom || `${loc.latitude},${loc.longitude}`}</p>
-                <p>Occurrences : {loc.count}</p>
-                {loc.lastDate && (
-                  <p>
-                    Dernière visite : {formatDate(loc.lastDate)}
-                    {loc.lastTime && ` à ${loc.lastTime}`}
-                  </p>
-                )}
-                {selectedSource === null &&
-                  sourceNumbers.length > 1 &&
-                  loc.source && <p>Numéro : {loc.source}</p>}
-              </div>
+            <Popup className="cdr-popup">
+              {renderLocationStatPopup(loc)}
             </Popup>
           </Marker>
         ))}
@@ -1744,11 +1969,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               />
             ))}
             <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#7e22ce')}>
-              <Popup>
-                <div className="text-sm">
-                  <p className="font-semibold">Localisation approximative</p>
-                  <p>Numéro : {zone.source}</p>
-                </div>
+              <Popup className="cdr-popup">
+                {renderTriangulationPopup(zone)}
               </Popup>
             </Marker>
           </React.Fragment>
