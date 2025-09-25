@@ -167,12 +167,15 @@
   border-radius: 1.25rem !important;
   padding: 0.5rem !important;
   box-shadow: 0 25px 50px -25px rgba(15, 23, 42, 0.45) !important;
+  max-width: min(18rem, 80vw) !important;
 }
 
 .cdr-popup .leaflet-popup-content {
   margin: 0 !important;
   width: auto !important;
+  max-width: min(16rem, 75vw);
   line-height: 1.5;
+  font-size: 0.875rem;
 }
 
 .cdr-popup .leaflet-popup-tip {
