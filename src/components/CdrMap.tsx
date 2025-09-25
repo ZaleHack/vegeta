@@ -499,55 +499,60 @@ const MeetingPointMarker: React.FC<{
       })}
     >
       <Popup className="cdr-popup">
-        <div className="w-[260px] rounded-2xl border border-rose-200 bg-white/95 shadow-xl">
-          <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-orange-500 px-3 py-3 text-white">
-            <p className="text-[10px] uppercase tracking-wide text-white/80">Point de rencontre</p>
-            <p className="text-base font-semibold leading-snug">{mp.nom || 'Point de rencontre'}</p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-white/80">
-              {mp.date && <span>{mp.date}</span>}
-              {mp.start && mp.end && (
-                <span className="inline-flex items-center gap-1 text-[11px]">
-                  <Clock className="h-3 w-3" />
-                  {mp.start} – {mp.end}
-                </span>
-              )}
-              {mp.total && (
-                <span className="inline-flex items-center rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                  Total {mp.total}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="max-h-60 space-y-2 overflow-y-auto px-3 py-3 text-sm text-rose-600">
-            {mp.perNumber.map((d, idx) => (
-              <div key={idx} className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2.5 shadow-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wide text-rose-500">Numéro</p>
-                    <p className="text-sm font-semibold leading-snug text-rose-600">
-                      {formatPhoneForDisplay(d.number)}
-                    </p>
-                  </div>
-                  <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-rose-500 shadow-sm">
-                    {d.total}
+        <div className="relative w-[280px] max-w-[80vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-sm text-rose-600 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-rose-500/35 via-pink-500/10 to-orange-500/25" aria-hidden />
+          <div className="pointer-events-none absolute inset-0 bg-white/75" aria-hidden />
+          <div className="relative space-y-3 px-4 py-4">
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500/80">Point de rencontre</p>
+              <p className="text-base font-semibold text-rose-700">{mp.nom || 'Point de rencontre'}</p>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-rose-500/80">
+                {mp.date && <span>{mp.date}</span>}
+                {mp.start && mp.end && (
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {mp.start} – {mp.end}
                   </span>
-                </div>
-                <div className="mt-2 space-y-1 text-[11px] text-rose-600">
-                  {d.events.map((ev, i) => (
-                    <div
-                      key={i}
-                      className="flex flex-wrap items-center justify-between gap-1.5 rounded-lg bg-white/80 px-2.5 py-1.5"
-                    >
-                      <span className="font-semibold text-rose-600">{ev.date}</span>
-                      <span className="text-rose-500">
-                        {ev.start} – {ev.end}
-                      </span>
-                      <span className="text-[10px] font-semibold text-rose-400">{ev.duration}</span>
-                    </div>
-                  ))}
-                </div>
+                )}
+                {mp.total && (
+                  <span className="inline-flex items-center rounded-full border border-white/60 bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow-sm backdrop-blur-sm">
+                    Total {mp.total}
+                  </span>
+                )}
               </div>
-            ))}
+            </div>
+            <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
+              {mp.perNumber.map((d, idx) => (
+                <div
+                  key={idx}
+                  className="rounded-2xl border border-white/60 bg-white/75 px-4 py-3 text-[13px] text-rose-600 shadow-sm backdrop-blur-sm"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-rose-400">Numéro</p>
+                      <p className="text-sm font-semibold leading-snug text-rose-600">
+                        {formatPhoneForDisplay(d.number)}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center rounded-full border border-white/60 bg-white/80 px-2.5 py-0.5 text-[11px] font-semibold text-rose-500 shadow-sm backdrop-blur-sm">
+                      {d.total}
+                    </span>
+                  </div>
+                  <div className="mt-2 space-y-1.5 text-[11px] text-rose-500">
+                    {d.events.map((ev, i) => (
+                      <div
+                        key={i}
+                        className="flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-white/60 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur-sm"
+                      >
+                        <span className="font-semibold text-rose-600">{ev.date}</span>
+                        <span>{ev.start} – {ev.end}</span>
+                        <span className="text-[10px] font-semibold text-rose-400">{ev.duration}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </Popup>
@@ -606,7 +611,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             event.stopPropagation();
             handleIdentifyNumber(normalized);
           }}
-          className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition-all hover:from-blue-600 hover:via-indigo-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+          className="inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-sm backdrop-blur-sm transition hover:border-slate-300 hover:bg-white focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-300"
         >
           Identifier
         </button>
@@ -620,46 +625,50 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       if (point.type === 'web') {
         return {
           label: 'Position web',
-          gradient: 'bg-gradient-to-r from-rose-500 via-orange-500 to-amber-500',
+          gradient: 'from-rose-500/35 via-orange-500/10 to-amber-500/30',
           icon: MapPin,
           accentText: 'text-rose-600',
-          badgeClass: 'bg-rose-100 text-rose-700',
-          participantContainer: 'border border-rose-100 bg-rose-50',
-          participantIconClass: 'bg-rose-500/15 text-rose-600'
+          badgeClass: 'bg-white/40 text-rose-600 ring-1 ring-inset ring-rose-400/30 backdrop-blur-sm',
+          participantContainer:
+            'border border-white/60 bg-white/70 ring-1 ring-inset ring-rose-400/15 shadow-sm backdrop-blur-sm',
+          participantIconClass: 'bg-rose-500/15 text-rose-600 ring-1 ring-rose-500/20'
         };
       }
       if (point.type === 'sms') {
         return {
           label: 'SMS',
-          gradient: 'bg-gradient-to-r from-emerald-500 via-green-500 to-lime-500',
+          gradient: 'from-emerald-500/30 via-green-500/10 to-lime-500/30',
           icon: MessageSquare,
           accentText: 'text-emerald-600',
-          badgeClass: 'bg-emerald-100 text-emerald-700',
-          participantContainer: 'border border-emerald-100 bg-emerald-50',
-          participantIconClass: 'bg-emerald-500/15 text-emerald-600'
+          badgeClass: 'bg-white/40 text-emerald-600 ring-1 ring-inset ring-emerald-400/30 backdrop-blur-sm',
+          participantContainer:
+            'border border-white/60 bg-white/70 ring-1 ring-inset ring-emerald-400/20 shadow-sm backdrop-blur-sm',
+          participantIconClass: 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/20'
         };
       }
       if (point.direction === 'outgoing') {
         return {
           label: 'Appel',
           pill: 'Sortant',
-          gradient: 'bg-gradient-to-r from-sky-500 via-indigo-500 to-blue-600',
+          gradient: 'from-sky-500/35 via-indigo-500/10 to-blue-600/30',
           icon: PhoneOutgoing,
           accentText: 'text-blue-600',
-          badgeClass: 'bg-blue-100 text-blue-700',
-          participantContainer: 'border border-blue-100 bg-blue-50',
-          participantIconClass: 'bg-blue-500/15 text-blue-600'
+          badgeClass: 'bg-white/40 text-blue-600 ring-1 ring-inset ring-blue-400/30 backdrop-blur-sm',
+          participantContainer:
+            'border border-white/60 bg-white/70 ring-1 ring-inset ring-blue-400/20 shadow-sm backdrop-blur-sm',
+          participantIconClass: 'bg-blue-500/15 text-blue-600 ring-1 ring-blue-500/20'
         };
       }
       return {
         label: 'Appel',
         pill: 'Entrant',
-        gradient: 'bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-600',
+        gradient: 'from-indigo-500/30 via-purple-500/10 to-violet-600/30',
         icon: PhoneIncoming,
         accentText: 'text-indigo-600',
-        badgeClass: 'bg-indigo-100 text-indigo-700',
-        participantContainer: 'border border-indigo-100 bg-indigo-50',
-        participantIconClass: 'bg-indigo-500/15 text-indigo-600'
+        badgeClass: 'bg-white/40 text-indigo-600 ring-1 ring-inset ring-indigo-400/30 backdrop-blur-sm',
+        participantContainer:
+          'border border-white/60 bg-white/70 ring-1 ring-inset ring-indigo-400/20 shadow-sm backdrop-blur-sm',
+        participantIconClass: 'bg-indigo-500/15 text-indigo-600 ring-1 ring-indigo-500/20'
       };
     },
     []
@@ -678,19 +687,21 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         participants.push(
           <div
             key={`${label}-${value}`}
-            className={`flex items-center justify-between rounded-xl ${visuals.participantContainer} ${
-              compact ? 'gap-2 px-3 py-2' : 'gap-2.5 px-2.5 py-2.5'
+            className={`flex items-center justify-between rounded-2xl ${visuals.participantContainer} ${
+              compact ? 'gap-2 px-3 py-2' : 'gap-2.5 px-3.5 py-2.5'
             }`}
           >
             <div className="flex items-center gap-3">
               <span
-                className={`flex ${compact ? 'h-7 w-7' : 'h-8 w-8'} items-center justify-center rounded-full ${visuals.participantIconClass}`}
+                className={`flex ${compact ? 'h-8 w-8' : 'h-9 w-9'} items-center justify-center rounded-xl shadow-inner ${visuals.participantIconClass}`}
               >
                 <IconComponent className={`h-4 w-4 ${visuals.accentText}`} />
               </span>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
-                <p className="text-[13px] font-semibold text-slate-700">{formatPhoneForDisplay(value)}</p>
+                <p className={`font-semibold text-slate-700 ${compact ? 'text-xs' : 'text-[13px]'}`}>
+                  {formatPhoneForDisplay(value)}
+                </p>
               </div>
             </div>
             {button && <span className="shrink-0">{button}</span>}
@@ -770,7 +781,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               return (
                 <div
                   key={`${item.label}-${index}`}
-                  className={`rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-1.5 ${
+                  className={`rounded-2xl border border-white/60 bg-white/75 px-3 py-2 shadow-sm backdrop-blur-sm ${
                     spanTwoColumns ? 'col-span-2' : ''
                   }`}
                 >
@@ -786,10 +797,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
       if (compact) {
         return (
-          <div className="rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-sm text-sm text-slate-600">
-            <div className="flex items-center gap-3">
+          <div className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/75 px-3 py-3 text-sm text-slate-600 shadow-lg backdrop-blur-xl">
+            <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${visuals.gradient}`} aria-hidden />
+            <div className="pointer-events-none absolute inset-0 bg-white/70" aria-hidden />
+            <div className="relative flex items-center gap-3">
               <span
-                className={`flex ${compact ? 'h-9 w-9' : 'h-10 w-10'} items-center justify-center rounded-full ${visuals.participantIconClass}`}
+                className={`flex ${compact ? 'h-9 w-9' : 'h-10 w-10'} items-center justify-center rounded-2xl shadow-inner ${visuals.participantIconClass}`}
               >
                 <Icon className={`h-4 w-4 ${visuals.accentText}`} />
               </span>
@@ -802,48 +815,52 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               </div>
               {visuals.pill && (
                 <span
-                  className={`ml-auto inline-flex items-center rounded-full ${visuals.badgeClass} px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide`}
+                  className={`ml-auto inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${visuals.badgeClass}`}
                 >
                   {visuals.pill}
                 </span>
               )}
             </div>
-            {participants.length > 0 && <div className="mt-3 space-y-2">{participants}</div>}
-            {detailGrid && <div className="mt-3">{detailGrid}</div>}
+            {participants.length > 0 && <div className="relative mt-3 space-y-2">{participants}</div>}
+            {detailGrid && <div className="relative mt-3">{detailGrid}</div>}
           </div>
         );
       }
 
       return (
-        <div className="w-fit max-w-[14rem] rounded-2xl border border-slate-200 bg-white/95 shadow-xl">
-          <div
-            className={`flex items-start gap-2 px-2.5 py-2 text-white ${visuals.gradient}`}
-          >
-            <div
-              className={`flex ${compact ? 'h-8 w-8' : 'h-9 w-9'} items-center justify-center rounded-full bg-white/20 backdrop-blur`}
+        <div className="relative w-[280px] max-w-[80vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-[13px] text-slate-600 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl">
+          <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${visuals.gradient}`} aria-hidden />
+          <div className="pointer-events-none absolute inset-0 bg-white/75" aria-hidden />
+          <div className="relative flex items-start gap-3 px-4 pt-4">
+            <span
+              className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-inner ${visuals.participantIconClass}`}
             >
-              <Icon className="h-5 w-5 text-white" />
-            </div>
-            <div className="flex flex-col gap-0.5">
-              {visuals.pill && (
-                <span className="inline-flex w-fit items-center rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                  {visuals.pill}
-                </span>
-              )}
-              <p className="text-xs uppercase tracking-wide text-white/80">{visuals.label}</p>
+              <Icon className={`h-5 w-5 ${visuals.accentText}`} />
+            </span>
+            <div className="flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{visuals.label}</p>
+                {visuals.pill && (
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${visuals.badgeClass}`}
+                  >
+                    {visuals.pill}
+                  </span>
+                )}
+              </div>
               {showLocation && (
-                <p className="text-[13px] font-semibold leading-snug text-white">
+                <p className="text-sm font-semibold leading-snug text-slate-900">
                   {point.nom || 'Localisation'}
                 </p>
               )}
-              <p className="text-[11px] text-white/80">
+              <p className="text-xs text-slate-500">
                 {point.callDate ? formatDate(point.callDate) : ''}
                 {point.startTime ? ` • ${point.startTime}` : ''}
               </p>
             </div>
           </div>
-          <div className="space-y-1.5 px-2.5 py-2 text-[13px] text-slate-600">
-            {participants.length > 0 && <div className="space-y-1">{participants}</div>}
+          <div className="relative space-y-2 px-4 pb-4 pt-3">
+            {participants.length > 0 && <div className="space-y-2">{participants}</div>}
             {detailGrid}
           </div>
         </div>
@@ -1002,21 +1019,23 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           : 'Synthèse';
 
       return (
-        <div className="w-[260px] rounded-2xl border border-amber-200 bg-white/95 shadow-xl">
-          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 px-4 py-4 text-white">
-            <p className="text-xs uppercase tracking-wide text-white/80">Point d'intérêt</p>
-            <p className="text-sm font-semibold">{loc.nom || `${loc.latitude},${loc.longitude}`}</p>
-            <p className="text-xs text-white/80">
-              {loc.latitude}, {loc.longitude}
-            </p>
-          </div>
-          <div className="space-y-3 px-4 py-4 text-sm text-slate-700">
-            <div className="flex items-center justify-between">
+        <div className="relative w-[260px] max-w-[80vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-sm text-slate-700 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/30 via-orange-400/10 to-yellow-500/25" aria-hidden />
+          <div className="pointer-events-none absolute inset-0 bg-white/75" aria-hidden />
+          <div className="relative space-y-3 px-4 py-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700/80">Point d'intérêt</p>
+              <p className="text-base font-semibold text-slate-900">{loc.nom || `${loc.latitude},${loc.longitude}`}</p>
+              <p className="text-xs text-slate-500">
+                {loc.latitude}, {loc.longitude}
+              </p>
+            </div>
+            <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-3 text-slate-700 shadow-sm backdrop-blur-sm">
               <span className="text-xs uppercase tracking-wide text-slate-400">Occurrences</span>
-              <span className="text-2xl font-semibold text-slate-900">{loc.count}</span>
+              <span className="text-3xl font-semibold text-slate-900">{loc.count}</span>
             </div>
             {loc.lastDate && (
-              <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+              <div className="rounded-2xl border border-amber-400/30 bg-amber-50/80 px-4 py-3 shadow-sm backdrop-blur-sm">
                 <p className="text-[10px] uppercase tracking-wide text-amber-500">Dernière visite</p>
                 <p className="text-sm font-semibold text-amber-700">
                   {formatDate(loc.lastDate)}
@@ -1025,7 +1044,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               </div>
             )}
             {showSource && (
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
                 <div>
                   <p className="text-[10px] uppercase tracking-wide text-slate-400">Numéro</p>
                   <p className="text-sm font-semibold text-slate-700">
@@ -1038,7 +1057,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 />
               </div>
             )}
-            <div className="text-xs text-slate-500">Vue actuelle : {modeLabel}</div>
+            <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-sm">
+              Vue actuelle : <span className="font-semibold text-slate-600">{modeLabel}</span>
+            </div>
           </div>
         </div>
       );
@@ -1049,25 +1070,23 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const renderTriangulationPopup = useCallback((zone: TriangulationZone) => {
     const observed = formatDateTime(zone.timestamp);
     return (
-      <div className="w-[240px] rounded-2xl border border-purple-200 bg-white/95 shadow-xl">
-        <div className="bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 px-4 py-4 text-white">
-          <p className="text-xs uppercase tracking-wide text-white/80">Triangulation</p>
-          <p className="text-sm font-semibold">Localisation approximative</p>
-        </div>
-        <div className="space-y-3 px-4 py-4 text-sm text-slate-700">
-          <div className="rounded-xl border border-purple-100 bg-purple-50 px-3 py-2">
+      <div className="relative w-[240px] max-w-[75vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-sm text-slate-700 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/30 via-purple-500/10 to-fuchsia-500/30" aria-hidden />
+        <div className="pointer-events-none absolute inset-0 bg-white/75" aria-hidden />
+        <div className="relative space-y-3 px-4 py-4">
+          <div className="rounded-2xl border border-white/60 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-sm">
             <p className="text-[10px] uppercase tracking-wide text-purple-500">Numéro suivi</p>
             <p className="text-sm font-semibold text-purple-600">
               {formatPhoneForDisplay(zone.source)}
             </p>
           </div>
           {observed && (
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-sm">
               <span>Dernière activité</span>
               <span className="font-semibold text-slate-700">{observed}</span>
             </div>
           )}
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-sm">
             <span className="inline-flex h-2 w-2 rounded-full bg-purple-400" />
             Basé sur {zone.cells.length} cellule{zone.cells.length > 1 ? 's' : ''} active{zone.cells.length > 1 ? 's' : ''}
           </div>
