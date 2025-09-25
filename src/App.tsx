@@ -639,6 +639,8 @@ const App: React.FC = () => {
   const [blacklistNumber, setBlacklistNumber] = useState('');
   const [blacklistError, setBlacklistError] = useState('');
   const [blacklistFile, setBlacklistFile] = useState<File | null>(null);
+  const [blacklistPage, setBlacklistPage] = useState(1);
+  const [blacklistPerPage, setBlacklistPerPage] = useState(10);
   const [logsData, setLogsData] = useState<any[]>([]);
   const [logPage, setLogPage] = useState(1);
   const [logTotal, setLogTotal] = useState(0);
@@ -973,12 +975,30 @@ const App: React.FC = () => {
     [visibleRequests, requestPage, requestsPerPage]
   );
 
+  const totalBlacklistPages = Math.max(
+    1,
+    Math.ceil(blacklist.length / Math.max(blacklistPerPage, 1))
+  );
+
+  const paginatedBlacklist = useMemo(
+    () => {
+      const size = Math.max(blacklistPerPage, 1);
+      const start = (blacklistPage - 1) * size;
+      return blacklist.slice(start, start + size);
+    },
+    [blacklist, blacklistPage, blacklistPerPage]
+  );
+
   // Ensure the current request page is within bounds when the filtered
   // results change. Otherwise, a shrinking dataset can leave the user on an
   // out-of-range page with no navigation controls.
   useEffect(() => {
     setRequestPage(p => Math.min(p, Math.max(totalRequestPages, 1)));
   }, [totalRequestPages]);
+
+  useEffect(() => {
+    setBlacklistPage(page => Math.min(page, Math.max(totalBlacklistPages, 1)));
+  }, [totalBlacklistPages]);
 
   const identifyingInitialValues = useMemo(
     () => ({
@@ -1604,6 +1624,7 @@ const App: React.FC = () => {
         setBlacklist(data);
         setBlacklistNumber('');
         setBlacklistError('');
+        setBlacklistPage(1);
       } else {
         setBlacklistError(data.error || 'Erreur lors de l\'ajout');
       }
@@ -1629,6 +1650,7 @@ const App: React.FC = () => {
         setBlacklist(data);
         setBlacklistFile(null);
         setBlacklistError('');
+        setBlacklistPage(1);
       } else {
         setBlacklistError(data.error || "Erreur lors de l'import");
       }
@@ -4515,7 +4537,7 @@ useEffect(() => {
         </div>
 
         {/* Navigation */}
-        <nav className="relative flex-1 p-4">
+        <nav className="relative flex-1 overflow-y-auto p-4 pb-48">
           <div className="space-y-2">
             <button
               onClick={() => setCurrentPage('dashboard')}
@@ -4714,52 +4736,55 @@ useEffect(() => {
         </nav>
 
         {/* User info */}
-        <div className="relative p-4 border-t border-white/60 dark:border-gray-800/70">
-          <div className={`flex items-center gap-3 ${!sidebarOpen && 'justify-center'}`}>
-            <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-gray-500 via-gray-600 to-gray-800 text-white shadow-md shadow-gray-500/30">
-              <User className="h-5 w-5" />
-            </div>
-            {sidebarOpen && (
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{currentUser?.login}</p>
-                <div className="mt-1 flex items-center gap-2">
-                  {isAdmin ? (
-                    <span className="inline-flex items-center rounded-full bg-gradient-to-r from-rose-500/20 to-orange-500/20 px-2.5 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-300">
-                      <Shield className="mr-1 h-3 w-3" />
-                      Admin
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center rounded-full bg-gradient-to-r from-blue-500/20 to-cyan-500/20 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-300">
-                      <UserCheck className="mr-1 h-3 w-3" />
-                      Utilisateur
-                    </span>
-                  )}
+        <div className="absolute inset-x-0 bottom-0 z-20">
+          <div className="relative border-t border-white/60 bg-white/90 p-4 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-gray-800/70 dark:bg-gray-900/85 dark:shadow-black/40">
+            <div className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-t from-white/90 via-white/40 to-transparent dark:from-gray-900/80" />
+            <div className={`flex items-center gap-3 ${!sidebarOpen && 'justify-center'}`}>
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-500 via-gray-600 to-gray-800 text-white shadow-md shadow-gray-500/30">
+                <User className="h-5 w-5" />
+              </div>
+              {sidebarOpen && (
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{currentUser?.login}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    {isAdmin ? (
+                      <span className="inline-flex items-center rounded-full bg-gradient-to-r from-rose-500/20 to-orange-500/20 px-2.5 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-300">
+                        <Shield className="mr-1 h-3 w-3" />
+                        Admin
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-gradient-to-r from-blue-500/20 to-cyan-500/20 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-300">
+                        <UserCheck className="mr-1 h-3 w-3" />
+                        Utilisateur
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 inline-flex items-center rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800/70 dark:text-gray-300">
+                    Division : {currentUser?.division_name || 'Non renseignée'}
+                  </p>
                 </div>
-                <p className="mt-2 inline-flex items-center rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800/70 dark:text-gray-300">
-                  Division : {currentUser?.division_name || 'Non renseignée'}
-                </p>
+              )}
+            </div>
+
+            {sidebarOpen && (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => openPasswordModal()}
+                  className="group relative flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-700 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:text-blue-600 dark:border-gray-700/70 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:text-white"
+                >
+                  <Key className="h-3 w-3 transition-transform duration-200 group-hover:scale-110" />
+                  Mot de passe
+                </button>
+                <button
+                  onClick={() => handleLogout()}
+                  className="group relative flex items-center justify-center gap-2 rounded-xl border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs font-semibold text-red-600 transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+                >
+                  <LogOut className="h-3 w-3 transition-transform duration-200 group-hover:scale-110" />
+                  Déconnexion
+                </button>
               </div>
             )}
           </div>
-
-          {sidebarOpen && (
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => openPasswordModal()}
-                className="group relative flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-700 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:text-blue-600 dark:border-gray-700/70 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:text-white"
-              >
-                <Key className="h-3 w-3 transition-transform duration-200 group-hover:scale-110" />
-                Mot de passe
-              </button>
-              <button
-                onClick={() => handleLogout()}
-                className="group relative flex items-center justify-center gap-2 rounded-xl border border-red-200/70 bg-red-50/70 px-3 py-2 text-xs font-semibold text-red-600 transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
-              >
-                <LogOut className="h-3 w-3 transition-transform duration-200 group-hover:scale-110" />
-                Déconnexion
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -6615,7 +6640,7 @@ useEffect(() => {
                     })}
                   </div>
                   {visibleRequests.length > 0 && (
-                    <div className="mt-6">
+                    <div className="mt-6 rounded-2xl border border-white/60 bg-white/85 p-4 shadow-inner shadow-slate-200/50 dark:border-slate-700/60 dark:bg-slate-900/70">
                       <PaginationControls
                         currentPage={requestPage}
                         totalPages={totalRequestPages}
@@ -6632,6 +6657,7 @@ useEffect(() => {
                           setRequestsPerPage(size);
                           setRequestPage(1);
                         }}
+                        className="gap-3"
                       />
                     </div>
                   )}
@@ -6682,59 +6708,182 @@ useEffect(() => {
         {currentPage === 'blacklist' && isAdmin && (
           <div className="space-y-6">
             <PageHeader icon={<Ban className="h-6 w-6" />} title="Black List" />
-            <div className="space-y-4 rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
-              <div className="flex flex-col md:flex-row gap-4">
-                <form onSubmit={handleAddBlacklist} className="flex flex-1 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Numéro"
-                    value={blacklistNumber}
-                    onChange={(e) => setBlacklistNumber(e.target.value)}
-                    className="flex-1 rounded-xl border border-slate-200/70 bg-white/80 px-4 py-2 text-sm text-slate-800 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/70 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
-                  />
-                  <button type="submit" className="rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-transform hover:-translate-y-0.5">
-                    Ajouter
-                  </button>
-                </form>
-                <form onSubmit={handleUploadBlacklist} className="flex gap-2 items-center">
-                  <input
-                    type="file"
-                    accept=".txt,.csv"
-                    onChange={(e) => setBlacklistFile(e.target.files?.[0] || null)}
-                    className="flex-1 text-sm text-slate-600 dark:text-slate-300"
-                  />
-                  <button type="submit" className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition-transform hover:-translate-y-0.5 hover:bg-emerald-600">
-                    Importer
-                  </button>
-                </form>
+            <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/90 to-blue-50/40 p-6 shadow-xl shadow-blue-200/50 backdrop-blur-sm dark:border-slate-700/60 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-slate-900/40 dark:shadow-black/40">
+              <div className="absolute -right-32 top-10 h-64 w-64 rounded-full bg-blue-200/40 blur-3xl dark:bg-blue-900/30" />
+              <div className="absolute -left-36 bottom-0 h-56 w-56 rounded-full bg-purple-200/40 blur-3xl dark:bg-purple-900/30" />
+              <div className="relative z-10 space-y-8">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Gestion des numéros bloqués</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      Surveillez les numéros sensibles, importez des listes en masse et gardez une vue d'ensemble claire.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="rounded-2xl border border-white/60 bg-white/80 px-6 py-4 shadow-sm shadow-blue-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Numéros surveillés</p>
+                      <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-100">{blacklist.length}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
+                  <form
+                    onSubmit={handleAddBlacklist}
+                    className="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/60 bg-white/85 p-5 shadow-sm shadow-slate-200/60 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">Ajouter un numéro</h4>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">Insérez un numéro unique à surveiller dans la liste noire.</p>
+                      </div>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                        <Plus className="h-5 w-5" />
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <input
+                        type="text"
+                        placeholder="Numéro à ajouter"
+                        value={blacklistNumber}
+                        onChange={(e) => setBlacklistNumber(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200/70 bg-white/90 px-4 py-3 text-sm text-slate-800 shadow-inner focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/60 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!blacklistNumber.trim()}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Ajouter
+                      </button>
+                    </div>
+                  </form>
+
+                  <form
+                    onSubmit={handleUploadBlacklist}
+                    className="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/60 bg-white/85 p-5 shadow-sm shadow-slate-200/60 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">Import massif</h4>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">Chargez un fichier CSV ou TXT contenant plusieurs numéros.</p>
+                      </div>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                        <UploadCloud className="h-5 w-5" />
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <input
+                        id="blacklist-upload"
+                        type="file"
+                        accept=".txt,.csv"
+                        className="sr-only"
+                        onChange={(e) => setBlacklistFile(e.target.files?.[0] || null)}
+                      />
+                      <label
+                        htmlFor="blacklist-upload"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300/70 bg-white/90 px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-blue-400 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-blue-400/60 dark:hover:text-blue-300"
+                      >
+                        <UploadCloud className="h-4 w-4" />
+                        {blacklistFile ? 'Changer de fichier' : 'Sélectionner un fichier'}
+                      </label>
+                      {blacklistFile && (
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-300">
+                          Fichier sélectionné :{' '}
+                          <span className="text-slate-700 dark:text-slate-100">{blacklistFile.name}</span>
+                        </p>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={!blacklistFile}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition-all hover:-translate-y-0.5 hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <UploadCloud className="h-4 w-4" />
+                        Importer
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {blacklistError && (
+                  <div className="rounded-2xl border border-rose-200/60 bg-rose-50/80 px-4 py-3 text-sm font-medium text-rose-700 shadow-sm dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+                    {blacklistError}
+                  </div>
+                )}
+
+                <div className="overflow-hidden rounded-2xl border border-white/60 bg-white/90 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/70">
+                  {paginatedBlacklist.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-slate-500 dark:text-slate-300">
+                      <Ban className="h-10 w-10 text-blue-500/60 dark:text-blue-400/60" />
+                      <div>
+                        <p className="text-sm font-semibold">Aucun numéro blacklisté</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">Ajoutez un numéro ou importez une liste pour commencer.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                        <thead className="bg-white/80 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
+                          <tr>
+                            <th className="px-6 py-3">#</th>
+                            <th className="px-6 py-3">Numéro</th>
+                            <th className="px-6 py-3 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                          {paginatedBlacklist.map((entry, index) => {
+                            const size = Math.max(blacklistPerPage, 1);
+                            const displayIndex = (blacklistPage - 1) * size + index + 1;
+                            return (
+                              <tr
+                                key={entry.id}
+                                className="odd:bg-white even:bg-slate-50/70 transition-colors hover:bg-blue-50/50 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40 dark:hover:bg-slate-800/70"
+                              >
+                                <td className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                  #{String(displayIndex).padStart(2, '0')}
+                                </td>
+                                <td className="px-6 py-4 text-sm font-medium text-slate-800 dark:text-slate-100">
+                                  <span className="inline-flex items-center rounded-full bg-blue-500/10 px-3 py-1 text-sm font-semibold text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                                    {entry.number}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteBlacklist(entry.id)}
+                                    className="inline-flex items-center gap-2 rounded-full border border-rose-200/60 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Supprimer
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {blacklist.length > 0 && (
+                  <div className="rounded-2xl border border-white/60 bg-white/85 p-4 shadow-inner shadow-slate-200/50 dark:border-slate-700/60 dark:bg-slate-900/70">
+                    <PaginationControls
+                      currentPage={blacklistPage}
+                      totalPages={totalBlacklistPages}
+                      onPageChange={setBlacklistPage}
+                      pageSize={blacklistPerPage}
+                      pageSizeOptions={PAGE_SIZE_OPTIONS}
+                      onPageSizeChange={(size) => {
+                        setBlacklistPerPage(size);
+                        setBlacklistPage(1);
+                      }}
+                    />
+                  </div>
+                )}
               </div>
-              {blacklistError && <p className="text-red-600 dark:text-rose-400">{blacklistError}</p>}
-              <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-inner dark:bg-slate-900/60 dark:border-slate-700/60">
-                <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
-                  <thead className="bg-slate-100/80 dark:bg-slate-800/80">
-                    <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
-                      <th className="px-6 py-3">Numéro</th>
-                      <th className="px-6 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                    {blacklist.map((b) => (
-                      <tr key={b.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/40 dark:even:bg-slate-800/40">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{b.number}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <button
-                            onClick={() => handleDeleteBlacklist(b.id)}
-                            className="text-rose-600 transition-colors hover:text-rose-500 dark:text-rose-400 dark:hover:text-rose-300"
-                          >
-                            Supprimer
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            </section>
           </div>
         )}
 
