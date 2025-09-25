@@ -650,6 +650,28 @@ const App: React.FC = () => {
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionPage, setSessionPage] = useState(1);
   const [sessionLoading, setSessionLoading] = useState(false);
+
+  const createAuthHeaders = (
+    headers: Record<string, string> = {},
+    options: { includeToken?: boolean } = {}
+  ): Record<string, string> => {
+    const sanitized: Record<string, string> = { ...headers };
+
+    if (options.includeToken === false) {
+      delete sanitized.Authorization;
+      return sanitized;
+    }
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+    if (token) {
+      sanitized.Authorization = `Bearer ${token}`;
+    } else {
+      delete sanitized.Authorization;
+    }
+
+    return sanitized;
+  };
   const criticalAlertCount = useMemo(() => {
     return logsData.reduce((count: number, log: any) => {
       if (!log) return count;
@@ -1625,13 +1647,9 @@ const App: React.FC = () => {
     const num = blacklistNumber.trim();
     if (!num) return;
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch('/api/blacklist', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ number: num })
       });
       const data = await res.json();
@@ -1652,12 +1670,11 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!blacklistFile) return;
     try {
-      const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', blacklistFile);
       const res = await fetch('/api/blacklist/upload', {
         method: 'POST',
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
+        headers: createAuthHeaders(),
         body: formData
       });
       const data = await res.json();
@@ -1785,13 +1802,9 @@ const App: React.FC = () => {
 
   const logPageVisit = useCallback(async (page: string, extra: Record<string, any> = {}) => {
     try {
-      const token = localStorage.getItem('token');
       await fetch('/api/logs', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ action: 'page_view', details: { page, ...extra } })
       });
     } catch (err) {
@@ -1833,13 +1846,9 @@ const App: React.FC = () => {
     setSearchError('');
     setSearchResults(null);
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/search', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ query: trimmedQuery, page: requestedPage, limit: requestedLimit }),
         signal: controller.signal
       });
@@ -1888,13 +1897,9 @@ const App: React.FC = () => {
     setSearchError('');
 
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/search', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           query: trimmedQuery,
           page: requestedPage,
@@ -1961,13 +1966,9 @@ const App: React.FC = () => {
 
   const handleRequestIdentification = async () => {
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/requests', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ phone: searchQuery })
       });
       const data = await response.json();
@@ -2522,14 +2523,9 @@ useEffect(() => {
         setLoading(false);
         return;
       }
-      const token = localStorage.getItem('token');
-
       const response = await fetch('/api/users', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           login: userFormData.login,
           password: userFormData.password,
@@ -2625,13 +2621,9 @@ useEffect(() => {
     }
     setCreatingDivision(true);
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/divisions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name: newDivisionName.trim() })
       });
       const data = await response.json();
@@ -2732,17 +2724,13 @@ useEffect(() => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
       const body: any = { newPassword: passwordFormData.newPassword };
       if (requireCurrent) {
         body.currentPassword = passwordFormData.currentPassword;
       }
       const response = await fetch(`/api/users/${targetUser.id}/change-password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body)
       });
 
@@ -2811,10 +2799,9 @@ useEffect(() => {
       const formData = new FormData();
       formData.append('dataFile', uploadFile);
       formData.append('tableName', uploadTable);
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/upload/file', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: createAuthHeaders(),
         body: formData
       });
       const data = await response.json();
@@ -3193,7 +3180,6 @@ useEffect(() => {
     }
     try {
       setCdrLoading(true);
-      const token = localStorage.getItem('token');
       const payload: Record<string, unknown> = { numbers };
       if (cdrStart) payload.start = new Date(cdrStart).toISOString().split('T')[0];
       if (cdrEnd) payload.end = new Date(cdrEnd).toISOString().split('T')[0];
@@ -3202,10 +3188,7 @@ useEffect(() => {
 
       const res = await fetch(`/api/cases/${selectedCase.id}/link-diagram`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload)
       });
       const data = await res.json();
@@ -3319,13 +3302,9 @@ useEffect(() => {
     setShareLoading(true);
     setShareMessage('');
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch(`/api/cases/${shareTargetCase.id}/share`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           shareAll: shareAllUsers,
           userIds: shareAllUsers ? [] : shareSelectedUserIds
@@ -3421,13 +3400,9 @@ useEffect(() => {
     setProfileShareLoading(true);
     setProfileShareMessage('');
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch(`/api/profiles/${profileShareTarget.id}/share`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           shareAll: profileShareAll,
           userIds: profileShareAll ? [] : profileShareSelectedIds
@@ -3460,10 +3435,9 @@ useEffect(() => {
 
   const markServerNotificationAsRead = async (notificationId: number) => {
     try {
-      const token = localStorage.getItem('token');
       await fetch(`/api/notifications/${notificationId}/read`, {
         method: 'POST',
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
+        headers: createAuthHeaders()
       });
       setServerNotifications((prev) =>
         prev.map((notif) =>
@@ -3523,13 +3497,9 @@ useEffect(() => {
     if (!cdrCaseName.trim()) return;
     setCdrCaseMessage('');
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch('/api/cases', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
-        },
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name: cdrCaseName.trim() })
       });
       const data = await res.json();
@@ -3667,13 +3637,12 @@ useEffect(() => {
     setCdrUploadMessage('');
     setCdrUploadError('');
     try {
-      const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', cdrFile);
       formData.append('cdrNumber', normalizedNumber);
       const res = await fetch(`/api/cases/${selectedCase.id}/upload`, {
         method: 'POST',
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
+        headers: createAuthHeaders(),
         body: formData
       });
       const data = await res.json();
