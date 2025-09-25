@@ -815,9 +815,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       }
 
       return (
-        <div className="w-[280px] rounded-2xl border border-slate-200 bg-white/95 shadow-xl">
+        <div className="w-fit max-w-[18rem] rounded-2xl border border-slate-200 bg-white/95 shadow-xl">
           <div
-            className={`flex items-start gap-3 px-4 py-4 text-white ${visuals.gradient}`}
+            className={`flex items-start gap-3 px-3 py-3 text-white ${visuals.gradient}`}
           >
             <div
               className={`flex ${compact ? 'h-9 w-9' : 'h-10 w-10'} items-center justify-center rounded-full bg-white/20 backdrop-blur`}
@@ -842,8 +842,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               </p>
             </div>
           </div>
-          <div className="space-y-3 px-4 py-4 text-sm text-slate-600">
-            {participants.length > 0 && <div className="space-y-2">{participants}</div>}
+          <div className="space-y-2.5 px-3 py-3 text-sm text-slate-600">
+            {participants.length > 0 && <div className="space-y-1.5">{participants}</div>}
             {detailGrid}
           </div>
         </div>
