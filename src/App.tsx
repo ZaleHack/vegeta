@@ -2062,9 +2062,18 @@ useEffect(() => {
     }
   };
 
-  const deleteRequest = async (id: number) => {
-    if (!confirm('Supprimer cette demande ?')) return;
-    if (isAdmin) {
+  const deleteRequest = async (
+    id: number,
+    options?: {
+      permanent?: boolean;
+    }
+  ) => {
+    const permanent = options?.permanent ?? false;
+    const confirmationMessage = permanent
+      ? "Supprimer définitivement cette demande ? Cette action est irréversible."
+      : 'Supprimer cette demande ?';
+    if (!confirm(confirmationMessage)) return;
+    if (isAdmin && !permanent) {
       setHiddenRequestIds((prev) => {
         if (prev.includes(id)) {
           return prev;
@@ -2079,6 +2088,9 @@ useEffect(() => {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (permanent) {
+        setHiddenRequestIds((prev) => prev.filter((hiddenId) => hiddenId !== id));
+      }
       fetchRequests();
     } catch (error) {
       console.error('Erreur suppression demande:', error);
@@ -6862,13 +6874,32 @@ useEffect(() => {
                                   Identifier
                                 </button>
                               )}
-                              <button
-                                className="inline-flex items-center gap-2 rounded-full border border-rose-300/60 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:bg-rose-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-rose-500/40 dark:bg-rose-500/20 dark:text-rose-200"
-                                onClick={() => deleteRequest(r.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Supprimer
-                              </button>
+                              {isAdmin ? (
+                                <>
+                                  <button
+                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-slate-500/60"
+                                    onClick={() => deleteRequest(r.id)}
+                                  >
+                                    <Ban className="h-4 w-4" />
+                                    Masquer
+                                  </button>
+                                  <button
+                                    className="inline-flex items-center gap-2 rounded-full border border-rose-400/70 bg-rose-600/90 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-rose-500/40 transition hover:-translate-y-0.5 hover:bg-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-rose-500/60 dark:bg-rose-500"
+                                    onClick={() => deleteRequest(r.id, { permanent: true })}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Supprimer définitivement
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  className="inline-flex items-center gap-2 rounded-full border border-rose-300/60 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:bg-rose-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-rose-500/40 dark:bg-rose-500/20 dark:text-rose-200"
+                                  onClick={() => deleteRequest(r.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Supprimer
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
