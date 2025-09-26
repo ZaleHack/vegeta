@@ -2274,7 +2274,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
 
         {showMeetingPoints && meetingPoints.length > 0 && (
-          <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-48 overflow-y-auto">
+          <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-72 overflow-y-auto">
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="font-semibold">Points de rencontre</p>
               <button
