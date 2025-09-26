@@ -43,6 +43,15 @@ export const getPayloadEncryptionKey = () => {
 
   const base64Key = process.env.PAYLOAD_ENCRYPTION_KEY?.trim();
   if (!base64Key) {
+    if (process.env.NODE_ENV !== 'production') {
+      cachedPayloadEncryptionKey = crypto.randomBytes(32);
+      process.env.PAYLOAD_ENCRYPTION_KEY = cachedPayloadEncryptionKey.toString('base64');
+      console.warn(
+        '⚠️ PAYLOAD_ENCRYPTION_KEY n\'est pas défini. Génération d\'une clé AES-256 temporaire pour l\'environnement de développement.'
+      );
+      return cachedPayloadEncryptionKey;
+    }
+
     throw new Error(
       'PAYLOAD_ENCRYPTION_KEY must be configured with the base64-encoded AES-256 key used to decrypt client payloads.'
     );
@@ -52,10 +61,28 @@ export const getPayloadEncryptionKey = () => {
   try {
     decoded = Buffer.from(base64Key, 'base64');
   } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      cachedPayloadEncryptionKey = crypto.randomBytes(32);
+      process.env.PAYLOAD_ENCRYPTION_KEY = cachedPayloadEncryptionKey.toString('base64');
+      console.warn(
+        '⚠️ PAYLOAD_ENCRYPTION_KEY est invalide. Génération d\'une clé AES-256 temporaire pour l\'environnement de développement.'
+      );
+      return cachedPayloadEncryptionKey;
+    }
+
     throw new Error('PAYLOAD_ENCRYPTION_KEY must be a valid base64 encoded string.');
   }
 
   if (decoded.length !== 32) {
+    if (process.env.NODE_ENV !== 'production') {
+      cachedPayloadEncryptionKey = crypto.randomBytes(32);
+      process.env.PAYLOAD_ENCRYPTION_KEY = cachedPayloadEncryptionKey.toString('base64');
+      console.warn(
+        '⚠️ PAYLOAD_ENCRYPTION_KEY doit décoder en 32 octets. Génération d\'une clé AES-256 temporaire pour l\'environnement de développement.'
+      );
+      return cachedPayloadEncryptionKey;
+    }
+
     throw new Error('PAYLOAD_ENCRYPTION_KEY must decode to exactly 32 bytes (AES-256 key).');
   }
 
