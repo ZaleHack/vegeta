@@ -220,7 +220,8 @@ export const setupEncryptedFetch = () => {
         method: request.method
       });
 
-      return originalFetch(encryptedRequest);
+      const fetchImplementation = originalFetch ?? nativeFetch;
+      return fetchImplementation(encryptedRequest);
     } catch (error) {
       console.error('Échec du chiffrement du payload JSON :', error);
       throw error;
