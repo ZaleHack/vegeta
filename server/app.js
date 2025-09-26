@@ -29,7 +29,11 @@ import notificationsRoutes from './routes/notifications.js';
 import fraudRoutes from './routes/fraud.js';
 import { authenticate } from './middleware/auth.js';
 import { payloadEncryptionMiddleware } from './middleware/payloadEncryption.js';
-import { ensureEnvironment, resolveAllowedOrigins } from './config/environment.js';
+import {
+  ensureEnvironment,
+  resolveAllowedOrigins,
+  getPayloadEncryptionKey
+} from './config/environment.js';
 
 // Initialisation de la base de données
 import database from './config/database.js';
@@ -167,10 +171,20 @@ app.use('/api/divisions', divisionsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/fraud-detection', fraudRoutes);
 
+app.get('/api/public/payload-encryption-key', (req, res) => {
+  try {
+    const encryptionKey = getPayloadEncryptionKey();
+    res.json({ key: encryptionKey.toString('base64') });
+  } catch (error) {
+    console.error('Erreur lors de la récupération de la clé de chiffrement des payloads :', error);
+    res.status(500).json({ error: 'PAYLOAD_ENCRYPTION_KEY_UNAVAILABLE' });
+  }
+});
+
 // Route de santé
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     database: 'MySQL'

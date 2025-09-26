@@ -1,6 +1,9 @@
 const AES_GCM_IV_LENGTH = 12; // 96 bits
 
 let cachedKeyPromise: Promise<CryptoKey> | null = null;
+let cachedBase64Key: string | null = null;
+let base64KeyPromise: Promise<string> | null = null;
+let originalFetch: typeof fetch | null = null;
 
 const textEncoder = new TextEncoder();
 
@@ -37,6 +40,69 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
   return getBtoa()(binary);
 };
 
+const resolveBase64EncryptionKey = async (): Promise<string> => {
+  if (cachedBase64Key) {
+    return cachedBase64Key;
+  }
+
+  const envKey = import.meta.env.VITE_PAYLOAD_ENCRYPTION_KEY?.trim();
+  if (envKey) {
+    cachedBase64Key = envKey;
+    return cachedBase64Key;
+  }
+
+  if (base64KeyPromise) {
+    return base64KeyPromise;
+  }
+
+  if (typeof fetch !== 'function') {
+    throw new Error(
+      'Fetch API is not available to retrieve the payload encryption key.'
+    );
+  }
+
+  const fetchImplementation = originalFetch ?? fetch.bind(globalThis);
+
+  const requestPromise = (async () => {
+    const response = await fetchImplementation('/api/public/payload-encryption-key', {
+      method: 'GET',
+      credentials: 'include',
+      headers: { Accept: 'application/json' }
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Échec de récupération de la clé de chiffrement (statut ${response.status}).`
+      );
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      throw new Error('Réponse invalide du serveur lors de la récupération de la clé.');
+    }
+
+    const parsedPayload = payload as { key?: unknown };
+    const fetchedKey =
+      typeof parsedPayload.key === 'string' ? parsedPayload.key.trim() : '';
+
+    if (!fetchedKey) {
+      throw new Error('Réponse invalide du serveur : clé de chiffrement absente.');
+    }
+
+    cachedBase64Key = fetchedKey;
+    return fetchedKey;
+  })();
+
+  base64KeyPromise = requestPromise.catch((error) => {
+    base64KeyPromise = null;
+    throw error;
+  });
+
+  return base64KeyPromise;
+};
+
 const importEncryptionKey = async (): Promise<CryptoKey> => {
   if (cachedKeyPromise) {
     return cachedKeyPromise;
@@ -48,10 +114,7 @@ const importEncryptionKey = async (): Promise<CryptoKey> => {
       throw new Error('Web Crypto API is not available in this environment.');
     }
 
-    const base64Key = import.meta.env.VITE_PAYLOAD_ENCRYPTION_KEY?.trim();
-    if (!base64Key) {
-      throw new Error('VITE_PAYLOAD_ENCRYPTION_KEY est requis pour chiffrer les payloads JSON.');
-    }
+    const base64Key = await resolveBase64EncryptionKey();
 
     const rawKey = base64ToUint8Array(base64Key);
     if (rawKey.byteLength !== 32) {
@@ -97,20 +160,27 @@ export const setupEncryptedFetch = () => {
     return;
   }
 
-  const base64Key = import.meta.env.VITE_PAYLOAD_ENCRYPTION_KEY?.trim();
-  if (!base64Key) {
-    console.warn(
-      'VITE_PAYLOAD_ENCRYPTION_KEY est introuvable. Le chiffrement des requêtes JSON est désactivé.'
-    );
-    return;
-  }
-
   const INSTALL_FLAG = '__payload_encryption_fetch_wrapper__';
   if ((window as unknown as Record<string, unknown>)[INSTALL_FLAG]) {
     return;
   }
 
-  const originalFetch = window.fetch.bind(window);
+  const envKey = import.meta.env.VITE_PAYLOAD_ENCRYPTION_KEY?.trim();
+  if (envKey) {
+    cachedBase64Key = envKey;
+  }
+
+  const nativeFetch = window.fetch.bind(window);
+  originalFetch = nativeFetch;
+
+  if (!envKey) {
+    resolveBase64EncryptionKey().catch((error) => {
+      console.warn(
+        "Impossible d'initialiser le chiffrement des requêtes JSON :",
+        error
+      );
+    });
+  }
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = input instanceof Request ? input : new Request(input, init);
@@ -119,7 +189,7 @@ export const setupEncryptedFetch = () => {
     const contentType = headers.get('content-type')?.toLowerCase() ?? '';
 
     const callOriginalFetch = () =>
-      init === undefined ? originalFetch(input) : originalFetch(input, init);
+      init === undefined ? nativeFetch(input) : nativeFetch(input, init);
 
     if (
       !method ||
