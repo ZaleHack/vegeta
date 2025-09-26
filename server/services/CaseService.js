@@ -428,6 +428,16 @@ class CaseService {
       };
 
       const reportGeneratedAtLabel = formatDateTimeValue(reportGeneratedAt);
+      const numberFormatter = new Intl.NumberFormat('fr-FR');
+
+      const formatInteger = (value) => {
+        if (value === null || value === undefined) return '0';
+        const numeric = Number(value);
+        if (Number.isNaN(numeric)) {
+          return String(value);
+        }
+        return numberFormatter.format(Math.round(numeric));
+      };
 
       const ensureSpace = (height = 60) => {
         const bottomLimit = doc.page.height - doc.page.margins.bottom - footerHeight;
@@ -448,6 +458,91 @@ class CaseService {
         }
         return String(value);
       };
+
+      const formatNumberList = (values = [], limit = 3) => {
+        if (!Array.isArray(values) || values.length === 0) {
+          return '';
+        }
+        const formatted = values.slice(0, limit).map((value) => formatPhoneNumber(value));
+        const remaining = values.length - formatted.length;
+        if (remaining > 0) {
+          return `${formatted.join(', ')} et ${remaining} autre${remaining > 1 ? 's' : ''}`;
+        }
+        return formatted.join(', ');
+      };
+
+      const trackedNumbersCount = caseNumbers.length;
+      const uniqueContactsCount = insights?.contacts?.length || 0;
+      const totalInteractions = (insights?.numberSummaries || []).reduce(
+        (sum, summary) => sum + (summary.totalInteractions || 0),
+        0
+      );
+
+      const events = Array.isArray(insights?.events) ? insights.events : [];
+      const eventTimes = events
+        .map((event) => {
+          if (!event) return null;
+          const candidate = event.end || event.start;
+          if (!candidate || Number.isNaN(candidate.getTime?.())) {
+            return null;
+          }
+          return candidate;
+        })
+        .filter((value) => value instanceof Date);
+
+      let activityRangeLabel = 'Non déterminée';
+      if (eventTimes.length) {
+        const sortedTimes = eventTimes.slice().sort((a, b) => a.getTime() - b.getTime());
+        const first = sortedTimes[0];
+        const last = sortedTimes[sortedTimes.length - 1];
+        const formatDateOnly = (date) =>
+          date.toLocaleDateString('fr-FR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        activityRangeLabel = `${formatDateOnly(first)} – ${formatDateOnly(last)}`;
+      }
+
+      const latestFileUpload = files.length ? files[0]?.uploaded_at : null;
+
+      const summaryHighlights = [
+        {
+          title: 'Numéros surveillés',
+          value: formatInteger(trackedNumbersCount),
+          caption: trackedNumbersCount
+            ? formatNumberList(caseNumbers)
+            : "Ajoutez un numéro suivi pour démarrer l'analyse."
+        },
+        {
+          title: 'Contacts clés',
+          value: formatInteger(uniqueContactsCount),
+          caption: uniqueContactsCount
+            ? 'Identifiés sur l’ensemble des relevés importés.'
+            : 'Aucun contact corrélé pour le moment.'
+        },
+        {
+          title: 'Interactions totales',
+          value: formatInteger(totalInteractions),
+          caption: totalInteractions
+            ? 'Somme des appels et SMS détectés.'
+            : 'En attente d’activités exploitables.'
+        },
+        {
+          title: 'Période analysée',
+          value: activityRangeLabel,
+          caption:
+            activityRangeLabel !== 'Non déterminée'
+              ? 'Intervalle couvert par les événements corrélés.'
+              : 'Compléter les relevés pour préciser la période.'
+        },
+        {
+          title: 'Fichiers analysés',
+          value: formatInteger(files.length),
+          caption:
+            files.length && latestFileUpload
+              ? `Dernier import : ${formatDateTimeValue(latestFileUpload)}`
+              : files.length
+                ? 'Sources traitées pour cette opération.'
+                : 'Aucun fichier importé à ce stade.'
+        }
+      ];
 
       const drawSignature = () => {
         const previousX = doc.x;
@@ -553,7 +648,10 @@ class CaseService {
           .fillColor(colors.muted)
           .text(`Généré le ${reportGeneratedAtLabel}`, heroX + 32, heroY + 116);
 
-        const heroStats = [];
+        const heroStats = summaryHighlights.slice(0, 3).map((item) => ({
+          label: item.title,
+          value: item.value
+        }));
 
         if (heroStats.length) {
           const statWidth = (availableWidth - 72) / heroStats.length;
@@ -586,16 +684,75 @@ class CaseService {
         doc.x = heroX;
       };
 
+      const drawSummaryHighlights = () => {
+        if (!summaryHighlights.length) {
+          return;
+        }
+
+        const columns = Math.min(summaryHighlights.length, summaryHighlights.length >= 3 ? 2 : 1);
+        const gutter = 24;
+        const columnWidth =
+          columns > 1 ? (availableWidth - gutter * (columns - 1)) / columns : availableWidth;
+        const cardHeight = 96;
+        const rows = Math.ceil(summaryHighlights.length / columns);
+        ensureSpace(rows * (cardHeight + 16) + 20);
+
+        const startY = doc.y;
+
+        summaryHighlights.forEach((item, idx) => {
+          const columnIndex = idx % columns;
+          const rowIndex = Math.floor(idx / columns);
+          const x = doc.page.margins.left + columnIndex * (columnWidth + gutter);
+          const y = startY + rowIndex * (cardHeight + 16);
+
+          doc.save();
+          doc.roundedRect(x, y, columnWidth, cardHeight, 16).fill('#FFFFFF');
+          doc
+            .lineWidth(0.6)
+            .strokeColor(colors.border)
+            .roundedRect(x, y, columnWidth, cardHeight, 16)
+            .stroke();
+          doc.restore();
+
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(9)
+            .fillColor(colors.muted)
+            .text(item.title.toUpperCase(), x + 20, y + 16, { width: columnWidth - 40 });
+
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(20)
+            .fillColor(colors.accent)
+            .text(item.value, x + 20, y + 38, { width: columnWidth - 40 });
+
+          doc
+            .font('Helvetica')
+            .fontSize(9)
+            .fillColor(colors.muted)
+            .text(item.caption, x + 20, y + 64, { width: columnWidth - 40 });
+        });
+
+        const totalHeight = rows * cardHeight + (rows - 1) * 16;
+        doc.y = startY + totalHeight + 18;
+        doc.x = doc.page.margins.left;
+      };
+
       const drawInfoGrid = () => {
         const infoEntries = [
           ["Nom de l'opération", existingCase.name],
+          ['Responsable opérationnel', owner?.login || 'Non renseigné'],
           ['Division opérationnelle', owner?.division_name || 'Non renseignée'],
-          ['Date du rapport', reportGeneratedAtLabel]
+          ['Rapport généré le', reportGeneratedAtLabel],
+          ['Dernier import', latestFileUpload ? formatDateTimeValue(latestFileUpload) : 'Aucun'],
+          ['Période analysée', activityRangeLabel]
         ];
 
-        const columns = 2;
-        const columnWidth = (availableWidth - 32) / columns;
-        const cellHeight = 88;
+        const columns = Math.min(3, infoEntries.length);
+        const gutter = 20;
+        const columnWidth =
+          columns > 1 ? (availableWidth - gutter * (columns - 1)) / columns : availableWidth;
+        const cellHeight = 84;
         const rows = Math.ceil(infoEntries.length / columns);
         ensureSpace(rows * cellHeight + 28);
         const startY = doc.y;
@@ -604,11 +761,11 @@ class CaseService {
         infoEntries.forEach(([label, value], idx) => {
           const columnIndex = idx % columns;
           const rowIndex = Math.floor(idx / columns);
-          const x = doc.page.margins.left + columnIndex * (columnWidth + 32);
+          const x = doc.page.margins.left + columnIndex * (columnWidth + gutter);
           const y = startY + rowIndex * cellHeight;
 
           doc.save();
-          doc.roundedRect(x, y, columnWidth, cellHeight - 20, 18).fill('#FFFFFF');
+          doc.roundedRect(x, y, columnWidth, cellHeight - 16, 14).fill('#FFFFFF');
           doc.restore();
 
           doc
@@ -621,13 +778,13 @@ class CaseService {
             .font('Helvetica')
             .fontSize(12)
             .fillColor(colors.text)
-            .text(value, x + 20, y + 40, { width: columnWidth - 40 });
+            .text(value, x + 20, y + 38, { width: columnWidth - 40 });
 
           doc
             .rect(x, y, columnWidth, 4)
             .fill(colors.accent);
 
-          const cardBottom = y + cellHeight - 20;
+          const cardBottom = y + cellHeight - 16;
           if (cardBottom > maxBottom) {
             maxBottom = cardBottom;
           }
@@ -635,6 +792,27 @@ class CaseService {
 
         doc.y = maxBottom + 24;
         doc.x = doc.page.margins.left;
+      };
+
+      const drawExecutiveSummary = () => {
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(14)
+          .fillColor(colors.title)
+          .text('Synthèse opérationnelle');
+        doc.moveDown(0.2);
+
+        doc
+          .font('Helvetica')
+          .fontSize(10)
+          .fillColor(colors.muted)
+          .text("Vue d'ensemble des données clés de la mission.");
+
+        doc.moveDown(0.6);
+
+        drawSummaryHighlights();
+        doc.moveDown(0.2);
+        drawInfoGrid();
       };
 
       const drawTrackedNumbersTable = () => {
@@ -1197,9 +1375,11 @@ class CaseService {
 
       drawHeroHeader();
 
-      drawSectionHeader('Synthèse opérationnelle', 'Vue d\'ensemble des données clés de la mission.');
-      drawInfoGrid();
-      doc.moveDown(0.6);
+      drawExecutiveSummary();
+
+      doc.addPage();
+      doc.x = doc.page.margins.left;
+      doc.y = doc.page.margins.top;
 
       drawSectionHeader('Numéros suivis', 'Liste consolidée des identifiants surveillés.');
       drawTrackedNumbersTable();
