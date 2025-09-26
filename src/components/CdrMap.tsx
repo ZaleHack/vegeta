@@ -1039,35 +1039,35 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           : 'Synthèse';
 
       return (
-        <div className="relative w-[260px] max-w-[80vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-sm text-slate-700 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/30 via-orange-400/10 to-yellow-500/25" aria-hidden />
-          <div className="pointer-events-none absolute inset-0 bg-white/75" aria-hidden />
+        <div className="relative w-[260px] max-w-[80vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-sm text-slate-700 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl dark:border-slate-700/70 dark:bg-slate-950/80 dark:text-slate-100 dark:shadow-[0_40px_80px_-40px_rgba(0,0,0,0.8)]">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/30 via-orange-400/10 to-yellow-500/25 dark:from-amber-500/20 dark:via-orange-400/5 dark:to-yellow-500/10" aria-hidden />
+          <div className="pointer-events-none absolute inset-0 bg-white/75 dark:bg-slate-950/70" aria-hidden />
           <div className="relative space-y-3 px-4 py-4">
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700/80">Point d'intérêt</p>
-              <p className="text-base font-semibold text-slate-900">{loc.nom || `${loc.latitude},${loc.longitude}`}</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700/80 dark:text-amber-300/90">Point d'intérêt</p>
+              <p className="text-base font-semibold text-slate-900 dark:text-white">{loc.nom || `${loc.latitude},${loc.longitude}`}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {loc.latitude}, {loc.longitude}
               </p>
             </div>
-            <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-3 text-slate-700 shadow-sm backdrop-blur-sm">
-              <span className="text-xs uppercase tracking-wide text-slate-400">Occurrences</span>
-              <span className="text-3xl font-semibold text-slate-900">{loc.count}</span>
+            <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-3 text-slate-700 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:shadow-black/40">
+              <span className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-400">Occurrences</span>
+              <span className="text-3xl font-semibold text-slate-900 dark:text-white">{loc.count}</span>
             </div>
             {loc.lastDate && (
-              <div className="rounded-2xl border border-amber-400/30 bg-amber-50/80 px-4 py-3 shadow-sm backdrop-blur-sm">
-                <p className="text-[10px] uppercase tracking-wide text-amber-500">Dernière visite</p>
-                <p className="text-sm font-semibold text-amber-700">
+              <div className="rounded-2xl border border-amber-400/30 bg-amber-50/80 px-4 py-3 shadow-sm backdrop-blur-sm dark:border-amber-400/40 dark:bg-amber-500/10 dark:shadow-black/40">
+                <p className="text-[10px] uppercase tracking-wide text-amber-500 dark:text-amber-300">Dernière visite</p>
+                <p className="text-sm font-semibold text-amber-700 dark:text-amber-200">
                   {formatDate(loc.lastDate)}
                   {loc.lastTime ? ` • ${loc.lastTime}` : ''}
                 </p>
               </div>
             )}
             {showSource && (
-              <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
+              <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/40">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-slate-400">Numéro</p>
-                  <p className="text-sm font-semibold text-slate-700">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-400">Numéro</p>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">
                     {formatPhoneForDisplay(loc.source!)}
                   </p>
                 </div>
@@ -1077,8 +1077,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 />
               </div>
             )}
-            <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-sm">
-              Vue actuelle : <span className="font-semibold text-slate-600">{modeLabel}</span>
+            <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400 dark:shadow-black/40">
+              Vue actuelle : <span className="font-semibold text-slate-600 dark:text-slate-200">{modeLabel}</span>
             </div>
           </div>
         </div>
