@@ -3,6 +3,7 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -27,21 +28,81 @@ import divisionsRoutes from './routes/divisions.js';
 import notificationsRoutes from './routes/notifications.js';
 import fraudRoutes from './routes/fraud.js';
 import { authenticate } from './middleware/auth.js';
+import { ensureEnvironment, resolveAllowedOrigins } from './config/environment.js';
 
 // Initialisation de la base de données
 import database from './config/database.js';
 import initDatabase from './scripts/init-database.js';
 
+ensureEnvironment();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const allowedOrigins = new Set(resolveAllowedOrigins());
+
+if (allowedOrigins.size === 0) {
+  console.warn(
+    '⚠️ Aucun domaine configuré dans CORS_ALLOWED_ORIGINS: seules les requêtes sans en-tête Origin seront acceptées.'
+  );
+}
+
+const corsMiddleware = cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    const error = new Error('CORS_NOT_ALLOWED');
+    error.name = 'CORSNotAllowedError';
+    return callback(error);
+  },
+  credentials: true
+});
+
+const enforceCors = (req, res, next) => {
+  corsMiddleware(req, res, (error) => {
+    if (error) {
+      const requestOrigin = req.headers.origin || 'unknown';
+      console.warn(`❌ Requête CORS refusée depuis l'origine: ${requestOrigin}`);
+      if (!res.headersSent) {
+        return res.status(403).json({ error: 'Origin not allowed by CORS policy' });
+      }
+      return;
+    }
+
+    if (!res.headersSent) {
+      next();
+    }
+  });
+};
 
 const app = express();
 
 // Middlewares
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        baseUri: ["'self'"],
+        blockAllMixedContent: [],
+        fontSrc: ["'self'", 'https:', 'data:'],
+        frameAncestors: ["'none'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        objectSrc: ["'none'"],
+        scriptSrc: ["'self'"],
+        scriptSrcAttr: ["'none'"],
+        styleSrc: ["'self'", 'https:', "'unsafe-inline'"],
+        upgradeInsecureRequests: []
+      }
+    },
+    referrerPolicy: { policy: 'no-referrer' },
+    frameguard: { action: 'deny' },
+    crossOriginResourcePolicy: { policy: 'same-site' }
+  })
+);
+app.use(enforceCors);
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -122,9 +183,13 @@ app.get('*', (req, res) => {
 
 // Gestionnaire d'erreurs global
 app.use((error, req, res, next) => {
+  if (error?.name === 'CORSNotAllowedError') {
+    return res.status(403).json({ error: 'Origin not allowed by CORS policy' });
+  }
+
   console.error('❌ Erreur non gérée:', error);
-  res.status(500).json({ 
-    error: process.env.NODE_ENV === 'production' 
+  res.status(500).json({
+    error: process.env.NODE_ENV === 'production'
       ? 'Erreur interne du serveur' 
       : error.message 
   });

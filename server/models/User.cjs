@@ -2,6 +2,16 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const database = require('../config/database.cjs');
 
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error(
+      'JWT secret is not configured. Set a strong JWT_SECRET environment variable before starting the server.'
+    );
+  }
+  return secret;
+};
+
 class User {
   static async create(userData) {
     const { username, email, password, role = 'LECTEUR' } = userData;
@@ -42,18 +52,18 @@ class User {
 
   static generateToken(user) {
     return jwt.sign(
-      { 
-        id: user.id, 
-        username: user.username, 
-        role: user.role 
+      {
+        id: user.id,
+        username: user.username,
+        role: user.role
       },
-      process.env.JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
   }
 
   static verifyToken(token) {
-    return jwt.verify(token, process.env.JWT_SECRET);
+    return jwt.verify(token, getJwtSecret());
   }
 
   static async findAll(filters = {}) {
