@@ -20,6 +20,20 @@ Copiez ensuite vos paramètres sensibles (connexion MySQL, clés JWT, etc.) dans
 
 - `JWT_SECRET` : clé secrète **obligatoire** pour signer les jetons JWT. Utilisez une valeur aléatoire robuste (32 caractères ou plus). En développement, un secret temporaire est généré automatiquement si la variable est absente, mais ne vous reposez pas dessus pour la production.
 - `CORS_ALLOWED_ORIGINS` : liste séparée par des virgules des URL autorisées à appeler l'API via CORS. Ajoutez ici les domaines de vos front-ends autorisés.
+- `PAYLOAD_ENCRYPTION_KEY` : clé AES-256 encodée en base64 utilisée par l'API pour déchiffrer les requêtes JSON chiffrées par le front.
+- `VITE_PAYLOAD_ENCRYPTION_KEY` : copie côté client (toujours préfixée `VITE_`) de la même clé AES-256 encodée en base64 ; elle est injectée par Vite lors du build pour chiffrer les payloads sortants.
+
+### Rotation de la clé de chiffrement des payloads
+
+1. Générer une nouvelle clé aléatoire de 32 octets et l'encoder en base64 :
+
+   ```bash
+   openssl rand -base64 32
+   ```
+
+2. Mettre à jour simultanément `PAYLOAD_ENCRYPTION_KEY` et `VITE_PAYLOAD_ENCRYPTION_KEY` avec la valeur générée.
+3. Redémarrer le serveur et relancer le build du front (`npm run build` ou `npm run dev`) pour prendre en compte la nouvelle clé.
+4. Vérifier manuellement une requête critique (ex. `/api/auth/login`) en observant le header `X-Encrypted: aes-gcm` côté client et la bonne réception côté API.
 
 ## Lancement
 
