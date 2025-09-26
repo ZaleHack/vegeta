@@ -590,8 +590,7 @@ class CaseService {
         const infoEntries = [
           ["Nom de l'opération", existingCase.name],
           ['Division opérationnelle', owner?.division_name || 'Non renseignée'],
-          ['Date du rapport', reportGeneratedAtLabel],
-          ['Fichiers importés', files.length.toString()]
+          ['Date du rapport', reportGeneratedAtLabel]
         ];
 
         const columns = 2;
@@ -665,8 +664,37 @@ class CaseService {
           availableWidth * 0.3
         ];
         const headerHeight = 24;
-        const rowHeight = 24;
-        ensureSpace(headerHeight + rowHeight * summaries.length + 28);
+        const verticalPadding = 12;
+        doc.font('Helvetica').fontSize(10);
+
+        const rowEntries = summaries.map((summary, index) => {
+          const contactLabel = summary.uniqueContacts === 1 ? 'contact' : 'contacts';
+          const interactionLabel = summary.totalInteractions === 1 ? 'interaction' : 'interactions';
+          const formattedInteractions = summary.totalInteractions
+            ? `${summary.uniqueContacts} ${contactLabel} • ${summary.totalInteractions} ${interactionLabel}`
+            : `${summary.uniqueContacts} ${contactLabel}`;
+
+          const values = [
+            `#${String(index + 1).padStart(2, '0')}`,
+            formatPhoneNumber(summary.number),
+            formattedInteractions,
+            summary.lastActivity ? formatDateTimeValue(summary.lastActivity) : 'Aucune activité'
+          ];
+
+          const textHeights = values.map((value, colIdx) =>
+            doc.heightOfString(value, {
+              width: columnWidths[colIdx] - 24,
+              align: 'left'
+            })
+          );
+
+          const rowHeight = Math.max(24, Math.max(...textHeights) + verticalPadding);
+
+          return { values, rowHeight };
+        });
+
+        const totalRowsHeight = rowEntries.reduce((total, row) => total + row.rowHeight, 0);
+        ensureSpace(headerHeight + totalRowsHeight + 28);
         const startX = doc.page.margins.left;
         let currentY = doc.y;
 
@@ -685,33 +713,30 @@ class CaseService {
 
         currentY += headerHeight;
 
-        summaries.forEach((summary, index) => {
-        const background = index % 2 === 0 ? '#FFFFFF' : colors.card;
-        doc.save();
-        doc.rect(startX, currentY, availableWidth, rowHeight).fill(background);
-        doc.restore();
+        doc.font('Helvetica').fontSize(10).fillColor(colors.text);
+        rowEntries.forEach((row, index) => {
+          const background = index % 2 === 0 ? '#FFFFFF' : colors.card;
+          doc.save();
+          doc.rect(startX, currentY, availableWidth, row.rowHeight).fill(background);
+          doc.restore();
 
-        const contactLabel = summary.uniqueContacts === 1 ? 'contact' : 'contacts';
-        const interactionLabel = summary.totalInteractions === 1 ? 'interaction' : 'interactions';
-        const formattedInteractions = summary.totalInteractions
-          ? `${summary.uniqueContacts} ${contactLabel} • ${summary.totalInteractions} ${interactionLabel}`
-          : `${summary.uniqueContacts} ${contactLabel}`;
-          const values = [
-            `#${String(index + 1).padStart(2, '0')}`,
-            formatPhoneNumber(summary.number),
-            formattedInteractions,
-            summary.lastActivity ? formatDateTimeValue(summary.lastActivity) : 'Aucune activité'
-          ];
-
-          doc.font('Helvetica').fontSize(10).fillColor(colors.text);
-          values.forEach((value, colIdx) => {
+          row.values.forEach((value, colIdx) => {
             const offset = columnWidths.slice(0, colIdx).reduce((a, b) => a + b, 0);
-            doc.text(value, startX + offset + 12, currentY + 6, {
-              width: columnWidths[colIdx] - 24
+            const textX = startX + offset + 12;
+            const textY = currentY + verticalPadding / 2;
+            const previousX = doc.x;
+            const previousY = doc.y;
+
+            doc.text(value, textX, textY, {
+              width: columnWidths[colIdx] - 24,
+              align: 'left'
             });
+
+            doc.x = previousX;
+            doc.y = previousY;
           });
 
-          currentY += rowHeight;
+          currentY += row.rowHeight;
         });
 
         doc.y = currentY + 12;
