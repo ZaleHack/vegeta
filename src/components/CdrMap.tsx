@@ -499,14 +499,14 @@ const MeetingPointMarker: React.FC<{
       })}
     >
       <Popup className="cdr-popup">
-        <div className="relative w-[280px] max-w-[80vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-sm text-rose-600 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-rose-500/35 via-pink-500/10 to-orange-500/25" aria-hidden />
-          <div className="pointer-events-none absolute inset-0 bg-white/75" aria-hidden />
+        <div className="relative w-[280px] max-w-[80vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-sm text-rose-600 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl dark:border-rose-500/40 dark:bg-slate-900/90 dark:text-rose-100 dark:shadow-[0_30px_60px_-28px_rgba(0,0,0,0.75)]">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-rose-500/35 via-pink-500/10 to-orange-500/25 dark:from-rose-500/25 dark:via-rose-500/10 dark:to-orange-500/20" aria-hidden />
+          <div className="pointer-events-none absolute inset-0 bg-white/75 dark:bg-slate-950/60" aria-hidden />
           <div className="relative space-y-3 px-4 py-4">
             <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500/80">Point de rencontre</p>
-              <p className="text-base font-semibold text-rose-700">{mp.nom || 'Point de rencontre'}</p>
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-rose-500/80">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500/80 dark:text-rose-300/90">Point de rencontre</p>
+              <p className="text-base font-semibold text-rose-700 dark:text-rose-100">{mp.nom || 'Point de rencontre'}</p>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-rose-500/80 dark:text-rose-200/80">
                 {mp.date && <span>{mp.date}</span>}
                 {mp.start && mp.end && (
                   <span className="inline-flex items-center gap-1">
@@ -515,7 +515,7 @@ const MeetingPointMarker: React.FC<{
                   </span>
                 )}
                 {mp.total && (
-                  <span className="inline-flex items-center rounded-full border border-white/60 bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow-sm backdrop-blur-sm">
+                  <span className="inline-flex items-center rounded-full border border-white/60 bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow-sm backdrop-blur-sm dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-100">
                     Total {mp.total}
                   </span>
                 )}
@@ -525,16 +525,16 @@ const MeetingPointMarker: React.FC<{
               {mp.perNumber.map((d, idx) => (
                 <div
                   key={idx}
-                  className="rounded-2xl border border-white/60 bg-white/75 px-4 py-3 text-[13px] text-rose-600 shadow-sm backdrop-blur-sm"
+                  className="rounded-2xl border border-white/60 bg-white/75 px-4 py-3 text-[13px] text-rose-600 shadow-sm backdrop-blur-sm dark:border-rose-500/25 dark:bg-slate-900/70 dark:text-rose-100 dark:shadow-black/40"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-[10px] uppercase tracking-wide text-rose-400">Numéro</p>
-                      <p className="text-sm font-semibold leading-snug text-rose-600">
+                      <p className="text-[10px] uppercase tracking-wide text-rose-400 dark:text-rose-300">Numéro</p>
+                      <p className="text-sm font-semibold leading-snug text-rose-600 dark:text-rose-100">
                         {formatPhoneForDisplay(d.number)}
                       </p>
                     </div>
-                    <span className="inline-flex items-center rounded-full border border-white/60 bg-white/80 px-2.5 py-0.5 text-[11px] font-semibold text-rose-500 shadow-sm backdrop-blur-sm">
+                    <span className="inline-flex items-center rounded-full border border-white/60 bg-white/80 px-2.5 py-0.5 text-[11px] font-semibold text-rose-500 shadow-sm backdrop-blur-sm dark:border-rose-500/30 dark:bg-rose-500/20 dark:text-rose-100">
                       {d.total}
                     </span>
                   </div>
@@ -542,11 +542,11 @@ const MeetingPointMarker: React.FC<{
                     {d.events.map((ev, i) => (
                       <div
                         key={i}
-                        className="flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-white/60 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur-sm"
+                        className="flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-white/60 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur-sm dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100"
                       >
-                        <span className="font-semibold text-rose-600">{ev.date}</span>
+                        <span className="font-semibold text-rose-600 dark:text-rose-100">{ev.date}</span>
                         <span>{ev.start} – {ev.end}</span>
-                        <span className="text-[10px] font-semibold text-rose-400">{ev.duration}</span>
+                        <span className="text-[10px] font-semibold text-rose-400 dark:text-rose-200">{ev.duration}</span>
                       </div>
                     ))}
                   </div>
@@ -624,7 +624,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     (point: Point): EventVisuals => {
       if (point.type === 'web') {
         return {
-          label: 'Position web',
+          label: 'Position',
           gradient:
             'from-rose-500/35 via-orange-500/10 to-amber-500/30 dark:from-rose-500/25 dark:via-orange-500/10 dark:to-amber-500/25',
           icon: MapPin,
