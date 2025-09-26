@@ -97,6 +97,14 @@ export const setupEncryptedFetch = () => {
     return;
   }
 
+  const base64Key = import.meta.env.VITE_PAYLOAD_ENCRYPTION_KEY?.trim();
+  if (!base64Key) {
+    console.warn(
+      'VITE_PAYLOAD_ENCRYPTION_KEY est introuvable. Le chiffrement des requêtes JSON est désactivé.'
+    );
+    return;
+  }
+
   const INSTALL_FLAG = '__payload_encryption_fetch_wrapper__';
   if ((window as unknown as Record<string, unknown>)[INSTALL_FLAG]) {
     return;
