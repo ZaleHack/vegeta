@@ -553,40 +553,33 @@ class CaseService {
           .fillColor(colors.muted)
           .text(`Généré le ${reportGeneratedAtLabel}`, heroX + 32, heroY + 116);
 
-        const heroStats = [
-          {
-            label: 'Numéros suivis',
-            value: caseNumbers.length ? `${caseNumbers.length}` : '—'
-          },
-          {
-            label: 'Fichiers importés',
-            value: files.length ? `${files.length}` : '0'
-          }
-        ];
+        const heroStats = [];
 
-        const statWidth = (availableWidth - 72) / heroStats.length;
-        const statY = heroY + heroHeight - 68;
-        heroStats.forEach((stat, index) => {
-          const statX = heroX + 32 + index * (statWidth + 8);
-          doc
-            .roundedRect(statX, statY, statWidth, 56, 16)
-            .fill('#FFFFFF');
-          doc
-            .lineWidth(0.5)
-            .strokeColor(colors.border)
-            .roundedRect(statX, statY, statWidth, 56, 16)
-            .stroke();
-          doc
-            .font('Helvetica-Bold')
-            .fontSize(9)
-            .fillColor(colors.muted)
-            .text(stat.label.toUpperCase(), statX + 18, statY + 14, { width: statWidth - 36 });
-          doc
-            .font('Helvetica')
-            .fontSize(12)
-            .fillColor(colors.title)
-            .text(stat.value, statX + 18, statY + 30, { width: statWidth - 36 });
-        });
+        if (heroStats.length) {
+          const statWidth = (availableWidth - 72) / heroStats.length;
+          const statY = heroY + heroHeight - 68;
+          heroStats.forEach((stat, index) => {
+            const statX = heroX + 32 + index * (statWidth + 8);
+            doc
+              .roundedRect(statX, statY, statWidth, 56, 16)
+              .fill('#FFFFFF');
+            doc
+              .lineWidth(0.5)
+              .strokeColor(colors.border)
+              .roundedRect(statX, statY, statWidth, 56, 16)
+              .stroke();
+            doc
+              .font('Helvetica-Bold')
+              .fontSize(9)
+              .fillColor(colors.muted)
+              .text(stat.label.toUpperCase(), statX + 18, statY + 14, { width: statWidth - 36 });
+            doc
+              .font('Helvetica')
+              .fontSize(12)
+              .fillColor(colors.title)
+              .text(stat.value, statX + 18, statY + 30, { width: statWidth - 36 });
+          });
+        }
 
         doc.restore();
         doc.y = heroY + heroHeight + 24;
@@ -597,10 +590,8 @@ class CaseService {
         const infoEntries = [
           ["Nom de l'opération", existingCase.name],
           ['Division opérationnelle', owner?.division_name || 'Non renseignée'],
-          ['Créée le', formatDateTimeValue(existingCase.created_at)],
           ['Date du rapport', reportGeneratedAtLabel],
-          ['Fichiers importés', files.length.toString()],
-          ['Numéros CDR suivis', caseNumbers.length ? caseNumbers.length.toString() : '—']
+          ['Fichiers importés', files.length.toString()]
         ];
 
         const columns = 2;
