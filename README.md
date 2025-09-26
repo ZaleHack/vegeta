@@ -18,7 +18,7 @@ Copiez ensuite vos paramètres sensibles (connexion MySQL, clés JWT, etc.) dans
 
 ### Variables d'environnement de sécurité
 
-- `JWT_SECRET` : clé secrète **obligatoire** pour signer les jetons JWT. Utilisez une valeur aléatoire robuste (32 caractères ou plus).
+- `JWT_SECRET` : clé secrète **obligatoire** pour signer les jetons JWT. Utilisez une valeur aléatoire robuste (32 caractères ou plus). En développement, un secret temporaire est généré automatiquement si la variable est absente, mais ne vous reposez pas dessus pour la production.
 - `CORS_ALLOWED_ORIGINS` : liste séparée par des virgules des URL autorisées à appeler l'API via CORS. Ajoutez ici les domaines de vos front-ends autorisés.
 
 ## Lancement
