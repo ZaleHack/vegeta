@@ -398,18 +398,16 @@ class CaseService {
       doc.on('error', reject);
 
       const colors = {
-        title: '#0F172A',
+        title: '#0B1120',
         text: '#1F2937',
         muted: '#64748B',
-        accent: '#1D4ED8',
-        accentSecondary: '#60A5FA',
+        accent: '#2563EB',
+        accentSecondary: '#93C5FD',
         border: '#E2E8F0',
         highlight: '#F97316',
-        danger: '#DC2626',
+        danger: '#EF4444',
         card: '#F8FAFC',
-        sectionBackground: '#EEF2FF',
-        heroBackground: '#1E3A8A',
-        heroOverlay: '#3B82F6'
+        heroBackground: '#F1F5F9'
       };
 
       const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -436,6 +434,19 @@ class CaseService {
         if (doc.y + height > bottomLimit) {
           doc.addPage();
         }
+      };
+
+      const formatPhoneNumber = (value) => {
+        if (!value) return '—';
+        const digits = String(value).replace(/\D/g, '');
+        if (!digits) return String(value);
+        if (digits.startsWith('221') && digits.length === 12) {
+          return `+${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)} ${digits.slice(9)}`;
+        }
+        if (digits.length === 9) {
+          return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}`;
+        }
+        return String(value);
       };
 
       const drawSignature = () => {
@@ -472,104 +483,113 @@ class CaseService {
       doc.on('pageAdded', drawSignature);
 
       const drawSectionHeader = (title, subtitle = null) => {
-        ensureSpace(72);
+        ensureSpace(subtitle ? 64 : 52);
         const headerX = doc.page.margins.left;
-        const headerY = doc.y;
+        const startY = doc.y;
 
-        doc.save();
-        doc.roundedRect(headerX, headerY, availableWidth, 56, 16).fill(colors.sectionBackground);
         doc
-          .fillColor(colors.accent)
           .font('Helvetica-Bold')
-          .fontSize(12)
-          .text(title.toUpperCase(), headerX + 24, headerY + 18);
+          .fontSize(13)
+          .fillColor(colors.title)
+          .text(title, headerX, startY, { width: availableWidth });
+
+        let underlineY = doc.y;
         if (subtitle) {
+          doc.moveDown(0.2);
           doc
             .font('Helvetica')
             .fontSize(9)
             .fillColor(colors.muted)
-            .text(subtitle, headerX + 24, headerY + 32);
+            .text(subtitle, headerX, doc.y, { width: availableWidth });
+          underlineY = doc.y;
         }
-        doc.restore();
 
-        doc.y = headerY + 68;
+        doc
+          .moveTo(headerX, underlineY + 6)
+          .lineTo(headerX + 96, underlineY + 6)
+          .lineWidth(2)
+          .strokeColor(colors.accent)
+          .stroke();
+
+        doc.y = underlineY + 20;
         doc.x = headerX;
       };
 
       const drawHeroHeader = () => {
-        const heroHeight = 188;
+        const heroHeight = 150;
         const heroX = doc.page.margins.left;
         const heroY = doc.page.margins.top;
 
         doc.save();
-        doc.roundedRect(heroX, heroY, availableWidth, heroHeight, 28).fill(colors.heroBackground);
-        doc.opacity(0.3);
+        doc.roundedRect(heroX, heroY, availableWidth, heroHeight, 24).fill(colors.heroBackground);
         doc
-          .fillColor(colors.heroOverlay)
-          .circle(heroX + availableWidth - 80, heroY + 70, 90)
-          .fill();
-        doc.opacity(1);
+          .lineWidth(0.5)
+          .strokeColor(colors.border)
+          .roundedRect(heroX, heroY, availableWidth, heroHeight, 24)
+          .stroke();
         doc
-          .fillColor('#FFFFFF')
           .font('Helvetica-Bold')
-          .fontSize(26)
-          .text("Rapport opérationnel", heroX + 32, heroY + 32);
+          .fontSize(24)
+          .fillColor(colors.title)
+          .text('Rapport opérationnel', heroX + 32, heroY + 30, { width: availableWidth - 64 });
         doc
           .font('Helvetica')
-          .fontSize(12)
-          .fillColor('#C7D2FE')
-          .text('Synthèse stratégique générée automatiquement par Sora Intelligence', heroX + 32, heroY + 58, {
-            width: availableWidth - 240
-          });
+          .fontSize(11)
+          .fillColor(colors.muted)
+          .text(
+            'Synthèse stratégique générée automatiquement par Sora Intelligence',
+            heroX + 32,
+            heroY + 60,
+            { width: availableWidth - 64 }
+          );
         doc
           .font('Helvetica-Bold')
-          .fontSize(20)
-          .fillColor('#FFFFFF')
-          .text(existingCase.name, heroX + 32, heroY + 96, {
-            width: availableWidth - 240
-          });
+          .fontSize(18)
+          .fillColor(colors.accent)
+          .text(existingCase.name, heroX + 32, heroY + 92, { width: availableWidth - 64 });
         doc
           .font('Helvetica')
           .fontSize(10)
-          .fillColor('#C7D2FE')
-          .text(`Généré le ${reportGeneratedAtLabel}`, heroX + 32, heroY + 128);
+          .fillColor(colors.muted)
+          .text(`Généré le ${reportGeneratedAtLabel}`, heroX + 32, heroY + 116);
 
         const heroStats = [
-          {
-            label: 'Fichiers analysés',
-            value: files.length ? `${files.length}` : '0'
-          },
           {
             label: 'Numéros suivis',
             value: caseNumbers.length ? `${caseNumbers.length}` : '—'
           },
           {
-            label: 'Dernière activité CDR',
-            value: insights?.lastActivity ? formatDateTimeValue(insights.lastActivity) : 'Aucune donnée'
+            label: 'Fichiers importés',
+            value: files.length ? `${files.length}` : '0'
           }
         ];
 
-        const statWidth = (availableWidth - 96) / heroStats.length;
-        const statY = heroY + heroHeight - 72;
+        const statWidth = (availableWidth - 72) / heroStats.length;
+        const statY = heroY + heroHeight - 68;
         heroStats.forEach((stat, index) => {
-          const statX = heroX + 32 + index * (statWidth + 16);
+          const statX = heroX + 32 + index * (statWidth + 8);
           doc
-            .roundedRect(statX, statY, statWidth, 60, 16)
+            .roundedRect(statX, statY, statWidth, 56, 16)
             .fill('#FFFFFF');
+          doc
+            .lineWidth(0.5)
+            .strokeColor(colors.border)
+            .roundedRect(statX, statY, statWidth, 56, 16)
+            .stroke();
           doc
             .font('Helvetica-Bold')
             .fontSize(9)
             .fillColor(colors.muted)
-            .text(stat.label.toUpperCase(), statX + 18, statY + 16, { width: statWidth - 36 });
+            .text(stat.label.toUpperCase(), statX + 18, statY + 14, { width: statWidth - 36 });
           doc
             .font('Helvetica')
             .fontSize(12)
             .fillColor(colors.title)
-            .text(stat.value, statX + 18, statY + 34, { width: statWidth - 36 });
+            .text(stat.value, statX + 18, statY + 30, { width: statWidth - 36 });
         });
 
         doc.restore();
-        doc.y = heroY + heroHeight + 28;
+        doc.y = heroY + heroHeight + 24;
         doc.x = heroX;
       };
 
@@ -582,10 +602,6 @@ class CaseService {
           ['Fichiers importés', files.length.toString()],
           ['Numéros CDR suivis', caseNumbers.length ? caseNumbers.length.toString() : '—']
         ];
-
-        if (insights?.lastActivity) {
-          infoEntries.push(['Dernière activité CDR', formatDateTimeValue(insights.lastActivity)]);
-        }
 
         const columns = 2;
         const columnWidth = (availableWidth - 32) / columns;
@@ -631,101 +647,99 @@ class CaseService {
         doc.x = doc.page.margins.left;
       };
 
-      const drawFilesTable = () => {
-        if (!files.length) {
+      const drawTrackedNumbersTable = () => {
+        const summaries = insights?.numberSummaries?.length
+          ? insights.numberSummaries
+          : caseNumbers.map((num) => ({
+              number: num,
+              totalInteractions: 0,
+              uniqueContacts: 0,
+              lastActivity: null
+            }));
+
+        if (!summaries.length) {
           doc
             .font('Helvetica')
             .fontSize(12)
             .fillColor(colors.muted)
-            .text('Aucun fichier importé pour cette opération.');
+            .text('Aucun numéro suivi pour cette opération.');
           doc.moveDown(1);
           return;
         }
 
         const columnWidths = [
-          availableWidth * 0.38,
-          availableWidth * 0.2,
           availableWidth * 0.12,
+          availableWidth * 0.32,
+          availableWidth * 0.26,
           availableWidth * 0.3
         ];
         const headerHeight = 24;
-        const cellPaddingY = 6;
-        const minRowHeight = 22;
-        const rowsData = files.map((file) => [
-          file.filename,
-          file.cdr_number || '-',
-          file.line_count ? String(file.line_count) : '-',
-          formatDateTimeValue(file.uploaded_at)
-        ]);
-
-        const measureCellOptions = (colIdx) =>
-          colIdx === 2
-            ? { width: columnWidths[colIdx] - 24, align: 'center' }
-            : { width: columnWidths[colIdx] - 24 };
-
-        doc.font('Helvetica').fontSize(10);
-        const rowHeights = rowsData.map((values) => {
-          const heights = values.map((value, colIdx) =>
-            doc.heightOfString(String(value), measureCellOptions(colIdx))
-          );
-          const contentHeight = heights.length ? Math.max(...heights) : 0;
-          return Math.max(minRowHeight, contentHeight + cellPaddingY * 2);
-        });
-
-        const totalTableHeight =
-          headerHeight + rowHeights.reduce((sum, height) => sum + height, 0);
-
-        ensureSpace(totalTableHeight + 20);
-        const tableX = doc.page.margins.left;
+        const rowHeight = 24;
+        ensureSpace(headerHeight + rowHeight * summaries.length + 28);
+        const startX = doc.page.margins.left;
         let currentY = doc.y;
 
         doc.save();
-        doc.roundedRect(tableX, currentY, availableWidth, headerHeight, 8).fill(colors.accent);
+        doc.roundedRect(startX, currentY, availableWidth, headerHeight, 10).fill(colors.accent);
         doc.restore();
 
-        const headers = ['Fichier', 'Numéro associé', 'Lignes', 'Importé le'];
+        const headers = ['#', 'Numéro suivi', 'Interactions', 'Dernière activité'];
         doc.font('Helvetica-Bold').fontSize(10).fillColor('#FFFFFF');
         headers.forEach((header, index) => {
           const offset = columnWidths.slice(0, index).reduce((a, b) => a + b, 0);
-          doc.text(header, tableX + offset + 12, currentY + 6, {
+          doc.text(header, startX + offset + 12, currentY + 6, {
             width: columnWidths[index] - 24
           });
         });
 
         currentY += headerHeight;
 
-        const getCellOptions = (colIdx, rowHeight) => {
-          const baseOptions = measureCellOptions(colIdx);
-          return { ...baseOptions, height: rowHeight - cellPaddingY * 2 };
-        };
+        summaries.forEach((summary, index) => {
+        const background = index % 2 === 0 ? '#FFFFFF' : colors.card;
+        doc.save();
+        doc.rect(startX, currentY, availableWidth, rowHeight).fill(background);
+        doc.restore();
 
-        rowsData.forEach((values, index) => {
-          const rowHeight = rowHeights[index];
-          const background = index % 2 === 0 ? colors.card : '#FFFFFF';
-          doc.save();
-          doc.rect(tableX, currentY, availableWidth, rowHeight).fill(background);
-          doc.restore();
+        const contactLabel = summary.uniqueContacts === 1 ? 'contact' : 'contacts';
+        const interactionLabel = summary.totalInteractions === 1 ? 'interaction' : 'interactions';
+        const formattedInteractions = summary.totalInteractions
+          ? `${summary.uniqueContacts} ${contactLabel} • ${summary.totalInteractions} ${interactionLabel}`
+          : `${summary.uniqueContacts} ${contactLabel}`;
+          const values = [
+            `#${String(index + 1).padStart(2, '0')}`,
+            formatPhoneNumber(summary.number),
+            formattedInteractions,
+            summary.lastActivity ? formatDateTimeValue(summary.lastActivity) : 'Aucune activité'
+          ];
 
           doc.font('Helvetica').fontSize(10).fillColor(colors.text);
           values.forEach((value, colIdx) => {
             const offset = columnWidths.slice(0, colIdx).reduce((a, b) => a + b, 0);
-            doc.text(
-              value,
-              tableX + offset + 12,
-              currentY + cellPaddingY,
-              getCellOptions(colIdx, rowHeight)
-            );
+            doc.text(value, startX + offset + 12, currentY + 6, {
+              width: columnWidths[colIdx] - 24
+            });
           });
 
           currentY += rowHeight;
         });
 
         doc.y = currentY + 12;
-        doc.x = tableX;
+        doc.x = startX;
       };
 
-      const drawContactsTable = (contacts = []) => {
-        if (!contacts.length) {
+      const drawContactsTable = (contactsByNumber = [], aggregatedContacts = []) => {
+        const sections = contactsByNumber.length
+          ? contactsByNumber
+          : aggregatedContacts.length
+            ? [
+                {
+                  number: caseNumbers[0] || 'Numéro suivi',
+                  contacts: aggregatedContacts
+                }
+              ]
+            : [];
+
+        if (!sections.length) {
           doc
             .font('Helvetica')
             .fontSize(12)
@@ -735,61 +749,87 @@ class CaseService {
           return;
         }
 
-        const rows = contacts.slice(0, 8);
-        const columnWidths = [
-          availableWidth * 0.45,
-          availableWidth * 0.18,
-          availableWidth * 0.18,
-          availableWidth * 0.19
-        ];
-        const headerHeight = 22;
-        const rowHeight = 20;
-        ensureSpace(headerHeight + rowHeight * rows.length + 20);
-        const startX = doc.page.margins.left;
-        let y = doc.y;
+        sections.forEach((section, sectionIndex) => {
+          const rows = (section.contacts || []).slice(0, 8);
+          const sectionHeader = `Numéro suivi : ${formatPhoneNumber(section.number)}`;
 
-        doc.save();
-        doc.roundedRect(startX, y, availableWidth, headerHeight, 8).fill(colors.accent);
-        doc.restore();
+          ensureSpace(80 + rows.length * 22);
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(11)
+            .fillColor(colors.title)
+            .text(sectionHeader, doc.page.margins.left, doc.y);
+          doc.moveDown(0.2);
 
-        const headers = ['Numéro', 'Appels', 'SMS', 'Total interactions'];
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('#FFFFFF');
-        headers.forEach((header, index) => {
-          const offset = columnWidths.slice(0, index).reduce((a, b) => a + b, 0);
-          doc.text(header, startX + offset + 12, y + 5, {
-            width: columnWidths[index] - 24
-          });
-        });
+          if (!rows.length) {
+            doc
+              .font('Helvetica')
+              .fontSize(10)
+              .fillColor(colors.muted)
+              .text('Aucune interaction enregistrée pour ce numéro.', {
+                width: availableWidth
+              });
+            doc.moveDown(0.8);
+            return;
+          }
 
-        y += headerHeight;
+          const columnWidths = [
+            availableWidth * 0.4,
+            availableWidth * 0.2,
+            availableWidth * 0.2,
+            availableWidth * 0.2
+          ];
+          const headerHeight = 22;
+          const rowHeight = 20;
+          const startX = doc.page.margins.left;
+          let y = doc.y;
 
-        rows.forEach((contact, index) => {
-          const background = index % 2 === 0 ? colors.card : '#FFFFFF';
           doc.save();
-          doc.rect(startX, y, availableWidth, rowHeight).fill(background);
+          doc.roundedRect(startX, y, availableWidth, headerHeight, 8).fill(colors.accent);
           doc.restore();
 
-          const values = [
-            contact.number,
-            contact.callCount.toString(),
-            contact.smsCount.toString(),
-            contact.total.toString()
-          ];
-
-          doc.font('Helvetica').fontSize(10).fillColor(colors.text);
-          values.forEach((value, idx) => {
-            const offset = columnWidths.slice(0, idx).reduce((a, b) => a + b, 0);
-            const options = idx === 0
-              ? { width: columnWidths[idx] - 24 }
-              : { width: columnWidths[idx] - 24, align: 'center' };
-            doc.text(value, startX + offset + 12, y + 5, options);
+          const headers = ['Contact', 'Appels', 'SMS', 'Interactions'];
+          doc.font('Helvetica-Bold').fontSize(10).fillColor('#FFFFFF');
+          headers.forEach((header, index) => {
+            const offset = columnWidths.slice(0, index).reduce((a, b) => a + b, 0);
+            doc.text(header, startX + offset + 12, y + 5, {
+              width: columnWidths[index] - 24
+            });
           });
 
-          y += rowHeight;
-        });
+          y += headerHeight;
 
-        doc.y = y + 12;
-        doc.x = startX;
+          rows.forEach((contact, index) => {
+            const background = index % 2 === 0 ? colors.card : '#FFFFFF';
+            doc.save();
+            doc.rect(startX, y, availableWidth, rowHeight).fill(background);
+            doc.restore();
+
+            const values = [
+              formatPhoneNumber(contact.number),
+              contact.callCount?.toString() || '0',
+              contact.smsCount?.toString() || '0',
+              contact.total?.toString() || '0'
+            ];
+
+            doc.font('Helvetica').fontSize(10).fillColor(colors.text);
+            values.forEach((value, idx) => {
+              const offset = columnWidths.slice(0, idx).reduce((a, b) => a + b, 0);
+              doc.text(value, startX + offset + 12, y + 4, {
+                width: columnWidths[idx] - 24
+              });
+            });
+
+            y += rowHeight;
+          });
+
+          doc.y = y + 12;
+          doc.x = startX;
+
+          if (sectionIndex !== sections.length - 1) {
+            doc.moveDown(0.6);
+          }
+        });
       };
 
       const drawLocationCards = (recent = [], popular = []) => {
@@ -1145,13 +1185,13 @@ class CaseService {
       drawInfoGrid();
       doc.moveDown(0.6);
 
-      drawSectionHeader('Historique des fichiers importés', 'Chronologie et volumétrie des pièces intégrées.');
-      drawFilesTable();
+      drawSectionHeader('Numéros suivis', 'Liste consolidée des identifiants surveillés.');
+      drawTrackedNumbersTable();
       doc.moveDown(0.6);
 
       if (insights) {
-        drawSectionHeader('Contacts clés & interactions', 'Analyse des acteurs et de la densité relationnelle.');
-        drawContactsTable(insights.contacts || []);
+        drawSectionHeader('Contacts clés & interactions', 'Analyse par numéro suivi et densité relationnelle.');
+        drawContactsTable(insights.contactsByNumber || [], insights.contacts || []);
         doc.moveDown(0.6);
 
         drawSectionHeader('Analyse des localisations', 'Points d\'activité récents et zones de présence.');
@@ -1169,9 +1209,6 @@ class CaseService {
         drawSectionHeader('Localisation approximative', 'Estimation consolidée à partir des données CDR.');
         drawApproximateLocation(insights.approximateLocation || null);
         doc.moveDown(0.6);
-
-        drawSectionHeader('Cartographie opérationnelle', 'Visualisation synthétique des déplacements.');
-        drawMap(insights);
       } else {
         drawSectionHeader('Analyse des données CDR', 'Aucune information exploitée pour cette opération.');
         doc
@@ -1188,10 +1225,30 @@ class CaseService {
   }
 
   async _buildCaseInsights(caseName, numbers) {
+    const normalizeTrackedNumber = (value) => {
+      if (!value) return '';
+      let sanitized = String(value).trim();
+      if (!sanitized) return '';
+      sanitized = sanitized.replace(/\s+/g, '');
+      if (sanitized.startsWith('+')) {
+        sanitized = sanitized.slice(1);
+      }
+      while (sanitized.startsWith('00')) {
+        sanitized = sanitized.slice(2);
+      }
+      sanitized = sanitized.replace(/\D/g, '');
+      if (!sanitized) return '';
+      if (!sanitized.startsWith('221')) {
+        sanitized = sanitized.replace(/^0+/, '');
+        sanitized = sanitized ? `221${sanitized}` : '';
+      }
+      return sanitized;
+    };
+
     const uniqueNumbers = Array.from(
       new Set(
         numbers
-          .map((n) => (n ? String(n).trim() : ''))
+          .map((n) => normalizeTrackedNumber(n))
           .filter((n) => n && !n.startsWith('2214'))
       )
     );
@@ -1201,9 +1258,26 @@ class CaseService {
     }
 
     const contactMap = new Map();
+    const contactsByNumber = new Map();
+    const numberStatsMap = new Map();
     const locationMap = new Map();
     const events = [];
     let lastActivity = null;
+
+    const ensureNumberEntry = (number) => {
+      if (!number) return;
+      if (!numberStatsMap.has(number)) {
+        numberStatsMap.set(number, {
+          number,
+          totalInteractions: 0,
+          uniqueContacts: 0,
+          lastActivity: null
+        });
+      }
+      if (!contactsByNumber.has(number)) {
+        contactsByNumber.set(number, []);
+      }
+    };
 
     const parseDateTime = (dateStr, timeStr) => {
       if (!dateStr) return null;
@@ -1220,16 +1294,39 @@ class CaseService {
         result = await this.cdrService.search(identifier, { caseName });
       } catch (err) {
         console.error('Erreur agrégation CDR pour rapport', err);
+        ensureNumberEntry(identifier);
         continue;
       }
 
-      if (!result) continue;
+      if (!result) {
+        ensureNumberEntry(identifier);
+        continue;
+      }
 
-      (result.contacts || []).forEach((contact) => {
-        if (!contact.number) return;
+      const contactEntries = (result.contacts || [])
+        .map((contact) => ({
+          number: contact.number,
+          callCount: contact.callCount || 0,
+          smsCount: contact.smsCount || 0,
+          total: (contact.callCount || 0) + (contact.smsCount || 0)
+        }))
+        .filter((contact) => contact.number)
+        .sort((a, b) => b.total - a.total);
+
+      contactsByNumber.set(identifier, contactEntries);
+
+      const totalInteractions = contactEntries.reduce((sum, contact) => sum + contact.total, 0);
+      numberStatsMap.set(identifier, {
+        number: identifier,
+        totalInteractions,
+        uniqueContacts: contactEntries.length,
+        lastActivity: null
+      });
+
+      contactEntries.forEach((contact) => {
         const entry = contactMap.get(contact.number) || { callCount: 0, smsCount: 0 };
-        entry.callCount += contact.callCount || 0;
-        entry.smsCount += contact.smsCount || 0;
+        entry.callCount += contact.callCount;
+        entry.smsCount += contact.smsCount;
         contactMap.set(contact.number, entry);
       });
 
@@ -1283,6 +1380,18 @@ class CaseService {
       });
     }
 
+    uniqueNumbers.forEach((number) => ensureNumberEntry(number));
+
+    events.forEach((event) => {
+      if (!event.source) return;
+      const eventTime = event.end || event.start;
+      if (!eventTime) return;
+      const stats = numberStatsMap.get(event.source);
+      if (stats && (!stats.lastActivity || eventTime > stats.lastActivity)) {
+        stats.lastActivity = eventTime;
+      }
+    });
+
     const contacts = Array.from(contactMap.entries())
       .map(([number, stats]) => ({
         number,
@@ -1332,8 +1441,25 @@ class CaseService {
         }
       : null;
 
+    const contactsByNumberList = uniqueNumbers.map((number) => ({
+      number,
+      contacts: contactsByNumber.get(number) || []
+    }));
+
+    const numberSummaries = uniqueNumbers.map((number) => {
+      const stats = numberStatsMap.get(number) || {
+        number,
+        totalInteractions: 0,
+        uniqueContacts: 0,
+        lastActivity: null
+      };
+      return { ...stats };
+    });
+
     return {
       contacts,
+      contactsByNumber: contactsByNumberList,
+      numberSummaries,
       recentLocations,
       topLocations,
       meetingPoints,
