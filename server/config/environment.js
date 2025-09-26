@@ -3,6 +3,7 @@ import crypto from 'crypto';
 const DEFAULT_DEV_ORIGINS = ['http://localhost:5173'];
 
 let cachedSecret;
+let cachedPayloadEncryptionKey;
 
 const sanitizeList = (value = '') =>
   value
@@ -35,6 +36,33 @@ export const getJwtSecret = () => {
   );
 };
 
+export const getPayloadEncryptionKey = () => {
+  if (cachedPayloadEncryptionKey) {
+    return cachedPayloadEncryptionKey;
+  }
+
+  const base64Key = process.env.PAYLOAD_ENCRYPTION_KEY?.trim();
+  if (!base64Key) {
+    throw new Error(
+      'PAYLOAD_ENCRYPTION_KEY must be configured with the base64-encoded AES-256 key used to decrypt client payloads.'
+    );
+  }
+
+  let decoded;
+  try {
+    decoded = Buffer.from(base64Key, 'base64');
+  } catch (error) {
+    throw new Error('PAYLOAD_ENCRYPTION_KEY must be a valid base64 encoded string.');
+  }
+
+  if (decoded.length !== 32) {
+    throw new Error('PAYLOAD_ENCRYPTION_KEY must decode to exactly 32 bytes (AES-256 key).');
+  }
+
+  cachedPayloadEncryptionKey = decoded;
+  return cachedPayloadEncryptionKey;
+};
+
 export const resolveAllowedOrigins = () => {
   const configuredOrigins = sanitizeList(process.env.CORS_ALLOWED_ORIGINS);
   if (configuredOrigins.length > 0) {
@@ -50,6 +78,7 @@ export const resolveAllowedOrigins = () => {
 
 export const ensureEnvironment = () => {
   getJwtSecret();
+  getPayloadEncryptionKey();
 
   if (process.env.NODE_ENV === 'production' && resolveAllowedOrigins().length === 0) {
     throw new Error(

@@ -28,6 +28,7 @@ import divisionsRoutes from './routes/divisions.js';
 import notificationsRoutes from './routes/notifications.js';
 import fraudRoutes from './routes/fraud.js';
 import { authenticate } from './middleware/auth.js';
+import { payloadEncryptionMiddleware } from './middleware/payloadEncryption.js';
 import { ensureEnvironment, resolveAllowedOrigins } from './config/environment.js';
 
 // Initialisation de la base de données
@@ -104,7 +105,7 @@ app.use(
 );
 app.use(enforceCors);
 
-app.use(express.json({ limit: '50mb' }));
+app.use(payloadEncryptionMiddleware);
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 const uploadsPath = path.join(__dirname, '../uploads');
