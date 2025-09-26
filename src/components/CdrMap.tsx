@@ -611,7 +611,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             event.stopPropagation();
             handleIdentifyNumber(normalized);
           }}
-          className="inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-sm backdrop-blur-sm transition hover:border-slate-300 hover:bg-white focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-300"
+          className="inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-sm backdrop-blur-sm transition hover:border-slate-300 hover:bg-white focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-300 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-900 dark:focus:ring-slate-600"
         >
           Identifier
         </button>
@@ -625,50 +625,62 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       if (point.type === 'web') {
         return {
           label: 'Position web',
-          gradient: 'from-rose-500/35 via-orange-500/10 to-amber-500/30',
+          gradient:
+            'from-rose-500/35 via-orange-500/10 to-amber-500/30 dark:from-rose-500/25 dark:via-orange-500/10 dark:to-amber-500/25',
           icon: MapPin,
-          accentText: 'text-rose-600',
-          badgeClass: 'bg-white/40 text-rose-600 ring-1 ring-inset ring-rose-400/30 backdrop-blur-sm',
+          accentText: 'text-rose-600 dark:text-rose-300',
+          badgeClass:
+            'bg-white/40 text-rose-600 ring-1 ring-inset ring-rose-400/30 backdrop-blur-sm dark:bg-slate-900/70 dark:text-rose-200 dark:ring-rose-400/40',
           participantContainer:
-            'border border-white/60 bg-white/70 ring-1 ring-inset ring-rose-400/15 shadow-sm backdrop-blur-sm',
-          participantIconClass: 'bg-rose-500/15 text-rose-600 ring-1 ring-rose-500/20'
+            'border border-white/60 bg-white/70 ring-1 ring-inset ring-rose-400/15 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:ring-rose-400/30 dark:shadow-black/30',
+          participantIconClass:
+            'bg-rose-500/15 text-rose-600 ring-1 ring-rose-500/20 dark:bg-rose-500/20 dark:text-rose-200 dark:ring-rose-500/30'
         };
       }
       if (point.type === 'sms') {
         return {
           label: 'SMS',
-          gradient: 'from-emerald-500/30 via-green-500/10 to-lime-500/30',
+          gradient:
+            'from-emerald-500/30 via-green-500/10 to-lime-500/30 dark:from-emerald-500/20 dark:via-green-500/10 dark:to-lime-500/20',
           icon: MessageSquare,
-          accentText: 'text-emerald-600',
-          badgeClass: 'bg-white/40 text-emerald-600 ring-1 ring-inset ring-emerald-400/30 backdrop-blur-sm',
+          accentText: 'text-emerald-600 dark:text-emerald-300',
+          badgeClass:
+            'bg-white/40 text-emerald-600 ring-1 ring-inset ring-emerald-400/30 backdrop-blur-sm dark:bg-slate-900/70 dark:text-emerald-200 dark:ring-emerald-400/40',
           participantContainer:
-            'border border-white/60 bg-white/70 ring-1 ring-inset ring-emerald-400/20 shadow-sm backdrop-blur-sm',
-          participantIconClass: 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/20'
+            'border border-white/60 bg-white/70 ring-1 ring-inset ring-emerald-400/20 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:ring-emerald-400/30 dark:shadow-black/30',
+          participantIconClass:
+            'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/20 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-emerald-500/30'
         };
       }
       if (point.direction === 'outgoing') {
         return {
           label: 'Appel',
           pill: 'Sortant',
-          gradient: 'from-sky-500/35 via-indigo-500/10 to-blue-600/30',
+          gradient:
+            'from-sky-500/35 via-indigo-500/10 to-blue-600/30 dark:from-sky-500/25 dark:via-indigo-500/10 dark:to-blue-500/25',
           icon: PhoneOutgoing,
-          accentText: 'text-blue-600',
-          badgeClass: 'bg-white/40 text-blue-600 ring-1 ring-inset ring-blue-400/30 backdrop-blur-sm',
+          accentText: 'text-blue-600 dark:text-blue-300',
+          badgeClass:
+            'bg-white/40 text-blue-600 ring-1 ring-inset ring-blue-400/30 backdrop-blur-sm dark:bg-slate-900/70 dark:text-blue-200 dark:ring-blue-500/40',
           participantContainer:
-            'border border-white/60 bg-white/70 ring-1 ring-inset ring-blue-400/20 shadow-sm backdrop-blur-sm',
-          participantIconClass: 'bg-blue-500/15 text-blue-600 ring-1 ring-blue-500/20'
+            'border border-white/60 bg-white/70 ring-1 ring-inset ring-blue-400/20 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:ring-blue-500/40 dark:shadow-black/30',
+          participantIconClass:
+            'bg-blue-500/15 text-blue-600 ring-1 ring-blue-500/20 dark:bg-blue-500/20 dark:text-blue-200 dark:ring-blue-500/40'
         };
       }
       return {
         label: 'Appel',
         pill: 'Entrant',
-        gradient: 'from-indigo-500/30 via-purple-500/10 to-violet-600/30',
+        gradient:
+          'from-indigo-500/30 via-purple-500/10 to-violet-600/30 dark:from-indigo-500/25 dark:via-purple-500/10 dark:to-violet-500/25',
         icon: PhoneIncoming,
-        accentText: 'text-indigo-600',
-        badgeClass: 'bg-white/40 text-indigo-600 ring-1 ring-inset ring-indigo-400/30 backdrop-blur-sm',
+        accentText: 'text-indigo-600 dark:text-indigo-300',
+        badgeClass:
+          'bg-white/40 text-indigo-600 ring-1 ring-inset ring-indigo-400/30 backdrop-blur-sm dark:bg-slate-900/70 dark:text-indigo-200 dark:ring-indigo-500/40',
         participantContainer:
-          'border border-white/60 bg-white/70 ring-1 ring-inset ring-indigo-400/20 shadow-sm backdrop-blur-sm',
-        participantIconClass: 'bg-indigo-500/15 text-indigo-600 ring-1 ring-indigo-500/20'
+          'border border-white/60 bg-white/70 ring-1 ring-inset ring-indigo-400/20 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:ring-indigo-500/40 dark:shadow-black/30',
+        participantIconClass:
+          'bg-indigo-500/15 text-indigo-600 ring-1 ring-indigo-500/20 dark:bg-indigo-500/20 dark:text-indigo-200 dark:ring-indigo-500/40'
       };
     },
     []
@@ -698,8 +710,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <IconComponent className={`h-4 w-4 ${visuals.accentText}`} />
               </span>
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
-                <p className={`font-semibold text-slate-700 ${compact ? 'text-xs' : 'text-[13px]'}`}>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-400">{label}</p>
+                <p
+                  className={`font-semibold text-slate-700 dark:text-slate-100 ${
+                    compact ? 'text-xs' : 'text-[13px]'
+                  }`}
+                >
                   {formatPhoneForDisplay(value)}
                 </p>
               </div>
@@ -781,12 +797,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               return (
                 <div
                   key={`${item.label}-${index}`}
-                  className={`rounded-2xl border border-white/60 bg-white/75 px-3 py-2 shadow-sm backdrop-blur-sm ${
+                  className={`rounded-2xl border border-white/60 bg-white/75 px-3 py-2 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/20 ${
                     spanTwoColumns ? 'col-span-2' : ''
                   }`}
                 >
-                  <p className="text-[10px] uppercase tracking-wide text-slate-400">{item.label}</p>
-                  <p className={`mt-0.5 font-semibold text-slate-700 ${compact ? 'text-xs' : 'text-[13px]'}`}>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-400">{item.label}</p>
+                  <p
+                    className={`mt-0.5 font-semibold text-slate-700 dark:text-slate-100 ${
+                      compact ? 'text-xs' : 'text-[13px]'
+                    }`}
+                  >
                     {item.value}
                   </p>
                 </div>
@@ -797,9 +817,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
       if (compact) {
         return (
-          <div className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/75 px-3 py-3 text-sm text-slate-600 shadow-lg backdrop-blur-xl">
+          <div className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/75 px-3 py-3 text-sm text-slate-600 shadow-lg backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200 dark:shadow-black/40">
             <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${visuals.gradient}`} aria-hidden />
-            <div className="pointer-events-none absolute inset-0 bg-white/70" aria-hidden />
+            <div className="pointer-events-none absolute inset-0 bg-white/70 dark:bg-slate-950/30" aria-hidden />
             <div className="relative flex items-center gap-3">
               <span
                 className={`flex ${compact ? 'h-9 w-9' : 'h-10 w-10'} items-center justify-center rounded-2xl shadow-inner ${visuals.participantIconClass}`}
@@ -808,7 +828,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               </span>
               <div className="flex flex-col">
                 <span className={`text-xs font-semibold ${visuals.accentText}`}>{visuals.label}</span>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
                   {point.callDate ? formatDate(point.callDate) : ''}
                   {point.startTime ? ` • ${point.startTime}` : ''}
                 </span>
@@ -828,9 +848,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       }
 
       return (
-        <div className="relative w-[280px] max-w-[80vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-[13px] text-slate-600 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl">
+        <div className="relative w-[280px] max-w-[80vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-[13px] text-slate-600 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200 dark:shadow-[0_30px_60px_-28px_rgba(2,6,23,0.75)]">
           <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${visuals.gradient}`} aria-hidden />
-          <div className="pointer-events-none absolute inset-0 bg-white/75" aria-hidden />
+          <div className="pointer-events-none absolute inset-0 bg-white/75 dark:bg-slate-950/30" aria-hidden />
           <div className="relative flex items-start gap-3 px-4 pt-4">
             <span
               className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-inner ${visuals.participantIconClass}`}
@@ -839,7 +859,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             </span>
             <div className="flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{visuals.label}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{visuals.label}</p>
                 {visuals.pill && (
                   <span
                     className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${visuals.badgeClass}`}
@@ -849,11 +869,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 )}
               </div>
               {showLocation && (
-                <p className="text-sm font-semibold leading-snug text-slate-900">
+                <p className="text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
                   {point.nom || 'Localisation'}
                 </p>
               )}
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {point.callDate ? formatDate(point.callDate) : ''}
                 {point.startTime ? ` • ${point.startTime}` : ''}
               </p>
