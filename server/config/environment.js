@@ -1,4 +1,8 @@
+import crypto from 'crypto';
+
 const DEFAULT_DEV_ORIGINS = ['http://localhost:5173'];
+
+let cachedSecret;
 
 const sanitizeList = (value = '') =>
   value
@@ -7,13 +11,28 @@ const sanitizeList = (value = '') =>
     .filter(Boolean);
 
 export const getJwtSecret = () => {
-  const secret = process.env.JWT_SECRET?.trim();
-  if (!secret) {
-    throw new Error(
-      'JWT secret is not configured. Set a strong JWT_SECRET environment variable before starting the server.'
-    );
+  if (cachedSecret) {
+    return cachedSecret;
   }
-  return secret;
+
+  const secret = process.env.JWT_SECRET?.trim();
+  if (secret) {
+    cachedSecret = secret;
+    return cachedSecret;
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    cachedSecret = crypto.randomBytes(48).toString('hex');
+    process.env.JWT_SECRET = cachedSecret;
+    console.warn(
+      '⚠️ JWT_SECRET n\'est pas défini. Génération d\'un secret temporaire pour l\'environnement de développement.'
+    );
+    return cachedSecret;
+  }
+
+  throw new Error(
+    'JWT secret is not configured. Set a strong JWT_SECRET environment variable before starting the server.'
+  );
 };
 
 export const resolveAllowedOrigins = () => {
