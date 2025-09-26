@@ -649,8 +649,33 @@ class CaseService {
           availableWidth * 0.3
         ];
         const headerHeight = 24;
-        const rowHeight = 22;
-        ensureSpace(headerHeight + rowHeight * files.length + 20);
+        const cellPaddingY = 6;
+        const minRowHeight = 22;
+        const rowsData = files.map((file) => [
+          file.filename,
+          file.cdr_number || '-',
+          file.line_count ? String(file.line_count) : '-',
+          formatDateTimeValue(file.uploaded_at)
+        ]);
+
+        const measureCellOptions = (colIdx) =>
+          colIdx === 2
+            ? { width: columnWidths[colIdx] - 24, align: 'center' }
+            : { width: columnWidths[colIdx] - 24 };
+
+        doc.font('Helvetica').fontSize(10);
+        const rowHeights = rowsData.map((values) => {
+          const heights = values.map((value, colIdx) =>
+            doc.heightOfString(String(value), measureCellOptions(colIdx))
+          );
+          const contentHeight = heights.length ? Math.max(...heights) : 0;
+          return Math.max(minRowHeight, contentHeight + cellPaddingY * 2);
+        });
+
+        const totalTableHeight =
+          headerHeight + rowHeights.reduce((sum, height) => sum + height, 0);
+
+        ensureSpace(totalTableHeight + 20);
         const tableX = doc.page.margins.left;
         let currentY = doc.y;
 
@@ -669,26 +694,27 @@ class CaseService {
 
         currentY += headerHeight;
 
-        files.forEach((file, index) => {
+        const getCellOptions = (colIdx, rowHeight) => {
+          const baseOptions = measureCellOptions(colIdx);
+          return { ...baseOptions, height: rowHeight - cellPaddingY * 2 };
+        };
+
+        rowsData.forEach((values, index) => {
+          const rowHeight = rowHeights[index];
           const background = index % 2 === 0 ? colors.card : '#FFFFFF';
           doc.save();
           doc.rect(tableX, currentY, availableWidth, rowHeight).fill(background);
           doc.restore();
 
-          const values = [
-            file.filename,
-            file.cdr_number || '-',
-            file.line_count ? String(file.line_count) : '-',
-            formatDateTimeValue(file.uploaded_at)
-          ];
-
           doc.font('Helvetica').fontSize(10).fillColor(colors.text);
           values.forEach((value, colIdx) => {
             const offset = columnWidths.slice(0, colIdx).reduce((a, b) => a + b, 0);
-            const options = colIdx === 2
-              ? { width: columnWidths[colIdx] - 24, align: 'center' }
-              : { width: columnWidths[colIdx] - 24 };
-            doc.text(value, tableX + offset + 12, currentY + 6, options);
+            doc.text(
+              value,
+              tableX + offset + 12,
+              currentY + cellPaddingY,
+              getCellOptions(colIdx, rowHeight)
+            );
           });
 
           currentY += rowHeight;
