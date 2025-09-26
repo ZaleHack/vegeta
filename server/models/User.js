@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { generateSecret as generateTotpSecret } from '../utils/totp.js';
 import database from '../config/database.js';
+import { getJwtSecret } from '../config/environment.js';
 const USERS_TABLE = 'autres.users';
 
 class User {
@@ -65,13 +66,13 @@ class User {
         login: user.login,
         admin: user.admin
       },
-      process.env.JWT_SECRET || 'your-secret-key',
+      getJwtSecret(),
       { expiresIn: '24h' }
     );
   }
 
   static verifyToken(token) {
-    return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    return jwt.verify(token, getJwtSecret());
   }
 
   static sanitize(user) {

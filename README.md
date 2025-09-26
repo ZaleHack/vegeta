@@ -16,6 +16,11 @@ npm install
 
 Copiez ensuite vos paramètres sensibles (connexion MySQL, clés JWT, etc.) dans un fichier `.env` basé sur `.env.example`.
 
+### Variables d'environnement de sécurité
+
+- `JWT_SECRET` : clé secrète **obligatoire** pour signer les jetons JWT. Utilisez une valeur aléatoire robuste (32 caractères ou plus).
+- `CORS_ALLOWED_ORIGINS` : liste séparée par des virgules des URL autorisées à appeler l'API via CORS. Ajoutez ici les domaines de vos front-ends autorisés.
+
 ## Lancement
 
 - **API** : `npm run server`
