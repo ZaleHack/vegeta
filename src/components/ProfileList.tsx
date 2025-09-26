@@ -184,6 +184,17 @@ const ProfileList: React.FC<ProfileListProps> = ({
     setPage(1);
   }, [query]);
 
+  const normalizeSharedWithMe = useCallback((value: unknown) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim().toLowerCase();
+      return trimmed === '1' || trimmed === 'true';
+    }
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+    return value === true;
+  }, []);
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -213,7 +224,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
       const rawProfiles: ProfileListItem[] = Array.isArray(data.profiles) ? data.profiles : [];
       const normalized = rawProfiles.map(profile => ({
         ...profile,
-        attachments: Array.isArray(profile.attachments) ? profile.attachments : []
+        attachments: Array.isArray(profile.attachments) ? profile.attachments : [],
+        shared_with_me: normalizeSharedWithMe(profile.shared_with_me)
       }));
       setProfiles(normalized);
       setTotal(data.total || 0);
@@ -224,7 +236,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [query, page]);
+  }, [normalizeSharedWithMe, query, page]);
 
   useEffect(() => {
     load();
@@ -253,7 +265,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
         }
         const fetchedProfile: ProfileListItem = {
           ...data.profile,
-          attachments: Array.isArray(data.profile.attachments) ? data.profile.attachments : []
+          attachments: Array.isArray(data.profile.attachments) ? data.profile.attachments : [],
+          shared_with_me: normalizeSharedWithMe(data.profile.shared_with_me)
         };
         setSelected(fetchedProfile);
       } catch (_) {
@@ -268,7 +281,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [focusedProfileId, profiles, onFocusedProfileHandled]);
+  }, [focusedProfileId, normalizeSharedWithMe, onFocusedProfileHandled, profiles]);
 
   const handleSearch = useCallback(() => {
     if (page !== 1) {
