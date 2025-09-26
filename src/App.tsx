@@ -1552,6 +1552,18 @@ const App: React.FC = () => {
   };
 
   const handleLogout = useCallback((reason?: 'inactivity') => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }).catch((error) => {
+        console.error('Erreur lors de la déconnexion:', error);
+      });
+    }
+
     localStorage.removeItem('token');
     setCurrentUser(null);
     setIsAuthenticated(false);
