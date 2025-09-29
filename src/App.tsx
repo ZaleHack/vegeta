@@ -5125,11 +5125,41 @@ useEffect(() => {
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                             onClick={() => {
                               const combined: Record<string, any> = {};
+                              const mergeEntry = (target: Record<string, any>, key: string, value: any) => {
+                                if (value === null || value === undefined) {
+                                  return;
+                                }
+                                if (key === 'data') {
+                                  let parsed = value;
+                                  if (typeof parsed === 'string') {
+                                    try {
+                                      parsed = JSON.parse(parsed);
+                                    } catch {
+                                      parsed = value;
+                                    }
+                                  }
+                                  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                                    Object.entries(parsed).forEach(([nestedKey, nestedValue]) => {
+                                      if (nestedValue === null || nestedValue === undefined) {
+                                        return;
+                                      }
+                                      const normalizedKey = typeof nestedKey === 'string' ? nestedKey : String(nestedKey);
+                                      if (target[normalizedKey] === undefined) {
+                                        target[normalizedKey] = nestedValue;
+                                      }
+                                    });
+                                    return;
+                                  }
+                                }
+                                const normalizedKey = typeof key === 'string' ? key : String(key);
+                                if (target[normalizedKey] === undefined) {
+                                  target[normalizedKey] = value;
+                                }
+                              };
+
                               searchResults.hits.forEach(h => {
                                 Object.entries(h.preview || {}).forEach(([k, v]) => {
-                                  if (v != null && combined[k] === undefined) {
-                                    combined[k] = v;
-                                  }
+                                  mergeEntry(combined, k, v);
                                 });
                               });
                               const { email, ...extra } = combined;
