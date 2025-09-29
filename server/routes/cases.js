@@ -169,7 +169,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
       } catch (logError) {
         console.error('Erreur log blacklist:', logError);
       }
-      return res.status(403).json({ error: "Numéro blacklisté. Contacter l'administration pour plus d'informations." });
+      return res.status(403).json({ error: 'Aucun résultat trouvé' });
     }
     const { start, end, startTime, endTime, direction = 'both', type = 'both', location } = req.query;
     const isValidDate = (str) => {
