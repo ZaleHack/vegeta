@@ -47,7 +47,7 @@ router.post('/', authenticate, async (req, res) => {
       } catch (logError) {
         console.error('Erreur log blacklist:', logError);
       }
-      return res.status(403).json({ error: "Numéro blacklisté. Contacter l'administration pour plus d'informations." });
+      return res.status(403).json({ error: 'Aucun résultat trouvé' });
     }
 
     if (page < 1) {
