@@ -102,6 +102,8 @@ class Profile {
   }
 
   static async delete(id) {
+    // Ensure related shares are removed first to avoid FK constraint issues
+    await database.query('DELETE FROM autres.profile_shares WHERE profile_id = ?', [id]);
     await database.query('DELETE FROM autres.profiles WHERE id = ?', [id]);
     return true;
   }
