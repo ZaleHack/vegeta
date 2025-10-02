@@ -1,14 +1,19 @@
 import database from '../config/database.js';
+import { ensureCaseExists, ensureUserExists } from '../utils/foreign-key-helpers.js';
 
 const CASES_TABLE = 'autres.cdr_cases';
 
 class Case {
   static async create(name, userId) {
+    const safeUserId = await ensureUserExists(userId);
+    if (!safeUserId) {
+      throw new Error('Utilisateur introuvable');
+    }
     const result = await database.query(
       'INSERT INTO autres.cdr_cases (name, user_id, created_at) VALUES (?, ?, NOW())',
-      [name, userId]
+      [name, safeUserId]
     );
-    return { id: result.insertId, name, user_id: userId };
+    return { id: result.insertId, name, user_id: safeUserId };
   }
 
   static async findById(id) {
@@ -86,9 +91,13 @@ class Case {
   }
 
   static async addFile(caseId, filename, cdrNumber, lineCount = 0) {
+    const existingCaseId = await ensureCaseExists(caseId);
+    if (!existingCaseId) {
+      throw new Error('Opération introuvable');
+    }
     const result = await database.query(
       'INSERT INTO autres.cdr_case_files (case_id, filename, cdr_number, line_count, uploaded_at) VALUES (?, ?, ?, ?, NOW())',
-      [caseId, filename, cdrNumber, lineCount]
+      [existingCaseId, filename, cdrNumber, lineCount]
     );
     return { id: result.insertId };
   }

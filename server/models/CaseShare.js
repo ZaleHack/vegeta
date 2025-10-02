@@ -1,4 +1,5 @@
 import database from '../config/database.js';
+import { ensureCaseExists, filterExistingUserIds } from '../utils/foreign-key-helpers.js';
 
 class CaseShare {
   static async getUserIds(caseId) {
@@ -33,18 +34,26 @@ class CaseShare {
     if (!caseId) {
       return { added: [], removed: [] };
     }
+    const validCaseId = await ensureCaseExists(caseId);
+    if (!validCaseId) {
+      return { added: [], removed: [] };
+    }
     const normalized = Array.isArray(userIds)
       ? Array.from(new Set(userIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)))
       : [];
-    const current = await this.getUserIds(caseId);
+    const current = await this.getUserIds(validCaseId);
     const toRemove = current.filter((id) => !normalized.includes(id));
-    const toAdd = normalized.filter((id) => !current.includes(id));
+    let toAdd = normalized.filter((id) => !current.includes(id));
+
+    if (toAdd.length > 0) {
+      toAdd = await filterExistingUserIds(toAdd);
+    }
 
     if (toRemove.length > 0) {
       const placeholders = toRemove.map(() => '?').join(',');
       await database.query(
         `DELETE FROM autres.cdr_case_shares WHERE case_id = ? AND user_id IN (${placeholders})`,
-        [caseId, ...toRemove]
+        [validCaseId, ...toRemove]
       );
     }
 
@@ -52,7 +61,7 @@ class CaseShare {
       await database.query(
         `INSERT INTO autres.cdr_case_shares (case_id, user_id) VALUES (?, ?)
          ON DUPLICATE KEY UPDATE created_at = VALUES(created_at)`,
-        [caseId, userId]
+        [validCaseId, userId]
       );
     }
 
