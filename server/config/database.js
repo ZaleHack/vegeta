@@ -558,6 +558,43 @@ class DatabaseManager {
     }
   }
 
+  async transaction(callback) {
+    if (!this.pool) {
+      await this.ensureInitialized();
+    }
+
+    if (!this.isInitialized) {
+      await this.ensureInitialized();
+    }
+
+    const connection = await this.pool.getConnection();
+
+    const wrapQuery = async (sql, params = []) => {
+      const [rows] = await connection.execute(sql, params);
+      return rows;
+    };
+
+    const wrapQueryOne = async (sql, params = []) => {
+      const [rows] = await connection.execute(sql, params);
+      return rows[0] || null;
+    };
+
+    try {
+      await connection.beginTransaction();
+      const result = await callback({
+        query: wrapQuery,
+        queryOne: wrapQueryOne
+      });
+      await connection.commit();
+      return result;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
   async close() {
     if (this.initPromise) {
       try {
