@@ -650,8 +650,11 @@ const App: React.FC = () => {
   // États de recherche
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
+  const [displayedHits, setDisplayedHits] = useState<SearchResult[]>([]);
+  const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
+  const progressiveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastQueryRef = useRef<{ query: string; page: number; limit: number } | null>(null);
   const initialRoute = useMemo<InitialRoute>(() => {
     if (typeof window === 'undefined') {
@@ -679,6 +682,70 @@ const App: React.FC = () => {
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionPage, setSessionPage] = useState(1);
   const [sessionLoading, setSessionLoading] = useState(false);
+
+  const resetProgressiveDisplay = useCallback(() => {
+    if (progressiveTimerRef.current) {
+      clearTimeout(progressiveTimerRef.current);
+      progressiveTimerRef.current = null;
+    }
+    setDisplayedHits([]);
+    setIsProgressiveLoading(false);
+  }, []);
+
+  const progressivelyDisplayHits = useCallback(
+    (hitsToAdd: SearchResult[], options?: { reset?: boolean }) => {
+      if (progressiveTimerRef.current) {
+        clearTimeout(progressiveTimerRef.current);
+        progressiveTimerRef.current = null;
+      }
+
+      const shouldReset = options?.reset ?? false;
+
+      if (shouldReset) {
+        setDisplayedHits([]);
+      }
+
+      if (hitsToAdd.length === 0) {
+        setIsProgressiveLoading(false);
+        return;
+      }
+
+      setIsProgressiveLoading(true);
+
+      let index = 0;
+      const chunkSize = Math.max(1, Math.ceil(hitsToAdd.length / 5));
+      let resetPending = shouldReset;
+
+      const addChunk = () => {
+        setDisplayedHits((prev) => {
+          const base = resetPending ? [] : prev;
+          resetPending = false;
+          const nextChunk = hitsToAdd.slice(index, index + chunkSize);
+          return [...base, ...nextChunk];
+        });
+
+        index += chunkSize;
+
+        if (index < hitsToAdd.length) {
+          progressiveTimerRef.current = setTimeout(addChunk, 200);
+        } else {
+          setIsProgressiveLoading(false);
+          progressiveTimerRef.current = null;
+        }
+      };
+
+      addChunk();
+    },
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      if (progressiveTimerRef.current) {
+        clearTimeout(progressiveTimerRef.current);
+      }
+    };
+  }, []);
 
   const createAuthHeaders = (
     headers: Record<string, string> = {},
@@ -1892,6 +1959,7 @@ const App: React.FC = () => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    resetProgressiveDisplay();
     setLoading(true);
     setSearchError('');
     setSearchResults(null);
@@ -1907,6 +1975,7 @@ const App: React.FC = () => {
       if (response.ok) {
         const normalizedData = normalizeSearchResponse(data);
         setSearchResults(normalizedData);
+        progressivelyDisplayHits(normalizedData.hits, { reset: true });
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors de la recherche');
@@ -1914,6 +1983,7 @@ const App: React.FC = () => {
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         setSearchError('Erreur de connexion au serveur');
+        setIsProgressiveLoading(false);
       }
     } finally {
       setLoading(false);
@@ -1975,6 +2045,7 @@ const App: React.FC = () => {
               }
             : normalizedData
         );
+        progressivelyDisplayHits(normalizedData.hits);
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors du chargement des résultats');
@@ -1982,6 +2053,7 @@ const App: React.FC = () => {
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         setSearchError('Erreur de connexion au serveur');
+        setIsProgressiveLoading(false);
       }
     } finally {
       setLoading(false);
@@ -4017,7 +4089,7 @@ useEffect(() => {
   const numericSearch = searchQuery.replace(/\D/g, '');
   const canRequestIdentification =
     !!searchResults &&
-    searchResults.hits.length === 0 &&
+    searchResults.total === 0 &&
     (numericSearch.startsWith('77') || numericSearch.startsWith('78')) &&
     numericSearch.length >= 9;
 
@@ -5096,7 +5168,7 @@ useEffect(() => {
                       </div>
                     </div>
                   </div>
-                    {searchResults.hits.length === 0 ? (
+                    {searchResults.total === 0 ? (
                       <div className="text-center py-16">
                         <Search className="mx-auto h-16 w-16 text-gray-400 mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Aucun résultat trouvé</h3>
@@ -5115,7 +5187,7 @@ useEffect(() => {
                     ) : viewMode === 'list' ? (
                       <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
                         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                          {searchResults.hits.map((result, index) => {
+                          {displayedHits.map((result, index) => {
                             const previewEntries = result.previewEntries;
                             const formattedScore = formatScore(result.score);
                             const tableLabel = result.table_name || result.table;
@@ -5217,7 +5289,7 @@ useEffect(() => {
                                 }
                               };
 
-                              searchResults.hits.forEach((h) => {
+                              displayedHits.forEach((h) => {
                                 h.previewEntries.forEach(mergeEntry);
                               });
                               const { email, ...extra } = combined;
@@ -5236,21 +5308,49 @@ useEffect(() => {
                       </div>
                     ) : (
                       <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
-                        <SearchResultProfiles
-                          hits={searchResults.hits}
-                          query={searchQuery}
-                          onCreateProfile={openCreateProfile}
-                        />
+                        {displayedHits.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center space-y-3 py-10 text-blue-600">
+                            <Loader2 className="h-8 w-8 animate-spin" />
+                            <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                              Initialisation des résultats...
+                            </p>
+                          </div>
+                        ) : (
+                          <SearchResultProfiles
+                            hits={displayedHits}
+                            query={searchQuery}
+                            onCreateProfile={openCreateProfile}
+                          />
+                        )}
                       </div>
                     )}
                     {searchResults.page < searchResults.pages && (
                       <div className="text-center p-4">
                         <button
                           onClick={loadMoreResults}
-                          disabled={loading}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                          disabled={loading || isProgressiveLoading}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
                         >
-                          Charger plus
+                          {loading || isProgressiveLoading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Chargement...
+                            </>
+                          ) : (
+                            'Charger plus'
+                          )}
+                        </button>
+                      </div>
+                    )}
+                    {isProgressiveLoading && (
+                      <div className="text-center pb-6">
+                        <button
+                          type="button"
+                          disabled
+                          className="inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg cursor-wait"
+                        >
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Affichage progressif des résultats...
                         </button>
                       </div>
                     )}
