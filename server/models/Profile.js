@@ -1,4 +1,5 @@
 import database from '../config/database.js';
+import { ensureUserExists } from '../utils/foreign-key-helpers.js';
 import {
   normalizeExtraFields,
   normalizeProfileRecord,
@@ -29,10 +30,14 @@ class Profile {
       extra_fields = [],
       photo_path
     } = data;
+    const normalizedUserId = user_id !== undefined && user_id !== null ? await ensureUserExists(user_id) : null;
+    if (user_id !== undefined && user_id !== null && !normalizedUserId) {
+      throw new Error('Utilisateur introuvable');
+    }
     const result = await database.query(
       `INSERT INTO autres.profiles (user_id, first_name, last_name, phone, email, comment, extra_fields, photo_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        user_id,
+        normalizedUserId,
         first_name,
         last_name,
         phone,
@@ -44,7 +49,7 @@ class Profile {
     );
     return {
       id: result.insertId,
-      user_id,
+      user_id: normalizedUserId,
       first_name,
       last_name,
       phone,
@@ -92,8 +97,15 @@ class Profile {
       params.push(data.photo_path);
     }
     if (data.user_id !== undefined) {
+      const safeUserId =
+        data.user_id === null
+          ? null
+          : await ensureUserExists(data.user_id);
+      if (data.user_id !== null && !safeUserId) {
+        throw new Error('Utilisateur introuvable');
+      }
       fields.push('user_id = ?');
-      params.push(data.user_id);
+      params.push(safeUserId);
     }
     if (fields.length === 0) return this.findById(id);
     params.push(id);
