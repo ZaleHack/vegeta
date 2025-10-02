@@ -4416,33 +4416,35 @@ useEffect(() => {
             />
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-3">
             <button
               type="button"
               onClick={resetCdrSearch}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-800/80"
+              className="inline-flex items-center gap-2 self-start rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-800/80"
             >
               <RefreshCw className="h-4 w-4" />
               <span>Réinitialiser</span>
             </button>
-            <button
-              type="submit"
-              disabled={cdrLoading}
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Search className="h-4 w-4" />
-              <span>Rechercher</span>
-            </button>
-            {cdrIdentifiers.length >= 2 && (
+            <div className="flex flex-wrap items-center gap-3">
               <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
-                onClick={handleLinkDiagram}
+                type="submit"
+                disabled={cdrLoading}
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Share2 className="h-4 w-4" />
-                <span>Diagramme des liens</span>
+                <Search className="h-4 w-4" />
+                <span>Rechercher</span>
               </button>
-            )}
+              {cdrIdentifiers.length >= 2 && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
+                  onClick={handleLinkDiagram}
+                >
+                  <Share2 className="h-4 w-4" />
+                  <span>Diagramme des liens</span>
+                </button>
+              )}
+            </div>
           </div>
           </form>
           {showDetectionPanel && (
@@ -4799,7 +4801,7 @@ useEffect(() => {
             {isAdmin && (
               <button
                 onClick={() => setCurrentPage('blacklist')}
-                title="Black List"
+                title="White List"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'blacklist'
                     ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
@@ -4807,7 +4809,7 @@ useEffect(() => {
                 } ${!sidebarOpen && 'justify-center px-0'}`}
               >
                 <Ban className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
-                {sidebarOpen && <span className="ml-3">Black List</span>}
+                {sidebarOpen && <span className="ml-3">White List</span>}
               </button>
             )}
 
@@ -7132,7 +7134,7 @@ useEffect(() => {
 
         {currentPage === 'blacklist' && isAdmin && (
           <div className="space-y-6">
-            <PageHeader icon={<Ban className="h-6 w-6" />} title="Black List" />
+            <PageHeader icon={<Ban className="h-6 w-6" />} title="White List" />
             <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/90 to-blue-50/40 p-6 shadow-xl shadow-blue-200/50 backdrop-blur-sm dark:border-slate-700/60 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-slate-900/40 dark:shadow-black/40">
               <div className="absolute -right-32 top-10 h-64 w-64 rounded-full bg-blue-200/40 blur-3xl dark:bg-blue-900/30" />
               <div className="absolute -left-36 bottom-0 h-56 w-56 rounded-full bg-purple-200/40 blur-3xl dark:bg-purple-900/30" />
