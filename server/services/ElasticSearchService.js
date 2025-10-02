@@ -80,6 +80,65 @@ class ElasticSearchService {
     this.cache.clear();
   }
 
+  async indexProfilesBulk(profiles, options = {}) {
+    const { refresh = false, index = 'profiles' } = options;
+    if (!Array.isArray(profiles) || profiles.length === 0) {
+      return { indexed: 0, errors: [] };
+    }
+
+    const operations = [];
+    for (const profile of profiles) {
+      if (!profile?.id) continue;
+      const document = this.buildProfileDocument(profile);
+      if (!document) continue;
+      operations.push({ index: { _index: index, _id: profile.id } });
+      operations.push(document);
+    }
+
+    if (operations.length === 0) {
+      return { indexed: 0, errors: [] };
+    }
+
+    const response = await client.bulk({
+      operations,
+      refresh: refresh ? 'wait_for' : false
+    });
+
+    const errors = [];
+    if (response.errors && Array.isArray(response.items)) {
+      for (const item of response.items) {
+        const action = item.index || item.create || item.update;
+        if (action?.error) {
+          errors.push({ id: action._id, error: action.error });
+        }
+      }
+    }
+
+    const totalOperations = operations.length / 2;
+    const failedCount = new Set(errors.map((entry) => entry.id)).size;
+    const indexedCount = Math.max(0, totalOperations - failedCount);
+
+    this.cache.clear();
+    return { indexed: indexedCount, errors };
+  }
+
+  async resetProfilesIndex({ recreate = true, index = 'profiles' } = {}) {
+    try {
+      await client.indices.delete({ index });
+    } catch (error) {
+      const status = error?.meta?.statusCode;
+      if (status !== 404) {
+        throw error;
+      }
+    }
+
+    if (recreate) {
+      await client.indices.create({ index });
+    }
+
+    this.cache.clear();
+  }
+
   buildPreviewFromSource(source) {
     if (!source || typeof source !== 'object') {
       return {};
