@@ -243,13 +243,41 @@ class DatabaseManager {
           `UPDATE autres.users SET division_id = ? WHERE division_id IS NULL AND admin = 0`,
           [fallbackDivision.id]
         );
+      }
+
+      const divisionColumn = await queryOne(`
+        SELECT IS_NULLABLE
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'autres'
+          AND TABLE_NAME = 'users'
+          AND COLUMN_NAME = 'division_id'
+      `);
+
+      if (divisionColumn && divisionColumn.IS_NULLABLE !== 'YES') {
         try {
           await this.pool.execute(`
             ALTER TABLE autres.users
-            MODIFY COLUMN division_id INT NULL
+            DROP FOREIGN KEY fk_users_division
           `);
         } catch (error) {
-          if (error.code !== 'ER_CANT_CREATE_TABLE') {
+          if (error.code !== 'ER_CANT_DROP_FIELD_OR_KEY') {
+            throw error;
+          }
+        }
+
+        await this.pool.execute(`
+          ALTER TABLE autres.users
+          MODIFY COLUMN division_id INT NULL
+        `);
+
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD CONSTRAINT fk_users_division FOREIGN KEY (division_id)
+              REFERENCES autres.divisions(id) ON DELETE SET NULL
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_KEYNAME') {
             throw error;
           }
         }
