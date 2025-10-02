@@ -1,16 +1,9 @@
 import React from 'react';
 import { User } from 'lucide-react';
-
-interface SearchResult {
-  table?: string;
-  table_name?: string;
-  database?: string;
-  preview?: Record<string, any>;
-  score?: number;
-}
+import { SearchHit, NormalizedPreviewEntry } from '../utils/search';
 
 interface ProfilesProps {
-  hits: SearchResult[];
+  hits: SearchHit[];
   query: string;
   onCreateProfile?: (data: {
     email: string;
@@ -18,19 +11,6 @@ interface ProfilesProps {
     extra_fields?: Record<string, string>;
   }) => void;
 }
-
-const sanitizePreview = (result: SearchResult): Record<string, any> => {
-  if (result.preview && typeof result.preview === 'object') {
-    return result.preview;
-  }
-  const fallback = { ...result } as Record<string, any>;
-  delete fallback.preview;
-  delete fallback.table;
-  delete fallback.table_name;
-  delete fallback.database;
-  delete fallback.score;
-  return fallback;
-};
 
 const formatScore = (score?: number) => {
   if (typeof score !== 'number' || Number.isNaN(score)) {
@@ -52,7 +32,7 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
   return (
     <div className="space-y-8">
       {hits.map((hit, idx) => {
-        const preview = sanitizePreview(hit);
+        const previewEntries = hit.previewEntries;
         const tableLabel = hit.table_name || hit.table;
         const databaseLabel = hit.database || 'Elasticsearch';
         const formattedScore = formatScore(hit.score);
@@ -85,60 +65,16 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
               </div>
             </div>
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {Object.entries(preview).flatMap(([key, value]) => {
-                if (!value) return [];
-
-                if (key === 'data') {
-                  try {
-                    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-                  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                    return Object.entries(parsed).map(([k, v]) => (
-                      <div key={`${key}-${k}`} className="flex flex-col">
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                          {k.replace(/_/g, ' ')}
-                        </span>
-                        <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
-                          {String(v)}
-                        </span>
-                      </div>
-                    ));
-                  }
-                  return (
-                    <div key={key} className="flex flex-col">
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                        {key.replace(/_/g, ' ')}
-                      </span>
-                      <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
-                        {String(parsed)}
-                      </span>
-                    </div>
-                  );
-                } catch {
-                  // Si le parsing échoue, afficher la valeur brute
-                  return (
-                    <div key={key} className="flex flex-col">
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                        {key.replace(/_/g, ' ')}
-                      </span>
-                      <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
-                        {String(value)}
-                      </span>
-                    </div>
-                  );
-                }
-              }
-
-                return (
-                  <div key={key} className="flex flex-col">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                      {key.replace(/_/g, ' ')}
-                    </span>
-                    <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
-                      {String(value)}
-                    </span>
-                  </div>
-                );
-              })}
+              {previewEntries.map((entry) => (
+                <div key={entry.key} className="flex flex-col">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    {entry.label}
+                  </span>
+                  <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
+                    {entry.value}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         );
@@ -147,44 +83,16 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
         <button
           className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           onClick={() => {
-            const combined: Record<string, any> = {};
-            const mergeEntry = (target: Record<string, any>, key: string, value: any) => {
-              if (value === null || value === undefined) {
-                return;
-              }
-              if (key === 'data') {
-                let parsed = value;
-                if (typeof parsed === 'string') {
-                  try {
-                    parsed = JSON.parse(parsed);
-                  } catch {
-                    parsed = value;
-                  }
-                }
-                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                  Object.entries(parsed).forEach(([nestedKey, nestedValue]) => {
-                    if (nestedValue === null || nestedValue === undefined) {
-                      return;
-                    }
-                    const normalizedKey = typeof nestedKey === 'string' ? nestedKey : String(nestedKey);
-                    if (target[normalizedKey] === undefined) {
-                      target[normalizedKey] = nestedValue;
-                    }
-                  });
-                  return;
-                }
-              }
-              const normalizedKey = typeof key === 'string' ? key : String(key);
-              if (target[normalizedKey] === undefined) {
-                target[normalizedKey] = value;
+            const combined: Record<string, string> = {};
+            const mergeEntry = (entry: NormalizedPreviewEntry) => {
+              const key = entry.key || entry.label;
+              if (combined[key] === undefined) {
+                combined[key] = entry.value;
               }
             };
 
-            hits.forEach(h => {
-              const previewData = sanitizePreview(h);
-              Object.entries(previewData).forEach(([k, v]) => {
-                mergeEntry(combined, k, v);
-              });
+            hits.forEach((h) => {
+              h.previewEntries.forEach(mergeEntry);
             });
             const { email, ...extra } = combined;
             const data = {
