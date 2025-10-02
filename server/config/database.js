@@ -70,6 +70,19 @@ class DatabaseManager {
     try {
       const query = (sql, params = []) => this.query(sql, params, { skipInitWait: true });
       const queryOne = (sql, params = []) => this.queryOne(sql, params, { skipInitWait: true });
+      const normalizeColumnType = (columnType) => {
+        if (!columnType) {
+          return 'INT';
+        }
+
+        return columnType
+          .split(' ')
+          .map((part) =>
+            part.replace(/int(\(\d+\))?/i, (match) => match.toUpperCase()).replace(/unsigned/i, 'UNSIGNED')
+          )
+          .join(' ')
+          .trim();
+      };
 
       // Créer les tables de division et des utilisateurs
       await query(`
@@ -80,6 +93,13 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      const divisionIdColumnInfo = await queryOne(`
+        SELECT COLUMN_TYPE
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'divisions' AND COLUMN_NAME = 'id'
+      `);
+      const divisionIdColumnType = normalizeColumnType(divisionIdColumnInfo?.COLUMN_TYPE);
+
       await query(`
         CREATE TABLE IF NOT EXISTS autres.users (
           id INT AUTO_INCREMENT PRIMARY KEY,
@@ -87,7 +107,7 @@ class DatabaseManager {
           mdp VARCHAR(255) NOT NULL,
           admin TINYINT(1) DEFAULT 0,
           active TINYINT(1) DEFAULT 1,
-          division_id INT DEFAULT NULL,
+          division_id ${divisionIdColumnType} DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           otp_secret VARCHAR(255) DEFAULT NULL,
@@ -124,10 +144,20 @@ class DatabaseManager {
         try {
           await this.pool.execute(`
             ALTER TABLE autres.users
-            ADD COLUMN division_id INT NULL AFTER active
+            ADD COLUMN division_id ${divisionIdColumnType} NULL AFTER active
           `);
         } catch (error) {
           if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+          }
+        }
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD INDEX idx_division_id (division_id)
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_KEYNAME') {
             throw error;
           }
         }
@@ -294,8 +324,19 @@ class DatabaseManager {
         // Rendre la colonne nullable pour pouvoir nettoyer les lignes orphelines
         await this.pool.execute(`
           ALTER TABLE autres.users
-          MODIFY COLUMN division_id INT NULL
+          MODIFY COLUMN division_id ${divisionIdColumnType} NULL DEFAULT NULL
         `);
+
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD INDEX idx_division_id (division_id)
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_KEYNAME') {
+            throw error;
+          }
+        }
 
         // Nettoyer les valeurs orphelines avant de recréer la contrainte
         await this.pool.execute(`
