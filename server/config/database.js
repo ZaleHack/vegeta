@@ -84,6 +84,125 @@ class DatabaseManager {
           .trim();
       };
 
+      const cleanOrphanedDivisionReferences = async () => {
+        await this.pool.execute(`
+          UPDATE autres.users u
+          LEFT JOIN autres.divisions d ON d.id = u.division_id
+          SET u.division_id = NULL
+          WHERE u.division_id IS NOT NULL AND d.id IS NULL
+        `);
+      };
+
+      const dropForeignKeyIfExists = async (constraintName) => {
+        if (!constraintName) {
+          return;
+        }
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            DROP FOREIGN KEY \`${constraintName}\`
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_CANT_DROP_FIELD_OR_KEY') {
+            throw error;
+          }
+        }
+      };
+
+      const ensureDivisionForeignKey = async (divisionIdColumnType) => {
+        const expectedConstraintName = 'fk_users_division';
+
+        const divisionColumn = await queryOne(`
+          SELECT COLUMN_TYPE, IS_NULLABLE
+          FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = 'autres'
+            AND TABLE_NAME = 'users'
+            AND COLUMN_NAME = 'division_id'
+        `);
+
+        if (!divisionColumn) {
+          return;
+        }
+
+        const foreignKeys = await query(`
+          SELECT kcu.CONSTRAINT_NAME, rc.DELETE_RULE
+          FROM information_schema.KEY_COLUMN_USAGE kcu
+          JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
+            ON rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
+           AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+          WHERE kcu.TABLE_SCHEMA = 'autres'
+            AND kcu.TABLE_NAME = 'users'
+            AND kcu.COLUMN_NAME = 'division_id'
+            AND kcu.REFERENCED_TABLE_NAME = 'divisions'
+        `);
+
+        const hasExpectedConstraint = foreignKeys.some(
+          (fk) => fk.CONSTRAINT_NAME === expectedConstraintName && fk.DELETE_RULE === 'SET NULL'
+        );
+
+        // Drop unexpected constraints to avoid conflicts when recreating
+        for (const fk of foreignKeys) {
+          if (fk.CONSTRAINT_NAME !== expectedConstraintName || fk.DELETE_RULE !== 'SET NULL') {
+            await dropForeignKeyIfExists(fk.CONSTRAINT_NAME);
+          }
+        }
+
+        const requiresConstraint = !hasExpectedConstraint;
+        const requiresNullableColumn = divisionColumn.IS_NULLABLE !== 'YES';
+        const currentColumnType = normalizeColumnType(divisionColumn.COLUMN_TYPE);
+
+        if (requiresNullableColumn || currentColumnType !== normalizeColumnType(divisionIdColumnType)) {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            MODIFY COLUMN division_id ${divisionIdColumnType} NULL DEFAULT NULL
+          `);
+        }
+
+        try {
+          await this.pool.execute(`
+            ALTER TABLE autres.users
+            ADD INDEX idx_division_id (division_id)
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_DUP_KEYNAME') {
+            throw error;
+          }
+        }
+
+        await cleanOrphanedDivisionReferences();
+
+        if (requiresConstraint) {
+          const tryAddConstraint = async (retry = false) => {
+            try {
+              await this.pool.execute(`
+                ALTER TABLE autres.users
+                ADD CONSTRAINT \`${expectedConstraintName}\` FOREIGN KEY (division_id)
+                  REFERENCES autres.divisions(id) ON DELETE SET NULL
+              `);
+            } catch (error) {
+              if ((error.code === 'ER_DUP_KEYNAME' || error.code === 'ER_CANT_CREATE_TABLE') && !retry) {
+                return;
+              }
+              if (error.code === 'ER_ERROR_ON_RENAME' && !retry) {
+                await cleanOrphanedDivisionReferences();
+                await dropForeignKeyIfExists(expectedConstraintName);
+                return tryAddConstraint(true);
+              }
+              if (
+                error.code === 'ER_DUP_KEYNAME' ||
+                error.code === 'ER_CANT_CREATE_TABLE' ||
+                error.code === 'ER_ERROR_ON_RENAME'
+              ) {
+                return;
+              }
+              throw error;
+            }
+          };
+
+          await tryAddConstraint();
+        }
+      };
+
       // Créer les tables de division et des utilisateurs
       await query(`
         CREATE TABLE IF NOT EXISTS autres.divisions (
@@ -151,27 +270,7 @@ class DatabaseManager {
             throw error;
           }
         }
-        try {
-          await this.pool.execute(`
-            ALTER TABLE autres.users
-            ADD INDEX idx_division_id (division_id)
-          `);
-        } catch (error) {
-          if (error.code !== 'ER_DUP_KEYNAME') {
-            throw error;
-          }
-        }
-        try {
-          await this.pool.execute(`
-            ALTER TABLE autres.users
-            ADD CONSTRAINT fk_users_division FOREIGN KEY (division_id)
-              REFERENCES autres.divisions(id) ON DELETE SET NULL
-          `);
-        } catch (error) {
-          if (error.code !== 'ER_DUP_KEYNAME') {
-            throw error;
-          }
-        }
+        await ensureDivisionForeignKey(divisionIdColumnType);
       }
 
       const hasCreatedAt = await queryOne(`
@@ -275,89 +374,7 @@ class DatabaseManager {
         );
       }
 
-      const divisionColumn = await queryOne(`
-        SELECT IS_NULLABLE
-        FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA = 'autres'
-          AND TABLE_NAME = 'users'
-          AND COLUMN_NAME = 'division_id'
-      `);
-
-      const divisionForeignKey = await queryOne(`
-        SELECT kcu.CONSTRAINT_NAME, rc.DELETE_RULE
-        FROM information_schema.KEY_COLUMN_USAGE kcu
-        JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
-          ON rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
-         AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
-        WHERE kcu.TABLE_SCHEMA = 'autres'
-          AND kcu.TABLE_NAME = 'users'
-          AND kcu.COLUMN_NAME = 'division_id'
-          AND kcu.REFERENCED_TABLE_NAME = 'divisions'
-      `);
-
-      const currentConstraintName = divisionForeignKey?.CONSTRAINT_NAME;
-      const currentDeleteRule = divisionForeignKey?.DELETE_RULE;
-      const expectedConstraintName = 'fk_users_division';
-
-      const requiresNullableColumn = divisionColumn && divisionColumn.IS_NULLABLE !== 'YES';
-      const requiresConstraintUpdate =
-        !divisionForeignKey ||
-        currentConstraintName !== expectedConstraintName ||
-        currentDeleteRule !== 'SET NULL';
-
-      if (requiresNullableColumn || requiresConstraintUpdate) {
-        const constraintToDrop = currentConstraintName || expectedConstraintName;
-
-        if (constraintToDrop) {
-          try {
-            await this.pool.execute(`
-              ALTER TABLE autres.users
-              DROP FOREIGN KEY \`${constraintToDrop}\`
-            `);
-          } catch (error) {
-            if (error.code !== 'ER_CANT_DROP_FIELD_OR_KEY') {
-              throw error;
-            }
-          }
-        }
-
-        // Rendre la colonne nullable pour pouvoir nettoyer les lignes orphelines
-        await this.pool.execute(`
-          ALTER TABLE autres.users
-          MODIFY COLUMN division_id ${divisionIdColumnType} NULL DEFAULT NULL
-        `);
-
-        try {
-          await this.pool.execute(`
-            ALTER TABLE autres.users
-            ADD INDEX idx_division_id (division_id)
-          `);
-        } catch (error) {
-          if (error.code !== 'ER_DUP_KEYNAME') {
-            throw error;
-          }
-        }
-
-        // Nettoyer les valeurs orphelines avant de recréer la contrainte
-        await this.pool.execute(`
-          UPDATE autres.users u
-          LEFT JOIN autres.divisions d ON d.id = u.division_id
-          SET u.division_id = NULL
-          WHERE u.division_id IS NOT NULL AND d.id IS NULL
-        `);
-
-        try {
-          await this.pool.execute(`
-            ALTER TABLE autres.users
-            ADD CONSTRAINT \`${expectedConstraintName}\` FOREIGN KEY (division_id)
-              REFERENCES autres.divisions(id) ON DELETE SET NULL
-          `);
-        } catch (error) {
-          if (error.code !== 'ER_DUP_KEYNAME' && error.code !== 'ER_CANT_CREATE_TABLE') {
-            throw error;
-          }
-        }
-      }
+      await ensureDivisionForeignKey(divisionIdColumnType);
 
       // Créer la table search_logs
       await query(`
