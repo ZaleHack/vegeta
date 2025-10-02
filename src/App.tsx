@@ -75,6 +75,7 @@ import ProfileForm from './components/ProfileForm';
 import CdrMap from './components/CdrMap';
 import LinkDiagram from './components/LinkDiagram';
 import SoraLogo from './components/SoraLogo';
+import ConfirmDialog, { ConfirmDialogOptions } from './components/ConfirmDialog';
 
 const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...props}>
@@ -1366,6 +1367,9 @@ const App: React.FC = () => {
   const [profileShareOwnerId, setProfileShareOwnerId] = useState<number | null>(null);
   const [profileShareMessage, setProfileShareMessage] = useState('');
   const [profileShareLoading, setProfileShareLoading] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogOptions | null>(null);
+  const openConfirmDialog = (options: ConfirmDialogOptions) => setConfirmDialog(options);
+  const closeConfirmDialog = () => setConfirmDialog(null);
   const [profileListRefreshKey, setProfileListRefreshKey] = useState(0);
   const [highlightedProfileId, setHighlightedProfileId] = useState<number | null>(null);
   const hasFraudSuspiciousNumbers = useMemo(() => {
@@ -1728,23 +1732,29 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDeleteBlacklist = async (id: number) => {
-    if (!window.confirm('Confirmer la suppression de ce numéro blacklisté ?')) {
-      return;
-    }
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/blacklist/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setBlacklist(data);
+  const handleDeleteBlacklist = (id: number) => {
+    openConfirmDialog({
+      title: 'Supprimer le numéro',
+      description: 'Confirmer la suppression de ce numéro blacklisté ?',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+      icon: <Trash2 className="h-5 w-5" />,
+      onConfirm: async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const res = await fetch(`/api/blacklist/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: token ? `Bearer ${token}` : '' }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setBlacklist(data);
+          }
+        } catch (err) {
+          console.error('Erreur suppression blacklist:', err);
+        }
       }
-    } catch (err) {
-      console.error('Erreur suppression blacklist:', err);
-    }
+    });
   };
 
   const fetchLogs = useCallback(async (page = 1) => {
@@ -2100,45 +2110,60 @@ useEffect(() => {
     }
   };
 
-  const deleteRequest = async (
+  const deleteRequest = (
     id: number,
     options?: {
       permanent?: boolean;
     }
   ) => {
     const permanent = options?.permanent ?? false;
-    const confirmationMessage = permanent
+    const description = permanent
       ? "Supprimer définitivement cette demande ? Cette action est irréversible."
       : 'Supprimer cette demande ?';
-    if (!confirm(confirmationMessage)) return;
-    if (isAdmin && !permanent) {
-      setHiddenRequestIds((prev) => {
-        if (prev.includes(id)) {
-          return prev;
+    openConfirmDialog({
+      title: permanent ? 'Suppression définitive' : 'Supprimer la demande',
+      description,
+      confirmLabel: permanent ? 'Supprimer définitivement' : 'Supprimer',
+      tone: 'danger',
+      icon: <Trash2 className="h-5 w-5" />,
+      onConfirm: async () => {
+        if (isAdmin && !permanent) {
+          setHiddenRequestIds((prev) => {
+            if (prev.includes(id)) {
+              return prev;
+            }
+            return [...prev, id];
+          });
+          return;
         }
-        return [...prev, id];
-      });
-      return;
-    }
-    try {
-      const token = localStorage.getItem('token');
-      await fetch(`/api/requests/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (permanent) {
-        setHiddenRequestIds((prev) => prev.filter((hiddenId) => hiddenId !== id));
+        try {
+          const token = localStorage.getItem('token');
+          await fetch(`/api/requests/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (permanent) {
+            setHiddenRequestIds((prev) => prev.filter((hiddenId) => hiddenId !== id));
+          }
+          fetchRequests();
+        } catch (error) {
+          console.error('Erreur suppression demande:', error);
+        }
       }
-      fetchRequests();
-    } catch (error) {
-      console.error('Erreur suppression demande:', error);
-    }
+    });
   };
 
   const handleResetHiddenRequests = () => {
     if (!isAdmin) return;
-    if (!confirm('Réafficher toutes les demandes supprimées ?')) return;
-    setHiddenRequestIds([]);
+    openConfirmDialog({
+      title: 'Réafficher les demandes',
+      description: 'Réafficher toutes les demandes supprimées ?',
+      confirmLabel: 'Réafficher',
+      icon: <RefreshCw className="h-5 w-5 text-blue-600" />,
+      onConfirm: async () => {
+        setHiddenRequestIds([]);
+      }
+    });
   };
 
   const startIdentify = (request: IdentificationRequest) => {
@@ -2679,59 +2704,72 @@ useEffect(() => {
     }
   };
 
-  const handleDeleteDivision = async (divisionId: number) => {
-    if (!confirm('Supprimer cette division ? Les utilisateurs associés ne seront plus rattachés.')) {
-      return;
-    }
-    setDeletingDivisionId(divisionId);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/divisions/${divisionId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+  const handleDeleteDivision = (divisionId: number) => {
+    openConfirmDialog({
+      title: 'Supprimer la division',
+      description: 'Supprimer cette division ? Les utilisateurs associés ne seront plus rattachés.',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+      icon: <Building2 className="h-5 w-5" />,
+      onConfirm: async () => {
+        setDeletingDivisionId(divisionId);
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`/api/divisions/${divisionId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
 
-      if (response.ok) {
-        const data = await response.json();
-        let message = 'Division supprimée avec succès';
-        if (data.detachedUsers > 0) {
-          message += ` ( ${data.detachedUsers} utilisateur(s) détaché(s) )`;
+          if (response.ok) {
+            const data = await response.json();
+            let message = 'Division supprimée avec succès';
+            if (data.detachedUsers > 0) {
+              message += ` ( ${data.detachedUsers} utilisateur(s) détaché(s) )`;
+            }
+            alert(message);
+            await loadDivisions();
+            await loadUsers();
+          } else {
+            const data = await response.json();
+            alert(data.error || 'Erreur lors de la suppression de la division');
+          }
+        } catch (error) {
+          console.error('Erreur suppression division:', error);
+          alert('Erreur de connexion au serveur');
+        } finally {
+          setDeletingDivisionId(null);
         }
-        alert(message);
-        await loadDivisions();
-        await loadUsers();
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Erreur lors de la suppression de la division');
       }
-    } catch (error) {
-      console.error('Erreur suppression division:', error);
-      alert('Erreur de connexion au serveur');
-    } finally {
-      setDeletingDivisionId(null);
-    }
+    });
   };
 
-  const handleDeleteUser = async (userId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) return;
+  const handleDeleteUser = (userId: number) => {
+    openConfirmDialog({
+      title: 'Supprimer l’utilisateur',
+      description: 'Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est définitive.',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+      icon: <User className="h-5 w-5" />,
+      onConfirm: async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`/api/users/${userId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/users/${userId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        alert('Utilisateur supprimé avec succès');
-        loadUsers();
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Erreur lors de la suppression');
+          if (response.ok) {
+            alert('Utilisateur supprimé avec succès');
+            loadUsers();
+          } else {
+            const data = await response.json();
+            alert(data.error || 'Erreur lors de la suppression');
+          }
+        } catch (error) {
+          alert('Erreur de connexion au serveur');
+        }
       }
-    } catch (error) {
-      alert('Erreur de connexion au serveur');
-    }
+    });
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -2872,23 +2910,31 @@ useEffect(() => {
     }
   };
 
-  const handleDeleteUpload = async (id: number) => {
-    if (!confirm('Supprimer les données importées ?')) return;
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/upload/history/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        fetchUploadHistory();
-      } else {
-        alert(data.error || 'Erreur lors de la suppression');
+  const handleDeleteUpload = (id: number) => {
+    openConfirmDialog({
+      title: 'Supprimer les données importées',
+      description: 'Supprimer ces données importées de façon définitive ?',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+      icon: <Database className="h-5 w-5" />,
+      onConfirm: async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const res = await fetch(`/api/upload/history/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const data = await res.json();
+          if (res.ok) {
+            fetchUploadHistory();
+          } else {
+            alert(data.error || 'Erreur lors de la suppression');
+          }
+        } catch (error) {
+          alert('Erreur de connexion au serveur');
+        }
       }
-    } catch (error) {
-      alert('Erreur de connexion au serveur');
-    }
+    });
   };
 
   const fetchAnnuaire = async () => {
@@ -3179,6 +3225,24 @@ useEffect(() => {
     setGlobalFraudEnd('');
     setGlobalFraudResult(null);
     setGlobalFraudError('');
+  };
+
+  const resetCdrSearch = () => {
+    setCdrIdentifiers([]);
+    setCdrIdentifierInput('');
+    setCdrStart('');
+    setCdrEnd('');
+    setCdrStartTime('');
+    setCdrEndTime('');
+    setCdrIncoming(true);
+    setCdrOutgoing(true);
+    setCdrSms(true);
+    setCdrPosition(true);
+    setCdrItinerary(false);
+    setCdrError('');
+    setCdrInfoMessage('');
+    setCdrResult(null);
+    setShowCdrMap(false);
   };
 
   useEffect(() => {
@@ -3501,19 +3565,28 @@ useEffect(() => {
     }
   };
 
-  const handleDeleteFile = async (fileId: number) => {
+  const handleDeleteFile = (fileId: number) => {
     if (!selectedCase) return;
-    if (!window.confirm('Supprimer ce fichier ?')) return;
-    try {
-      const token = localStorage.getItem('token');
-      await fetch(`/api/cases/${selectedCase.id}/files/${fileId}`, {
-        method: 'DELETE',
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
-      });
-      fetchCaseFiles(selectedCase.id);
-    } catch (err) {
-      console.error('Erreur suppression fichier:', err);
-    }
+    const caseId = selectedCase.id;
+    openConfirmDialog({
+      title: 'Supprimer le fichier',
+      description: 'Supprimer ce fichier de l’opération sélectionnée ?',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+      icon: <FileText className="h-5 w-5" />,
+      onConfirm: async () => {
+        try {
+          const token = localStorage.getItem('token');
+          await fetch(`/api/cases/${caseId}/files/${fileId}`, {
+            method: 'DELETE',
+            headers: { Authorization: token ? `Bearer ${token}` : '' }
+          });
+          fetchCaseFiles(caseId);
+        } catch (err) {
+          console.error('Erreur suppression fichier:', err);
+        }
+      }
+    });
   };
 
   useEffect(() => {
@@ -3620,18 +3693,26 @@ useEffect(() => {
     }
   };
 
-  const handleDeleteCase = async (id: number) => {
-    if (!window.confirm('Supprimer cette opération ?')) return;
-    try {
-      const token = localStorage.getItem('token');
-      await fetch(`/api/cases/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
-      });
-      fetchCases();
-    } catch (err) {
-      console.error('Erreur suppression opération:', err);
-    }
+  const handleDeleteCase = (id: number) => {
+    openConfirmDialog({
+      title: 'Supprimer l’opération',
+      description: 'Supprimer cette opération et toutes les données associées ?',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+      icon: <Shield className="h-5 w-5" />,
+      onConfirm: async () => {
+        try {
+          const token = localStorage.getItem('token');
+          await fetch(`/api/cases/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: token ? `Bearer ${token}` : '' }
+          });
+          fetchCases();
+        } catch (err) {
+          console.error('Erreur suppression opération:', err);
+        }
+      }
+    });
   };
 
   const handleExportCaseReport = async (cdrCase: CdrCase) => {
@@ -4334,6 +4415,14 @@ useEffect(() => {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={resetCdrSearch}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-800/80"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Réinitialiser</span>
+            </button>
             <button
               type="submit"
               disabled={cdrLoading}
@@ -9095,6 +9184,21 @@ useEffect(() => {
             </form>
           </div>
         </div>
+      )}
+
+      {confirmDialog && (
+        <ConfirmDialog
+          open
+          title={confirmDialog.title}
+          description={confirmDialog.description}
+          confirmLabel={confirmDialog.confirmLabel}
+          cancelLabel={confirmDialog.cancelLabel}
+          tone={confirmDialog.tone}
+          icon={confirmDialog.icon}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={confirmDialog.onCancel}
+          onClose={closeConfirmDialog}
+        />
       )}
     </div>
 
