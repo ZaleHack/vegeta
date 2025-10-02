@@ -291,6 +291,14 @@ class DatabaseManager {
           }
         }
 
+        // Nettoyer les valeurs orphelines avant de recréer la contrainte
+        await this.pool.execute(`
+          UPDATE autres.users u
+          LEFT JOIN autres.divisions d ON d.id = u.division_id
+          SET u.division_id = NULL
+          WHERE u.division_id IS NOT NULL AND d.id IS NULL
+        `);
+
         await this.pool.execute(`
           ALTER TABLE autres.users
           MODIFY COLUMN division_id INT NULL
