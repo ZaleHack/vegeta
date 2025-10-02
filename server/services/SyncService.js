@@ -77,7 +77,7 @@ class SyncService {
     const batchSize = this.resolveBatchSize(syncConfig);
 
     try {
-      let offset = 0;
+      let lastPrimaryKey = null;
       let totalIndexed = 0;
       let totalFetched = 0;
       let hasMore = true;
@@ -104,9 +104,11 @@ class SyncService {
       }
 
       while (hasMore) {
+        const whereClause =
+          lastPrimaryKey === null ? '' : `WHERE \`${primaryKey}\` > ?`;
         const rows = await database.query(
-          `SELECT * FROM ${tableName} ORDER BY \`${primaryKey}\` ASC LIMIT ? OFFSET ?`,
-          [batchSize, offset]
+          `SELECT * FROM ${tableName} ${whereClause} ORDER BY \`${primaryKey}\` ASC LIMIT ?`,
+          lastPrimaryKey === null ? [batchSize] : [lastPrimaryKey, batchSize]
         );
 
         if (!rows.length) {
@@ -136,7 +138,7 @@ class SyncService {
           }
         }
 
-        offset += rows.length;
+        lastPrimaryKey = rows[rows.length - 1]?.[primaryKey] ?? lastPrimaryKey;
         hasMore = rows.length === batchSize;
       }
 
