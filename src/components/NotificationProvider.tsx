@@ -21,10 +21,14 @@ interface NotificationContextValue {
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
 
 const toneStyles: Record<NotificationTone, string> = {
-  success: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-100',
-  error: 'border-red-500/50 bg-red-500/10 text-red-100',
-  info: 'border-sky-500/50 bg-sky-500/10 text-sky-100',
-  warning: 'border-amber-500/50 bg-amber-500/10 text-amber-100'
+  success:
+    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/60 dark:bg-emerald-500/15 dark:text-emerald-100',
+  error:
+    'border-red-200 bg-red-50 text-red-700 dark:border-red-500/60 dark:bg-red-500/15 dark:text-red-100',
+  info:
+    'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/60 dark:bg-sky-500/15 dark:text-sky-100',
+  warning:
+    'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-100'
 };
 
 const toneIcons: Record<NotificationTone, string> = {
@@ -73,23 +77,23 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       {children}
       {typeof document !== 'undefined' &&
         createPortal(
-          <div className="pointer-events-none fixed inset-x-0 top-4 z-[1000] flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6">
+          <div className="pointer-events-none fixed inset-x-0 top-4 z-[1000] flex flex-col items-center gap-3 px-4 sm:items-end sm:px-6">
             {notifications.map((notification) => (
               <div
                 key={notification.id}
                 role="status"
-                className={`pointer-events-auto flex max-w-sm items-start gap-3 rounded-lg border px-4 py-3 shadow-lg backdrop-blur transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${toneStyles[notification.tone]}`}
+                className={`pointer-events-auto flex max-w-sm items-start gap-3 rounded-2xl border px-5 py-4 shadow-xl backdrop-blur transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-slate-600 dark:focus-visible:ring-offset-slate-900 ${toneStyles[notification.tone]}`}
               >
                 <span className="mt-0.5 text-lg font-semibold leading-none">
                   {toneIcons[notification.tone]}
                 </span>
-                <p className="flex-1 text-sm leading-snug text-white">
+                <p className="flex-1 text-sm leading-snug">
                   {notification.message}
                 </p>
                 <button
                   type="button"
                   onClick={() => clearNotification(notification.id)}
-                  className="ml-2 inline-flex text-sm font-semibold text-white/80 transition hover:text-white"
+                  className="ml-2 inline-flex text-sm font-semibold opacity-70 transition hover:opacity-100"
                   aria-label="Fermer la notification"
                 >
                   ×
