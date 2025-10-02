@@ -1,7 +1,15 @@
 import client from '../config/elasticsearch.js';
 import { normalizeProfileRecord } from '../utils/profile-normalizer.js';
+import InMemoryCache from '../utils/cache.js';
 
 class ElasticSearchService {
+  constructor() {
+    const ttlEnv = process.env.ELASTICSEARCH_CACHE_TTL_MS;
+    const parsedTtl = Number(ttlEnv);
+    const ttl = Number.isFinite(parsedTtl) && parsedTtl > 0 ? parsedTtl : 60000;
+    this.cache = new InMemoryCache(ttl);
+  }
+
   buildProfileDocument(profile) {
     const normalized = normalizeProfileRecord(profile);
     if (!normalized) {
@@ -69,14 +77,103 @@ class ElasticSearchService {
       id: profile.id,
       document
     });
+    this.cache.clear();
+  }
+
+  buildPreviewFromSource(source) {
+    if (!source || typeof source !== 'object') {
+      return {};
+    }
+
+    const entries = {};
+    const fullName =
+      source.full_name ||
+      [source.first_name, source.last_name]
+        .filter((part) => part && String(part).trim().length > 0)
+        .join(' ')
+        .trim() || null;
+
+    if (fullName) {
+      entries.full_name = fullName;
+    }
+
+    const fieldCandidates = {
+      first_name: source.first_name,
+      last_name: source.last_name,
+      phone: source.phone,
+      email: source.email,
+      comment: source.comment_preview
+    };
+
+    for (const [key, value] of Object.entries(fieldCandidates)) {
+      if (value !== null && value !== undefined && String(value).trim() !== '') {
+        entries[key] = value;
+      }
+    }
+
+    if (Array.isArray(source.extra_fields)) {
+      source.extra_fields.forEach((field, index) => {
+        if (!field) return;
+        if (typeof field === 'object') {
+          Object.entries(field).forEach(([key, value]) => {
+            if (value === null || value === undefined) return;
+            const normalizedKey = key || `extra_${index}`;
+            if (entries[normalizedKey] === undefined) {
+              entries[normalizedKey] = value;
+            }
+          });
+        } else {
+          const key = `extra_${index}`;
+          if (entries[key] === undefined) {
+            entries[key] = field;
+          }
+        }
+      });
+    }
+
+    return entries;
+  }
+
+  normalizeHit(hit) {
+    const source = hit?._source || {};
+    const preview = this.buildPreviewFromSource(source);
+    const tableName = hit?._index || 'profiles';
+    const primaryKey = source.id ?? hit?._id;
+
+    return {
+      table: tableName,
+      table_name: tableName,
+      database: 'Elasticsearch',
+      preview,
+      primary_keys: primaryKey ? { id: primaryKey } : {},
+      score: typeof hit?._score === 'number' ? hit._score : undefined
+    };
   }
 
   async search(query, page = 1, limit = 20) {
     const from = (page - 1) * limit;
+    const cacheKey = JSON.stringify({ query, page, limit });
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const { hits, took } = await client.search({
       index: 'profiles',
       from,
       size: limit,
+      _source: [
+        'id',
+        'user_id',
+        'division_id',
+        'first_name',
+        'last_name',
+        'full_name',
+        'phone',
+        'email',
+        'comment_preview',
+        'extra_fields'
+      ],
       query: {
         multi_match: {
           query,
@@ -86,11 +183,16 @@ class ElasticSearchService {
     });
 
     const total = typeof hits.total === 'number' ? hits.total : hits.total?.value ?? 0;
-    return {
+    const normalizedHits = hits.hits.map((hit) => this.normalizeHit(hit));
+    const response = {
       total,
-      hits: hits.hits.map((h) => h._source),
-      elapsed_ms: took
+      hits: normalizedHits,
+      elapsed_ms: took,
+      tables_searched: Array.from(new Set(normalizedHits.map((hit) => hit.table_name).filter(Boolean)))
     };
+
+    this.cache.set(cacheKey, response);
+    return response;
   }
 }
 

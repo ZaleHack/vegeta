@@ -73,6 +73,10 @@ router.post('/', authenticate, async (req, res) => {
         parseInt(page),
         parseInt(limit)
       );
+      const tablesSearched =
+        Array.isArray(es.tables_searched) && es.tables_searched.length > 0
+          ? es.tables_searched
+          : ['profiles'];
       results = {
         total: es.total,
         page: parseInt(page),
@@ -80,7 +84,7 @@ router.post('/', authenticate, async (req, res) => {
         pages: Math.ceil(es.total / parseInt(limit)),
         elapsed_ms: es.elapsed_ms,
         hits: es.hits,
-        tables_searched: ['profiles']
+        tables_searched: tablesSearched
       };
     } else {
       results = await searchService.search(

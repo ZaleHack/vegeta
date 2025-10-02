@@ -129,10 +129,10 @@ interface User {
 }
 
 interface SearchResult {
-  table: string;
-  database: string;
-  preview: Record<string, any>;
-  primary_keys: { id: number };
+  table?: string;
+  database?: string;
+  preview?: Record<string, any>;
+  primary_keys?: Record<string, any>;
   score?: number;
   table_name?: string;
 }
@@ -146,6 +146,31 @@ interface SearchResponse {
   hits: SearchResult[];
   tables_searched: string[];
 }
+
+const sanitizePreviewData = (result: SearchResult): Record<string, any> => {
+  if (result.preview && typeof result.preview === 'object') {
+    return result.preview;
+  }
+
+  const fallback = { ...result } as Record<string, any>;
+  delete fallback.preview;
+  delete fallback.table;
+  delete fallback.table_name;
+  delete fallback.database;
+  delete fallback.primary_keys;
+  delete fallback.score;
+  return fallback;
+};
+
+const formatScore = (score?: number) => {
+  if (typeof score !== 'number' || Number.isNaN(score)) {
+    return null;
+  }
+  if (Math.abs(score) >= 10) {
+    return score.toFixed(1);
+  }
+  return score.toFixed(3);
+};
 
 interface SearchTermStat {
   search_term: string;
@@ -4994,11 +5019,17 @@ useEffect(() => {
                     ) : viewMode === 'list' ? (
                       <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
                         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                          {searchResults.hits.map((result, index) => (
-                            <div
-                              key={index}
-                              className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-2xl p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-500 transform transition-all duration-300 hover:-translate-y-1"
-                            >
+                          {searchResults.hits.map((result, index) => {
+                            const previewData = sanitizePreviewData(result);
+                            const formattedScore = formatScore(result.score);
+                            const tableLabel = result.table_name || result.table;
+                            const databaseLabel = result.database || 'Elasticsearch';
+
+                            return (
+                              <div
+                                key={index}
+                                className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-2xl p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-500 transform transition-all duration-300 hover:-translate-y-1"
+                              >
                               {/* Header de la carte */}
                               <div className="flex justify-between items-start mb-4">
                                 <div className="flex items-center space-x-3">
@@ -5007,13 +5038,30 @@ useEffect(() => {
                                   </div>
                                   <div>
                                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Résultat {index + 1}</h3>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                      {tableLabel && (
+                                        <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-600 dark:bg-blue-900/60 dark:text-blue-200">
+                                          {tableLabel}
+                                        </span>
+                                      )}
+                                      {databaseLabel && (
+                                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-600 dark:bg-gray-700/70 dark:text-gray-300">
+                                          {databaseLabel}
+                                        </span>
+                                      )}
+                                      {formattedScore && (
+                                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-200">
+                                          Score {formattedScore}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
 
                               {/* Contenu des données */}
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {Object.entries(result.preview).flatMap(([key, value]) => {
+                                {Object.entries(previewData).flatMap(([key, value]) => {
                                   if (!value || value === '' || value === null || value === undefined) return [];
 
                                   if (key === 'data') {
@@ -5091,20 +5139,20 @@ useEffect(() => {
                               {/* Footer avec actions */}
                               <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
                                 <div className="text-xs text-gray-500">
-                                  {Object.keys(result.preview)
+                                  {Object.keys(previewData)
                                     .filter(
                                       key =>
-                                        result.preview[key] &&
-                                        result.preview[key] !== '' &&
-                                        result.preview[key] !== null &&
-                                        result.preview[key] !== undefined
+                                        previewData[key] &&
+                                        previewData[key] !== '' &&
+                                        previewData[key] !== null &&
+                                        previewData[key] !== undefined
                                     ).length}{' '}
                                   champs disponibles
                                 </div>
                                 <button
                                   onClick={() => {
                                     // Copier les données dans le presse-papier
-                                    const dataText = Object.entries(result.preview)
+                                    const dataText = Object.entries(previewData)
                                       .filter(([key, value]) => value && value !== '' && value !== null && value !== undefined)
                                       .map(([key, value]) => `${key}: ${value}`)
                                       .join('\n');
@@ -5118,7 +5166,8 @@ useEffect(() => {
                                 </button>
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                         <div className="mt-8 text-center">
                           <button
@@ -5158,7 +5207,8 @@ useEffect(() => {
                               };
 
                               searchResults.hits.forEach(h => {
-                                Object.entries(h.preview || {}).forEach(([k, v]) => {
+                                const preview = sanitizePreviewData(h);
+                                Object.entries(preview).forEach(([k, v]) => {
                                   mergeEntry(combined, k, v);
                                 });
                               });
