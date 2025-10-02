@@ -49,6 +49,16 @@ Les deux commandes peuvent être exécutées en parallèle pendant le développe
 - `node server/scripts/init-database.js` : crée les tables nécessaires si elles n'existent pas.
 - `node server/scripts/sync-all.js` : synchronise les données pour la recherche.
 
+### Indexation initiale Elasticsearch
+
+Après avoir configuré votre cluster et défini les variables d'environnement nécessaires (`ELASTICSEARCH_URL`, `USE_ELASTICSEARCH=true` et éventuellement `SYNC_BATCH_SIZE` pour ajuster la taille des lots), exécutez :
+
+```bash
+node server/scripts/sync-all.js
+```
+
+Le script lit les tables référencées dans `server/config/tables-catalog.js` (dont `autres.profiles`) et alimente l'index `profiles` d'Elasticsearch en purgant l'index si besoin. Assurez-vous que la base MySQL contient les données à indexer avant de lancer cette opération.
+
 ## Tests
 
 Une suite de tests automatisés n'est pas fournie. Utilisez le lint et les tests manuels fonctionnels avant toute mise en production.

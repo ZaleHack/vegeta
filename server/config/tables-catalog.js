@@ -1,4 +1,25 @@
 export default {
+  'autres.profiles': {
+    display: 'profiles',
+    database: 'autres',
+    primaryKey: 'id',
+    searchable: ['first_name', 'last_name', 'phone', 'email'],
+    linkedFields: ['phone', 'email'],
+    preview: ['first_name', 'last_name', 'phone', 'email', 'comment'],
+    filters: {
+      division_id: 'number',
+      phone: 'string',
+      email: 'string'
+    },
+    theme: 'interne',
+    sync: {
+      type: 'profile',
+      elasticsearchIndex: 'profiles',
+      purgeBeforeIndex: true,
+      batchSize: 500
+    }
+  },
+
   // Base esolde
   'esolde.mytable': {
     display: 'mytable',
