@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 
 interface ExtraField {
   key: string;
@@ -76,6 +78,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const [newAttachments, setNewAttachments] = useState<NewAttachment[]>([]);
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<number[]>([]);
   const [removePhoto, setRemovePhoto] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogOptions | null>(null);
 
   useEffect(() => {
     setCategories(buildInitialFields());
@@ -95,8 +98,16 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const addCategory = () =>
     setCategories(prev => [...prev, { title: '', fields: [{ key: '', value: '' }] }]);
   const removeCategory = (idx: number) => {
-    if (!window.confirm('Supprimer cette catégorie ?')) return;
-    setCategories(prev => prev.filter((_, i) => i !== idx));
+    setConfirmDialog({
+      title: 'Supprimer la catégorie',
+      description: 'Supprimer cette catégorie et tous les champs associés ?',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+      icon: <Trash2 className="h-5 w-5" />,
+      onConfirm: () => {
+        setCategories(prev => prev.filter((_, i) => i !== idx));
+      }
+    });
   };
   const updateCategoryTitle = (idx: number, title: string) => {
     setCategories(prev => {
@@ -114,11 +125,19 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     });
   };
   const removeField = (catIdx: number, fieldIdx: number) => {
-    if (!window.confirm('Supprimer ce champ ?')) return;
-    setCategories(prev => {
-      const updated = [...prev];
-      updated[catIdx].fields = updated[catIdx].fields.filter((_, i) => i !== fieldIdx);
-      return updated;
+    setConfirmDialog({
+      title: 'Supprimer le champ',
+      description: 'Supprimer ce champ de la fiche ? Cette action est immédiate.',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+      icon: <Trash2 className="h-5 w-5" />,
+      onConfirm: () => {
+        setCategories(prev => {
+          const updated = [...prev];
+          updated[catIdx].fields = updated[catIdx].fields.filter((_, i) => i !== fieldIdx);
+          return updated;
+        });
+      }
     });
   };
   const updateField = (catIdx: number, fieldIdx: number, key: keyof ExtraField, value: string) => {
@@ -280,10 +299,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   };
 
   return (
-    <form
-      className="max-w-2xl mx-auto bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-xl space-y-6"
-      onSubmit={submit}
-    >
+    <>
+      <form
+        className="max-w-2xl mx-auto bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-xl space-y-6"
+        onSubmit={submit}
+      >
       {message && <div className="text-center text-sm text-green-600">{message}</div>}
       <div className="space-y-6">
         {categories.map((cat, cIdx) => (
@@ -478,7 +498,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       >
         Enregistrer
       </button>
-    </form>
+      </form>
+      {confirmDialog && (
+        <ConfirmDialog
+          open
+          title={confirmDialog.title}
+          description={confirmDialog.description}
+          confirmLabel={confirmDialog.confirmLabel}
+          cancelLabel={confirmDialog.cancelLabel}
+          tone={confirmDialog.tone}
+          icon={confirmDialog.icon}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={confirmDialog.onCancel}
+          onClose={() => setConfirmDialog(null)}
+        />
+      )}
+    </>
   );
 };
 

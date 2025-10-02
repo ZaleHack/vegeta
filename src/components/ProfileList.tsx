@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { X, Paperclip, Download, Search, Users, Eye, PencilLine, Trash2, Share2 } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
+import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 
 interface ProfileAttachment {
   id: number;
@@ -57,6 +58,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const [selected, setSelected] = useState<ProfileListItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogOptions | null>(null);
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
 
@@ -289,25 +291,33 @@ const ProfileList: React.FC<ProfileListProps> = ({
 
   const selectedPhotoUrl = selected ? buildProtectedUrl(selected.photo_path) : null;
 
-  const remove = async (id: number) => {
-    if (!window.confirm('Supprimer définitivement ce profil ?')) return;
-    const token = localStorage.getItem('token');
-    try {
-      const res = await fetch(`/api/profiles/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : ''
+  const remove = (id: number) => {
+    setConfirmDialog({
+      title: 'Supprimer le profil',
+      description: 'Supprimer définitivement ce profil et ses informations associées ?',
+      confirmLabel: 'Supprimer',
+      tone: 'danger',
+      icon: <Trash2 className="h-5 w-5" />,
+      onConfirm: async () => {
+        const token = localStorage.getItem('token');
+        try {
+          const res = await fetch(`/api/profiles/${id}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: token ? `Bearer ${token}` : ''
+            }
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            setError(data.error || 'Impossible de supprimer le profil');
+            return;
+          }
+          await load();
+        } catch (_) {
+          setError('Erreur lors de la suppression du profil');
         }
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Impossible de supprimer le profil');
-        return;
       }
-      await load();
-    } catch (_) {
-      setError('Erreur lors de la suppression du profil');
-    }
+    });
   };
 
   const handleCreateClick = useCallback(() => {
@@ -335,7 +345,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       <div className="rounded-3xl bg-gradient-to-br from-blue-50 via-white to-white/60 p-6 shadow-inner shadow-blue-100 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:shadow-slate-900/70">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-slate-200 transition-all focus-within:ring-2 focus-within:ring-blue-500 dark:bg-white/5 dark:ring-slate-700/60 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06)] dark:focus-within:ring-blue-500/60">
@@ -645,7 +656,22 @@ const ProfileList: React.FC<ProfileListProps> = ({
           </div>
         </div>
       )}
-    </div>
+      </div>
+      {confirmDialog && (
+        <ConfirmDialog
+          open
+          title={confirmDialog.title}
+          description={confirmDialog.description}
+          confirmLabel={confirmDialog.confirmLabel}
+          cancelLabel={confirmDialog.cancelLabel}
+          tone={confirmDialog.tone}
+          icon={confirmDialog.icon}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={confirmDialog.onCancel}
+          onClose={() => setConfirmDialog(null)}
+        />
+      )}
+    </>
   );
 };
 
