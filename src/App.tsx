@@ -77,6 +77,7 @@ import LinkDiagram from './components/LinkDiagram';
 import SoraLogo from './components/SoraLogo';
 import ConfirmDialog, { ConfirmDialogOptions } from './components/ConfirmDialog';
 import { useNotifications } from './components/NotificationProvider';
+import { normalizePreview, NormalizedPreviewEntry, BaseSearchHit } from './utils/search';
 
 const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...props}>
@@ -130,13 +131,10 @@ interface User {
   role?: 'ADMIN' | 'USER';
 }
 
-interface SearchResult {
-  table?: string;
-  database?: string;
-  preview?: Record<string, any>;
-  primary_keys?: Record<string, any>;
-  score?: number;
-  table_name?: string;
+type RawSearchResult = BaseSearchHit;
+
+interface SearchResult extends RawSearchResult {
+  previewEntries: NormalizedPreviewEntry[];
 }
 
 interface SearchResponse {
@@ -149,20 +147,23 @@ interface SearchResponse {
   tables_searched: string[];
 }
 
-const sanitizePreviewData = (result: SearchResult): Record<string, any> => {
-  if (result.preview && typeof result.preview === 'object') {
-    return result.preview;
-  }
-
-  const fallback = { ...result } as Record<string, any>;
-  delete fallback.preview;
-  delete fallback.table;
-  delete fallback.table_name;
-  delete fallback.database;
-  delete fallback.primary_keys;
-  delete fallback.score;
-  return fallback;
+type SearchResponseFromApi = Omit<SearchResponse, 'hits'> & {
+  hits: RawSearchResult[];
+  error?: string;
 };
+
+const mapPreviewEntries = (hits: RawSearchResult[] | undefined): SearchResult[] =>
+  Array.isArray(hits)
+    ? hits.map((hit) => ({
+        ...hit,
+        previewEntries: normalizePreview(hit)
+      }))
+    : [];
+
+const normalizeSearchResponse = (data: SearchResponseFromApi): SearchResponse => ({
+  ...data,
+  hits: mapPreviewEntries(data.hits)
+});
 
 const formatScore = (score?: number) => {
   if (typeof score !== 'number' || Number.isNaN(score)) {
@@ -1902,9 +1903,10 @@ const App: React.FC = () => {
         signal: controller.signal
       });
 
-      const data = await response.json();
+      const data: SearchResponseFromApi = await response.json();
       if (response.ok) {
-        setSearchResults(data);
+        const normalizedData = normalizeSearchResponse(data);
+        setSearchResults(normalizedData);
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors de la recherche');
@@ -1957,20 +1959,21 @@ const App: React.FC = () => {
         signal: controller.signal
       });
 
-      const data = await response.json();
+      const data: SearchResponseFromApi = await response.json();
 
       if (response.ok) {
+        const normalizedData = normalizeSearchResponse(data);
         setSearchResults((prev) =>
           prev
             ? {
                 ...prev,
-                ...data,
-                hits: [...prev.hits, ...(data.hits || [])],
+                ...normalizedData,
+                hits: [...prev.hits, ...normalizedData.hits],
                 tables_searched: Array.from(
-                  new Set([...(prev.tables_searched || []), ...(data.tables_searched || [])])
+                  new Set([...(prev.tables_searched || []), ...(normalizedData.tables_searched || [])])
                 )
               }
-            : data
+            : normalizedData
         );
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
@@ -5113,7 +5116,7 @@ useEffect(() => {
                       <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
                         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
                           {searchResults.hits.map((result, index) => {
-                            const previewData = sanitizePreviewData(result);
+                            const previewEntries = result.previewEntries;
                             const formattedScore = formatScore(result.score);
                             const tableLabel = result.table_name || result.table;
                             const databaseLabel = result.database || 'Elasticsearch';
@@ -5154,100 +5157,34 @@ useEffect(() => {
 
                               {/* Contenu des données */}
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {Object.entries(previewData).flatMap(([key, value]) => {
-                                  if (!value || value === '' || value === null || value === undefined) return [];
-
-                                  if (key === 'data') {
-                                    try {
-                                      const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-                                      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                                        return Object.entries(parsed).map(([k, v]) => (
-                                          <div
-                                            key={`${key}-${k}`}
-                                            className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
-                                          >
-                                            <div className="flex flex-col">
-                                              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                                {k.replace(/_/g, ' ')}
-                                              </span>
-                                              <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
-                                                {String(v)}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        ));
-                                      }
-                                      return (
-                                        <div
-                                          key={key}
-                                          className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
-                                        >
-                                          <div className="flex flex-col">
-                                            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                              {key.replace(/_/g, ' ')}
-                                            </span>
-                                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
-                                              {String(parsed)}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      );
-                                    } catch {
-                                      return (
-                                        <div
-                                          key={key}
-                                          className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
-                                        >
-                                          <div className="flex flex-col">
-                                            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                              {key.replace(/_/g, ' ')}
-                                            </span>
-                                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
-                                              {String(value)}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                  }
-
-                                  return (
-                                    <div
-                                      key={key}
-                                      className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
-                                    >
-                                      <div className="flex flex-col">
-                                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                          {key.replace(/_/g, ' ')}
-                                        </span>
-                                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
-                                          {String(value)}
-                                        </span>
-                                      </div>
+                                {previewEntries.map((entry) => (
+                                  <div
+                                    key={entry.key}
+                                    className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                        {entry.label}
+                                      </span>
+                                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+                                        {entry.value}
+                                      </span>
                                     </div>
-                                  );
-                                })}
+                                  </div>
+                                ))}
                               </div>
 
                               {/* Footer avec actions */}
                               <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
                                 <div className="text-xs text-gray-500">
-                                  {Object.keys(previewData)
-                                    .filter(
-                                      key =>
-                                        previewData[key] &&
-                                        previewData[key] !== '' &&
-                                        previewData[key] !== null &&
-                                        previewData[key] !== undefined
-                                    ).length}{' '}
+                                  {previewEntries.length}{' '}
                                   champs disponibles
                                 </div>
                                 <button
                                   onClick={() => {
                                     // Copier les données dans le presse-papier
-                                    const dataText = Object.entries(previewData)
-                                      .filter(([key, value]) => value && value !== '' && value !== null && value !== undefined)
-                                      .map(([key, value]) => `${key}: ${value}`)
+                                    const dataText = previewEntries
+                                      .map((entry) => `${entry.label}: ${entry.value}`)
                                       .join('\n');
                                     navigator.clipboard
                                       .writeText(dataText)
@@ -5272,44 +5209,16 @@ useEffect(() => {
                           <button
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                             onClick={() => {
-                              const combined: Record<string, any> = {};
-                              const mergeEntry = (target: Record<string, any>, key: string, value: any) => {
-                                if (value === null || value === undefined) {
-                                  return;
-                                }
-                                if (key === 'data') {
-                                  let parsed = value;
-                                  if (typeof parsed === 'string') {
-                                    try {
-                                      parsed = JSON.parse(parsed);
-                                    } catch {
-                                      parsed = value;
-                                    }
-                                  }
-                                  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                                    Object.entries(parsed).forEach(([nestedKey, nestedValue]) => {
-                                      if (nestedValue === null || nestedValue === undefined) {
-                                        return;
-                                      }
-                                      const normalizedKey = typeof nestedKey === 'string' ? nestedKey : String(nestedKey);
-                                      if (target[normalizedKey] === undefined) {
-                                        target[normalizedKey] = nestedValue;
-                                      }
-                                    });
-                                    return;
-                                  }
-                                }
-                                const normalizedKey = typeof key === 'string' ? key : String(key);
-                                if (target[normalizedKey] === undefined) {
-                                  target[normalizedKey] = value;
+                              const combined: Record<string, string> = {};
+                              const mergeEntry = (entry: NormalizedPreviewEntry) => {
+                                const key = entry.key || entry.label;
+                                if (combined[key] === undefined) {
+                                  combined[key] = entry.value;
                                 }
                               };
 
-                              searchResults.hits.forEach(h => {
-                                const preview = sanitizePreviewData(h);
-                                Object.entries(preview).forEach(([k, v]) => {
-                                  mergeEntry(combined, k, v);
-                                });
+                              searchResults.hits.forEach((h) => {
+                                h.previewEntries.forEach(mergeEntry);
                               });
                               const { email, ...extra } = combined;
                               const data = {
