@@ -253,15 +253,41 @@ class DatabaseManager {
           AND COLUMN_NAME = 'division_id'
       `);
 
-      if (divisionColumn && divisionColumn.IS_NULLABLE !== 'YES') {
-        try {
-          await this.pool.execute(`
-            ALTER TABLE autres.users
-            DROP FOREIGN KEY fk_users_division
-          `);
-        } catch (error) {
-          if (error.code !== 'ER_CANT_DROP_FIELD_OR_KEY') {
-            throw error;
+      const divisionForeignKey = await queryOne(`
+        SELECT kcu.CONSTRAINT_NAME, rc.DELETE_RULE
+        FROM information_schema.KEY_COLUMN_USAGE kcu
+        JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
+          ON rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
+         AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+        WHERE kcu.TABLE_SCHEMA = 'autres'
+          AND kcu.TABLE_NAME = 'users'
+          AND kcu.COLUMN_NAME = 'division_id'
+          AND kcu.REFERENCED_TABLE_NAME = 'divisions'
+      `);
+
+      const currentConstraintName = divisionForeignKey?.CONSTRAINT_NAME;
+      const currentDeleteRule = divisionForeignKey?.DELETE_RULE;
+      const expectedConstraintName = 'fk_users_division';
+
+      const requiresNullableColumn = divisionColumn && divisionColumn.IS_NULLABLE !== 'YES';
+      const requiresConstraintUpdate =
+        !divisionForeignKey ||
+        currentConstraintName !== expectedConstraintName ||
+        currentDeleteRule !== 'SET NULL';
+
+      if (requiresNullableColumn || requiresConstraintUpdate) {
+        const constraintToDrop = currentConstraintName || expectedConstraintName;
+
+        if (constraintToDrop) {
+          try {
+            await this.pool.execute(`
+              ALTER TABLE autres.users
+              DROP FOREIGN KEY \`${constraintToDrop}\`
+            `);
+          } catch (error) {
+            if (error.code !== 'ER_CANT_DROP_FIELD_OR_KEY') {
+              throw error;
+            }
           }
         }
 
@@ -273,11 +299,11 @@ class DatabaseManager {
         try {
           await this.pool.execute(`
             ALTER TABLE autres.users
-            ADD CONSTRAINT fk_users_division FOREIGN KEY (division_id)
+            ADD CONSTRAINT \`${expectedConstraintName}\` FOREIGN KEY (division_id)
               REFERENCES autres.divisions(id) ON DELETE SET NULL
           `);
         } catch (error) {
-          if (error.code !== 'ER_DUP_KEYNAME') {
+          if (error.code !== 'ER_DUP_KEYNAME' && error.code !== 'ER_CANT_CREATE_TABLE') {
             throw error;
           }
         }
