@@ -76,6 +76,7 @@ import CdrMap from './components/CdrMap';
 import LinkDiagram from './components/LinkDiagram';
 import SoraLogo from './components/SoraLogo';
 import ConfirmDialog, { ConfirmDialogOptions } from './components/ConfirmDialog';
+import { useNotifications } from './components/NotificationProvider';
 
 const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...props}>
@@ -593,6 +594,7 @@ interface BlacklistEntry {
 }
 
 const App: React.FC = () => {
+  const { notifySuccess, notifyError, notifyWarning } = useNotifications();
   // États principaux
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -2020,12 +2022,12 @@ const App: React.FC = () => {
       });
       const data = await response.json();
       if (response.ok) {
-        alert('Demande envoyée');
+        notifySuccess('Demande envoyée');
       } else {
-        alert(data.error || 'Erreur lors de la demande');
+        notifyError(data.error || 'Erreur lors de la demande');
       }
     } catch (error) {
-      alert('Erreur de connexion');
+      notifyError('Erreur de connexion');
     }
   };
 
@@ -2581,7 +2583,7 @@ useEffect(() => {
     try {
       const isAdminRole = userFormData.admin === 1;
       if (!isAdminRole && (!userFormData.divisionId || userFormData.divisionId <= 0)) {
-        alert('Veuillez sélectionner une division');
+        notifyWarning('Veuillez sélectionner une division');
         setLoading(false);
         return;
       }
@@ -2600,7 +2602,7 @@ useEffect(() => {
       const data = await response.json();
 
       if (response.ok) {
-        alert('Utilisateur créé avec succès');
+        notifySuccess('Utilisateur créé avec succès');
         setShowUserModal(false);
         setUserFormData({
           login: '',
@@ -2613,11 +2615,11 @@ useEffect(() => {
         loadUsers();
       } else {
         console.error('❌ Erreur création:', data);
-        alert(data.error || 'Erreur lors de la création');
+        notifyError(data.error || 'Erreur lors de la création');
       }
     } catch (error) {
       console.error('❌ Erreur réseau:', error);
-      alert('Erreur de connexion au serveur');
+      notifyError('Erreur de connexion au serveur');
     } finally {
       setLoading(false);
     }
@@ -2632,7 +2634,7 @@ useEffect(() => {
     try {
       const isAdminRole = userFormData.admin === 1;
       if (!isAdminRole && (!userFormData.divisionId || userFormData.divisionId <= 0)) {
-        alert('Veuillez sélectionner une division');
+        notifyWarning('Veuillez sélectionner une division');
         setLoading(false);
         return;
       }
@@ -2654,7 +2656,7 @@ useEffect(() => {
       const data = await response.json();
 
       if (response.ok) {
-        alert('Utilisateur modifié avec succès');
+        notifySuccess('Utilisateur modifié avec succès');
         setShowUserModal(false);
         setUserFormData({
           login: '',
@@ -2666,10 +2668,10 @@ useEffect(() => {
         setEditingUser(null);
         loadUsers();
       } else {
-        alert(data.error || 'Erreur lors de la modification');
+        notifyError(data.error || 'Erreur lors de la modification');
       }
     } catch (error) {
-      alert('Erreur de connexion au serveur');
+      notifyError('Erreur de connexion au serveur');
     } finally {
       setLoading(false);
     }
@@ -2678,7 +2680,7 @@ useEffect(() => {
   const handleCreateDivision = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDivisionName.trim()) {
-      alert('Veuillez saisir un nom de division');
+      notifyWarning('Veuillez saisir un nom de division');
       return;
     }
     setCreatingDivision(true);
@@ -2690,15 +2692,15 @@ useEffect(() => {
       });
       const data = await response.json();
       if (response.ok) {
-        alert('Division créée avec succès');
+        notifySuccess('Division créée avec succès');
         setNewDivisionName('');
         loadDivisions();
       } else {
-        alert(data.error || 'Erreur lors de la création de la division');
+        notifyError(data.error || 'Erreur lors de la création de la division');
       }
     } catch (error) {
       console.error('Erreur création division:', error);
-      alert('Erreur de connexion au serveur');
+      notifyError('Erreur de connexion au serveur');
     } finally {
       setCreatingDivision(false);
     }
@@ -2726,16 +2728,16 @@ useEffect(() => {
             if (data.detachedUsers > 0) {
               message += ` ( ${data.detachedUsers} utilisateur(s) détaché(s) )`;
             }
-            alert(message);
+            notifySuccess(message);
             await loadDivisions();
             await loadUsers();
           } else {
             const data = await response.json();
-            alert(data.error || 'Erreur lors de la suppression de la division');
+            notifyError(data.error || 'Erreur lors de la suppression de la division');
           }
         } catch (error) {
           console.error('Erreur suppression division:', error);
-          alert('Erreur de connexion au serveur');
+          notifyError('Erreur de connexion au serveur');
         } finally {
           setDeletingDivisionId(null);
         }
@@ -2759,14 +2761,14 @@ useEffect(() => {
           });
 
           if (response.ok) {
-            alert('Utilisateur supprimé avec succès');
+            notifySuccess('Utilisateur supprimé avec succès');
             loadUsers();
           } else {
             const data = await response.json();
-            alert(data.error || 'Erreur lors de la suppression');
+            notifyError(data.error || 'Erreur lors de la suppression');
           }
         } catch (error) {
-          alert('Erreur de connexion au serveur');
+          notifyError('Erreur de connexion au serveur');
         }
       }
     });
@@ -2782,17 +2784,17 @@ useEffect(() => {
     const requireCurrent = !isAdmin || !changingOther;
 
     if (passwordFormData.newPassword !== passwordFormData.confirmPassword) {
-      alert('Les nouveaux mots de passe ne correspondent pas');
+      notifyWarning('Les nouveaux mots de passe ne correspondent pas');
       return;
     }
 
     if (passwordFormData.newPassword.length < 8) {
-      alert('Le nouveau mot de passe doit contenir au moins 8 caractères');
+      notifyWarning('Le nouveau mot de passe doit contenir au moins 8 caractères');
       return;
     }
 
     if (requireCurrent && !passwordFormData.currentPassword) {
-      alert('Mot de passe actuel requis');
+      notifyWarning('Mot de passe actuel requis');
       return;
     }
 
@@ -2812,16 +2814,16 @@ useEffect(() => {
       const data = await response.json();
 
       if (response.ok) {
-        alert('Mot de passe modifié avec succès');
+        notifySuccess('Mot de passe modifié avec succès');
         setShowPasswordModal(false);
         setPasswordTargetUser(null);
         setPasswordFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
         setShowPasswords({ current: false, new: false, confirm: false });
       } else {
-        alert(data.error || 'Erreur lors du changement de mot de passe');
+        notifyError(data.error || 'Erreur lors du changement de mot de passe');
       }
     } catch (error) {
-      alert('Erreur de connexion au serveur');
+      notifyError('Erreur de connexion au serveur');
     } finally {
       setLoading(false);
     }
@@ -2865,7 +2867,7 @@ useEffect(() => {
   const handleUploadData = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadFile) {
-      alert('Veuillez sélectionner un fichier');
+      notifyWarning('Veuillez sélectionner un fichier');
       return;
     }
 
@@ -2881,15 +2883,15 @@ useEffect(() => {
       });
       const data = await response.json();
       if (response.ok) {
-        alert('Données chargées avec succès');
+        notifySuccess('Données chargées avec succès');
         setUploadTable('');
         setUploadFile(null);
         fetchUploadHistory();
       } else {
-        alert(data.error || 'Erreur lors du chargement');
+        notifyError(data.error || 'Erreur lors du chargement');
       }
     } catch (error) {
-      alert('Erreur de connexion au serveur');
+      notifyError('Erreur de connexion au serveur');
     } finally {
       setLoading(false);
     }
@@ -2928,10 +2930,10 @@ useEffect(() => {
           if (res.ok) {
             fetchUploadHistory();
           } else {
-            alert(data.error || 'Erreur lors de la suppression');
+            notifyError(data.error || 'Erreur lors de la suppression');
           }
         } catch (error) {
-          alert('Erreur de connexion au serveur');
+          notifyError('Erreur de connexion au serveur');
         }
       }
     });
@@ -3738,7 +3740,7 @@ useEffect(() => {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Erreur export rapport opération:', error);
-      alert("Impossible d'exporter le rapport PDF de l'opération.");
+      notifyError("Impossible d'exporter le rapport PDF de l'opération.");
     }
   };
 
@@ -5245,8 +5247,14 @@ useEffect(() => {
                                       .filter(([key, value]) => value && value !== '' && value !== null && value !== undefined)
                                       .map(([key, value]) => `${key}: ${value}`)
                                       .join('\n');
-                                    navigator.clipboard.writeText(dataText);
-                                    alert('Données copiées dans le presse-papier !');
+                                    navigator.clipboard
+                                      .writeText(dataText)
+                                      .then(() => {
+                                        notifySuccess('Données copiées dans le presse-papier !');
+                                      })
+                                      .catch(() => {
+                                        notifyError('Impossible de copier les données dans le presse-papier.');
+                                      });
                                   }}
                                   className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
                                 >
