@@ -1,5 +1,5 @@
 import database from '../config/database.js';
-import { handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
+import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
 
 class UserSession {
   static async start(userId) {
@@ -10,12 +10,16 @@ class UserSession {
       return null;
     }
     try {
+      const existingUserId = await ensureUserExists(safeUserId);
+      if (!existingUserId) {
+        console.warn('Session utilisateur ignorée car utilisateur introuvable:', userId);
+        return null;
+      }
+
       const result = await database.query(
         `INSERT INTO autres.user_sessions (user_id, login_at)
-         SELECT id, NOW()
-         FROM autres.users
-         WHERE id = ?`,
-        [safeUserId]
+         VALUES (?, NOW())`,
+        [existingUserId]
       );
       if (!result?.affectedRows) {
         console.warn('Session utilisateur ignorée car utilisateur introuvable:', userId);
