@@ -138,7 +138,7 @@ class DatabaseManager {
               REFERENCES autres.divisions(id) ON DELETE SET NULL
           `);
         } catch (error) {
-          if (error.code !== 'ER_DUP_KEYNAME' && error.code !== 'ER_CANT_CREATE_TABLE') {
+          if (error.code !== 'ER_DUP_KEYNAME') {
             throw error;
           }
         }
