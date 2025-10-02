@@ -2,9 +2,10 @@ import React from 'react';
 import { User } from 'lucide-react';
 
 interface SearchResult {
-  table: string;
-  database: string;
-  preview: Record<string, any>;
+  table?: string;
+  table_name?: string;
+  database?: string;
+  preview?: Record<string, any>;
   score?: number;
 }
 
@@ -18,6 +19,29 @@ interface ProfilesProps {
   }) => void;
 }
 
+const sanitizePreview = (result: SearchResult): Record<string, any> => {
+  if (result.preview && typeof result.preview === 'object') {
+    return result.preview;
+  }
+  const fallback = { ...result } as Record<string, any>;
+  delete fallback.preview;
+  delete fallback.table;
+  delete fallback.table_name;
+  delete fallback.database;
+  delete fallback.score;
+  return fallback;
+};
+
+const formatScore = (score?: number) => {
+  if (typeof score !== 'number' || Number.isNaN(score)) {
+    return null;
+  }
+  if (Math.abs(score) >= 10) {
+    return score.toFixed(1);
+  }
+  return score.toFixed(3);
+};
+
 const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreateProfile }) => {
   if (hits.length === 0) {
     return (
@@ -27,21 +51,46 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
 
   return (
     <div className="space-y-8">
-      {hits.map((hit, idx) => (
-        <div key={idx} className="bg-white shadow-lg rounded-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-4 flex items-center">
-            <User className="w-8 h-8 text-white mr-3" />
-            <div>
-              <h3 className="text-xl font-semibold text-white">Résultat {idx + 1}</h3>
-            </div>
-          </div>
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {Object.entries(hit.preview).flatMap(([key, value]) => {
-              if (!value) return [];
+      {hits.map((hit, idx) => {
+        const preview = sanitizePreview(hit);
+        const tableLabel = hit.table_name || hit.table;
+        const databaseLabel = hit.database || 'Elasticsearch';
+        const formattedScore = formatScore(hit.score);
 
-              if (key === 'data') {
-                try {
-                  const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+        return (
+          <div key={idx} className="bg-white shadow-lg rounded-2xl overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-700 p-4 flex items-center justify-between">
+              <div className="flex items-center">
+                <User className="w-8 h-8 text-white mr-3" />
+                <div>
+                  <h3 className="text-xl font-semibold text-white">Résultat {idx + 1}</h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-blue-100">
+                    {tableLabel && (
+                      <span className="inline-flex items-center rounded-full bg-white/20 px-2 py-0.5 font-medium text-white">
+                        {tableLabel}
+                      </span>
+                    )}
+                    {databaseLabel && (
+                      <span className="inline-flex items-center rounded-full bg-blue-900/40 px-2 py-0.5 font-medium text-blue-50">
+                        {databaseLabel}
+                      </span>
+                    )}
+                    {formattedScore && (
+                      <span className="inline-flex items-center rounded-full bg-emerald-500/30 px-2 py-0.5 font-semibold text-white">
+                        Score {formattedScore}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {Object.entries(preview).flatMap(([key, value]) => {
+                if (!value) return [];
+
+                if (key === 'data') {
+                  try {
+                    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
                   if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
                     return Object.entries(parsed).map(([k, v]) => (
                       <div key={`${key}-${k}`} className="flex flex-col">
@@ -79,20 +128,21 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
                 }
               }
 
-              return (
-                <div key={key} className="flex flex-col">
-                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                    {key.replace(/_/g, ' ')}
-                  </span>
-                  <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
-                    {String(value)}
-                  </span>
-                </div>
-              );
-            })}
+                return (
+                  <div key={key} className="flex flex-col">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      {key.replace(/_/g, ' ')}
+                    </span>
+                    <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
+                      {String(value)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
       <div className="text-center">
         <button
           className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -131,7 +181,8 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
             };
 
             hits.forEach(h => {
-              Object.entries(h.preview || {}).forEach(([k, v]) => {
+              const previewData = sanitizePreview(h);
+              Object.entries(previewData).forEach(([k, v]) => {
                 mergeEntry(combined, k, v);
               });
             });
