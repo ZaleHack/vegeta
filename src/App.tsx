@@ -1509,6 +1509,50 @@ const App: React.FC = () => {
     return sanitized ? `221${sanitized}` : '';
   }, []);
 
+  const dedupeCdrIdentifiers = useCallback(
+    (values: string[]) => {
+      const seen = new Set<string>();
+      const result: string[] = [];
+
+      values.forEach((value) => {
+        const normalized = normalizeCdrNumber(value);
+        if (!normalized || seen.has(normalized)) {
+          return;
+        }
+        seen.add(normalized);
+        result.push(normalized);
+      });
+
+      return result;
+    },
+    [normalizeCdrNumber]
+  );
+
+  const getEffectiveCdrIdentifiers = useCallback(() => {
+    const combined = cdrIdentifierInput
+      ? [...cdrIdentifiers, cdrIdentifierInput]
+      : [...cdrIdentifiers];
+
+    return dedupeCdrIdentifiers(combined);
+  }, [cdrIdentifierInput, cdrIdentifiers, dedupeCdrIdentifiers]);
+
+  const commitCdrIdentifiers = useCallback(
+    (next: string[]) => {
+      setCdrIdentifiers((prev) => {
+        if (prev.length === next.length && prev.every((value, index) => value === next[index])) {
+          return prev;
+        }
+        return next;
+      });
+    },
+    [setCdrIdentifiers]
+  );
+
+  const effectiveCdrIdentifiers = useMemo(
+    () => getEffectiveCdrIdentifiers(),
+    [getEffectiveCdrIdentifiers]
+  );
+
   const formatFraudDate = (value?: string | null) => {
     if (!value) return '-';
     try {
@@ -3106,8 +3150,16 @@ useEffect(() => {
     }
   };
 
-  const fetchCdrData = async () => {
-    if (!selectedCase || cdrIdentifiers.length === 0) return;
+  const fetchCdrData = async (identifiersOverride?: string[]) => {
+    if (!selectedCase) return;
+
+    const ids = dedupeCdrIdentifiers(identifiersOverride ?? cdrIdentifiers).filter(
+      (identifier) => identifier && !identifier.startsWith('2214')
+    );
+
+    if (ids.length === 0) {
+      return;
+    }
 
     setLinkDiagram(null);
     setCdrLoading(true);
@@ -3117,9 +3169,6 @@ useEffect(() => {
 
     try {
       const token = localStorage.getItem('token');
-      const ids = cdrIdentifiers
-        .map((i) => normalizeCdrNumber(i))
-        .filter((i) => i && !i.startsWith('2214'));
 
       const allPaths: CdrPoint[] = [];
 
@@ -3207,11 +3256,12 @@ useEffect(() => {
     }
   };
 
-  const fetchFraudDetection = async () => {
+  const fetchFraudDetection = async (identifiersOverride?: string[]) => {
     if (!selectedCase) return;
-    if (cdrIdentifiers.length === 0) {
-      setFraudResult(null);
-      setFraudError('Ajoutez au moins un numéro pour lancer l’analyse');
+
+    const identifiers = dedupeCdrIdentifiers(identifiersOverride ?? cdrIdentifiers);
+
+    if (identifiers.length === 0) {
       return;
     }
 
@@ -3223,7 +3273,7 @@ useEffect(() => {
       const params = new URLSearchParams();
       if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
       if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
-      cdrIdentifiers.forEach((identifier) => {
+      identifiers.forEach((identifier) => {
         params.append('numbers', identifier);
       });
       const query = params.toString();
@@ -3247,6 +3297,23 @@ useEffect(() => {
     } finally {
       setFraudLoading(false);
     }
+  };
+
+  const handleFraudDetectionClick = async () => {
+    const identifiers = getEffectiveCdrIdentifiers();
+
+    if (identifiers.length === 0) {
+      setFraudResult(null);
+      setFraudError('Ajoutez au moins un numéro pour lancer l’analyse');
+      return;
+    }
+
+    if (cdrIdentifierInput) {
+      setCdrIdentifierInput('');
+    }
+
+    commitCdrIdentifiers(identifiers);
+    await fetchFraudDetection(identifiers);
   };
 
   const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
@@ -3336,18 +3403,32 @@ useEffect(() => {
       setCdrError('La date de début doit précéder la date de fin');
       return;
     }
-    if (cdrIdentifiers.length === 0) {
+    const identifiers = getEffectiveCdrIdentifiers();
+    if (identifiers.length === 0) {
       setCdrError('Numéro requis');
       return;
     }
-    await fetchCdrData();
+    if (cdrIdentifierInput) {
+      setCdrIdentifierInput('');
+    }
+    commitCdrIdentifiers(identifiers);
+    await fetchCdrData(identifiers);
   };
 
   const handleLinkDiagram = async () => {
     if (!selectedCase) return;
+    const identifiers = getEffectiveCdrIdentifiers();
+    if (identifiers.length === 0) {
+      setCdrError('Numéro requis');
+      return;
+    }
+    if (cdrIdentifierInput) {
+      setCdrIdentifierInput('');
+    }
+    commitCdrIdentifiers(identifiers);
     const numbers = Array.from(
       new Set(
-        cdrIdentifiers
+        identifiers
           .map((identifier) => normalizeCdrNumber(identifier))
           .filter((n) => n && LINK_DIAGRAM_PREFIXES.some((p) => n.startsWith(p)))
       )
@@ -4313,8 +4394,8 @@ useEffect(() => {
                   </div>
                   <button
                     type="button"
-                    onClick={fetchFraudDetection}
-                    disabled={fraudLoading || !selectedCase || cdrIdentifiers.length === 0}
+                    onClick={handleFraudDetectionClick}
+                    disabled={fraudLoading || !selectedCase || effectiveCdrIdentifiers.length === 0}
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {fraudLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Scan className="h-3.5 w-3.5" />}
@@ -4509,7 +4590,7 @@ useEffect(() => {
                 <Search className="h-4 w-4" />
                 <span>Rechercher</span>
               </button>
-              {cdrIdentifiers.length >= 2 && (
+              {effectiveCdrIdentifiers.length >= 2 && (
                 <button
                   type="button"
                   className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
