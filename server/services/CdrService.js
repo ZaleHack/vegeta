@@ -561,6 +561,22 @@ class CdrService {
       return identifierSet.has(text);
     };
 
+    const matchesDeviceIdentifier = (...values) => {
+      if (!normalizedIdentifier || normalizedIdentifier === normalizedNumber) {
+        return false;
+      }
+      return values.some((value) => {
+        if (value === null || value === undefined) {
+          return false;
+        }
+        const text = String(value).trim();
+        if (!text) {
+          return false;
+        }
+        return text === normalizedIdentifier;
+      });
+    };
+
     for (const record of filteredRecords) {
       const caller = record.numero_intl_appelant;
       const callee = record.numero_intl_appele;
@@ -569,7 +585,29 @@ class CdrService {
       const matchesCallee = matchesNumber(callee) || matchesNumber(originalCallee);
       const isWeb = !callee;
       const eventType = this.buildEventType(record);
-      const directionRecord = matchesCaller ? 'outgoing' : matchesCallee ? 'incoming' : 'incoming';
+      const callerDeviceMatch = matchesDeviceIdentifier(
+        record.imei_appelant,
+        record.imsi_appelant
+      );
+      const calleeDeviceMatch = matchesDeviceIdentifier(
+        record.imei_appele,
+        record.imei_appele_original,
+        record.imsi_appele
+      );
+
+      let directionRecord = 'incoming';
+      let otherNumber = null;
+
+      if (matchesCaller || callerDeviceMatch) {
+        directionRecord = 'outgoing';
+        otherNumber = callee || originalCallee || null;
+      } else if (matchesCallee || calleeDeviceMatch) {
+        directionRecord = 'incoming';
+        otherNumber = caller || null;
+      } else if (matchesDeviceIdentifier(record.cdr_numb)) {
+        directionRecord = 'incoming';
+        otherNumber = caller || callee || null;
+      }
 
       if (direction === 'position') {
         if (!isWeb) {
@@ -583,8 +621,6 @@ class CdrService {
           continue;
         }
       }
-
-      const otherNumber = matchesCaller ? callee : matchesCallee ? caller : null;
 
       if (!isWeb && otherNumber) {
         if (!contactsMap[otherNumber]) {
