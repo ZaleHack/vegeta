@@ -100,12 +100,31 @@ class StatsService {
           userId ? [userId] : []
         ),
         database.queryOne(
-          `SELECT
-            COUNT(*) AS total,
-            SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) AS today,
-            SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS recent
-          FROM autres.cdr_cases${userId ? ' WHERE user_id = ?' : ''}`,
-          userId ? [userId] : []
+          userId
+            ? `
+              SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) AS today,
+                SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS recent
+              FROM (
+                SELECT c.id, c.created_at
+                FROM autres.cdr_cases c
+                WHERE c.user_id = ?
+                UNION
+                SELECT c.id, c.created_at
+                FROM autres.cdr_cases c
+                INNER JOIN autres.cdr_case_shares s ON s.case_id = c.id
+                WHERE s.user_id = ?
+              ) AS accessible_cases
+            `
+            : `
+              SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) AS today,
+                SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS recent
+              FROM autres.cdr_cases
+            `,
+          userId ? [userId, userId] : []
         ),
         this.getDataStatistics()
       ]);
