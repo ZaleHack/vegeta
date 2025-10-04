@@ -3158,6 +3158,12 @@ useEffect(() => {
     );
 
     if (ids.length === 0) {
+      setLinkDiagram(null);
+      setCdrResult(null);
+      setCdrLoading(false);
+      setCdrError('');
+      setCdrInfoMessage('Ajoutez au moins un identifiant valide pour lancer la recherche');
+      setShowCdrMap(false);
       return;
     }
 
