@@ -321,7 +321,7 @@ class CdrService {
     return { inserted: records.length, indexed: true };
   }
 
-  async parseCsv(filePath, metadata) {
+  async readCsvRecords(filePath, metadata) {
     return await new Promise((resolve, reject) => {
       const records = [];
       let lineNumber = 0;
@@ -332,29 +332,350 @@ class CdrService {
           const record = this.transformRow(row, metadata.cdrNumber, lineNumber);
           records.push(record);
         })
-        .on('end', async () => {
-          try {
-            const { inserted, indexed } = await this.indexRecords(metadata, records);
-            resolve({ inserted, indexed, records });
-          } catch (error) {
-            reject(error);
-          }
-        })
+        .on('end', () => resolve(records))
         .on('error', (error) => reject(error));
     });
   }
 
-  async parseExcel(filePath, metadata) {
+  async parseCsv(filePath, metadata) {
+    const records = await this.readCsvRecords(filePath, metadata);
+    const { inserted, indexed } = await this.indexRecords(metadata, records);
+    return { inserted, indexed, records };
+  }
+
+  async readExcelRecords(filePath, metadata) {
     const workbook = XLSX.readFile(filePath);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
     let lineNumber = 0;
-    const records = rows.map((row) => {
+    return rows.map((row) => {
       lineNumber += 1;
       return this.transformRow(row, metadata.cdrNumber, lineNumber);
     });
+  }
+
+  async parseExcel(filePath, metadata) {
+    const records = await this.readExcelRecords(filePath, metadata);
     const { inserted, indexed } = await this.indexRecords(metadata, records);
     return { inserted, indexed, records };
+  }
+
+  async readRecordsFromFile(filePath, metadata) {
+    const extension = path.extname(filePath).toLowerCase();
+    if (extension === '.csv') {
+      return await this.readCsvRecords(filePath, metadata);
+    }
+    if (extension === '.xls' || extension === '.xlsx') {
+      return await this.readExcelRecords(filePath, metadata);
+    }
+    return [];
+  }
+
+  async loadRecordsForCase(caseId) {
+    const caseDir = this.getCaseDirectory(caseId);
+    let entries = [];
+    try {
+      entries = await fs.promises.readdir(caseDir);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return [];
+      }
+      throw error;
+    }
+
+    const records = [];
+    for (const entry of entries) {
+      const extension = path.extname(entry).toLowerCase();
+      if (!SUPPORTED_EXTENSIONS.has(extension)) {
+        continue;
+      }
+      const fullPath = path.join(caseDir, entry);
+      const { fileId } = this.parseFileIdentifiers(fullPath);
+      if (!fileId) {
+        continue;
+      }
+      try {
+        const metadata = await this.readMetadata(caseId, fileId, entry);
+        const fileRecords = await this.readRecordsFromFile(fullPath, metadata);
+        records.push(...fileRecords);
+      } catch (error) {
+        console.error('Erreur lecture fichier CDR local:', error);
+      }
+    }
+
+    return records;
+  }
+
+  buildSearchResultFromRecords(records, identifier, options = {}, { assumeMatches = true } = {}) {
+    if (!Array.isArray(records) || records.length === 0) {
+      return {
+        total: 0,
+        contacts: [],
+        topContacts: [],
+        locations: [],
+        topLocations: [],
+        path: []
+      };
+    }
+
+    const {
+      startDate = null,
+      endDate = null,
+      startTime = null,
+      endTime = null,
+      direction = 'both',
+      type = 'both',
+      location = null
+    } = options;
+
+    const normalizedIdentifier = String(identifier).trim();
+    const normalizedNumber = normalizePhoneNumber(normalizedIdentifier);
+    const identifierSet = new Set([normalizedIdentifier]);
+    if (normalizedNumber && normalizedNumber !== normalizedIdentifier) {
+      identifierSet.add(normalizedNumber);
+    }
+
+    const normalizeTimeBound = (value) => {
+      if (!value) return null;
+      return value.length === 5 ? `${value}:00` : value;
+    };
+
+    const startTimeBound = normalizeTimeBound(startTime);
+    const endTimeBound = normalizeTimeBound(endTime);
+
+    const matchesIdentifier = (record) => {
+      if (assumeMatches) {
+        return true;
+      }
+      const candidates = [
+        record.numero_intl_appelant,
+        record.numero_intl_appele,
+        record.numero_intl_appele_original,
+        record.imei_appelant,
+        record.imei_appele,
+        record.imei_appele_original,
+        record.imsi_appelant,
+        record.imsi_appele,
+        record.cdr_numb
+      ];
+
+      for (let index = 0; index < candidates.length; index += 1) {
+        const value = candidates[index];
+        if (value === null || value === undefined) {
+          continue;
+        }
+        const text = String(value).trim();
+        if (!text) {
+          continue;
+        }
+        if (index <= 2 || index === 8) {
+          if (identifierSet.has(text)) {
+            return true;
+          }
+        } else if (text === normalizedIdentifier) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    const isWithinDateRange = (record) => {
+      if (!startDate && !endDate) {
+        return true;
+      }
+      const callDate =
+        record.date_debut ||
+        (record.call_timestamp ? record.call_timestamp.slice(0, 10) : null);
+      if (startDate && (!callDate || callDate < startDate)) {
+        return false;
+      }
+      if (endDate && (!callDate || callDate > endDate)) {
+        return false;
+      }
+      return true;
+    };
+
+    const isWithinTimeRange = (record) => {
+      if (!startTimeBound && !endTimeBound) {
+        return true;
+      }
+      const timeValue =
+        record.heure_debut ||
+        (record.call_timestamp ? record.call_timestamp.slice(11, 19) : null);
+      if (!timeValue) {
+        return false;
+      }
+      const normalizedTime = timeValue.length === 5 ? `${timeValue}:00` : timeValue;
+      if (startTimeBound && normalizedTime < startTimeBound) {
+        return false;
+      }
+      if (endTimeBound && normalizedTime > endTimeBound) {
+        return false;
+      }
+      return true;
+    };
+
+    const matchesLocation = (record) => {
+      if (!location) {
+        return true;
+      }
+      const locationValue = (record.nom_localisation || '').trim();
+      if (!locationValue) {
+        return false;
+      }
+      return locationValue === location;
+    };
+
+    const filteredRecords = records.filter(
+      (record) =>
+        matchesIdentifier(record) &&
+        isWithinDateRange(record) &&
+        matchesLocation(record) &&
+        isWithinTimeRange(record)
+    );
+
+    if (filteredRecords.length === 0) {
+      return {
+        total: 0,
+        contacts: [],
+        topContacts: [],
+        locations: [],
+        topLocations: [],
+        path: []
+      };
+    }
+
+    const contactsMap = {};
+    const locationsMap = {};
+    const path = [];
+
+    const matchesNumber = (value) => {
+      if (value === null || value === undefined) {
+        return false;
+      }
+      const text = String(value).trim();
+      if (!text) {
+        return false;
+      }
+      return identifierSet.has(text);
+    };
+
+    for (const record of filteredRecords) {
+      const caller = record.numero_intl_appelant;
+      const callee = record.numero_intl_appele;
+      const originalCallee = record.numero_intl_appele_original;
+      const matchesCaller = matchesNumber(caller);
+      const matchesCallee = matchesNumber(callee) || matchesNumber(originalCallee);
+      const isWeb = !callee;
+      const eventType = this.buildEventType(record);
+      const directionRecord = matchesCaller ? 'outgoing' : matchesCallee ? 'incoming' : 'incoming';
+
+      if (direction === 'position') {
+        if (!isWeb) {
+          continue;
+        }
+      } else {
+        if (direction !== 'both' && !isWeb && directionRecord !== direction) {
+          continue;
+        }
+        if (type !== 'both' && type !== eventType) {
+          continue;
+        }
+      }
+
+      const otherNumber = matchesCaller ? callee : matchesCallee ? caller : null;
+
+      if (!isWeb && otherNumber) {
+        if (!contactsMap[otherNumber]) {
+          contactsMap[otherNumber] = { number: otherNumber, callCount: 0, smsCount: 0 };
+        }
+        if (eventType === 'sms') {
+          contactsMap[otherNumber].smsCount += 1;
+        } else if (eventType === 'call') {
+          contactsMap[otherNumber].callCount += 1;
+        }
+      }
+
+      if (record.latitude && record.longitude) {
+        const key = `${record.latitude},${record.longitude}`;
+        if (!locationsMap[key]) {
+          locationsMap[key] = {
+            latitude: record.latitude,
+            longitude: record.longitude,
+            nom: record.nom_localisation,
+            count: 0
+          };
+        }
+        locationsMap[key].count += 1;
+
+        let duration = 'N/A';
+        if (record.duree) {
+          let totalSeconds = 0;
+          if (typeof record.duree === 'string' && record.duree.includes(':')) {
+            const parts = record.duree.split(':').map((p) => parseInt(p, 10));
+            while (parts.length < 3) parts.unshift(0);
+            if (parts.every((n) => !Number.isNaN(n))) {
+              totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            }
+          } else {
+            const parsedDur = parseInt(record.duree, 10);
+            if (!Number.isNaN(parsedDur)) totalSeconds = parsedDur;
+          }
+          if (totalSeconds > 0) {
+            duration = totalSeconds >= 60 ? `${Math.round(totalSeconds / 60)} min` : `${totalSeconds} s`;
+          }
+        }
+
+        const callDate = record.date_debut || (record.call_timestamp ? record.call_timestamp.slice(0, 10) : 'N/A');
+        const endDate = record.date_fin || callDate;
+        const startTimeValue = record.heure_debut || (record.call_timestamp ? record.call_timestamp.slice(11, 19) : 'N/A');
+        const endTimeValue = record.heure_fin || 'N/A';
+
+        const entry = {
+          latitude: record.latitude,
+          longitude: record.longitude,
+          nom: record.nom_localisation,
+          type: eventType,
+          callDate,
+          endDate,
+          startTime: startTimeValue,
+          endTime: endTimeValue,
+          duration,
+          imeiCaller: record.imei_appelant,
+          imeiCalled: record.imei_appele,
+          caller,
+          callee
+        };
+
+        if (!isWeb && otherNumber) {
+          entry.direction = directionRecord;
+          entry.number = otherNumber;
+        }
+
+        path.push(entry);
+      }
+    }
+
+    const contacts = Object.values(contactsMap)
+      .map((contact) => ({
+        number: contact.number,
+        callCount: contact.callCount,
+        smsCount: contact.smsCount,
+        total: contact.callCount + contact.smsCount
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const locations = Object.values(locationsMap).sort((a, b) => b.count - a.count);
+
+    return {
+      total: filteredRecords.length,
+      contacts,
+      topContacts: contacts.slice(0, 10),
+      locations,
+      topLocations: locations.slice(0, 10),
+      path
+    };
   }
 
   async markFileIndexed(filePath, inserted, indexed = true) {
@@ -547,16 +868,6 @@ class CdrService {
   }
 
   async search(identifier, options = {}) {
-    if (!this.elasticEnabled) {
-      return {
-        total: 0,
-        contacts: [],
-        topContacts: [],
-        locations: [],
-        topLocations: [],
-        path: []
-      };
-    }
     const {
       startDate = null,
       endDate = null,
@@ -573,6 +884,34 @@ class CdrService {
     }
 
     const normalizedIdentifier = String(identifier).trim();
+    if (!normalizedIdentifier) {
+      return {
+        total: 0,
+        contacts: [],
+        topContacts: [],
+        locations: [],
+        topLocations: [],
+        path: []
+      };
+    }
+
+    const baseOptions = {
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      location,
+      direction,
+      type
+    };
+
+    if (!this.elasticEnabled) {
+      const records = await this.loadRecordsForCase(caseId);
+      return this.buildSearchResultFromRecords(records, normalizedIdentifier, baseOptions, {
+        assumeMatches: false
+      });
+    }
+
     await this.ensureIndex();
 
     const must = [
@@ -629,136 +968,9 @@ class CdrService {
     const hits = response.hits?.hits || [];
     const records = hits.map((hit) => hit._source || {});
 
-    const withinTimeRange = (record) => {
-      if (!startTime && !endTime) return true;
-      const time = record.heure_debut || record.call_timestamp?.slice(11, 19) || null;
-      if (!time) return false;
-      if (startTime && time < (startTime.length === 5 ? `${startTime}:00` : startTime)) {
-        return false;
-      }
-      if (endTime && time > (endTime.length === 5 ? `${endTime}:00` : endTime)) {
-        return false;
-      }
-      return true;
-    };
-
-    const contactsMap = {};
-    const locationsMap = {};
-    const path = [];
-
-    for (const r of records) {
-      if (!withinTimeRange(r)) {
-        continue;
-      }
-
-      const caller = r.numero_intl_appelant;
-      const callee = r.numero_intl_appele;
-      const isWeb = !callee;
-      const other = caller === normalizedIdentifier ? callee : caller;
-      const directionRecord = caller === normalizedIdentifier ? 'outgoing' : 'incoming';
-      const eventType = this.buildEventType(r);
-
-      if (direction === 'position') {
-        if (!isWeb) continue;
-      } else {
-        if (direction !== 'both' && !isWeb && directionRecord !== direction) {
-          continue;
-        }
-        if (type !== 'both' && type !== eventType) {
-          continue;
-        }
-      }
-
-      if (!isWeb && other) {
-        if (!contactsMap[other]) {
-          contactsMap[other] = { number: other, callCount: 0, smsCount: 0 };
-        }
-        if (eventType === 'sms') {
-          contactsMap[other].smsCount += 1;
-        } else if (eventType === 'call') {
-          contactsMap[other].callCount += 1;
-        }
-      }
-
-      if (r.latitude && r.longitude) {
-        const key = `${r.latitude},${r.longitude}`;
-        if (!locationsMap[key]) {
-          locationsMap[key] = {
-            latitude: r.latitude,
-            longitude: r.longitude,
-            nom: r.nom_localisation,
-            count: 0
-          };
-        }
-        locationsMap[key].count += 1;
-
-        let duration = 'N/A';
-        if (r.duree) {
-          let totalSeconds = 0;
-          if (typeof r.duree === 'string' && r.duree.includes(':')) {
-            const parts = r.duree.split(':').map((p) => parseInt(p, 10));
-            while (parts.length < 3) parts.unshift(0);
-            if (parts.every((n) => !Number.isNaN(n))) {
-              totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-            }
-          } else {
-            const parsedDur = parseInt(r.duree, 10);
-            if (!Number.isNaN(parsedDur)) totalSeconds = parsedDur;
-          }
-          if (totalSeconds > 0) {
-            duration = totalSeconds >= 60 ? `${Math.round(totalSeconds / 60)} min` : `${totalSeconds} s`;
-          }
-        }
-
-        const callDate = r.date_debut || r.call_timestamp?.slice(0, 10) || 'N/A';
-        const endDate = r.date_fin || callDate;
-        const startTimeValue = r.heure_debut || r.call_timestamp?.slice(11, 19) || 'N/A';
-        const endTimeValue = r.heure_fin || 'N/A';
-
-        const entry = {
-          latitude: r.latitude,
-          longitude: r.longitude,
-          nom: r.nom_localisation,
-          type: eventType,
-          callDate,
-          endDate,
-          startTime: startTimeValue,
-          endTime: endTimeValue,
-          duration,
-          imeiCaller: r.imei_appelant,
-          imeiCalled: r.imei_appele,
-          caller,
-          callee
-        };
-
-        if (!isWeb) {
-          entry.direction = directionRecord;
-          entry.number = other;
-        }
-
-        path.push(entry);
-      }
-    }
-
-    const contacts = Object.values(contactsMap)
-      .map((c) => ({
-        number: c.number,
-        callCount: c.callCount,
-        smsCount: c.smsCount,
-        total: c.callCount + c.smsCount
-      }))
-      .sort((a, b) => b.total - a.total);
-
-    const locations = Object.values(locationsMap).sort((a, b) => b.count - a.count);
-
-    return {
-      total: records.length,
-      contacts,
-      topContacts: contacts.slice(0, 10),
-      locations,
-      topLocations: locations.slice(0, 10),
-      path
-    };
+    return this.buildSearchResultFromRecords(records, normalizedIdentifier, baseOptions, {
+      assumeMatches: true
+    });
   }
 
   async findCommonContacts(numbers, caseId, options = {}) {
