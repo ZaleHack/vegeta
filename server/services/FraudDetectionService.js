@@ -1,5 +1,5 @@
 import CaseService from './CaseService.js';
-import Cdr from '../models/Cdr.js';
+import CdrService from './CdrService.js';
 
 const normalizePhoneNumber = (value) => {
   if (!value) return '';
@@ -45,6 +45,7 @@ const normalizeImei = (value) => {
 class FraudDetectionService {
   constructor() {
     this.caseService = new CaseService();
+    this.cdrService = new CdrService();
   }
 
   async detectAcrossCases(options = {}, user) {
@@ -52,26 +53,28 @@ class FraudDetectionService {
 
     const cases = await this.caseService.listCases(user);
     const caseMetaMap = new Map();
-    const caseNames = [];
+    const caseIds = [];
 
     for (const item of cases || []) {
+      const id = Number(item?.id);
       const name = item?.name ? String(item.name).trim() : '';
-      if (!name) {
+      if (!id || !name) {
         continue;
       }
 
-      if (!caseMetaMap.has(name)) {
-        caseMetaMap.set(name, {
-          id: item.id,
+      if (!caseMetaMap.has(id)) {
+        const meta = {
+          id,
           name,
           owner: item.user_login || null,
           division: item.division_name || null,
-        });
-        caseNames.push(name);
+        };
+        caseMetaMap.set(id, meta);
+        caseIds.push(id);
       }
     }
 
-    if (caseNames.length === 0) {
+    if (caseIds.length === 0) {
       return { imeis: [], updatedAt: new Date().toISOString() };
     }
 
@@ -83,10 +86,10 @@ class FraudDetectionService {
     const imeiMap = new Map();
     const numberMap = new Map();
 
-    for (const caseName of caseNames) {
+    for (const caseId of caseIds) {
+      const caseMeta = caseMetaMap.get(caseId);
       try {
-        const rows = await Cdr.getImeiNumberPairs(caseName, { startDate, endDate });
-        const caseMeta = caseMetaMap.get(caseName);
+        const rows = await this.cdrService.getImeiNumberPairs(caseId, { startDate, endDate });
 
         for (const row of rows) {
           const imei = String(row.imei || '').trim();
@@ -188,7 +191,8 @@ class FraudDetectionService {
           }
         }
       } catch (error) {
-        console.error(`Erreur détection fraude globale pour ${caseName}:`, error);
+        const label = caseMeta?.name || `case-${caseId}`;
+        console.error(`Erreur détection fraude globale pour ${label}:`, error);
       }
     }
 

@@ -126,11 +126,16 @@ router.post('/:id/upload', authenticate, upload.single('file'), async (req, res)
       return res.status(400).json({ error: 'Aucun fichier fourni' });
     }
     if (!number) {
-      fs.unlinkSync(req.file.path);
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (cleanupError) {
+          console.error('Erreur suppression fichier temporaire CDR:', cleanupError);
+        }
+      }
       return res.status(400).json({ error: 'Numéro CDR requis' });
     }
     const result = await caseService.importFile(caseId, req.file.path, req.file.originalname, req.user, number);
-    fs.unlinkSync(req.file.path);
     res.json({ message: 'CDR importés', ...result });
   } catch (err) {
     console.error('Erreur import case:', err);
