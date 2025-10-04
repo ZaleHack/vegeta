@@ -1393,18 +1393,6 @@ const App: React.FC = () => {
   const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
   const [caseFilesPage, setCaseFilesPage] = useState(1);
   const [caseFilesPerPage, setCaseFilesPerPage] = useState(CASE_FILE_PAGE_SIZE_OPTIONS[0]);
-  const caseReferenceNumbers = useMemo(() => {
-    const rawNumbers = caseFiles
-      .map((file) => {
-        const value = file.cdr_number;
-        if (value === null || value === undefined) {
-          return '';
-        }
-        return String(value);
-      })
-      .filter((value) => value.trim().length > 0);
-    return dedupeCdrIdentifiers(rawNumbers);
-  }, [caseFiles, dedupeCdrIdentifiers]);
   const totalCaseFilesPages = Math.ceil(caseFiles.length / caseFilesPerPage) || 1;
   const paginatedCaseFiles = useMemo(
     () =>
@@ -1539,6 +1527,19 @@ const App: React.FC = () => {
     },
     [normalizeCdrNumber]
   );
+
+  const caseReferenceNumbers = useMemo(() => {
+    const rawNumbers = caseFiles
+      .map((file) => {
+        const value = file.cdr_number;
+        if (value === null || value === undefined) {
+          return '';
+        }
+        return String(value);
+      })
+      .filter((value) => value.trim().length > 0);
+    return dedupeCdrIdentifiers(rawNumbers);
+  }, [caseFiles, dedupeCdrIdentifiers]);
 
   const getEffectiveCdrIdentifiers = useCallback(() => {
     const combined = cdrIdentifierInput
