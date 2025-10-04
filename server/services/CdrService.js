@@ -499,7 +499,7 @@ class CdrService {
 
   initializeWatcher() {
     const watcher = chokidar.watch(path.join(this.baseDir, '**/*'), {
-      ignoreInitial: true,
+      ignoreInitial: false,
       awaitWriteFinish: {
         stabilityThreshold: 1000,
         pollInterval: 200
@@ -870,76 +870,80 @@ class CdrService {
       filter.push({ range: { call_timestamp: range } });
     }
 
-    const response = await client.search({
+    const imeiMap = new Map();
+    const scrollIterator = client.helpers.scrollSearch({
       index: this.indexName,
-      size: 10000,
+      size: 5000,
       track_total_hits: true,
-      query: { bool: { must: filter } }
+      body: {
+        query: { bool: { must: filter } }
+      }
     });
 
-    const hits = response.hits?.hits || [];
-    const records = hits.map((hit) => hit._source || {});
+    for await (const result of scrollIterator) {
+      const records =
+        result.documents ||
+        (result.hits?.hits || []).map((hit) => hit._source || {});
 
-    const imeiMap = new Map();
+      for (const row of records) {
+        const imeiValues = [row.imei_appelant, row.imei_appele, row.imei_appele_original];
+        const numberValues = [
+          row.numero_intl_appelant,
+          row.numero_intl_appele,
+          row.numero_intl_appele_original
+        ];
 
-    for (const row of records) {
-      const imeiValues = [row.imei_appelant, row.imei_appele, row.imei_appele_original];
-      const numberValues = [
-        row.numero_intl_appelant,
-        row.numero_intl_appele,
-        row.numero_intl_appele_original
-      ];
+        const callDate = normalizeDateValue(row.date_debut || row.call_timestamp?.slice(0, 10));
 
-      const callDate = normalizeDateValue(row.date_debut || row.call_timestamp?.slice(0, 10));
-
-      imeiValues.forEach((imei, index) => {
-        const normalizedImei = imei ? String(imei).trim() : '';
-        const normalizedNumber = normalizePhoneNumber(numberValues[index]);
-        if (!normalizedImei || !normalizedNumber) {
-          return;
-        }
-
-        const imeiEntry =
-          imeiMap.get(normalizedImei) || { numbers: new Map(), hasReferenceNumber: false };
-        const numbersMap = imeiEntry.numbers;
-        const numberEntry = numbersMap.get(normalizedNumber) || {
-          number: normalizedNumber,
-          firstSeen: null,
-          lastSeen: null,
-          occurrences: 0,
-          roles: new Set(),
-          fileIds: new Set()
-        };
-
-        numberEntry.occurrences += 1;
-        if (callDate) {
-          if (!numberEntry.firstSeen || callDate < numberEntry.firstSeen) {
-            numberEntry.firstSeen = callDate;
+        imeiValues.forEach((imei, index) => {
+          const normalizedImei = imei ? String(imei).trim() : '';
+          const normalizedNumber = normalizePhoneNumber(numberValues[index]);
+          if (!normalizedImei || !normalizedNumber) {
+            return;
           }
-          if (!numberEntry.lastSeen || callDate > numberEntry.lastSeen) {
-            numberEntry.lastSeen = callDate;
+
+          const imeiEntry =
+            imeiMap.get(normalizedImei) || { numbers: new Map(), hasReferenceNumber: false };
+          const numbersMap = imeiEntry.numbers;
+          const numberEntry = numbersMap.get(normalizedNumber) || {
+            number: normalizedNumber,
+            firstSeen: null,
+            lastSeen: null,
+            occurrences: 0,
+            roles: new Set(),
+            fileIds: new Set()
+          };
+
+          numberEntry.occurrences += 1;
+          if (callDate) {
+            if (!numberEntry.firstSeen || callDate < numberEntry.firstSeen) {
+              numberEntry.firstSeen = callDate;
+            }
+            if (!numberEntry.lastSeen || callDate > numberEntry.lastSeen) {
+              numberEntry.lastSeen = callDate;
+            }
           }
-        }
 
-        if (index === 0) {
-          numberEntry.roles.add('caller');
-        } else if (index === 1) {
-          numberEntry.roles.add('callee');
-        } else {
-          numberEntry.roles.add('target');
-        }
+          if (index === 0) {
+            numberEntry.roles.add('caller');
+          } else if (index === 1) {
+            numberEntry.roles.add('callee');
+          } else {
+            numberEntry.roles.add('target');
+          }
 
-        if (row.file_id) {
-          numberEntry.fileIds.add(Number(row.file_id));
-        }
+          if (row.file_id) {
+            numberEntry.fileIds.add(Number(row.file_id));
+          }
 
-        if (referenceSet.has(normalizedNumber)) {
-          imeiEntry.hasReferenceNumber = true;
-        }
+          if (referenceSet.has(normalizedNumber)) {
+            imeiEntry.hasReferenceNumber = true;
+          }
 
-        numbersMap.set(normalizedNumber, numberEntry);
-        imeiMap.set(normalizedImei, imeiEntry);
-      });
+          numbersMap.set(normalizedNumber, numberEntry);
+          imeiMap.set(normalizedImei, imeiEntry);
+        });
+      }
     }
 
     const result = [];
