@@ -272,11 +272,11 @@ class CdrService {
 
   async indexRecords(metadata, records) {
     if (!Array.isArray(records) || records.length === 0) {
-      return 0;
+      return { inserted: 0, indexed: false };
     }
 
     if (!this.elasticEnabled) {
-      return records.length;
+      return { inserted: records.length, indexed: false };
     }
 
     await this.ensureIndex();
@@ -318,7 +318,7 @@ class CdrService {
       }
     }
 
-    return records.length;
+    return { inserted: records.length, indexed: true };
   }
 
   async parseCsv(filePath, metadata) {
@@ -334,8 +334,8 @@ class CdrService {
         })
         .on('end', async () => {
           try {
-            const inserted = await this.indexRecords(metadata, records);
-            resolve({ inserted, records });
+            const { inserted, indexed } = await this.indexRecords(metadata, records);
+            resolve({ inserted, indexed, records });
           } catch (error) {
             reject(error);
           }
@@ -353,11 +353,14 @@ class CdrService {
       lineNumber += 1;
       return this.transformRow(row, metadata.cdrNumber, lineNumber);
     });
-    const inserted = await this.indexRecords(metadata, records);
-    return { inserted, records };
+    const { inserted, indexed } = await this.indexRecords(metadata, records);
+    return { inserted, indexed, records };
   }
 
-  async markFileIndexed(filePath, inserted) {
+  async markFileIndexed(filePath, inserted, indexed = true) {
+    if (!indexed) {
+      return;
+    }
     try {
       await fs.promises.writeFile(
         this.getMarkerPath(filePath),
@@ -448,7 +451,7 @@ class CdrService {
         extension === '.xlsx' || extension === '.xls'
           ? await this.parseExcel(destinationPath, metadata)
           : await this.parseCsv(destinationPath, metadata);
-      await this.markFileIndexed(destinationPath, result.inserted);
+      await this.markFileIndexed(destinationPath, result.inserted, result.indexed);
       return { inserted: result.inserted, storedName };
     } catch (error) {
       console.error('Erreur traitement fichier CDR:', error);
@@ -502,7 +505,7 @@ class CdrService {
         extension === '.xlsx' || extension === '.xls'
           ? await this.parseExcel(filePath, meta)
           : await this.parseCsv(filePath, meta);
-      await this.markFileIndexed(filePath, result.inserted);
+      await this.markFileIndexed(filePath, result.inserted, result.indexed);
     } catch (error) {
       console.error('Erreur indexation automatique fichier CDR:', error);
     }
