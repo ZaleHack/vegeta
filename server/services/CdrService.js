@@ -84,7 +84,7 @@ class CdrService {
 
     this.ensureBaseDirectory();
 
-    if (this.elasticEnabled && !CdrService.watcherInitialized) {
+    if (!CdrService.watcherInitialized) {
       this.initializeWatcher();
       CdrService.watcherInitialized = true;
     }
@@ -397,7 +397,15 @@ class CdrService {
       try {
         const metadata = await this.readMetadata(caseId, fileId, entry);
         const fileRecords = await this.readRecordsFromFile(fullPath, metadata);
-        records.push(...fileRecords);
+        const enrichedRecords = fileRecords.map((record) => ({
+          ...record,
+          case_id: metadata.caseId,
+          case_name: metadata.caseName,
+          file_id: metadata.fileId,
+          cdr_number: metadata.cdrNumber,
+          original_filename: metadata.originalName
+        }));
+        records.push(...enrichedRecords);
       } catch (error) {
         console.error('Erreur lecture fichier CDR local:', error);
       }
@@ -715,13 +723,14 @@ class CdrService {
   }
 
   async markFileIndexed(filePath, inserted, indexed = true) {
-    if (!indexed) {
+    const shouldMark = indexed || inserted > 0;
+    if (!shouldMark) {
       return;
     }
     try {
       await fs.promises.writeFile(
         this.getMarkerPath(filePath),
-        JSON.stringify({ indexedAt: new Date().toISOString(), inserted }, null, 2)
+        JSON.stringify({ indexedAt: new Date().toISOString(), inserted, indexed }, null, 2)
       );
     } catch (error) {
       console.error('Erreur écriture marqueur indexation CDR:', error);
@@ -1010,57 +1019,89 @@ class CdrService {
   }
 
   async findCommonContacts(numbers, caseId, options = {}) {
-    if (!this.elasticEnabled) {
-      return { nodes: [], links: [] };
-    }
     const isAllowed = (n) => ALLOWED_PREFIXES.some((p) => String(n).startsWith(p));
     const filteredNumbers = Array.isArray(numbers) ? numbers.filter(isAllowed) : [];
     if (filteredNumbers.length === 0) {
       return { nodes: [], links: [] };
     }
 
-    await this.ensureIndex();
-
+    const filteredSet = new Set(filteredNumbers);
     const { startDate = null, endDate = null, startTime = null, endTime = null } = options;
 
-    const filter = [
-      { term: { case_id: caseId } },
-      {
-        bool: {
-          should: [
-            { terms: { numero_intl_appelant: filteredNumbers } },
-            { terms: { numero_intl_appele: filteredNumbers } }
-          ],
-          minimum_should_match: 1
-        }
+    const normalizeTimeBound = (value) => {
+      if (!value) return null;
+      return value.length === 5 ? `${value}:00` : value;
+    };
+
+    const startTimeBound = normalizeTimeBound(startTime);
+    const endTimeBound = normalizeTimeBound(endTime);
+
+    const records = await (async () => {
+      if (!this.elasticEnabled) {
+        return await this.loadRecordsForCase(caseId);
       }
-    ];
 
-    if (startDate || endDate) {
-      const range = {};
-      if (startDate) range.gte = `${startDate}T00:00:00.000Z`;
-      if (endDate) range.lte = `${endDate}T23:59:59.999Z`;
-      filter.push({ range: { call_timestamp: range } });
-    }
+      await this.ensureIndex();
+      const filter = [
+        { term: { case_id: caseId } },
+        {
+          bool: {
+            should: [
+              { terms: { numero_intl_appelant: filteredNumbers } },
+              { terms: { numero_intl_appele: filteredNumbers } }
+            ],
+            minimum_should_match: 1
+          }
+        }
+      ];
 
-    const response = await client.search({
-      index: this.indexName,
-      size: 10000,
-      track_total_hits: true,
-      query: { bool: { must: filter } }
-    });
+      if (startDate || endDate) {
+        const range = {};
+        if (startDate) range.gte = `${startDate}T00:00:00.000Z`;
+        if (endDate) range.lte = `${endDate}T23:59:59.999Z`;
+        filter.push({ range: { call_timestamp: range } });
+      }
 
-    const hits = response.hits?.hits || [];
-    const records = hits.map((hit) => hit._source || {});
+      const response = await client.search({
+        index: this.indexName,
+        size: 10000,
+        track_total_hits: true,
+        query: { bool: { must: filter } }
+      });
 
-    const withinTimeRange = (record) => {
-      if (!startTime && !endTime) return true;
-      const time = record.heure_debut || record.call_timestamp?.slice(11, 19) || null;
-      if (!time) return false;
-      if (startTime && time < (startTime.length === 5 ? `${startTime}:00` : startTime)) {
+      const hits = response.hits?.hits || [];
+      return hits.map((hit) => hit._source || {});
+    })();
+
+    const withinDateRange = (record) => {
+      if (!startDate && !endDate) {
+        return true;
+      }
+      const timestamp =
+        record.call_timestamp || this.buildCallTimestamp(record.date_debut, record.heure_debut);
+      if (!timestamp) {
         return false;
       }
-      if (endTime && time > (endTime.length === 5 ? `${endTime}:00` : endTime)) {
+      const datePart = timestamp.slice(0, 10);
+      if (startDate && datePart < startDate) {
+        return false;
+      }
+      if (endDate && datePart > endDate) {
+        return false;
+      }
+      return true;
+    };
+
+    const withinTimeRange = (record) => {
+      if (!startTimeBound && !endTimeBound) return true;
+      const timeValue =
+        record.heure_debut || (record.call_timestamp ? record.call_timestamp.slice(11, 19) : null);
+      if (!timeValue) return false;
+      const normalized = timeValue.length === 5 ? `${timeValue}:00` : timeValue;
+      if (startTimeBound && normalized < startTimeBound) {
+        return false;
+      }
+      if (endTimeBound && normalized > endTimeBound) {
         return false;
       }
       return true;
@@ -1070,7 +1111,7 @@ class CdrService {
     const edgeMap = {};
 
     for (const r of records) {
-      if (!withinTimeRange(r)) {
+      if (!withinDateRange(r) || !withinTimeRange(r)) {
         continue;
       }
 
@@ -1079,15 +1120,15 @@ class CdrService {
       let source = null;
       let contact = null;
 
-      if (filteredNumbers.includes(caller)) {
+      if (filteredSet.has(caller)) {
         source = caller;
         contact = callee;
-      } else if (filteredNumbers.includes(callee)) {
+      } else if (filteredSet.has(callee)) {
         source = callee;
         contact = caller;
       }
 
-      if (!contact || !isAllowed(contact)) continue;
+      if (!source || !contact || !isAllowed(contact)) continue;
 
       if (!contactSources[contact]) {
         contactSources[contact] = new Set();
@@ -1126,11 +1167,6 @@ class CdrService {
   }
 
   async detectNumberChanges(caseId, { startDate = null, endDate = null, referenceNumbers = [] } = {}) {
-    if (!this.elasticEnabled) {
-      return [];
-    }
-    await this.ensureIndex();
-
     const normalizedReferenceNumbers = Array.isArray(referenceNumbers)
       ? referenceNumbers.map((value) => normalizePhoneNumber(value)).filter((value) => Boolean(value))
       : [];
@@ -1140,88 +1176,124 @@ class CdrService {
       return [];
     }
 
-    const filter = [{ term: { case_id: caseId } }];
-    if (startDate || endDate) {
-      const range = {};
-      if (startDate) range.gte = `${startDate}T00:00:00.000Z`;
-      if (endDate) range.lte = `${endDate}T23:59:59.999Z`;
-      filter.push({ range: { call_timestamp: range } });
-    }
+    const dateMatches = (record) => {
+      if (!startDate && !endDate) {
+        return true;
+      }
+      const timestamp =
+        record.call_timestamp || this.buildCallTimestamp(record.date_debut, record.heure_debut);
+      if (!timestamp) {
+        return false;
+      }
+      const datePart = timestamp.slice(0, 10);
+      if (startDate && datePart < startDate) {
+        return false;
+      }
+      if (endDate && datePart > endDate) {
+        return false;
+      }
+      return true;
+    };
+
+    const fetchRecords = async () => {
+      if (!this.elasticEnabled) {
+        const localRecords = await this.loadRecordsForCase(caseId);
+        return localRecords.filter((record) => dateMatches(record));
+      }
+
+      await this.ensureIndex();
+      const filter = [{ term: { case_id: caseId } }];
+      if (startDate || endDate) {
+        const range = {};
+        if (startDate) range.gte = `${startDate}T00:00:00.000Z`;
+        if (endDate) range.lte = `${endDate}T23:59:59.999Z`;
+        filter.push({ range: { call_timestamp: range } });
+      }
+
+      const collected = [];
+      const scrollIterator = client.helpers.scrollSearch({
+        index: this.indexName,
+        size: 5000,
+        track_total_hits: true,
+        body: {
+          query: { bool: { must: filter } }
+        }
+      });
+
+      for await (const result of scrollIterator) {
+        const rows =
+          result.documents ||
+          (result.hits?.hits || []).map((hit) => hit._source || {});
+        for (const row of rows) {
+          if (dateMatches(row)) {
+            collected.push(row);
+          }
+        }
+      }
+      return collected;
+    };
+
+    const records = await fetchRecords();
 
     const imeiMap = new Map();
-    const scrollIterator = client.helpers.scrollSearch({
-      index: this.indexName,
-      size: 5000,
-      track_total_hits: true,
-      body: {
-        query: { bool: { must: filter } }
-      }
-    });
+    for (const row of records) {
+      const imeiValues = [row.imei_appelant, row.imei_appele, row.imei_appele_original];
+      const numberValues = [
+        row.numero_intl_appelant,
+        row.numero_intl_appele,
+        row.numero_intl_appele_original
+      ];
 
-    for await (const result of scrollIterator) {
-      const records =
-        result.documents ||
-        (result.hits?.hits || []).map((hit) => hit._source || {});
+      const callDate = normalizeDateValue(row.date_debut || row.call_timestamp?.slice(0, 10));
 
-      for (const row of records) {
-        const imeiValues = [row.imei_appelant, row.imei_appele, row.imei_appele_original];
-        const numberValues = [
-          row.numero_intl_appelant,
-          row.numero_intl_appele,
-          row.numero_intl_appele_original
-        ];
+      imeiValues.forEach((imei, index) => {
+        const normalizedImei = imei ? String(imei).trim() : '';
+        const normalizedNumber = normalizePhoneNumber(numberValues[index]);
+        if (!normalizedImei || !normalizedNumber) {
+          return;
+        }
 
-        const callDate = normalizeDateValue(row.date_debut || row.call_timestamp?.slice(0, 10));
+        const imeiEntry =
+          imeiMap.get(normalizedImei) || { numbers: new Map(), hasReferenceNumber: false };
+        const numbersMap = imeiEntry.numbers;
+        const numberEntry = numbersMap.get(normalizedNumber) || {
+          number: normalizedNumber,
+          firstSeen: null,
+          lastSeen: null,
+          occurrences: 0,
+          roles: new Set(),
+          fileIds: new Set()
+        };
 
-        imeiValues.forEach((imei, index) => {
-          const normalizedImei = imei ? String(imei).trim() : '';
-          const normalizedNumber = normalizePhoneNumber(numberValues[index]);
-          if (!normalizedImei || !normalizedNumber) {
-            return;
+        numberEntry.occurrences += 1;
+        if (callDate) {
+          if (!numberEntry.firstSeen || callDate < numberEntry.firstSeen) {
+            numberEntry.firstSeen = callDate;
           }
-
-          const imeiEntry =
-            imeiMap.get(normalizedImei) || { numbers: new Map(), hasReferenceNumber: false };
-          const numbersMap = imeiEntry.numbers;
-          const numberEntry = numbersMap.get(normalizedNumber) || {
-            number: normalizedNumber,
-            firstSeen: null,
-            lastSeen: null,
-            occurrences: 0,
-            roles: new Set(),
-            fileIds: new Set()
-          };
-
-          numberEntry.occurrences += 1;
-          if (callDate) {
-            if (!numberEntry.firstSeen || callDate < numberEntry.firstSeen) {
-              numberEntry.firstSeen = callDate;
-            }
-            if (!numberEntry.lastSeen || callDate > numberEntry.lastSeen) {
-              numberEntry.lastSeen = callDate;
-            }
+          if (!numberEntry.lastSeen || callDate > numberEntry.lastSeen) {
+            numberEntry.lastSeen = callDate;
           }
+        }
 
-          if (index === 0) {
-            numberEntry.roles.add('caller');
-          } else if (index === 1) {
-            numberEntry.roles.add('callee');
-          } else {
-            numberEntry.roles.add('target');
-          }
+        if (index === 0) {
+          numberEntry.roles.add('caller');
+        } else if (index === 1) {
+          numberEntry.roles.add('callee');
+        } else {
+          numberEntry.roles.add('target');
+        }
 
-          if (row.file_id) {
-            numberEntry.fileIds.add(Number(row.file_id));
-          }
+        if (row.file_id) {
+          numberEntry.fileIds.add(Number(row.file_id));
+        }
 
-          if (referenceSet.has(normalizedNumber)) {
-            imeiEntry.hasReferenceNumber = true;
-          }
+        if (referenceSet.has(normalizedNumber)) {
+          imeiEntry.hasReferenceNumber = true;
+        }
 
-          numbersMap.set(normalizedNumber, numberEntry);
-          imeiMap.set(normalizedImei, imeiEntry);
-        });
-      }
+        numbersMap.set(normalizedNumber, numberEntry);
+        imeiMap.set(normalizedImei, imeiEntry);
+      });
     }
 
     const result = [];
