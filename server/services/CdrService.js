@@ -8,6 +8,8 @@ import chokidar from 'chokidar';
 import client from '../config/elasticsearch.js';
 import Case from '../models/Case.js';
 
+const ELASTICSEARCH_ENABLED = process.env.USE_ELASTICSEARCH === 'true';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -76,12 +78,13 @@ class CdrService {
     }
 
     this.indexName = CDR_INDEX;
+    this.elasticEnabled = ELASTICSEARCH_ENABLED;
     this.baseDir = path.join(__dirname, '../../uploads/cdr');
     this.manualProcessing = new Set();
 
     this.ensureBaseDirectory();
 
-    if (!CdrService.watcherInitialized) {
+    if (this.elasticEnabled && !CdrService.watcherInitialized) {
       this.initializeWatcher();
       CdrService.watcherInitialized = true;
     }
@@ -119,6 +122,10 @@ class CdrService {
   }
 
   async ensureIndex() {
+    if (!this.elasticEnabled) {
+      CdrService.indexEnsured = true;
+      return;
+    }
     if (CdrService.indexEnsured) {
       return;
     }
@@ -266,6 +273,10 @@ class CdrService {
   async indexRecords(metadata, records) {
     if (!Array.isArray(records) || records.length === 0) {
       return 0;
+    }
+
+    if (!this.elasticEnabled) {
+      return records.length;
     }
 
     await this.ensureIndex();
@@ -533,6 +544,16 @@ class CdrService {
   }
 
   async search(identifier, options = {}) {
+    if (!this.elasticEnabled) {
+      return {
+        total: 0,
+        contacts: [],
+        topContacts: [],
+        locations: [],
+        topLocations: [],
+        path: []
+      };
+    }
     const {
       startDate = null,
       endDate = null,
@@ -738,6 +759,9 @@ class CdrService {
   }
 
   async findCommonContacts(numbers, caseId, options = {}) {
+    if (!this.elasticEnabled) {
+      return { nodes: [], links: [] };
+    }
     const isAllowed = (n) => ALLOWED_PREFIXES.some((p) => String(n).startsWith(p));
     const filteredNumbers = Array.isArray(numbers) ? numbers.filter(isAllowed) : [];
     if (filteredNumbers.length === 0) {
@@ -851,6 +875,9 @@ class CdrService {
   }
 
   async detectNumberChanges(caseId, { startDate = null, endDate = null, referenceNumbers = [] } = {}) {
+    if (!this.elasticEnabled) {
+      return [];
+    }
     await this.ensureIndex();
 
     const normalizedReferenceNumbers = Array.isArray(referenceNumbers)
@@ -980,6 +1007,9 @@ class CdrService {
   }
 
   async listLocations(caseId) {
+    if (!this.elasticEnabled) {
+      return [];
+    }
     await this.ensureIndex();
     const response = await client.search({
       index: this.indexName,
@@ -1002,6 +1032,9 @@ class CdrService {
   }
 
   async getImeiNumberPairs(caseId, { startDate = null, endDate = null } = {}) {
+    if (!this.elasticEnabled) {
+      return [];
+    }
     await this.ensureIndex();
 
     const must = [{ term: { case_id: caseId } }];
@@ -1053,18 +1086,20 @@ class CdrService {
   }
 
   async deleteByFile(fileId, caseId) {
-    await this.ensureIndex();
-    try {
-      await client.deleteByQuery({
-        index: this.indexName,
-        query: {
-          bool: {
-            must: [{ term: { case_id: caseId } }, { term: { file_id: fileId } }]
+    if (this.elasticEnabled) {
+      await this.ensureIndex();
+      try {
+        await client.deleteByQuery({
+          index: this.indexName,
+          query: {
+            bool: {
+              must: [{ term: { case_id: caseId } }, { term: { file_id: fileId } }]
+            }
           }
-        }
-      });
-    } catch (error) {
-      console.error('Erreur suppression index Elasticsearch pour fichier CDR:', error);
+        });
+      } catch (error) {
+        console.error('Erreur suppression index Elasticsearch pour fichier CDR:', error);
+      }
     }
 
     const caseDir = this.getCaseDirectory(caseId);
@@ -1092,16 +1127,18 @@ class CdrService {
   }
 
   async deleteCaseData(caseId) {
-    await this.ensureIndex();
-    try {
-      await client.deleteByQuery({
-        index: this.indexName,
-        query: {
-          term: { case_id: caseId }
-        }
-      });
-    } catch (error) {
-      console.error('Erreur suppression index Elasticsearch dossier CDR:', error);
+    if (this.elasticEnabled) {
+      await this.ensureIndex();
+      try {
+        await client.deleteByQuery({
+          index: this.indexName,
+          query: {
+            term: { case_id: caseId }
+          }
+        });
+      } catch (error) {
+        console.error('Erreur suppression index Elasticsearch dossier CDR:', error);
+      }
     }
 
     const caseDir = this.getCaseDirectory(caseId);
