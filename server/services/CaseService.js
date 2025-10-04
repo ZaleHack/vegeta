@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { PassThrough } from 'stream';
 import Case from '../models/Case.js';
 import CdrService from './CdrService.js';
@@ -186,13 +184,14 @@ class CaseService {
     }
     const cdrNum = cdrNumber.startsWith('221') ? cdrNumber : `221${cdrNumber}`;
     const fileRecord = await Case.addFile(caseId, originalName, cdrNum);
-    const ext = path.extname(originalName).toLowerCase();
-    let result;
-    if (ext === '.xlsx' || ext === '.xls') {
-      result = await this.cdrService.importExcel(filePath, existingCase.name, fileRecord.id, cdrNum);
-    } else {
-      result = await this.cdrService.importCsv(filePath, existingCase.name, fileRecord.id, cdrNum);
-    }
+    const result = await this.cdrService.saveAndIndexFile({
+      caseId,
+      caseName: existingCase.name,
+      fileId: fileRecord.id,
+      cdrNumber: cdrNum,
+      tempPath: filePath,
+      originalName
+    });
     await Case.updateFileLineCount(fileRecord.id, result.inserted);
     return result;
   }
@@ -202,7 +201,11 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
-    return await this.cdrService.search(identifier, { ...options, caseName: existingCase.name });
+    return await this.cdrService.search(identifier, {
+      ...options,
+      caseId: existingCase.id,
+      caseName: existingCase.name
+    });
   }
 
   async linkDiagram(caseId, numbers, user, options = {}) {
@@ -219,7 +222,7 @@ class CaseService {
     const filteredNumbers = Array.isArray(numbers)
       ? numbers.filter(n => ALLOWED_PREFIXES.some(p => String(n).startsWith(p)))
       : [];
-    return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.name, {
+    return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.id, {
       startDate,
       endDate,
       startTime,
@@ -266,7 +269,7 @@ class CaseService {
 
     const statusReferenceSet = new Set([...fileReferenceNumbers, ...referenceNumbers]);
 
-    const detections = await this.cdrService.detectNumberChanges(existingCase.name, {
+    const detections = await this.cdrService.detectNumberChanges(existingCase.id, {
       startDate,
       endDate,
       referenceNumbers: Array.from(referenceNumbers)
@@ -321,12 +324,10 @@ class CaseService {
     }
     // Delete the case first to avoid dropping the CDR table if the delete fails
     await Case.delete(id);
-    // Remove any CDR table associated with this case, but don't fail the whole
-    // operation if the drop encounters an error
     try {
-      await this.cdrService.deleteTable(existingCase.name);
+      await this.cdrService.deleteCaseData(existingCase.id);
     } catch (err) {
-      console.error(`Failed to remove CDR table for case ${existingCase.name}`, err);
+      console.error(`Failed to remove CDR data for case ${existingCase.name}`, err);
     }
   }
 
@@ -343,7 +344,7 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
-    return await this.cdrService.listLocations(existingCase.name);
+    return await this.cdrService.listLocations(existingCase.id);
   }
 
   async deleteFile(caseId, fileId, user) {
@@ -352,7 +353,7 @@ class CaseService {
       throw new Error('Case not found');
     }
     await Case.deleteFile(caseId, fileId);
-    await this.cdrService.deleteByFile(fileId, existingCase.name);
+    await this.cdrService.deleteByFile(fileId, existingCase.id);
   }
 
   async generateReport(caseId, user) {
@@ -379,7 +380,7 @@ class CaseService {
     let insights = null;
     if (caseNumbers.length > 0) {
       try {
-        insights = await this._buildCaseInsights(existingCase.name, caseNumbers);
+        insights = await this._buildCaseInsights(existingCase.id, existingCase.name, caseNumbers);
       } catch (insightError) {
         console.error('Erreur préparation rapport opération:', insightError);
       }
@@ -1240,7 +1241,7 @@ class CaseService {
     });
   }
 
-  async _buildCaseInsights(caseName, numbers) {
+  async _buildCaseInsights(caseId, caseName, numbers) {
     const normalizeTrackedNumber = (value) => {
       if (!value) return '';
       let sanitized = String(value).trim();
@@ -1307,7 +1308,7 @@ class CaseService {
       const identifier = rawNumber.startsWith('221') ? rawNumber : `221${rawNumber}`;
       let result;
       try {
-        result = await this.cdrService.search(identifier, { caseName });
+        result = await this.cdrService.search(identifier, { caseId, caseName });
       } catch (err) {
         console.error('Erreur agrégation CDR pour rapport', err);
         ensureNumberEntry(identifier);
