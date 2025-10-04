@@ -1393,6 +1393,18 @@ const App: React.FC = () => {
   const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
   const [caseFilesPage, setCaseFilesPage] = useState(1);
   const [caseFilesPerPage, setCaseFilesPerPage] = useState(CASE_FILE_PAGE_SIZE_OPTIONS[0]);
+  const caseReferenceNumbers = useMemo(() => {
+    const rawNumbers = caseFiles
+      .map((file) => {
+        const value = file.cdr_number;
+        if (value === null || value === undefined) {
+          return '';
+        }
+        return String(value);
+      })
+      .filter((value) => value.trim().length > 0);
+    return dedupeCdrIdentifiers(rawNumbers);
+  }, [caseFiles, dedupeCdrIdentifiers]);
   const totalCaseFilesPages = Math.ceil(caseFiles.length / caseFilesPerPage) || 1;
   const paginatedCaseFiles = useMemo(
     () =>
@@ -1552,6 +1564,8 @@ const App: React.FC = () => {
     () => getEffectiveCdrIdentifiers(),
     [getEffectiveCdrIdentifiers]
   );
+  const hasFraudDetectionNumbers =
+    effectiveCdrIdentifiers.length > 0 || caseReferenceNumbers.length > 0;
 
   const formatFraudDate = (value?: string | null) => {
     if (!value) return '-';
@@ -3262,12 +3276,18 @@ useEffect(() => {
     }
   };
 
-  const fetchFraudDetection = async (identifiersOverride?: string[]) => {
+  const fetchFraudDetection = async (numbersOverride?: string[]) => {
     if (!selectedCase) return;
 
-    const identifiers = dedupeCdrIdentifiers(identifiersOverride ?? cdrIdentifiers);
+    const providedNumbers = Array.isArray(numbersOverride) ? numbersOverride : [];
+    const dedupedInput = providedNumbers.length > 0
+      ? dedupeCdrIdentifiers(providedNumbers)
+      : dedupeCdrIdentifiers(cdrIdentifiers);
+    const numbersForRequest = dedupedInput.length > 0 ? dedupedInput : caseReferenceNumbers;
 
-    if (identifiers.length === 0) {
+    if (numbersForRequest.length === 0) {
+      setFraudResult(null);
+      setFraudError('Aucun CDR importé ne peut être analysé pour cette opération.');
       return;
     }
 
@@ -3279,7 +3299,7 @@ useEffect(() => {
       const params = new URLSearchParams();
       if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
       if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
-      identifiers.forEach((identifier) => {
+      numbersForRequest.forEach((identifier) => {
         params.append('numbers', identifier);
       });
       const query = params.toString();
@@ -3307,10 +3327,11 @@ useEffect(() => {
 
   const handleFraudDetectionClick = async () => {
     const identifiers = getEffectiveCdrIdentifiers();
+    const numbersForDetection = identifiers.length > 0 ? identifiers : caseReferenceNumbers;
 
-    if (identifiers.length === 0) {
+    if (numbersForDetection.length === 0) {
       setFraudResult(null);
-      setFraudError('Ajoutez au moins un numéro pour lancer l’analyse');
+      setFraudError('Importez des CDR ou ajoutez un numéro pour lancer l’analyse');
       return;
     }
 
@@ -3318,8 +3339,10 @@ useEffect(() => {
       setCdrIdentifierInput('');
     }
 
-    commitCdrIdentifiers(identifiers);
-    await fetchFraudDetection(identifiers);
+    if (identifiers.length > 0) {
+      commitCdrIdentifiers(identifiers);
+    }
+    await fetchFraudDetection(numbersForDetection);
   };
 
   const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
@@ -4401,7 +4424,7 @@ useEffect(() => {
                   <button
                     type="button"
                     onClick={handleFraudDetectionClick}
-                    disabled={fraudLoading || !selectedCase || effectiveCdrIdentifiers.length === 0}
+                    disabled={fraudLoading || !selectedCase || !hasFraudDetectionNumbers}
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {fraudLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Scan className="h-3.5 w-3.5" />}
@@ -4616,9 +4639,9 @@ useEffect(() => {
                   {fraudError}
                 </div>
               )}
-              {cdrIdentifiers.length === 0 ? (
+              {!hasFraudDetectionNumbers ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
-                  Ajoutez au moins un numéro dans la recherche pour lancer l’analyse de fraude.
+                  Importez des CDR ou ajoutez un numéro à la recherche pour lancer l’analyse de fraude.
                 </div>
               ) : fraudLoading ? (
                 <div className="flex items-center justify-center py-10">
@@ -8222,7 +8245,9 @@ useEffect(() => {
                           Activité des demandes
                         </h3>
                         <div className="space-y-4">
-                          {requestMetrics.map(item => (
+                          {requestMetrics.map(item => {
+                            const Icon = item.icon;
+                            return (
                             <div
                               key={item.key}
                               className="rounded-2xl border border-gray-100 dark:border-gray-700/60 bg-gray-50/60 dark:bg-gray-900/40 px-4 py-4"
@@ -8230,7 +8255,7 @@ useEffect(() => {
                               <div className="flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-3">
                                   <span className={`flex h-11 w-11 items-center justify-center rounded-full ${item.tone}`}>
-                                    <item.icon className="h-5 w-5" />
+                                    <Icon className="h-5 w-5" />
                                   </span>
                                   <div>
                                     <p className="text-sm font-semibold text-gray-700 dark:text-gray-100">{item.label}</p>
@@ -8253,7 +8278,8 @@ useEffect(() => {
                                 </div>
                               )}
                             </div>
-                          ))}
+                          );
+                          })}
                         </div>
                       </div>
 
