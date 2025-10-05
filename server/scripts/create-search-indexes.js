@@ -18,14 +18,30 @@ function loadCatalog() {
       const json = JSON.parse(raw);
 
       for (const [key, value] of Object.entries(json)) {
-        const [db, ...tableParts] = key.split('_');
+        let db;
+        let tableKey;
 
-        if (!db || tableParts.length === 0) {
-          console.warn(`⚠️ Entrée de catalogue invalide ignorée: ${key}`);
-          continue;
+        if (key.includes('.')) {
+          const [schema, ...tableParts] = key.split('.');
+          if (!schema || tableParts.length === 0) {
+            console.warn(`⚠️ Entrée de catalogue invalide ignorée: ${key}`);
+            continue;
+          }
+
+          db = schema;
+          tableKey = tableParts.join('.');
+        } else {
+          const [schema, ...tableParts] = key.split('_');
+          if (!schema || tableParts.length === 0) {
+            console.warn(`⚠️ Entrée de catalogue invalide ignorée: ${key}`);
+            continue;
+          }
+
+          db = schema;
+          tableKey = tableParts.join('_');
         }
 
-        const tableName = `${db}.${tableParts.join('_')}`;
+        const tableName = `${db}.${tableKey}`;
         const existing = catalog[tableName] || {};
         const merged = { ...existing, ...value };
 
