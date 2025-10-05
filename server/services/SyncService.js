@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import ElasticSearchService from './ElasticSearchService.js';
+import { isElasticsearchEnabled } from '../config/environment.js';
 
 const DEFAULT_BATCH_SIZE = 500;
 
@@ -17,7 +18,7 @@ class SyncService {
     const __dirname = path.dirname(__filename);
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.elasticService = new ElasticSearchService();
-    this.useElastic = process.env.USE_ELASTICSEARCH === 'true';
+    this.useElastic = isElasticsearchEnabled();
     this.defaultIndex = process.env.ELASTICSEARCH_DEFAULT_INDEX || 'global_search';
     this.resetIndices = new Set();
     this.catalog = this.loadCatalog();

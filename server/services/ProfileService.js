@@ -9,6 +9,7 @@ import Division from '../models/Division.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 import ElasticSearchService from './ElasticSearchService.js';
+import { isElasticsearchEnabled } from '../config/environment.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,7 +23,7 @@ class ProfileService {
         fs.mkdirSync(dir, { recursive: true });
       }
     });
-    this.useElastic = process.env.USE_ELASTICSEARCH === 'true';
+    this.useElastic = isElasticsearchEnabled();
     this.elasticService = this.useElastic ? new ElasticSearchService() : null;
   }
 
