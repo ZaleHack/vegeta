@@ -1,5 +1,47 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 import database from '../config/database.js';
-import catalog from '../config/tables-catalog.js';
+import baseCatalog from '../config/tables-catalog.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const catalogPath = path.join(__dirname, '../config/tables-catalog.json');
+
+function loadCatalog() {
+  let catalog = { ...baseCatalog };
+
+  try {
+    if (fs.existsSync(catalogPath)) {
+      const raw = fs.readFileSync(catalogPath, 'utf-8');
+      const json = JSON.parse(raw);
+
+      for (const [key, value] of Object.entries(json)) {
+        const [db, ...tableParts] = key.split('_');
+
+        if (!db || tableParts.length === 0) {
+          console.warn(`⚠️ Entrée de catalogue invalide ignorée: ${key}`);
+          continue;
+        }
+
+        const tableName = `${db}.${tableParts.join('_')}`;
+        const existing = catalog[tableName] || {};
+        const merged = { ...existing, ...value };
+
+        if (!merged.database) {
+          merged.database = db;
+        }
+
+        catalog[tableName] = merged;
+      }
+    }
+  } catch (error) {
+    console.error('❌ Erreur chargement catalogue:', error);
+  }
+
+  return catalog;
+}
 
 function sanitizeIdentifier(name) {
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -22,6 +64,8 @@ async function indexExists(schema, table, indexName) {
 }
 
 async function createIndexes() {
+  const catalog = loadCatalog();
+
   for (const [tableKey, config] of Object.entries(catalog)) {
     const fields = config.searchable || [];
     if (!fields.length) {
