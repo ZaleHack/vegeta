@@ -22,6 +22,10 @@ const getElasticService = () => {
     elasticService = new ElasticSearchService();
   }
 
+  if (typeof elasticService.isOperational === 'function' && !elasticService.isOperational()) {
+    return null;
+  }
+
   return elasticService;
 };
 
@@ -81,26 +85,31 @@ router.post('/', authenticate, async (req, res) => {
 
     let results;
     const elastic = getElasticService();
-    if (elastic) {
+    const canUseElastic = elastic?.isOperational?.() === true;
+    if (canUseElastic) {
       const es = await elastic.search(
         trimmed,
         parseInt(page),
         parseInt(limit)
       );
-      const tablesSearched =
-        Array.isArray(es.tables_searched) && es.tables_searched.length > 0
-          ? es.tables_searched
-          : ['profiles'];
-      results = {
-        total: es.total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(es.total / parseInt(limit)),
-        elapsed_ms: es.elapsed_ms,
-        hits: es.hits,
-        tables_searched: tablesSearched
-      };
-    } else {
+      if (elastic?.isOperational?.() === true) {
+        const tablesSearched =
+          Array.isArray(es.tables_searched) && es.tables_searched.length > 0
+            ? es.tables_searched
+            : ['profiles'];
+        results = {
+          total: es.total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(es.total / parseInt(limit)),
+          elapsed_ms: es.elapsed_ms,
+          hits: es.hits,
+          tables_searched: tablesSearched
+        };
+      }
+    }
+
+    if (!results) {
       results = await searchService.search(
         trimmed,
         filters,

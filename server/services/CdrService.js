@@ -70,6 +70,9 @@ const moveFile = async (src, dest) => {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const isConnectionError = (error) =>
+  error?.name === 'ConnectionError' || error?.meta?.statusCode === 0;
+
 class CdrService {
   constructor() {
     if (CdrService.instance) {
@@ -167,6 +170,18 @@ class CdrService {
       }
       CdrService.indexEnsured = true;
     } catch (error) {
+      if (isConnectionError(error)) {
+        console.error(
+          'Erreur initialisation index Elasticsearch CDR:',
+          error.message
+        );
+        console.warn(
+          '⚠️ Elasticsearch indisponible. Bascule sur le moteur de recherche local pour les CDR.'
+        );
+        this.elasticEnabled = false;
+        CdrService.indexEnsured = false;
+        return;
+      }
       console.error('Erreur initialisation index Elasticsearch CDR:', error);
       throw error;
     }
@@ -280,6 +295,10 @@ class CdrService {
 
     await this.ensureIndex();
 
+    if (!this.elasticEnabled) {
+      return { inserted: records.length, indexed: false };
+    }
+
     const operations = [];
     for (const record of records) {
       const documentId = `${metadata.caseId}-${metadata.fileId}-${record.line_number}`;
@@ -303,10 +322,20 @@ class CdrService {
       operations.push(doc);
     }
 
-    const response = await client.bulk({
-      operations,
-      refresh: 'wait_for'
-    });
+    let response;
+    try {
+      response = await client.bulk({
+        operations,
+        refresh: 'wait_for'
+      });
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.error('Erreur indexation Elasticsearch CDR:', error.message);
+        this.elasticEnabled = false;
+        return { inserted: records.length, indexed: false };
+      }
+      throw error;
+    }
 
     if (response.errors) {
       const failures = response.items?.filter((item) => item?.index?.error) || [];
@@ -949,14 +978,22 @@ class CdrService {
       type
     };
 
-    if (!this.elasticEnabled) {
+    const performLocalSearch = async (assumeMatches) => {
       const records = await this.loadRecordsForCase(caseId);
       return this.buildSearchResultFromRecords(records, normalizedIdentifier, baseOptions, {
-        assumeMatches: false
+        assumeMatches
       });
+    };
+
+    if (!this.elasticEnabled) {
+      return performLocalSearch(false);
     }
 
     await this.ensureIndex();
+
+    if (!this.elasticEnabled) {
+      return performLocalSearch(false);
+    }
 
     const must = [
       { term: { case_id: caseId } },
@@ -993,21 +1030,31 @@ class CdrService {
       filter.push({ term: { nom_localisation: location } });
     }
 
-    const response = await client.search({
-      index: this.indexName,
-      size: 10000,
-      track_total_hits: true,
-      sort: [
-        { call_timestamp: { order: 'asc', unmapped_type: 'date' } },
-        { line_number: { order: 'asc' } }
-      ],
-      query: {
-        bool: {
-          must,
-          filter
+    let response;
+    try {
+      response = await client.search({
+        index: this.indexName,
+        size: 10000,
+        track_total_hits: true,
+        sort: [
+          { call_timestamp: { order: 'asc', unmapped_type: 'date' } },
+          { line_number: { order: 'asc' } }
+        ],
+        query: {
+          bool: {
+            must,
+            filter
+          }
         }
+      });
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.error('Erreur recherche Elasticsearch CDR:', error.message);
+        this.elasticEnabled = false;
+        return performLocalSearch(false);
       }
-    });
+      throw error;
+    }
 
     const hits = response.hits?.hits || [];
     const records = hits.map((hit) => hit._source || {});
@@ -1035,12 +1082,17 @@ class CdrService {
     const startTimeBound = normalizeTimeBound(startTime);
     const endTimeBound = normalizeTimeBound(endTime);
 
-    const records = await (async () => {
+    const loadRecords = async () => {
       if (!this.elasticEnabled) {
         return await this.loadRecordsForCase(caseId);
       }
 
       await this.ensureIndex();
+
+      if (!this.elasticEnabled) {
+        return await this.loadRecordsForCase(caseId);
+      }
+
       const filter = [
         { term: { case_id: caseId } },
         {
@@ -1061,16 +1113,27 @@ class CdrService {
         filter.push({ range: { call_timestamp: range } });
       }
 
-      const response = await client.search({
-        index: this.indexName,
-        size: 10000,
-        track_total_hits: true,
-        query: { bool: { must: filter } }
-      });
+      try {
+        const response = await client.search({
+          index: this.indexName,
+          size: 10000,
+          track_total_hits: true,
+          query: { bool: { must: filter } }
+        });
 
-      const hits = response.hits?.hits || [];
-      return hits.map((hit) => hit._source || {});
-    })();
+        const hits = response.hits?.hits || [];
+        return hits.map((hit) => hit._source || {});
+      } catch (error) {
+        if (isConnectionError(error)) {
+          console.error('Erreur recherche contacts communs Elasticsearch:', error.message);
+          this.elasticEnabled = false;
+          return await this.loadRecordsForCase(caseId);
+        }
+        throw error;
+      }
+    };
+
+    const records = await loadRecords();
 
     const withinDateRange = (record) => {
       if (!startDate && !endDate) {
@@ -1201,6 +1264,10 @@ class CdrService {
       }
 
       await this.ensureIndex();
+      if (!this.elasticEnabled) {
+        const localRecords = await this.loadRecordsForCase(caseId);
+        return localRecords.filter((record) => dateMatches(record));
+      }
       const filter = [{ term: { case_id: caseId } }];
       if (startDate || endDate) {
         const range = {};
@@ -1209,27 +1276,37 @@ class CdrService {
         filter.push({ range: { call_timestamp: range } });
       }
 
-      const collected = [];
-      const scrollIterator = client.helpers.scrollSearch({
-        index: this.indexName,
-        size: 5000,
-        track_total_hits: true,
-        body: {
-          query: { bool: { must: filter } }
-        }
-      });
+      try {
+        const collected = [];
+        const scrollIterator = client.helpers.scrollSearch({
+          index: this.indexName,
+          size: 5000,
+          track_total_hits: true,
+          body: {
+            query: { bool: { must: filter } }
+          }
+        });
 
-      for await (const result of scrollIterator) {
-        const rows =
-          result.documents ||
-          (result.hits?.hits || []).map((hit) => hit._source || {});
-        for (const row of rows) {
-          if (dateMatches(row)) {
-            collected.push(row);
+        for await (const result of scrollIterator) {
+          const rows =
+            result.documents ||
+            (result.hits?.hits || []).map((hit) => hit._source || {});
+          for (const row of rows) {
+            if (dateMatches(row)) {
+              collected.push(row);
+            }
           }
         }
+        return collected;
+      } catch (error) {
+        if (isConnectionError(error)) {
+          console.error('Erreur scroll Elasticsearch lors de la détection de changements:', error.message);
+          this.elasticEnabled = false;
+          const localRecords = await this.loadRecordsForCase(caseId);
+          return localRecords.filter((record) => dateMatches(record));
+        }
+        throw error;
       }
-      return collected;
     };
 
     const records = await fetchRecords();
@@ -1333,21 +1410,35 @@ class CdrService {
       return [];
     }
     await this.ensureIndex();
-    const response = await client.search({
-      index: this.indexName,
-      size: 0,
-      query: {
-        term: { case_id: caseId }
-      },
-      aggs: {
-        locations: {
-          terms: {
-            field: 'nom_localisation',
-            size: 1000
+    if (!this.elasticEnabled) {
+      return [];
+    }
+
+    let response;
+    try {
+      response = await client.search({
+        index: this.indexName,
+        size: 0,
+        query: {
+          term: { case_id: caseId }
+        },
+        aggs: {
+          locations: {
+            terms: {
+              field: 'nom_localisation',
+              size: 1000
+            }
           }
         }
+      });
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.error('Erreur agrégation localisations Elasticsearch:', error.message);
+        this.elasticEnabled = false;
+        return [];
       }
-    });
+      throw error;
+    }
 
     const buckets = response.aggregations?.locations?.buckets || [];
     return buckets.map((bucket) => bucket.key).filter((value) => value);
@@ -1359,6 +1450,10 @@ class CdrService {
     }
     await this.ensureIndex();
 
+    if (!this.elasticEnabled) {
+      return [];
+    }
+
     const must = [{ term: { case_id: caseId } }];
     if (startDate || endDate) {
       const range = {};
@@ -1367,14 +1462,24 @@ class CdrService {
       must.push({ range: { call_timestamp: range } });
     }
 
-    const response = await client.search({
-      index: this.indexName,
-      size: 10000,
-      track_total_hits: true,
-      query: {
-        bool: { must }
+    let response;
+    try {
+      response = await client.search({
+        index: this.indexName,
+        size: 10000,
+        track_total_hits: true,
+        query: {
+          bool: { must }
+        }
+      });
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.error('Erreur récupération paires IMEI/numéros Elasticsearch:', error.message);
+        this.elasticEnabled = false;
+        return [];
       }
-    });
+      throw error;
+    }
 
     const hits = response.hits?.hits || [];
     const rows = [];
@@ -1410,17 +1515,24 @@ class CdrService {
   async deleteByFile(fileId, caseId) {
     if (this.elasticEnabled) {
       await this.ensureIndex();
-      try {
-        await client.deleteByQuery({
-          index: this.indexName,
-          query: {
-            bool: {
-              must: [{ term: { case_id: caseId } }, { term: { file_id: fileId } }]
+      if (this.elasticEnabled) {
+        try {
+          await client.deleteByQuery({
+            index: this.indexName,
+            query: {
+              bool: {
+                must: [{ term: { case_id: caseId } }, { term: { file_id: fileId } }]
+              }
             }
+          });
+        } catch (error) {
+          if (isConnectionError(error)) {
+            console.error('Erreur suppression index Elasticsearch pour fichier CDR:', error.message);
+            this.elasticEnabled = false;
+          } else {
+            console.error('Erreur suppression index Elasticsearch pour fichier CDR:', error);
           }
-        });
-      } catch (error) {
-        console.error('Erreur suppression index Elasticsearch pour fichier CDR:', error);
+        }
       }
     }
 
@@ -1451,15 +1563,22 @@ class CdrService {
   async deleteCaseData(caseId) {
     if (this.elasticEnabled) {
       await this.ensureIndex();
-      try {
-        await client.deleteByQuery({
-          index: this.indexName,
-          query: {
-            term: { case_id: caseId }
+      if (this.elasticEnabled) {
+        try {
+          await client.deleteByQuery({
+            index: this.indexName,
+            query: {
+              term: { case_id: caseId }
+            }
+          });
+        } catch (error) {
+          if (isConnectionError(error)) {
+            console.error('Erreur suppression index Elasticsearch dossier CDR:', error.message);
+            this.elasticEnabled = false;
+          } else {
+            console.error('Erreur suppression index Elasticsearch dossier CDR:', error);
           }
-        });
-      } catch (error) {
-        console.error('Erreur suppression index Elasticsearch dossier CDR:', error);
+        }
       }
     }
 
