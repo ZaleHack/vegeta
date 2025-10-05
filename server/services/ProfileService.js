@@ -8,6 +8,7 @@ import ProfileShare from '../models/ProfileShare.js';
 import Division from '../models/Division.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
+import ElasticSearchService from './ElasticSearchService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,6 +22,32 @@ class ProfileService {
         fs.mkdirSync(dir, { recursive: true });
       }
     });
+    this.useElastic = process.env.USE_ELASTICSEARCH === 'true';
+    this.elasticService = this.useElastic ? new ElasticSearchService() : null;
+  }
+
+  async syncProfileToSearch(profile) {
+    if (!this.elasticService || !profile) {
+      return;
+    }
+
+    try {
+      await this.elasticService.indexProfile(profile);
+    } catch (error) {
+      console.error('Erreur indexation profil Elasticsearch:', error);
+    }
+  }
+
+  async removeProfileFromSearch(profileId) {
+    if (!this.elasticService || !profileId) {
+      return;
+    }
+
+    try {
+      await this.elasticService.deleteProfile(profileId);
+    } catch (error) {
+      console.error('Erreur suppression index Elasticsearch pour le profil:', error);
+    }
   }
 
   _isAdmin(user) {
@@ -99,6 +126,7 @@ class ProfileService {
       );
     }
     const fresh = await Profile.findById(created.id);
+    await this.syncProfileToSearch(fresh);
     return this.withAttachments(fresh);
   }
 
@@ -173,7 +201,9 @@ class ProfileService {
         }))
       );
     }
-    return this.withAttachments(await Profile.findById(id));
+    const updated = await Profile.findById(id);
+    await this.syncProfileToSearch(updated);
+    return this.withAttachments(updated);
   }
 
   async delete(id, user) {
@@ -187,7 +217,9 @@ class ProfileService {
     }
     const attachments = await ProfileAttachment.findByProfileId(id);
     attachments.forEach(att => this.removeStoredFile(att.file_path));
-    return Profile.delete(id);
+    await Profile.delete(id);
+    await this.removeProfileFromSearch(id);
+    return true;
   }
 
   async get(id, user) {

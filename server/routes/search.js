@@ -98,9 +98,7 @@ router.post('/', authenticate, async (req, res) => {
       );
     }
 
-    if (!useElastic) {
-      searchAccessManager.remember(req.user.id, results.hits || []);
-    }
+    searchAccessManager.remember(req.user.id, results.hits || []);
 
     const searchTypeValue = typeof search_type === 'string' && search_type ? search_type : 'global';
     const userAgent = req.get('user-agent') || null;
