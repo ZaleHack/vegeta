@@ -1,6 +1,10 @@
 import client from '../config/elasticsearch.js';
 import { normalizeProfileRecord } from '../utils/profile-normalizer.js';
 import InMemoryCache from '../utils/cache.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import baseCatalog from '../config/tables-catalog.js';
 
 class ElasticSearchService {
   constructor() {
@@ -8,6 +12,91 @@ class ElasticSearchService {
     const parsedTtl = Number(ttlEnv);
     const ttl = Number.isFinite(parsedTtl) && parsedTtl > 0 ? parsedTtl : 60000;
     this.cache = new InMemoryCache(ttl);
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
+    this.defaultIndex = process.env.ELASTICSEARCH_DEFAULT_INDEX || 'global_search';
+    this.catalog = this.loadCatalog();
+    this.indexes = this.resolveIndexesFromCatalog(this.catalog);
+  }
+
+  loadCatalog() {
+    let catalog = { ...baseCatalog };
+    try {
+      if (fs.existsSync(this.catalogPath)) {
+        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
+        const json = JSON.parse(raw);
+        for (const [key, value] of Object.entries(json)) {
+          const [db, ...tableParts] = key.split('_');
+          const tableName = `${db}.${tableParts.join('_')}`;
+          catalog[tableName] = value;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erreur chargement catalogue Elasticsearch:', error);
+    }
+    return catalog;
+  }
+
+  resolveIndexesFromCatalog(catalog = {}) {
+    const indexes = new Set();
+    Object.entries(catalog).forEach(([tableName, config]) => {
+      const syncConfig = config?.sync || {};
+      const indexName = syncConfig.elasticsearchIndex || this.defaultIndex;
+      if (indexName) {
+        indexes.add(indexName);
+      }
+      if (!syncConfig.elasticsearchIndex && tableName) {
+        indexes.add(this.defaultIndex);
+      }
+    });
+    if (indexes.size === 0) {
+      indexes.add('profiles');
+    }
+    return Array.from(indexes);
+  }
+
+  normalizeValues(values = []) {
+    const output = [];
+    const visit = (value) => {
+      if (value === null || value === undefined) {
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      if (typeof value === 'object') {
+        Object.values(value).forEach(visit);
+        return;
+      }
+      const text = String(value).trim();
+      if (text) {
+        output.push(text);
+      }
+    };
+
+    values.forEach(visit);
+    return output;
+  }
+
+  buildTokensFromValues(values = []) {
+    const normalized = this.normalizeValues(values);
+    const tokens = new Set();
+    normalized.forEach((text) => {
+      const lowered = text.toLowerCase();
+      tokens.add(lowered);
+      tokens.add(lowered.replace(/\s+/g, ''));
+    });
+    return Array.from(tokens);
+  }
+
+  buildFullTextFromValues(values = []) {
+    const normalized = this.normalizeValues(values);
+    if (!normalized.length) {
+      return null;
+    }
+    return normalized.join(' ');
   }
 
   buildProfileDocument(profile) {
@@ -24,6 +113,34 @@ class ElasticSearchService {
     const comment = normalized.comment ? String(normalized.comment) : '';
     const commentPreview = comment ? comment.slice(0, 200) : null;
 
+    const previewEntries = {};
+    if (normalized.first_name) {
+      previewEntries.first_name = normalized.first_name;
+    }
+    if (normalized.last_name) {
+      previewEntries.last_name = normalized.last_name;
+    }
+    if (normalized.phone) {
+      previewEntries.phone = normalized.phone;
+    }
+    if (normalized.email) {
+      previewEntries.email = normalized.email;
+    }
+    if (commentPreview) {
+      previewEntries.comment = commentPreview;
+    }
+
+    const rawValues = this.normalizeValues([
+      fullName,
+      normalized.first_name,
+      normalized.last_name,
+      normalized.phone,
+      normalized.email,
+      commentPreview,
+      normalized.extra_fields
+    ]);
+    const searchTokens = this.buildTokensFromValues(rawValues);
+
     return {
       id: normalized.id,
       user_id: normalized.user_id ?? null,
@@ -38,37 +155,73 @@ class ElasticSearchService {
       table: 'profiles',
       table_name: 'autres.profiles',
       database_name: 'autres',
-      search_tokens: this.buildSearchTokens(normalized)
+      preview: previewEntries,
+      search_tokens: searchTokens,
+      primary_key: 'id',
+      primary_value: normalized.id,
+      primary_keys: { id: normalized.id },
+      raw_values: rawValues,
+      full_text: this.buildFullTextFromValues(rawValues)
     };
   }
 
-  buildSearchTokens(profile) {
-    const rawValues = [
-      profile.first_name,
-      profile.last_name,
-      profile.phone,
-      profile.email,
-      ...(Array.isArray(profile.extra_fields) ? profile.extra_fields : [])
-    ];
-    const tokens = new Set();
-    for (const value of rawValues) {
-      if (value === null || value === undefined) continue;
-      if (typeof value === 'object') {
-        const nested = Object.values(value).map((v) => (v === null || v === undefined ? '' : String(v)));
-        nested.forEach((entry) => {
-          const normalized = entry.trim();
-          if (!normalized) return;
-          tokens.add(normalized.toLowerCase());
-          tokens.add(normalized.replace(/\s+/g, '').toLowerCase());
-        });
-        continue;
+  buildPreview(record, config = {}) {
+    const preview = {};
+    const fields = new Set([...(config.preview || []), ...(config.linkedFields || [])]);
+
+    fields.forEach((field) => {
+      if (!field) return;
+      const value = record[field];
+      if (value !== null && value !== undefined && value !== '') {
+        preview[field] = value;
       }
-      const text = String(value).trim();
-      if (!text) continue;
-      tokens.add(text.toLowerCase());
-      tokens.add(text.replace(/\s+/g, '').toLowerCase());
+    });
+
+    return preview;
+  }
+
+  collectSearchValues(record, config = {}, primaryKey) {
+    const fields = new Set([
+      ...(config.searchable || []),
+      ...(config.preview || []),
+      ...(config.linkedFields || [])
+    ]);
+    if (primaryKey) {
+      fields.add(primaryKey);
     }
-    return Array.from(tokens);
+
+    const values = [];
+    fields.forEach((field) => {
+      if (!field) return;
+      values.push(record[field]);
+    });
+
+    return this.normalizeValues(values);
+  }
+
+  buildGenericDocument(record, { tableName, config = {}, primaryKey }) {
+    const key = primaryKey && record ? record[primaryKey] : null;
+    if (key === null || key === undefined) {
+      return null;
+    }
+
+    const preview = this.buildPreview(record, config);
+    const rawValues = this.collectSearchValues(record, config, primaryKey);
+    const searchTokens = this.buildTokensFromValues(rawValues);
+    const databaseName = config.database || (tableName ? tableName.split('.')[0] : null);
+
+    return {
+      table: config.display || tableName,
+      table_name: tableName,
+      database_name: databaseName,
+      preview,
+      search_tokens: searchTokens,
+      primary_key: primaryKey || 'id',
+      primary_value: key,
+      primary_keys: { [primaryKey || 'id']: key },
+      raw_values: rawValues,
+      full_text: this.buildFullTextFromValues(rawValues)
+    };
   }
 
   async indexProfile(profile) {
@@ -105,17 +258,43 @@ class ElasticSearchService {
   }
 
   async indexProfilesBulk(profiles, options = {}) {
-    const { refresh = false, index = 'profiles' } = options;
-    if (!Array.isArray(profiles) || profiles.length === 0) {
+    return this.indexRecordsBulk(profiles, { ...options, type: 'profile' });
+  }
+
+  async indexRecordsBulk(records, options = {}) {
+    const {
+      refresh = false,
+      index = this.defaultIndex,
+      type = 'generic',
+      tableName = null,
+      config = {},
+      primaryKey = 'id'
+    } = options;
+
+    if (!Array.isArray(records) || records.length === 0) {
       return { indexed: 0, errors: [] };
     }
 
     const operations = [];
-    for (const profile of profiles) {
-      if (!profile?.id) continue;
-      const document = this.buildProfileDocument(profile);
-      if (!document) continue;
-      operations.push({ index: { _index: index, _id: String(profile.id) } });
+
+    for (const record of records) {
+      let document = null;
+      let id = null;
+
+      if (type === 'profile') {
+        document = this.buildProfileDocument(record);
+        id = record?.id;
+      } else {
+        document = this.buildGenericDocument(record, { tableName, config, primaryKey });
+        const primaryValue = document?.primary_value;
+        id = primaryValue !== undefined && primaryValue !== null ? `${tableName || 'table'}::${primaryValue}` : null;
+      }
+
+      if (!document || id === null || id === undefined) {
+        continue;
+      }
+
+      operations.push({ index: { _index: index, _id: String(id) } });
       operations.push(document);
     }
 
@@ -142,11 +321,15 @@ class ElasticSearchService {
     const failedCount = new Set(errors.map((entry) => entry.id)).size;
     const indexedCount = Math.max(0, totalOperations - failedCount);
 
+    if (index && !this.indexes.includes(index)) {
+      this.indexes = Array.from(new Set([...this.indexes, index]));
+    }
+
     this.cache.clear();
     return { indexed: indexedCount, errors };
   }
 
-  async resetProfilesIndex({ recreate = true, index = 'profiles' } = {}) {
+  async resetIndex({ recreate = true, index = this.defaultIndex } = {}) {
     try {
       await client.indices.delete({ index });
     } catch (error) {
@@ -160,12 +343,24 @@ class ElasticSearchService {
       await client.indices.create({ index });
     }
 
+    if (index && !this.indexes.includes(index)) {
+      this.indexes = Array.from(new Set([...this.indexes, index]));
+    }
+
     this.cache.clear();
+  }
+
+  async resetProfilesIndex({ recreate = true, index = 'profiles' } = {}) {
+    return this.resetIndex({ recreate, index });
   }
 
   buildPreviewFromSource(source) {
     if (!source || typeof source !== 'object') {
       return {};
+    }
+
+    if (source.preview && typeof source.preview === 'object') {
+      return source.preview;
     }
 
     const entries = {};
@@ -222,28 +417,35 @@ class ElasticSearchService {
     const preview = this.buildPreviewFromSource(source);
     const tableName = source.table_name || 'autres.profiles';
     const tableDisplay = source.table || tableName;
-    const primaryKey = source.id ?? hit?._id;
+    const primaryKeyName = source.primary_key || 'id';
+    const primaryValue = source.primary_value ?? source.id ?? hit?._id;
+    const primaryKeys =
+      source.primary_keys && typeof source.primary_keys === 'object'
+        ? source.primary_keys
+        : { [primaryKeyName]: primaryValue };
 
     return {
       table: tableDisplay,
       table_name: tableName,
-      database: 'Elasticsearch',
+      database: source.database_name || 'Elasticsearch',
       preview,
-      primary_keys: primaryKey ? { id: primaryKey } : {},
+      primary_keys: primaryKeys,
       score: typeof hit?._score === 'number' ? hit._score : undefined
     };
   }
 
-  async search(query, page = 1, limit = 20) {
+  async search(query, page = 1, limit = 20, options = {}) {
     const from = (page - 1) * limit;
-    const cacheKey = JSON.stringify({ query, page, limit });
+    const { indexes = this.indexes } = options;
+    const cacheKey = JSON.stringify({ query, page, limit, indexes });
     const cached = this.cache.get(cacheKey);
     if (cached) {
       return cached;
     }
 
     const { hits, took } = await client.search({
-      index: 'profiles',
+      index: indexes,
+      ignore_unavailable: true,
       from,
       size: limit,
       _source: [
@@ -259,12 +461,45 @@ class ElasticSearchService {
         'extra_fields',
         'table',
         'table_name',
-        'database_name'
+        'database_name',
+        'primary_key',
+        'primary_value',
+        'primary_keys',
+        'preview',
+        'search_tokens',
+        'full_text',
+        'raw_values'
       ],
       query: {
-        multi_match: {
-          query,
-          fields: ['full_name^2', 'first_name', 'last_name', 'phone', 'email', 'search_tokens']
+        bool: {
+          should: [
+            {
+              multi_match: {
+                query,
+                fields: [
+                  'full_name^2',
+                  'first_name',
+                  'last_name',
+                  'phone',
+                  'email',
+                  'search_tokens',
+                  'full_text',
+                  'raw_values',
+                  'primary_value'
+                ],
+                fuzziness: 'AUTO'
+              }
+            },
+            {
+              term: {
+                'primary_value.keyword': {
+                  value: query,
+                  boost: 5
+                }
+              }
+            }
+          ],
+          minimum_should_match: 1
         }
       }
     });

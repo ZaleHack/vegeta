@@ -18,6 +18,7 @@ class SyncService {
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.elasticService = new ElasticSearchService();
     this.useElastic = process.env.USE_ELASTICSEARCH === 'true';
+    this.defaultIndex = process.env.ELASTICSEARCH_DEFAULT_INDEX || 'global_search';
     this.resetIndices = new Set();
     this.catalog = this.loadCatalog();
   }
@@ -63,11 +64,21 @@ class SyncService {
     }
 
     const primaryKey = tableConfig.primaryKey || 'id';
-    const syncConfig = tableConfig.sync || {};
-    if (!syncConfig.elasticsearchIndex) {
-      console.log(`ℹ️ Table ${tableName} : aucune configuration de synchronisation Elasticsearch, ignorée.`);
+    const baseSyncConfig = tableConfig.sync || {};
+
+    if (baseSyncConfig.disabled || baseSyncConfig.enabled === false) {
+      console.log(`ℹ️ Table ${tableName} : synchronisation Elasticsearch désactivée.`);
       return;
     }
+
+    const syncConfig = {
+      ...baseSyncConfig,
+      type:
+        baseSyncConfig.type ||
+        (tableName === 'autres.profiles' ? 'profile' : 'generic'),
+      elasticsearchIndex: baseSyncConfig.elasticsearchIndex || this.defaultIndex
+    };
+
     if (!this.useElastic) {
       console.warn(
         `⚠️ Synchronisation Elasticsearch désactivée (USE_ELASTICSEARCH!=true). Table ${tableName} ignorée.`
@@ -82,13 +93,12 @@ class SyncService {
       let totalFetched = 0;
       let hasMore = true;
 
-      const shouldSyncToElastic =
-        this.useElastic && syncConfig.elasticsearchIndex && syncConfig.type === 'profile';
+      const shouldSyncToElastic = this.useElastic && syncConfig.elasticsearchIndex;
 
       if (shouldSyncToElastic && !this.resetIndices.has(syncConfig.elasticsearchIndex)) {
         if (syncConfig.purgeBeforeIndex !== false) {
           try {
-            await this.elasticService.resetProfilesIndex({
+            await this.elasticService.resetIndex({
               recreate: true,
               index: syncConfig.elasticsearchIndex
             });
@@ -120,15 +130,19 @@ class SyncService {
 
         if (shouldSyncToElastic) {
           try {
-            const { indexed, errors } = await this.elasticService.indexProfilesBulk(rows, {
+            const { indexed, errors } = await this.elasticService.indexRecordsBulk(rows, {
               refresh: false,
-              index: syncConfig.elasticsearchIndex
+              index: syncConfig.elasticsearchIndex,
+              type: syncConfig.type || 'generic',
+              tableName,
+              config: tableConfig,
+              primaryKey
             });
             totalIndexed += indexed;
             if (errors.length > 0) {
               for (const { id, error } of errors) {
                 console.error(
-                  `❌ Erreur indexation profil ${id} dans ${syncConfig.elasticsearchIndex}:`,
+                  `❌ Erreur indexation ${tableName}#${id} dans ${syncConfig.elasticsearchIndex}:`,
                   error
                 );
               }
