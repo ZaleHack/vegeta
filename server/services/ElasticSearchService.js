@@ -35,6 +35,9 @@ class ElasticSearchService {
       email: normalized.email || null,
       comment_preview: commentPreview,
       extra_fields: Array.isArray(normalized.extra_fields) ? normalized.extra_fields : [],
+      table: 'profiles',
+      table_name: 'autres.profiles',
+      database_name: 'autres',
       search_tokens: this.buildSearchTokens(normalized)
     };
   }
@@ -74,9 +77,30 @@ class ElasticSearchService {
     if (!document) return;
     await client.index({
       index: 'profiles',
-      id: profile.id,
+      id: String(profile.id),
       document
     });
+    this.cache.clear();
+  }
+
+  async deleteProfile(profileId, options = {}) {
+    const { index = 'profiles' } = options;
+    if (!profileId) {
+      return;
+    }
+
+    try {
+      await client.delete({
+        index,
+        id: String(profileId)
+      });
+    } catch (error) {
+      const status = error?.meta?.statusCode;
+      if (status !== 404) {
+        throw error;
+      }
+    }
+
     this.cache.clear();
   }
 
@@ -91,7 +115,7 @@ class ElasticSearchService {
       if (!profile?.id) continue;
       const document = this.buildProfileDocument(profile);
       if (!document) continue;
-      operations.push({ index: { _index: index, _id: profile.id } });
+      operations.push({ index: { _index: index, _id: String(profile.id) } });
       operations.push(document);
     }
 
@@ -196,11 +220,12 @@ class ElasticSearchService {
   normalizeHit(hit) {
     const source = hit?._source || {};
     const preview = this.buildPreviewFromSource(source);
-    const tableName = hit?._index || 'profiles';
+    const tableName = source.table_name || 'autres.profiles';
+    const tableDisplay = source.table || tableName;
     const primaryKey = source.id ?? hit?._id;
 
     return {
-      table: tableName,
+      table: tableDisplay,
       table_name: tableName,
       database: 'Elasticsearch',
       preview,
@@ -231,7 +256,10 @@ class ElasticSearchService {
         'phone',
         'email',
         'comment_preview',
-        'extra_fields'
+        'extra_fields',
+        'table',
+        'table_name',
+        'database_name'
       ],
       query: {
         multi_match: {
