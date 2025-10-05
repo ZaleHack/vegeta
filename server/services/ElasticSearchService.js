@@ -484,8 +484,7 @@ class ElasticSearchService {
                   'email',
                   'search_tokens',
                   'full_text',
-                  'raw_values',
-                  'primary_value'
+                  'raw_values'
                 ],
                 fuzziness: 'AUTO'
               }
