@@ -9,8 +9,22 @@ import searchAccessManager from '../utils/search-access-manager.js';
 
 const router = express.Router();
 const searchService = new SearchService();
-const useElastic = process.env.USE_ELASTICSEARCH === 'true';
-const elasticService = useElastic ? new ElasticSearchService() : null;
+let elasticService = null;
+
+const isElasticEnabled = () => process.env.USE_ELASTICSEARCH === 'true';
+
+const getElasticService = () => {
+  if (!isElasticEnabled()) {
+    elasticService = null;
+    return null;
+  }
+
+  if (!elasticService) {
+    elasticService = new ElasticSearchService();
+  }
+
+  return elasticService;
+};
 
 // Route de recherche principale
 router.post('/', authenticate, async (req, res) => {
@@ -67,8 +81,9 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     let results;
-    if (useElastic) {
-      const es = await elasticService.search(
+    const elastic = getElasticService();
+    if (elastic) {
+      const es = await elastic.search(
         trimmed,
         parseInt(page),
         parseInt(limit)

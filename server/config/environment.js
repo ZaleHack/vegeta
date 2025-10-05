@@ -11,6 +11,22 @@ const sanitizeList = (value = '') =>
     .map(origin => origin.trim())
     .filter(Boolean);
 
+const ensureSearchConfiguration = () => {
+  if (typeof process.env.USE_ELASTICSEARCH === 'undefined') {
+    process.env.USE_ELASTICSEARCH = 'true';
+    console.warn(
+      '⚠️ USE_ELASTICSEARCH non défini. Activation par défaut d\'Elasticsearch pour accélérer les recherches.'
+    );
+  }
+
+  if (process.env.USE_ELASTICSEARCH === 'true' && !process.env.ELASTICSEARCH_URL) {
+    process.env.ELASTICSEARCH_URL = 'http://localhost:9200';
+    console.warn(
+      '⚠️ ELASTICSEARCH_URL non défini. Utilisation de http://localhost:9200 comme valeur par défaut.'
+    );
+  }
+};
+
 export const getJwtSecret = () => {
   if (cachedSecret) {
     return cachedSecret;
@@ -106,6 +122,7 @@ export const resolveAllowedOrigins = () => {
 export const ensureEnvironment = () => {
   getJwtSecret();
   getPayloadEncryptionKey();
+  ensureSearchConfiguration();
 
   if (process.env.NODE_ENV === 'production' && resolveAllowedOrigins().length === 0) {
     throw new Error(

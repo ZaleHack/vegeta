@@ -47,17 +47,19 @@ Les deux commandes peuvent être exécutées en parallèle pendant le développe
 - `npm run build` : génère la version de production du front-end.
 - `npm run lint` : exécute les vérifications lint/formatting.
 - `node server/scripts/init-database.js` : crée les tables nécessaires si elles n'existent pas.
+- `node server/scripts/create-search-indexes.js` : crée les index SQL sur toutes les colonnes recherchées.
 - `node server/scripts/sync-all.js` : synchronise les données pour la recherche.
+- `npm run search:bootstrap` : enchaîne la création des index SQL et la synchronisation Elasticsearch.
 
 ### Indexation initiale Elasticsearch
 
-Après avoir configuré votre cluster et défini les variables d'environnement nécessaires (`ELASTICSEARCH_URL`, `USE_ELASTICSEARCH=true` et éventuellement `SYNC_BATCH_SIZE` pour ajuster la taille des lots), exécutez :
+`USE_ELASTICSEARCH` est désormais activé par défaut lors du démarrage du serveur. Vérifiez simplement que `ELASTICSEARCH_URL` pointe vers votre cluster Elasticsearch (la valeur par défaut `http://localhost:9200` est utilisée si rien n'est renseigné). Après avoir configuré votre cluster et défini les variables d'environnement nécessaires (par exemple `SYNC_BATCH_SIZE` pour ajuster la taille des lots), exécutez :
 
 ```bash
-node server/scripts/sync-all.js
+npm run search:bootstrap
 ```
 
-Le script lit les tables référencées dans `server/config/tables-catalog.js` (dont `autres.profiles`) et alimente l'index `profiles` d'Elasticsearch en purgant l'index si besoin. Assurez-vous que la base MySQL contient les données à indexer avant de lancer cette opération.
+Les scripts créent les index SQL sur toutes les colonnes déclarées `searchable`, puis lisent les tables référencées dans `server/config/tables-catalog.js` (dont `autres.profiles`) pour alimenter l'index `profiles` d'Elasticsearch en purgant l'index si besoin. Assurez-vous que la base MySQL contient les données à indexer avant de lancer cette opération.
 
 ## Tests
 
