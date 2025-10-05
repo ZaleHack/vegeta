@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
+import { isElasticsearchEnabled } from '../config/environment.js';
 
 class ElasticSearchService {
   constructor() {
@@ -16,8 +17,36 @@ class ElasticSearchService {
     const __dirname = path.dirname(__filename);
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.defaultIndex = process.env.ELASTICSEARCH_DEFAULT_INDEX || 'global_search';
+    this.enabled = isElasticsearchEnabled();
     this.catalog = this.loadCatalog();
-    this.indexes = this.resolveIndexesFromCatalog(this.catalog);
+    this.indexes = this.enabled ? this.resolveIndexesFromCatalog(this.catalog) : [];
+  }
+
+  isOperational() {
+    return this.enabled === true;
+  }
+
+  isConnectionError(error) {
+    if (!error) {
+      return false;
+    }
+    if (error.name === 'ConnectionError') {
+      return true;
+    }
+    return error?.meta?.statusCode === 0;
+  }
+
+  disableForSession(context, error) {
+    if (!this.enabled) {
+      return;
+    }
+    const reason = error?.message || error?.name || 'Erreur inconnue';
+    console.warn(
+      `⚠️ Elasticsearch désactivé pour la session actuelle (${context}): ${reason}`
+    );
+    this.enabled = false;
+    this.indexes = [];
+    this.cache.clear();
   }
 
   loadCatalog() {
@@ -226,19 +255,35 @@ class ElasticSearchService {
 
   async indexProfile(profile) {
     if (!profile?.id) return;
+    if (!this.enabled) {
+      return;
+    }
     const document = this.buildProfileDocument(profile);
     if (!document) return;
-    await client.index({
-      index: 'profiles',
-      id: String(profile.id),
-      document
-    });
-    this.cache.clear();
+    try {
+      await client.index({
+        index: 'profiles',
+        id: String(profile.id),
+        document
+      });
+      this.cache.clear();
+    } catch (error) {
+      if (this.isConnectionError(error)) {
+        console.error('❌ Échec indexation profil Elasticsearch:', error.message);
+        this.disableForSession('indexProfile', error);
+        return;
+      }
+      throw error;
+    }
   }
 
   async deleteProfile(profileId, options = {}) {
     const { index = 'profiles' } = options;
     if (!profileId) {
+      return;
+    }
+
+    if (!this.enabled) {
       return;
     }
 
@@ -250,6 +295,11 @@ class ElasticSearchService {
     } catch (error) {
       const status = error?.meta?.statusCode;
       if (status !== 404) {
+        if (this.isConnectionError(error)) {
+          console.error('❌ Échec suppression profil Elasticsearch:', error.message);
+          this.disableForSession('deleteProfile', error);
+          return;
+        }
         throw error;
       }
     }
@@ -272,6 +322,10 @@ class ElasticSearchService {
     } = options;
 
     if (!Array.isArray(records) || records.length === 0) {
+      return { indexed: 0, errors: [] };
+    }
+
+    if (!this.enabled) {
       return { indexed: 0, errors: [] };
     }
 
@@ -302,10 +356,23 @@ class ElasticSearchService {
       return { indexed: 0, errors: [] };
     }
 
-    const response = await client.bulk({
-      operations,
-      refresh: refresh ? 'wait_for' : false
-    });
+    let response;
+    try {
+      response = await client.bulk({
+        operations,
+        refresh: refresh ? 'wait_for' : false
+      });
+    } catch (error) {
+      if (this.isConnectionError(error)) {
+        console.error('❌ Échec requête bulk Elasticsearch:', error.message);
+        this.disableForSession('indexRecordsBulk', error);
+        return {
+          indexed: 0,
+          errors: [{ id: null, error: error.message }]
+        };
+      }
+      throw error;
+    }
 
     const errors = [];
     if (response.errors && Array.isArray(response.items)) {
@@ -330,17 +397,39 @@ class ElasticSearchService {
   }
 
   async resetIndex({ recreate = true, index = this.defaultIndex } = {}) {
+    if (!this.enabled) {
+      return;
+    }
+
     try {
       await client.indices.delete({ index });
     } catch (error) {
       const status = error?.meta?.statusCode;
       if (status !== 404) {
+        if (this.isConnectionError(error)) {
+          console.error("❌ Impossible de supprimer l'index Elasticsearch:", error.message);
+          this.disableForSession('resetIndex(delete)', error);
+          return;
+        }
         throw error;
       }
     }
 
+    if (!this.enabled) {
+      return;
+    }
+
     if (recreate) {
-      await client.indices.create({ index });
+      try {
+        await client.indices.create({ index });
+      } catch (error) {
+        if (this.isConnectionError(error)) {
+          console.error("❌ Impossible de créer l'index Elasticsearch:", error.message);
+          this.disableForSession('resetIndex(create)', error);
+          return;
+        }
+        throw error;
+      }
     }
 
     if (index && !this.indexes.includes(index)) {
@@ -443,65 +532,92 @@ class ElasticSearchService {
       return cached;
     }
 
-    const { hits, took } = await client.search({
-      index: indexes,
-      ignore_unavailable: true,
-      from,
-      size: limit,
-      _source: [
-        'id',
-        'user_id',
-        'division_id',
-        'first_name',
-        'last_name',
-        'full_name',
-        'phone',
-        'email',
-        'comment_preview',
-        'extra_fields',
-        'table',
-        'table_name',
-        'database_name',
-        'primary_key',
-        'primary_value',
-        'primary_keys',
-        'preview',
-        'search_tokens',
-        'full_text',
-        'raw_values'
-      ],
-      query: {
-        bool: {
-          should: [
-            {
-              multi_match: {
-                query,
-                fields: [
-                  'full_name^2',
-                  'first_name',
-                  'last_name',
-                  'phone',
-                  'email',
-                  'search_tokens',
-                  'full_text',
-                  'raw_values'
-                ],
-                fuzziness: 'AUTO'
-              }
-            },
-            {
-              term: {
-                'primary_value.keyword': {
-                  value: query,
-                  boost: 5
+    if (!this.enabled) {
+      return {
+        total: 0,
+        hits: [],
+        elapsed_ms: 0,
+        tables_searched: []
+      };
+    }
+
+    let hits;
+    let took;
+    try {
+      const response = await client.search({
+        index: indexes,
+        ignore_unavailable: true,
+        from,
+        size: limit,
+        _source: [
+          'id',
+          'user_id',
+          'division_id',
+          'first_name',
+          'last_name',
+          'full_name',
+          'phone',
+          'email',
+          'comment_preview',
+          'extra_fields',
+          'table',
+          'table_name',
+          'database_name',
+          'primary_key',
+          'primary_value',
+          'primary_keys',
+          'preview',
+          'search_tokens',
+          'full_text',
+          'raw_values'
+        ],
+        query: {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query,
+                  fields: [
+                    'full_name^2',
+                    'first_name',
+                    'last_name',
+                    'phone',
+                    'email',
+                    'search_tokens',
+                    'full_text',
+                    'raw_values'
+                  ],
+                  fuzziness: 'AUTO'
+                }
+              },
+              {
+                term: {
+                  'primary_value.keyword': {
+                    value: query,
+                    boost: 5
+                  }
                 }
               }
-            }
-          ],
-          minimum_should_match: 1
+            ],
+            minimum_should_match: 1
+          }
         }
+      });
+      hits = response.hits;
+      took = response.took;
+    } catch (error) {
+      if (this.isConnectionError(error)) {
+        console.error('❌ Recherche Elasticsearch indisponible:', error.message);
+        this.disableForSession('search', error);
+        return {
+          total: 0,
+          hits: [],
+          elapsed_ms: 0,
+          tables_searched: []
+        };
       }
-    });
+      throw error;
+    }
 
     const total = typeof hits.total === 'number' ? hits.total : hits.total?.value ?? 0;
     const normalizedHits = hits.hits.map((hit) => this.normalizeHit(hit));
