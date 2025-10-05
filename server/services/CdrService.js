@@ -7,8 +7,7 @@ import { parse as parseDate, format as formatDate } from 'date-fns';
 import chokidar from 'chokidar';
 import client from '../config/elasticsearch.js';
 import Case from '../models/Case.js';
-
-const ELASTICSEARCH_ENABLED = process.env.USE_ELASTICSEARCH === 'true';
+import { isElasticsearchEnabled } from '../config/environment.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,7 +77,7 @@ class CdrService {
     }
 
     this.indexName = CDR_INDEX;
-    this.elasticEnabled = ELASTICSEARCH_ENABLED;
+    this.elasticEnabled = isElasticsearchEnabled();
     this.baseDir = path.join(__dirname, '../../uploads/cdr');
     this.manualProcessing = new Set();
 

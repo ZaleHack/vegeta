@@ -27,6 +27,11 @@ const ensureSearchConfiguration = () => {
   }
 };
 
+export const isElasticsearchEnabled = () => {
+  ensureSearchConfiguration();
+  return process.env.USE_ELASTICSEARCH === 'true';
+};
+
 export const getJwtSecret = () => {
   if (cachedSecret) {
     return cachedSecret;

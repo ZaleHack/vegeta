@@ -1,6 +1,7 @@
 import express from 'express';
 import SearchService from '../services/SearchService.js';
 import ElasticSearchService from '../services/ElasticSearchService.js';
+import { isElasticsearchEnabled } from '../config/environment.js';
 import { authenticate } from '../middleware/auth.js';
 import Blacklist from '../models/Blacklist.js';
 import UserLog from '../models/UserLog.js';
@@ -11,10 +12,8 @@ const router = express.Router();
 const searchService = new SearchService();
 let elasticService = null;
 
-const isElasticEnabled = () => process.env.USE_ELASTICSEARCH === 'true';
-
 const getElasticService = () => {
-  if (!isElasticEnabled()) {
+  if (!isElasticsearchEnabled()) {
     elasticService = null;
     return null;
   }
