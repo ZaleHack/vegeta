@@ -61,6 +61,18 @@ npm run search:bootstrap
 
 Les scripts créent les index SQL sur toutes les colonnes déclarées `searchable`, puis lisent les tables référencées dans `server/config/tables-catalog.js` (dont `autres.profiles`) pour alimenter l'index `profiles` d'Elasticsearch en purgant l'index si besoin. Assurez-vous que la base MySQL contient les données à indexer avant de lancer cette opération.
 
+### Diagnostic : « Elasticsearch indisponible. Bascule sur le moteur de recherche local pour les CDR. »
+
+Ce message est émis par `server/services/CdrService.js` lorsque la création ou la vérification de l'index CDR échoue avec une `ConnectionError`. Dans ce cas, le service désactive `USE_ELASTICSEARCH` pour la session courante et repasse automatiquement sur le moteur de recherche local afin de garantir la continuité de service.【F:server/services/CdrService.js†L120-L137】【F:server/services/ElasticSearchService.js†L41-L60】
+
+Pour résoudre le problème :
+
+- Vérifiez que l'URL définie par `ELASTICSEARCH_URL` pointe vers une instance Elasticsearch accessible (par défaut `http://localhost:9200`).
+- Assurez-vous que l'instance est démarrée et accepte les connexions (testez avec `curl $ELASTICSEARCH_URL`).
+- Si Elasticsearch est volontairement inactif, laissez `USE_ELASTICSEARCH=false` dans votre configuration pour éviter le message de bascule.
+
+Une fois la connexion rétablie, redémarrez le serveur Node.js pour réactiver automatiquement la recherche Elasticsearch.
+
 ## Tests
 
 Une suite de tests automatisés n'est pas fournie. Utilisez le lint et les tests manuels fonctionnels avant toute mise en production.
