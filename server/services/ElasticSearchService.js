@@ -18,12 +18,16 @@ class ElasticSearchService {
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.defaultIndex = process.env.ELASTICSEARCH_DEFAULT_INDEX || 'global_search';
     this.enabled = isElasticsearchEnabled();
+    this.initiallyEnabled = this.enabled;
     this.catalog = this.loadCatalog();
     this.indexes = this.enabled ? this.resolveIndexesFromCatalog(this.catalog) : [];
     const timeoutEnv = Number(process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS);
     this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 1000;
     this.connectionChecked = false;
     this.connectionCheckPromise = null;
+    const retryEnv = Number(process.env.ELASTICSEARCH_RETRY_DELAY_MS);
+    this.retryDelayMs = Number.isFinite(retryEnv) && retryEnv >= 0 ? retryEnv : 15000;
+    this.reconnectTimer = null;
 
     if (this.enabled) {
       this.scheduleConnectionVerification('initialisation');
@@ -56,6 +60,39 @@ class ElasticSearchService {
     this.indexes = [];
     this.cache.clear();
     this.connectionChecked = false;
+    this.scheduleReconnect();
+  }
+
+  scheduleReconnect(delay = this.retryDelayMs) {
+    if (!this.initiallyEnabled) {
+      return;
+    }
+
+    if (this.reconnectTimer) {
+      return;
+    }
+
+    const effectiveDelay = Number.isFinite(delay) && delay >= 0 ? delay : this.retryDelayMs;
+
+    if (effectiveDelay === Infinity) {
+      return;
+    }
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+
+      if (!this.initiallyEnabled || process.env.USE_ELASTICSEARCH === 'false') {
+        return;
+      }
+
+      this.enabled = true;
+      this.indexes = this.resolveIndexesFromCatalog(this.catalog);
+      this.scheduleConnectionVerification('reconnexion automatique');
+    }, effectiveDelay);
+
+    if (typeof this.reconnectTimer.unref === 'function') {
+      this.reconnectTimer.unref();
+    }
   }
 
   scheduleConnectionVerification(context = 'healthcheck') {
