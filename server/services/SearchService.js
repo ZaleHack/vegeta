@@ -20,6 +20,7 @@ class SearchService {
     this.catalogRefreshTimer = null;
     this.primaryKeyCache = new Map();
     this.tableIdentifierCache = new Map();
+    this.tableColumnsCache = new Map();
     this.loadCatalog();
     this.setupCatalogWatcher();
   }
@@ -117,6 +118,7 @@ class SearchService {
     this.cache.clear();
     this.primaryKeyCache.clear();
     this.tableIdentifierCache.clear();
+    this.tableColumnsCache.clear();
     if (this.catalogPromise) {
       this.catalogPromise.finally(() => this.loadCatalog());
       return;
@@ -441,7 +443,7 @@ class SearchService {
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
     const primaryKey = await this.getPrimaryKey(tableName, config);
-    
+
     let resolvedTable;
     try {
       resolvedTable = await this.resolveTableIdentifier(tableName);
@@ -450,15 +452,48 @@ class SearchService {
       return results;
     }
 
-    const fields = new Set([
+    const availableColumns = await this.getTableColumns(resolvedTable, tableName);
+    const availableColumnMap = new Map(
+      availableColumns.map((column) => [column.toLowerCase(), column])
+    );
+
+    const sanitizeFields = (fields = []) => {
+      const seen = new Set();
+      const sanitized = [];
+
+      for (const field of fields) {
+        if (!field) {
+          continue;
+        }
+
+        const normalized = field.toLowerCase();
+        const resolved = availableColumnMap.get(normalized);
+
+        if (resolved && !seen.has(resolved)) {
+          seen.add(resolved);
+          sanitized.push(resolved);
+        }
+      }
+
+      return sanitized;
+    };
+
+    const normalizedPrimaryKey =
+      primaryKey && availableColumnMap.get(primaryKey.toLowerCase());
+
+    const fieldList = sanitizeFields([
       ...(config.preview || []),
       ...(config.linkedFields || []),
       ...(config.searchable || []),
-      primaryKey,
+      normalizedPrimaryKey || primaryKey,
     ]);
-    const fieldList = Array.from(fields).filter(Boolean);
+
+    const searchableFields = sanitizeFields(config.searchable || []);
     const selectFields = fieldList.length > 0 ? quoteIdentifiers(fieldList) : '*';
-    const searchableFields = config.searchable || [];
+
+    const searchableFieldMap = new Map(
+      searchableFields.map((field) => [field.toLowerCase(), field])
+    );
 
     if (searchableFields.length === 0) {
       return results;
@@ -509,9 +544,12 @@ class SearchService {
             termConditions.push(`${quoteIdentifier(field)} LIKE ?`);
             params.push(`${term.value}%`);
           }
-        } else if (config.searchable.includes(term.field)) {
-          termConditions.push(`${quoteIdentifier(term.field)} LIKE ?`);
-          params.push(`${term.value}%`);
+        } else {
+          const directField = searchableFieldMap.get(term.field);
+          if (directField) {
+            termConditions.push(`${quoteIdentifier(directField)} LIKE ?`);
+            params.push(`${term.value}%`);
+          }
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
@@ -582,6 +620,30 @@ class SearchService {
     }
 
     return results;
+  }
+
+  async getTableColumns(resolvedTable, tableName) {
+    const cacheKey = resolvedTable?.raw || tableName;
+
+    if (this.tableColumnsCache.has(cacheKey)) {
+      return this.tableColumnsCache.get(cacheKey);
+    }
+
+    try {
+      const rows = await database.query(
+        `SHOW COLUMNS FROM ${resolvedTable.escaped}`
+      );
+      const columns = rows.map((row) => row.Field).filter(Boolean);
+      this.tableColumnsCache.set(cacheKey, columns);
+      return columns;
+    } catch (error) {
+      console.warn(
+        `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
+        error.message
+      );
+      this.tableColumnsCache.set(cacheKey, []);
+      return [];
+    }
   }
 
   buildPreview(record, config) {
