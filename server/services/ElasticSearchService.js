@@ -311,6 +311,7 @@ class ElasticSearchService {
       database_name: 'autres',
       preview: previewEntries,
       search_tokens: searchTokens,
+      linked_fields: ['phone', 'email'],
       primary_key: 'id',
       primary_value: normalized.id,
       primary_keys: { id: normalized.id },
@@ -370,6 +371,7 @@ class ElasticSearchService {
       database_name: databaseName,
       preview,
       search_tokens: searchTokens,
+      linked_fields: Array.isArray(config.linkedFields) ? config.linkedFields : [],
       primary_key: primaryKey || 'id',
       primary_value: key,
       primary_keys: { [primaryKey || 'id']: key },
@@ -642,24 +644,63 @@ class ElasticSearchService {
     return entries;
   }
 
+  resolveTableNameFromSource(source = {}) {
+    if (source.table_name) {
+      return source.table_name;
+    }
+
+    const table = source.table;
+    const database = source.database_name;
+
+    if (table && database) {
+      return `${database}.${table}`;
+    }
+
+    if (table && typeof table === 'string' && table.includes('.')) {
+      return table;
+    }
+
+    return null;
+  }
+
+  resolvePrimaryKeysFromSource(source = {}, primaryKeyName, primaryValue) {
+    if (source.primary_keys && typeof source.primary_keys === 'object') {
+      return source.primary_keys;
+    }
+
+    if (primaryKeyName && primaryValue !== undefined && primaryValue !== null) {
+      return { [primaryKeyName]: primaryValue };
+    }
+
+    return {};
+  }
+
   normalizeHit(hit) {
     const source = hit?._source || {};
     const preview = this.buildPreviewFromSource(source);
-    const tableName = source.table_name || 'autres.profiles';
-    const tableDisplay = source.table || tableName;
-    const primaryKeyName = source.primary_key || 'id';
+    const tableName = this.resolveTableNameFromSource(source) || 'autres.profiles';
+    const catalogEntry = this.catalog?.[tableName] || {};
+    const tableDisplay = catalogEntry.display || source.table || tableName;
+    const databaseName =
+      catalogEntry.database || source.database_name || (tableName.includes('.') ? tableName.split('.')[0] : 'Elasticsearch');
+    const primaryKeyName = source.primary_key || catalogEntry.primaryKey || 'id';
     const primaryValue = source.primary_value ?? source.id ?? hit?._id;
-    const primaryKeys =
-      source.primary_keys && typeof source.primary_keys === 'object'
-        ? source.primary_keys
-        : { [primaryKeyName]: primaryValue };
+    const primaryKeys = this.resolvePrimaryKeysFromSource(source, primaryKeyName, primaryValue);
+    const linkedFields = Array.isArray(source.linked_fields)
+      ? source.linked_fields
+      : Array.isArray(catalogEntry.linkedFields)
+        ? catalogEntry.linkedFields
+        : [];
+    const theme = source.theme || catalogEntry.theme;
 
     return {
       table: tableDisplay,
       table_name: tableName,
-      database: source.database_name || 'Elasticsearch',
+      database: databaseName,
       preview,
       primary_keys: primaryKeys,
+      linkedFields,
+      theme,
       score: typeof hit?._score === 'number' ? hit._score : undefined
     };
   }
