@@ -233,20 +233,26 @@ function mergeCatalogs(base = {}, overrides = {}) {
 }
 
 function finalizeCatalogEntry(key, value, fallback = {}) {
+  const combined = { ...fallback, ...value };
+
   const entry = {
-    display: value.display || fallback.display || key.split('.').pop(),
-    database:
-      value.database || fallback.database || key.split('.')[0] || fallback.database || 'autres',
-    searchable: deduplicateArray(value.searchable?.length ? value.searchable : fallback.searchable),
+    ...combined,
+    display: combined.display || key.split('.').pop(),
+    database: combined.database || key.split('.')[0] || 'autres',
+    searchable: deduplicateArray(
+      value.searchable?.length ? value.searchable : fallback.searchable || combined.searchable
+    ),
     preview: deduplicateArray(
-      value.preview?.length ? value.preview : fallback.preview || value.searchable || []
+      value.preview?.length
+        ? value.preview
+        : fallback.preview || value.searchable || combined.searchable || []
     ),
     filters: { ...(fallback.filters || {}), ...(value.filters || {}) },
     linkedFields: deduplicateArray([
       ...(fallback.linkedFields || []),
       ...(value.linkedFields || [])
     ]),
-    theme: value.theme || fallback.theme || 'general'
+    theme: combined.theme || 'general'
   };
 
   if (!entry.searchable || entry.searchable.length === 0) {
