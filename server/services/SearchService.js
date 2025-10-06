@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import InMemoryCache from '../utils/cache.js';
 import { buildCatalog, catalogOverridesPath } from '../utils/catalog-loader.js';
+import { quoteIdentifier, quoteIdentifiers } from '../utils/sql.js';
 
 class SearchService {
   constructor() {
@@ -128,8 +129,9 @@ class SearchService {
       return this.primaryKeyCache.get(tableName);
     }
     try {
+      const escapedTable = quoteIdentifier(tableName);
       const rows = await database.query(
-        `SHOW KEYS FROM ${tableName} WHERE Key_name = 'PRIMARY'`
+        `SHOW KEYS FROM ${escapedTable} WHERE Key_name = 'PRIMARY'`
       );
       if (rows.length > 0 && rows[0].Column_name) {
         const pk = rows[0].Column_name;
@@ -144,8 +146,9 @@ class SearchService {
     }
 
     try {
+      const escapedTable = quoteIdentifier(tableName);
       const columns = await database.query(
-        `SHOW COLUMNS FROM ${tableName}`
+        `SHOW COLUMNS FROM ${escapedTable}`
       );
       const hasId = columns.some((col) => col.Field === 'id');
       const fallback =
@@ -381,7 +384,8 @@ class SearchService {
     
     // Vérifier si la table existe
     try {
-      await database.query(`SELECT 1 FROM ${tableName} LIMIT 1`);
+      const escapedTable = quoteIdentifier(tableName);
+      await database.query(`SELECT 1 FROM ${escapedTable} LIMIT 1`);
     } catch (error) {
       console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
       return results;
@@ -393,14 +397,16 @@ class SearchService {
       ...(config.searchable || []),
       primaryKey,
     ]);
-    const selectFields = Array.from(fields).join(', ');
+    const fieldList = Array.from(fields).filter(Boolean);
+    const selectFields = fieldList.length > 0 ? quoteIdentifiers(fieldList) : '*';
     const searchableFields = config.searchable || [];
 
     if (searchableFields.length === 0) {
       return results;
     }
 
-    let sql = `SELECT ${selectFields} FROM ${tableName} WHERE `;
+    const escapedTable = quoteIdentifier(tableName);
+    let sql = `SELECT ${selectFields} FROM ${escapedTable} WHERE `;
     const params = [];
     let conditions = [];
     let currentGroup = [];
@@ -423,13 +429,13 @@ class SearchService {
       if (term.type === 'exact') {
         // Recherche exacte
         for (const field of searchableFields) {
-          termConditions.push(`${field} = ?`);
+          termConditions.push(`${quoteIdentifier(field)} = ?`);
           params.push(term.value);
         }
       } else if (term.type === 'required') {
         // Terme obligatoire (doit être présent)
         for (const field of searchableFields) {
-          termConditions.push(`${field} LIKE ?`);
+          termConditions.push(`${quoteIdentifier(field)} LIKE ?`);
           params.push(`${term.value}%`);
         }
       } else if (term.type === 'field') {
@@ -441,17 +447,17 @@ class SearchService {
 
         if (matchingFields.length > 0) {
           for (const field of matchingFields) {
-            termConditions.push(`${field} LIKE ?`);
+            termConditions.push(`${quoteIdentifier(field)} LIKE ?`);
             params.push(`${term.value}%`);
           }
         } else if (config.searchable.includes(term.field)) {
-          termConditions.push(`${term.field} LIKE ?`);
+          termConditions.push(`${quoteIdentifier(term.field)} LIKE ?`);
           params.push(`${term.value}%`);
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
         for (const field of searchableFields) {
-          termConditions.push(`${field} LIKE ?`);
+          termConditions.push(`${quoteIdentifier(field)} LIKE ?`);
           params.push(`${term.value}%`);
         }
       }
@@ -488,7 +494,7 @@ class SearchService {
     for (const term of excludeTerms) {
       const excludeConditions = [];
       for (const field of searchableFields) {
-        excludeConditions.push(`${field} NOT LIKE ?`);
+        excludeConditions.push(`${quoteIdentifier(field)} NOT LIKE ?`);
         params.push(`${term.value}%`);
       }
       if (excludeConditions.length > 0) {
@@ -620,7 +626,9 @@ class SearchService {
     }
 
     const primaryKey = await this.getPrimaryKey(tableName, catalog[tableName]);
-    const sql = `SELECT * FROM ${tableName} WHERE ${primaryKey} = ?`;
+    const escapedTable = quoteIdentifier(tableName);
+    const escapedPrimaryKey = quoteIdentifier(primaryKey);
+    const sql = `SELECT * FROM ${escapedTable} WHERE ${escapedPrimaryKey} = ?`;
     const record = await database.queryOne(sql, [id]);
     
     if (!record) {

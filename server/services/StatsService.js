@@ -1,6 +1,7 @@
 import database from '../config/database.js';
 import statsCache from './stats-cache.js';
 import { buildCatalog } from '../utils/catalog-loader.js';
+import { quoteIdentifier } from '../utils/sql.js';
 
 /**
  * Service de génération de statistiques basées sur les journaux de recherche
@@ -212,7 +213,8 @@ class StatsService {
     const results = await Promise.all(
       entries.map(async ([tableName, config]) => {
         try {
-          const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${tableName}`);
+          const escapedTable = quoteIdentifier(tableName);
+          const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${escapedTable}`);
           return [tableName, {
             total_records: result?.count || 0,
             table_name: config.display,
