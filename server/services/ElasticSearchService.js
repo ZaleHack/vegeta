@@ -63,9 +63,19 @@ class ElasticSearchService {
       return;
     }
 
-    this.connectionCheckPromise = this.verifyConnection(context).finally(() => {
-      this.connectionCheckPromise = null;
-    });
+    this.connectionCheckPromise = this.verifyConnection(context)
+      .catch((error) => {
+        if (!this.isConnectionError(error)) {
+          console.error(
+            '❌ Erreur inattendue lors de la vérification Elasticsearch:',
+            error
+          );
+        }
+        throw error;
+      })
+      .finally(() => {
+        this.connectionCheckPromise = null;
+      });
   }
 
   async verifyConnection(context = 'healthcheck') {
