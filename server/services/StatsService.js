@@ -2,6 +2,7 @@ import database from '../config/database.js';
 import statsCache from './stats-cache.js';
 import { buildCatalog } from '../utils/catalog-loader.js';
 import { quoteIdentifier } from '../utils/sql.js';
+import { getTableNameCandidates } from '../utils/table-names.js';
 
 /**
  * Service de génération de statistiques basées sur les journaux de recherche
@@ -212,23 +213,34 @@ class StatsService {
     const entries = Object.entries(catalog);
     const results = await Promise.all(
       entries.map(async ([tableName, config]) => {
-        try {
-          const escapedTable = quoteIdentifier(tableName);
-          const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${escapedTable}`);
-          return [tableName, {
-            total_records: result?.count || 0,
-            table_name: config.display,
-            database: config.database
-          }];
-        } catch (error) {
-          console.warn(`Table ${tableName} non accessible:`, error.message);
-          return [tableName, {
-            total_records: 0,
-            table_name: config.display,
-            database: config.database,
-            error: error.message
-          }];
+        const candidates = getTableNameCandidates(tableName);
+        let count = 0;
+        let lastError = null;
+
+        for (const candidate of candidates) {
+          try {
+            const escapedCandidate = quoteIdentifier(candidate);
+            const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${escapedCandidate}`);
+            count = result?.count || 0;
+            lastError = null;
+            break;
+          } catch (error) {
+            lastError = error;
+          }
         }
+
+        if (lastError) {
+          console.warn(`Table ${tableName} non accessible:`, lastError.message);
+        }
+
+        return [tableName, {
+          total_records: count,
+          table_name: config.display,
+          database: config.database,
+          ...(lastError
+            ? { error: lastError.message }
+            : {})
+        }];
       })
     );
 
