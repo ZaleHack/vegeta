@@ -627,20 +627,11 @@ export default {
     searchable: [
       'prenom',
       'nom',
-      'cni',
-      'matricule',
-      'grade',
-      'fonction',
-      'corps',
-      'emploi',
-      'telephone'
+      'corps'
     ],
-    preview: ['prenom', 'nom', 'cni', 'grade', 'fonction'],
+    preview: ['prenom', 'nom', 'corps'],
     filters: {
-      grade: 'string',
-      fonction: 'string',
-      corps: 'string',
-      emploi: 'string'
+      corps: 'string'
     },
     theme: 'pro'
   },
