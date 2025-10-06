@@ -540,6 +540,19 @@ export default {
     theme: 'telecom'
   },
 
+  'autres.sanctions': {
+    display: 'sanctions',
+    database: 'autres',
+    searchable: ['prenom', 'nom', 'cni', 'structure', 'motif', 'decision', 'date_sanction'],
+    preview: ['prenom', 'nom', 'cni', 'structure', 'decision'],
+    filters: {
+      structure: 'string',
+      decision: 'string',
+      date_sanction: 'date'
+    },
+    theme: 'pro'
+  },
+
   'autres.tresor': {
     display: 'tresor',
     database: 'autres',
@@ -606,6 +619,30 @@ export default {
       telephone: 'string'
     },
     theme: 'identite'
+  },
+
+  'autres.agents_penitentiare': {
+    display: 'agents_penitentiare',
+    database: 'autres',
+    searchable: [
+      'prenom',
+      'nom',
+      'cni',
+      'matricule',
+      'grade',
+      'fonction',
+      'corps',
+      'emploi',
+      'telephone'
+    ],
+    preview: ['prenom', 'nom', 'cni', 'grade', 'fonction'],
+    filters: {
+      grade: 'string',
+      fonction: 'string',
+      corps: 'string',
+      emploi: 'string'
+    },
+    theme: 'pro'
   },
 
   'autres.petrosen': {
@@ -700,6 +737,17 @@ export default {
     theme: 'identite'
   },
 
+  'autres.divisions': {
+    display: 'divisions',
+    database: 'autres',
+    searchable: ['name'],
+    preview: ['name', 'created_at'],
+    filters: {
+      created_at: 'date'
+    },
+    theme: 'interne'
+  },
+
   'autres.collections': {
     display: 'collections',
     database: 'autres',
@@ -724,5 +772,38 @@ export default {
     },
     linkedFields: ['phone'],
     theme: 'identite'
+  },
+
+  'autres.identification_requests': {
+    display: 'identification_requests',
+    database: 'autres',
+    searchable: ['phone', 'status', 'created_at', 'user_id'],
+    preview: ['phone', 'status', 'created_at'],
+    filters: {
+      status: 'enum',
+      created_at: 'date'
+    },
+    linkedFields: ['phone'],
+    theme: 'interne'
+  },
+
+  'autres.search_logs': {
+    display: 'search_logs',
+    database: 'autres',
+    searchable: [
+      'username',
+      'search_term',
+      'search_type',
+      'tables_searched',
+      'ip_address',
+      'user_agent'
+    ],
+    preview: ['username', 'search_term', 'search_type', 'results_count'],
+    filters: {
+      search_type: 'string',
+      search_date: 'date',
+      results_count: 'number'
+    },
+    theme: 'interne'
   }
 };
