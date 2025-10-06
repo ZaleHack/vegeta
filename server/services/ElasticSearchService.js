@@ -758,6 +758,8 @@ class ElasticSearchService {
           'primary_value',
           'primary_keys',
           'preview',
+          'linked_fields',
+          'theme',
           'search_tokens',
           'full_text',
           'raw_values'
