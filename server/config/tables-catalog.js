@@ -503,6 +503,7 @@ export default {
   'autres.education': {
     display: 'education',
     database: 'autres',
+    primaryKey: 'cni',
     searchable: ['prenom', 'nom', 'datenaiss', 'lieunaiss', 'cni', 'corps', 'lib_service', 'lib_org_niv1', 'telephone'],
     preview: ['prenom', 'nom', 'cni', 'corps', 'telephone'],
     filters: {
@@ -568,6 +569,7 @@ export default {
   'autres.demdikk': {
     display: 'demdikk',
     database: 'autres',
+    primaryKey: 'Numero',
     searchable: ['Prenom', 'Nom', 'Numero', 'PassePort'],
     preview: ['Prenom', 'Nom', 'Numero', 'PassePort'],
     filters: {
@@ -609,6 +611,7 @@ export default {
   'autres.petrosen': {
     display: 'petrosen',
     database: 'autres',
+    primaryKey: 'telephone',
     searchable: ['nom', 'telephone', 'email', 'departement', 'titre', 'responsable'],
     linkedFields: ['telephone'],
     preview: ['nom', 'telephone', 'email', 'departement', 'titre'],
