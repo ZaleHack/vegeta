@@ -21,7 +21,20 @@ const SYSTEM_DATABASES = new Set([
 ]);
 
 // Tables qui ne doivent jamais être indexées ou accessibles via la recherche
-const EXCLUDED_TABLES = new Set(['autres.search_logs']);
+const EXCLUDED_TABLES = new Set([
+  'autres.search_logs',
+  'autres.profiles',
+  'autres.profile_attachments',
+  'autres.profile_shares',
+  'autres.sanctions',
+  'autres.sde_clients',
+  'autres.tresor',
+  'autres.upload_history',
+  'autres.users',
+  'autres.user_logs',
+  'autres.user_sessions',
+  'autres.uvs'
+]);
 
 function collectConfiguredDatabases(catalog = {}) {
   const databases = new Set();
