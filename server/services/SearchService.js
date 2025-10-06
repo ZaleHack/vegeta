@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import InMemoryCache from '../utils/cache.js';
 import { buildCatalog, catalogOverridesPath } from '../utils/catalog-loader.js';
 import { quoteIdentifier, quoteIdentifiers } from '../utils/sql.js';
+import { getTableNameCandidates } from '../utils/table-names.js';
 import { isTableExcluded } from '../utils/search-exclusions.js';
 
 class SearchService {
@@ -18,6 +19,7 @@ class SearchService {
     this.catalogWatcher = null;
     this.catalogRefreshTimer = null;
     this.primaryKeyCache = new Map();
+    this.tableIdentifierCache = new Map();
     this.loadCatalog();
     this.setupCatalogWatcher();
   }
@@ -114,6 +116,7 @@ class SearchService {
   refreshCatalog() {
     this.cache.clear();
     this.primaryKeyCache.clear();
+    this.tableIdentifierCache.clear();
     if (this.catalogPromise) {
       this.catalogPromise.finally(() => this.loadCatalog());
       return;
@@ -129,46 +132,89 @@ class SearchService {
     if (this.primaryKeyCache.has(tableName)) {
       return this.primaryKeyCache.get(tableName);
     }
-    try {
-      const escapedTable = quoteIdentifier(tableName);
-      const rows = await database.query(
-        `SHOW KEYS FROM ${escapedTable} WHERE Key_name = 'PRIMARY'`
-      );
-      if (rows.length > 0 && rows[0].Column_name) {
-        const pk = rows[0].Column_name;
-        this.primaryKeyCache.set(tableName, pk);
-        return pk;
+
+    const candidates = getTableNameCandidates(tableName);
+
+    for (const candidate of candidates) {
+      try {
+        const escapedCandidate = quoteIdentifier(candidate);
+        const rows = await database.query(
+          `SHOW KEYS FROM ${escapedCandidate} WHERE Key_name = 'PRIMARY'`
+        );
+        if (rows.length > 0 && rows[0].Column_name) {
+          const pk = rows[0].Column_name;
+          this.primaryKeyCache.set(tableName, pk);
+          return pk;
+        }
+      } catch (error) {
+        console.warn(
+          `⚠️ Impossible de déterminer la clé primaire pour ${candidate}:`,
+          error.message
+        );
       }
-    } catch (error) {
-      console.warn(
-        `⚠️ Impossible de déterminer la clé primaire pour ${tableName}:`,
-        error.message
-      );
     }
 
-    try {
-      const escapedTable = quoteIdentifier(tableName);
-      const columns = await database.query(
-        `SHOW COLUMNS FROM ${escapedTable}`
-      );
-      const hasId = columns.some((col) => col.Field === 'id');
-      const fallback =
-        hasId
-          ? 'id'
-          : config.searchable?.[0] ||
-            config.preview?.[0] ||
-            (columns[0] ? columns[0].Field : 'id');
-      this.primaryKeyCache.set(tableName, fallback);
-      return fallback;
-    } catch (error) {
-      console.warn(
-        `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
-        error.message
-      );
-      const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
-      this.primaryKeyCache.set(tableName, fallback);
-      return fallback;
+    for (const candidate of candidates) {
+      try {
+        const escapedCandidate = quoteIdentifier(candidate);
+        const columns = await database.query(
+          `SHOW COLUMNS FROM ${escapedCandidate}`
+        );
+        const hasId = columns.some((col) => col.Field === 'id');
+        const fallback =
+          hasId
+            ? 'id'
+            : config.searchable?.[0] ||
+              config.preview?.[0] ||
+              (columns[0] ? columns[0].Field : 'id');
+        this.primaryKeyCache.set(tableName, fallback);
+        return fallback;
+      } catch (error) {
+        console.warn(
+          `⚠️ Impossible de récupérer les colonnes pour ${candidate}:`,
+          error.message
+        );
+      }
     }
+
+    const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
+    this.primaryKeyCache.set(tableName, fallback);
+    return fallback;
+  }
+
+  async resolveTableIdentifier(tableName) {
+    if (!tableName) {
+      throw new Error('Nom de table invalide');
+    }
+
+    if (this.tableIdentifierCache.has(tableName)) {
+      const cached = this.tableIdentifierCache.get(tableName);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    const candidates = getTableNameCandidates(tableName);
+    let lastError = null;
+
+    for (const candidate of candidates) {
+      const escapedCandidate = quoteIdentifier(candidate);
+      try {
+        await database.query(`SELECT 1 FROM ${escapedCandidate} LIMIT 1`);
+        const resolved = { raw: candidate, escaped: escapedCandidate };
+        this.tableIdentifierCache.set(tableName, resolved);
+        return resolved;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    this.tableIdentifierCache.set(tableName, null);
+    if (lastError) {
+      throw lastError;
+    }
+
+    throw new Error(`Impossible de résoudre la table ${tableName}`);
   }
 
   async search(
@@ -396,10 +442,9 @@ class SearchService {
     const results = [];
     const primaryKey = await this.getPrimaryKey(tableName, config);
     
-    // Vérifier si la table existe
+    let resolvedTable;
     try {
-      const escapedTable = quoteIdentifier(tableName);
-      await database.query(`SELECT 1 FROM ${escapedTable} LIMIT 1`);
+      resolvedTable = await this.resolveTableIdentifier(tableName);
     } catch (error) {
       console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
       return results;
@@ -419,7 +464,7 @@ class SearchService {
       return results;
     }
 
-    const escapedTable = quoteIdentifier(tableName);
+    const escapedTable = resolvedTable.escaped;
     let sql = `SELECT ${selectFields} FROM ${escapedTable} WHERE `;
     const params = [];
     let conditions = [];
@@ -640,7 +685,8 @@ class SearchService {
     }
 
     const primaryKey = await this.getPrimaryKey(tableName, catalog[tableName]);
-    const escapedTable = quoteIdentifier(tableName);
+    const resolvedTable = await this.resolveTableIdentifier(tableName);
+    const escapedTable = resolvedTable.escaped;
     const escapedPrimaryKey = quoteIdentifier(primaryKey);
     const sql = `SELECT * FROM ${escapedTable} WHERE ${escapedPrimaryKey} = ?`;
     const record = await database.queryOne(sql, [id]);
