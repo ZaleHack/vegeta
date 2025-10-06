@@ -71,7 +71,7 @@ class ElasticSearchService {
             error
           );
         }
-        throw error;
+        return false;
       })
       .finally(() => {
         this.connectionCheckPromise = null;
