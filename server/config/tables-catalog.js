@@ -518,6 +518,65 @@ export default {
     theme: 'pro'
   },
 
+  'autres.edu_sn': {
+    display: 'edu_sn',
+    database: 'autres',
+    primaryKey: 'ID',
+    searchable: [
+      'ID',
+      'CNI',
+      'PRENOM',
+      'NOM',
+      'DATE_NAISSANCE',
+      'LIEU_NAISSANCE',
+      'controldoublon2',
+      'controldoublon',
+      'SEXE',
+      'EMAIL',
+      'EMAIL2',
+      'TELEPHONE1',
+      'TELEPHONE2',
+      'ADRESSE_RESIDENCE',
+      'DIPLOME_ACADEMIQUE',
+      'DISCIPLINE_DIPLOME_ACADEMIQUE',
+      'DIPLOME_PROFESSIONNEL',
+      'SPECIALITE_DIPLOME_PROFESSIONNEL',
+      'ORDRE_ENSEIGNEMENT_CHOISI',
+      'OPTIONSPECIALITE',
+      'EXPERIENCE_ENSEIGNEMENT',
+      'LIBELLE_DERNIER_POSTE',
+      'IA_DERNIER_POSTE',
+      'IEF_DERNIER_POSTE',
+      'IA_DEPOT',
+      'IEF_DEPOT',
+      'DATE_INSCRIPTION',
+      'EXPERIMENTE',
+      'AUTRE_DIPL_ACAD',
+      'etat_doublon'
+    ],
+    linkedFields: ['CNI', 'TELEPHONE1', 'TELEPHONE2', 'EMAIL', 'EMAIL2'],
+    preview: [
+      'PRENOM',
+      'NOM',
+      'CNI',
+      'TELEPHONE1',
+      'TELEPHONE2',
+      'EMAIL',
+      'ORDRE_ENSEIGNEMENT_CHOISI'
+    ],
+    filters: {
+      DATE_NAISSANCE: 'date',
+      DATE_INSCRIPTION: 'date',
+      SEXE: 'enum',
+      IA_DEPOT: 'string',
+      IEF_DEPOT: 'string',
+      ORDRE_ENSEIGNEMENT_CHOISI: 'string',
+      IA_DERNIER_POSTE: 'string',
+      IEF_DERNIER_POSTE: 'string'
+    },
+    theme: 'pro'
+  },
+
   'autres.esolde_new': {
     display: 'esolde_new',
     database: 'autres',

@@ -530,7 +530,7 @@ class SearchService {
         // Terme obligatoire (doit être présent)
         for (const field of searchableFields) {
           termConditions.push(`${quoteIdentifier(field)} LIKE ?`);
-          params.push(`${term.value}%`);
+          params.push(`%${term.value}%`);
         }
       } else if (term.type === 'field') {
         // Recherche par champ spécifique
@@ -542,20 +542,20 @@ class SearchService {
         if (matchingFields.length > 0) {
           for (const field of matchingFields) {
             termConditions.push(`${quoteIdentifier(field)} LIKE ?`);
-            params.push(`${term.value}%`);
+            params.push(`%${term.value}%`);
           }
         } else {
           const directField = searchableFieldMap.get(term.field);
           if (directField) {
             termConditions.push(`${quoteIdentifier(directField)} LIKE ?`);
-            params.push(`${term.value}%`);
+            params.push(`%${term.value}%`);
           }
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
         for (const field of searchableFields) {
           termConditions.push(`${quoteIdentifier(field)} LIKE ?`);
-          params.push(`${term.value}%`);
+          params.push(`%${term.value}%`);
         }
       }
 
@@ -592,7 +592,7 @@ class SearchService {
       const excludeConditions = [];
       for (const field of searchableFields) {
         excludeConditions.push(`${quoteIdentifier(field)} NOT LIKE ?`);
-        params.push(`${term.value}%`);
+        params.push(`%${term.value}%`);
       }
       if (excludeConditions.length > 0) {
         sql += ` AND (${excludeConditions.join(' AND ')})`;
