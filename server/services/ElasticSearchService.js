@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { buildCatalog, catalogOverridesPath } from '../utils/catalog-loader.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
+import { isTableExcluded, EXCLUDED_TABLES } from '../utils/search-exclusions.js';
 
 class ElasticSearchService {
   constructor() {
@@ -734,7 +735,49 @@ class ElasticSearchService {
 
     let hits;
     let took;
+    const excludedTables = Array.from(EXCLUDED_TABLES.values());
+
     try {
+      const boolQuery = {
+        should: [
+          {
+            multi_match: {
+              query,
+              fields: [
+                'full_name^2',
+                'first_name',
+                'last_name',
+                'phone',
+                'email',
+                'search_tokens',
+                'full_text',
+                'raw_values'
+              ],
+              fuzziness: 'AUTO'
+            }
+          },
+          {
+            term: {
+              'primary_value.keyword': {
+                value: query,
+                boost: 5
+              }
+            }
+          }
+        ],
+        minimum_should_match: 1
+      };
+
+      if (excludedTables.length > 0) {
+        boolQuery.must_not = [
+          {
+            terms: {
+              'table_name.keyword': excludedTables
+            }
+          }
+        ];
+      }
+
       const response = await client.search({
         index: indexes,
         ignore_unavailable: true,
@@ -764,37 +807,7 @@ class ElasticSearchService {
           'full_text',
           'raw_values'
         ],
-        query: {
-          bool: {
-            should: [
-              {
-                multi_match: {
-                  query,
-                  fields: [
-                    'full_name^2',
-                    'first_name',
-                    'last_name',
-                    'phone',
-                    'email',
-                    'search_tokens',
-                    'full_text',
-                    'raw_values'
-                  ],
-                  fuzziness: 'AUTO'
-                }
-              },
-              {
-                term: {
-                  'primary_value.keyword': {
-                    value: query,
-                    boost: 5
-                  }
-                }
-              }
-            ],
-            minimum_should_match: 1
-          }
-        }
+        query: { bool: boolQuery }
       });
       hits = response.hits;
       took = response.took;
@@ -813,12 +826,20 @@ class ElasticSearchService {
     }
 
     const total = typeof hits.total === 'number' ? hits.total : hits.total?.value ?? 0;
-    const normalizedHits = hits.hits.map((hit) => this.normalizeHit(hit));
+    const normalizedHits = hits.hits
+      .map((hit) => this.normalizeHit(hit))
+      .filter((hit) => !isTableExcluded(hit.table_name || hit.table));
     const response = {
       total,
       hits: normalizedHits,
       elapsed_ms: took,
-      tables_searched: Array.from(new Set(normalizedHits.map((hit) => hit.table_name).filter(Boolean)))
+      tables_searched: Array.from(
+        new Set(
+          normalizedHits
+            .map((hit) => hit.table_name)
+            .filter((table) => table && !isTableExcluded(table))
+        )
+      )
     };
 
     this.cache.set(cacheKey, response);
