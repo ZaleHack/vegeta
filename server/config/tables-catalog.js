@@ -584,7 +584,7 @@ export default {
     database: 'autres',
     primaryKey: 'Numero',
     searchable: ['Prenom', 'Nom', 'Numero', 'PassePort'],
-    preview: ['Prenom', 'Nom', 'Numero', 'PassePort'],
+    preview: ['ID', 'Prenom', 'Nom', 'Numero', 'PassePort'],
     filters: {
       Numero: 'string',
       PassePort: 'string'
@@ -651,7 +651,7 @@ export default {
     primaryKey: 'telephone',
     searchable: ['nom', 'telephone', 'email', 'departement', 'titre', 'responsable'],
     linkedFields: ['telephone'],
-    preview: ['nom', 'telephone', 'email', 'departement', 'titre'],
+    preview: ['nom', 'telephone', 'email', 'departement', 'titre', 'responsable'],
     filters: {
       departement: 'string',
       titre: 'string',
