@@ -20,23 +20,36 @@ const SYSTEM_DATABASES = new Set([
   'sys'
 ]);
 
-const BASE_CATALOG_DATABASES = new Set(
-  Object.entries(baseCatalog || {})
-    .map(([key, value]) => {
-      const explicitDatabase =
-        typeof value?.database === 'string' ? value.database.trim() : '';
-      if (explicitDatabase) {
-        return explicitDatabase;
+function collectConfiguredDatabases(catalog = {}) {
+  const databases = new Set();
+
+  for (const [key, value] of Object.entries(catalog || {})) {
+    if (!key) {
+      continue;
+    }
+
+    const normalizedKey = normalizeKey(key);
+    let databaseName =
+      typeof value?.database === 'string' ? value.database.trim() : '';
+
+    if (!databaseName && typeof normalizedKey === 'string') {
+      if (normalizedKey.includes('.')) {
+        databaseName = normalizedKey.split('.')[0];
+      } else {
+        const [potentialDatabase] = normalizedKey.split('_');
+        databaseName = potentialDatabase || '';
       }
-      if (typeof key === 'string' && key.includes('.')) {
-        return key.split('.')[0];
-      }
-      return null;
-    })
-    .filter((databaseName) =>
-      Boolean(databaseName) && !SYSTEM_DATABASES.has(databaseName)
-    )
-);
+    }
+
+    if (databaseName && !SYSTEM_DATABASES.has(databaseName)) {
+      databases.add(databaseName);
+    }
+  }
+
+  return databases;
+}
+
+const BASE_CATALOG_DATABASES = collectConfiguredDatabases(baseCatalog);
 
 const TEXT_SEARCH_TYPES = [
   'char',
@@ -146,7 +159,7 @@ function loadOverrides() {
   }
 }
 
-async function introspectDatabaseCatalog() {
+async function introspectDatabaseCatalog(overrides = {}) {
   try {
     await database.ensureInitialized();
   } catch (error) {
@@ -157,13 +170,24 @@ async function introspectDatabaseCatalog() {
     return {};
   }
 
-  const allowedDatabases = Array.from(BASE_CATALOG_DATABASES);
+  const overrideDatabases = collectConfiguredDatabases(overrides);
+  const allowedDatabaseSet = new Set([
+    ...BASE_CATALOG_DATABASES,
+    ...overrideDatabases
+  ]);
+
+  for (const databaseName of Array.from(allowedDatabaseSet)) {
+    if (SYSTEM_DATABASES.has(databaseName)) {
+      allowedDatabaseSet.delete(databaseName);
+    }
+  }
+
+  const allowedDatabases = Array.from(allowedDatabaseSet);
 
   if (allowedDatabases.length === 0) {
     console.warn(
-      "⚠️ Aucun schéma défini dans tables-catalog.js; l'introspection est ignorée"
+      "⚠️ Aucun schéma défini dans tables-catalog.js ou tables-catalog.json; l'introspection sera effectuée sans filtre explicite"
     );
-    return {};
   }
 
   let rows = [];
@@ -206,7 +230,7 @@ async function introspectDatabaseCatalog() {
     if (!schema || !table) {
       continue;
     }
-    if (!BASE_CATALOG_DATABASES.has(schema)) {
+    if (allowedDatabases.length > 0 && !allowedDatabaseSet.has(schema)) {
       continue;
     }
     const key = `${schema}.${table}`;
@@ -315,7 +339,7 @@ export async function buildCatalog() {
   let dynamicCatalog = {};
 
   try {
-    dynamicCatalog = await introspectDatabaseCatalog();
+    dynamicCatalog = await introspectDatabaseCatalog(overrides);
   } catch (error) {
     console.warn('⚠️ Impossible d\'introspecter le catalogue des tables:', error.message);
     dynamicCatalog = {};
