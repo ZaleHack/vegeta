@@ -25,7 +25,9 @@ const FALLBACK_EXCLUDED_FIELDS = new Set([
   'database',
   'primary_keys',
   'score',
-  'previewEntries'
+  'previewEntries',
+  'linkedFields',
+  'theme'
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
