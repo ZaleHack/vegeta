@@ -69,6 +69,8 @@ Pour résoudre le problème :
 
 - Vérifiez que l'URL définie par `ELASTICSEARCH_URL` pointe vers une instance Elasticsearch accessible (par défaut `http://localhost:9200`).
 - Assurez-vous que l'instance est démarrée et accepte les connexions (testez avec `curl $ELASTICSEARCH_URL`).
+- Par défaut, les vérifications de santé attendent jusqu'à 5 secondes (`ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS=5000`).
+  Augmentez cette valeur si votre cluster met plus de temps à répondre pendant son démarrage.
 - Si Elasticsearch est volontairement inactif, laissez `USE_ELASTICSEARCH=false` dans votre configuration pour éviter le message de bascule.
 
 Une fois la connexion rétablie, redémarrez le serveur Node.js pour réactiver automatiquement la recherche Elasticsearch.
