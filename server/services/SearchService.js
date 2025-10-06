@@ -126,62 +126,112 @@ class SearchService {
     this.loadCatalog();
   }
 
-  async getPrimaryKey(tableName, config = {}) {
-    if (config.primaryKey) {
-      return config.primaryKey;
-    }
-
+  async getPrimaryKey(tableName, config = {}, resolvedTable = null) {
     if (this.primaryKeyCache.has(tableName)) {
       return this.primaryKeyCache.get(tableName);
     }
 
-    const candidates = getTableNameCandidates(tableName);
+    const configuredPrimaryKey =
+      typeof config.primaryKey === 'string' && config.primaryKey.trim().length > 0
+        ? config.primaryKey.trim()
+        : null;
 
-    for (const candidate of candidates) {
+    const remember = (value) => {
+      this.primaryKeyCache.set(tableName, value);
+      return value;
+    };
+
+    let resolved = resolvedTable;
+
+    if (!resolved) {
       try {
-        const escapedCandidate = quoteIdentifier(candidate);
-        const rows = await database.query(
-          `SHOW KEYS FROM ${escapedCandidate} WHERE Key_name = 'PRIMARY'`
+        resolved = await this.resolveTableIdentifier(tableName);
+      } catch (error) {
+        console.warn(
+          `⚠️ Table ${tableName} inaccessible pour la détection de clé primaire:`,
+          error.message
         );
-        if (rows.length > 0 && rows[0].Column_name) {
-          const pk = rows[0].Column_name;
-          this.primaryKeyCache.set(tableName, pk);
-          return pk;
+
+        if (configuredPrimaryKey) {
+          return remember(configuredPrimaryKey);
         }
-      } catch (error) {
-        console.warn(
-          `⚠️ Impossible de déterminer la clé primaire pour ${candidate}:`,
-          error.message
-        );
+
+        const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
+        return remember(fallback);
       }
     }
 
-    for (const candidate of candidates) {
-      try {
-        const escapedCandidate = quoteIdentifier(candidate);
-        const columns = await database.query(
-          `SHOW COLUMNS FROM ${escapedCandidate}`
-        );
-        const hasId = columns.some((col) => col.Field === 'id');
-        const fallback =
-          hasId
-            ? 'id'
-            : config.searchable?.[0] ||
-              config.preview?.[0] ||
-              (columns[0] ? columns[0].Field : 'id');
-        this.primaryKeyCache.set(tableName, fallback);
-        return fallback;
-      } catch (error) {
-        console.warn(
-          `⚠️ Impossible de récupérer les colonnes pour ${candidate}:`,
-          error.message
-        );
+    const columns = await this.getTableColumns(resolved, tableName);
+    const columnLookup = new Map(
+      columns.map((column) => [column.toLowerCase(), column])
+    );
+
+    if (configuredPrimaryKey) {
+      const normalizedPrimaryKey = configuredPrimaryKey.toLowerCase();
+      const matchedConfiguredKey = columnLookup.get(normalizedPrimaryKey);
+
+      if (matchedConfiguredKey) {
+        return remember(matchedConfiguredKey);
+      }
+
+      if (columns.length === 0) {
+        return remember(configuredPrimaryKey);
+      }
+
+      console.warn(
+        `⚠️ Clé primaire "${configuredPrimaryKey}" introuvable pour ${tableName}, tentative de détection automatique.`
+      );
+    }
+
+    try {
+      const rows = await database.query(
+        `SHOW KEYS FROM ${resolved.escaped} WHERE Key_name = 'PRIMARY'`
+      );
+
+      if (Array.isArray(rows) && rows.length > 0) {
+        const primaryKeyColumn =
+          rows.find((row) => row.Seq_in_index === 1)?.Column_name ||
+          rows[0].Column_name;
+
+        if (primaryKeyColumn) {
+          const matched = columnLookup.get(primaryKeyColumn.toLowerCase()) || primaryKeyColumn;
+          return remember(matched);
+        }
+      }
+    } catch (error) {
+      console.warn(
+        `⚠️ Impossible de déterminer la clé primaire pour ${resolved.raw}:`,
+        error.message
+      );
+    }
+
+    const idColumn = columnLookup.get('id');
+    if (idColumn) {
+      return remember(idColumn);
+    }
+
+    const fallbackCandidates = [
+      ...(Array.isArray(config.searchable) ? config.searchable : []),
+      ...(Array.isArray(config.preview) ? config.preview : [])
+    ];
+
+    for (const candidate of fallbackCandidates) {
+      if (!candidate) {
+        continue;
+      }
+      const matched = columnLookup.get(candidate.toLowerCase());
+      if (matched) {
+        return remember(matched);
       }
     }
 
-    const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
-    this.primaryKeyCache.set(tableName, fallback);
-    return fallback;
+    if (columns.length > 0) {
+      return remember(columns[0]);
+    }
+
+    const fallback =
+      configuredPrimaryKey || config.searchable?.[0] || config.preview?.[0] || 'id';
+    return remember(fallback);
   }
 
   async resolveTableIdentifier(tableName) {
@@ -442,7 +492,6 @@ class SearchService {
 
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
-    const primaryKey = await this.getPrimaryKey(tableName, config);
 
     let resolvedTable;
     try {
@@ -451,6 +500,8 @@ class SearchService {
       console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
       return results;
     }
+
+    const primaryKey = await this.getPrimaryKey(tableName, config, resolvedTable);
 
     const availableColumns = await this.getTableColumns(resolvedTable, tableName);
     const availableColumnMap = new Map(
@@ -746,8 +797,12 @@ class SearchService {
       throw new Error('Table non autorisée');
     }
 
-    const primaryKey = await this.getPrimaryKey(tableName, catalog[tableName]);
     const resolvedTable = await this.resolveTableIdentifier(tableName);
+    const primaryKey = await this.getPrimaryKey(
+      tableName,
+      catalog[tableName],
+      resolvedTable
+    );
     const escapedTable = resolvedTable.escaped;
     const escapedPrimaryKey = quoteIdentifier(primaryKey);
     const sql = `SELECT * FROM ${escapedTable} WHERE ${escapedPrimaryKey} = ?`;
