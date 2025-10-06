@@ -155,8 +155,19 @@ class SyncService {
       elasticsearchIndex: baseSyncConfig.elasticsearchIndex || this.defaultIndex
     };
 
-    const primaryKey = await this.resolvePrimaryKey(tableName, tableConfig);
-    const qualifiedTableName = this.formatTableName(tableName);
+    let primaryKey;
+    let qualifiedTableName;
+
+    try {
+      primaryKey = await this.resolvePrimaryKey(tableName, tableConfig);
+      qualifiedTableName = this.formatTableName(tableName);
+    } catch (error) {
+      console.error(
+        `❌ Échec de la préparation de la synchronisation pour ${tableName}:`,
+        error.message || error
+      );
+      return;
+    }
 
     if (!this.useElastic) {
       console.warn(
