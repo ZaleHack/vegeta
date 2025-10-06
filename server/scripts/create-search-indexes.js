@@ -21,6 +21,37 @@ async function indexExists(schema, table, indexName) {
   return Boolean(existingIndex);
 }
 
+const tableColumnsCache = new Map();
+
+async function getTableColumns(schema, table) {
+  const cacheKey = `${schema}.${table}`;
+  if (tableColumnsCache.has(cacheKey)) {
+    return tableColumnsCache.get(cacheKey);
+  }
+
+  try {
+    const rows = await database.query(
+      `
+        SELECT COLUMN_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = ?
+          AND TABLE_NAME = ?
+      `,
+      [schema, table]
+    );
+
+    const columns = rows.map((row) => row.COLUMN_NAME);
+    tableColumnsCache.set(cacheKey, columns);
+    return columns;
+  } catch (error) {
+    console.warn(
+      `⚠️ Impossible de récupérer les colonnes pour ${schema}.${table}: ${error.message}`
+    );
+    tableColumnsCache.set(cacheKey, []);
+    return [];
+  }
+}
+
 async function createIndexes() {
   const catalog = await buildCatalog();
 
@@ -34,7 +65,20 @@ async function createIndexes() {
     const schema = config.database || defaultSchema || 'autres';
     const table = defaultTable || tableKey;
 
+    const columns = await getTableColumns(schema, table);
+    if (!columns.length) {
+      console.log(`⚠️ Table ${schema}.${table} introuvable - indexation ignorée`);
+      continue;
+    }
+
     for (const field of fields) {
+      if (!columns.includes(field)) {
+        console.log(
+          `⚠️ Colonne ${schema}.${table}.${field} introuvable - indexation ignorée`
+        );
+        continue;
+      }
+
       const indexName = `idx_${sanitizeIdentifier(schema)}_${sanitizeIdentifier(table)}_${sanitizeIdentifier(field)}`.slice(0, 63);
 
       try {
