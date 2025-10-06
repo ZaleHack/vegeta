@@ -20,6 +20,14 @@ class ElasticSearchService {
     this.enabled = isElasticsearchEnabled();
     this.catalog = this.loadCatalog();
     this.indexes = this.enabled ? this.resolveIndexesFromCatalog(this.catalog) : [];
+    const timeoutEnv = Number(process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS);
+    this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 1000;
+    this.connectionChecked = false;
+    this.connectionCheckPromise = null;
+
+    if (this.enabled) {
+      this.scheduleConnectionVerification('initialisation');
+    }
   }
 
   isOperational() {
@@ -47,6 +55,66 @@ class ElasticSearchService {
     this.enabled = false;
     this.indexes = [];
     this.cache.clear();
+    this.connectionChecked = false;
+  }
+
+  scheduleConnectionVerification(context = 'healthcheck') {
+    if (!this.enabled || this.connectionChecked || this.connectionCheckPromise) {
+      return;
+    }
+
+    this.connectionCheckPromise = this.verifyConnection(context).finally(() => {
+      this.connectionCheckPromise = null;
+    });
+  }
+
+  async verifyConnection(context = 'healthcheck') {
+    if (!this.enabled) {
+      return false;
+    }
+
+    try {
+      await client.ping({ requestTimeout: this.connectionTimeout });
+      this.connectionChecked = true;
+      return true;
+    } catch (error) {
+      if (this.isConnectionError(error)) {
+        console.error('❌ Elasticsearch indisponible:', error.message);
+        this.disableForSession(context, error);
+        return false;
+      }
+
+      console.error('❌ Erreur lors de la vérification Elasticsearch:', error);
+      throw error;
+    }
+  }
+
+  async ensureOperational(context = 'operation') {
+    if (!this.enabled) {
+      return false;
+    }
+
+    if (this.connectionChecked) {
+      return true;
+    }
+
+    if (!this.connectionCheckPromise) {
+      this.scheduleConnectionVerification(context);
+    }
+
+    if (!this.connectionCheckPromise) {
+      return this.enabled;
+    }
+
+    try {
+      const result = await this.connectionCheckPromise;
+      return result === true && this.enabled;
+    } catch (error) {
+      if (this.isConnectionError(error)) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   loadCatalog() {
@@ -258,6 +326,10 @@ class ElasticSearchService {
     if (!this.enabled) {
       return;
     }
+
+    if (!(await this.ensureOperational('indexProfile'))) {
+      return;
+    }
     const document = this.buildProfileDocument(profile);
     if (!document) return;
     try {
@@ -284,6 +356,10 @@ class ElasticSearchService {
     }
 
     if (!this.enabled) {
+      return;
+    }
+
+    if (!(await this.ensureOperational('deleteProfile'))) {
       return;
     }
 
@@ -326,6 +402,10 @@ class ElasticSearchService {
     }
 
     if (!this.enabled) {
+      return { indexed: 0, errors: [] };
+    }
+
+    if (!(await this.ensureOperational('indexRecordsBulk'))) {
       return { indexed: 0, errors: [] };
     }
 
@@ -398,6 +478,10 @@ class ElasticSearchService {
 
   async resetIndex({ recreate = true, index = this.defaultIndex } = {}) {
     if (!this.enabled) {
+      return;
+    }
+
+    if (!(await this.ensureOperational('resetIndex'))) {
       return;
     }
 
@@ -533,6 +617,15 @@ class ElasticSearchService {
     }
 
     if (!this.enabled) {
+      return {
+        total: 0,
+        hits: [],
+        elapsed_ms: 0,
+        tables_searched: []
+      };
+    }
+
+    if (!(await this.ensureOperational('search'))) {
       return {
         total: 0,
         hits: [],
