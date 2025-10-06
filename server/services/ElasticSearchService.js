@@ -35,7 +35,7 @@ class ElasticSearchService {
   }
 
   isOperational() {
-    return this.enabled === true;
+    return this.enabled === true && this.connectionChecked === true;
   }
 
   isConnectionError(error) {
