@@ -366,9 +366,20 @@ export async function buildCatalog() {
 
   const finalCatalog = {};
 
+  const baseTableKeys = new Set(
+    Object.keys(baseCatalog || {}).map((key) => normalizeKey(key))
+  );
+  const overrideTableKeys = new Set(
+    Object.keys(overrides || {}).map((key) => normalizeKey(key))
+  );
+  const allowedTableKeys = new Set([...baseTableKeys, ...overrideTableKeys]);
+
   for (const [key, value] of Object.entries(catalogWithOverrides)) {
     const normalizedKey = normalizeKey(key);
     if (EXCLUDED_TABLES.has(normalizedKey)) {
+      continue;
+    }
+    if (allowedTableKeys.size > 0 && !allowedTableKeys.has(normalizedKey)) {
       continue;
     }
     const fallback = dynamicCatalog[normalizedKey] || {};
