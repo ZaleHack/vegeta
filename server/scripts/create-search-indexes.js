@@ -1,63 +1,5 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
 import database from '../config/database.js';
-import baseCatalog from '../config/tables-catalog.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const catalogPath = path.join(__dirname, '../config/tables-catalog.json');
-
-function loadCatalog() {
-  let catalog = { ...baseCatalog };
-
-  try {
-    if (fs.existsSync(catalogPath)) {
-      const raw = fs.readFileSync(catalogPath, 'utf-8');
-      const json = JSON.parse(raw);
-
-      for (const [key, value] of Object.entries(json)) {
-        let db;
-        let tableKey;
-
-        if (key.includes('.')) {
-          const [schema, ...tableParts] = key.split('.');
-          if (!schema || tableParts.length === 0) {
-            console.warn(`⚠️ Entrée de catalogue invalide ignorée: ${key}`);
-            continue;
-          }
-
-          db = schema;
-          tableKey = tableParts.join('.');
-        } else {
-          const [schema, ...tableParts] = key.split('_');
-          if (!schema || tableParts.length === 0) {
-            console.warn(`⚠️ Entrée de catalogue invalide ignorée: ${key}`);
-            continue;
-          }
-
-          db = schema;
-          tableKey = tableParts.join('_');
-        }
-
-        const tableName = `${db}.${tableKey}`;
-        const existing = catalog[tableName] || {};
-        const merged = { ...existing, ...value };
-
-        if (!merged.database) {
-          merged.database = db;
-        }
-
-        catalog[tableName] = merged;
-      }
-    }
-  } catch (error) {
-    console.error('❌ Erreur chargement catalogue:', error);
-  }
-
-  return catalog;
-}
+import { buildCatalog } from '../utils/catalog-loader.js';
 
 function sanitizeIdentifier(name) {
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -80,7 +22,7 @@ async function indexExists(schema, table, indexName) {
 }
 
 async function createIndexes() {
-  const catalog = loadCatalog();
+  const catalog = await buildCatalog();
 
   for (const [tableKey, config] of Object.entries(catalog)) {
     const fields = config.searchable || [];

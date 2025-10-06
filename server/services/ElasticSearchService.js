@@ -1,10 +1,9 @@
 import client from '../config/elasticsearch.js';
 import { normalizeProfileRecord } from '../utils/profile-normalizer.js';
 import InMemoryCache from '../utils/cache.js';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import baseCatalog from '../config/tables-catalog.js';
+import { buildCatalog, catalogOverridesPath } from '../utils/catalog-loader.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
 
 class ElasticSearchService {
@@ -15,12 +14,14 @@ class ElasticSearchService {
     this.cache = new InMemoryCache(ttl);
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
+    this.catalogPath = catalogOverridesPath || path.join(__dirname, '../config/tables-catalog.json');
     this.defaultIndex = process.env.ELASTICSEARCH_DEFAULT_INDEX || 'global_search';
     this.enabled = isElasticsearchEnabled();
     this.initiallyEnabled = this.enabled;
-    this.catalog = this.loadCatalog();
-    this.indexes = this.enabled ? this.resolveIndexesFromCatalog(this.catalog) : [];
+    this.catalog = {};
+    this.catalogPromise = null;
+    this.indexes = this.enabled ? [this.defaultIndex] : [];
+    this.loadCatalog();
     const timeoutEnv = Number(process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS);
     this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 5000;
     this.connectionChecked = false;
@@ -165,21 +166,30 @@ class ElasticSearchService {
   }
 
   loadCatalog() {
-    let catalog = { ...baseCatalog };
-    try {
-      if (fs.existsSync(this.catalogPath)) {
-        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
-        const json = JSON.parse(raw);
-        for (const [key, value] of Object.entries(json)) {
-          const [db, ...tableParts] = key.split('_');
-          const tableName = `${db}.${tableParts.join('_')}`;
-          catalog[tableName] = value;
-        }
-      }
-    } catch (error) {
-      console.error('❌ Erreur chargement catalogue Elasticsearch:', error);
+    if (this.catalogPromise) {
+      return this.catalogPromise;
     }
-    return catalog;
+
+    this.catalogPromise = buildCatalog()
+      .then((catalog) => {
+        this.catalog = catalog || {};
+        if (this.enabled) {
+          this.indexes = this.resolveIndexesFromCatalog(this.catalog);
+        }
+        return this.catalog;
+      })
+      .catch((error) => {
+        console.error('❌ Erreur chargement catalogue Elasticsearch:', error);
+        if (this.enabled && (!this.indexes || this.indexes.length === 0)) {
+          this.indexes = [this.defaultIndex];
+        }
+        return this.catalog;
+      })
+      .finally(() => {
+        this.catalogPromise = null;
+      });
+
+    return this.catalogPromise;
   }
 
   resolveIndexesFromCatalog(catalog = {}) {
