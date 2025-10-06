@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import InMemoryCache from '../utils/cache.js';
 import { buildCatalog, catalogOverridesPath } from '../utils/catalog-loader.js';
 import { quoteIdentifier, quoteIdentifiers } from '../utils/sql.js';
+import { isTableExcluded } from '../utils/search-exclusions.js';
 
 class SearchService {
   constructor() {
@@ -208,19 +209,20 @@ class SearchService {
     const searchTerms = this.parseSearchQuery(query);
 
     // Lancer les recherches en parallèle sur toutes les tables du catalogue
-    const searchPromises = Object.entries(catalog).map(
-      ([tableName, config]) =>
+    const searchPromises = Object.entries(catalog)
+      .filter(([tableName]) => !isTableExcluded(tableName))
+      .map(([tableName, config]) =>
         this.searchInTable(tableName, config, searchTerms, filters)
           .then((tableResults) => ({ tableName, tableResults }))
           .catch((error) => {
             console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
             return { tableName, tableResults: [] };
           }),
-    );
+      );
 
     const tableSearches = await Promise.all(searchPromises);
     for (const { tableName, tableResults } of tableSearches) {
-      if (tableResults.length > 0) {
+      if (tableResults.length > 0 && !isTableExcluded(tableName)) {
         const enrichedResults = tableResults.map(result => ({
           ...result,
           table_name: tableName
@@ -231,7 +233,6 @@ class SearchService {
     }
 
     let extraSearches = 0;
-    const identifiersFollowed = [];
 
     if (followLinks && depth < maxDepth) {
       const linkedIds = this.extractLinkedIdentifiers(results);
@@ -239,15 +240,21 @@ class SearchService {
         if (!seen.has(id)) {
           seen.add(id);
           extraSearches++;
-          identifiersFollowed.push(id);
           const sub = await this.search(id, {}, 1, 50, null, 'linked', {
             followLinks,
             maxDepth,
             depth: depth + 1,
             seen
           });
-          results.push(...sub.hits);
-          tablesSearched.push(...sub.tables_searched);
+          const allowedHits = sub.hits.filter(
+            (hit) => !isTableExcluded(hit.table_name || hit.table)
+          );
+          results.push(...allowedHits);
+          tablesSearched.push(
+            ...allowedHits
+              .map((hit) => hit.table_name)
+              .filter((table) => table && !isTableExcluded(table))
+          );
         }
       }
     }
@@ -280,8 +287,15 @@ class SearchService {
         const sub = await this.search(val, {}, 1, 50, null, 'linked', {
           depth: depth + 1
         });
-        results.push(...sub.hits);
-        tablesSearched.push(...sub.tables_searched);
+        const allowedHits = sub.hits.filter(
+          (hit) => !isTableExcluded(hit.table_name || hit.table)
+        );
+        results.push(...allowedHits);
+        tablesSearched.push(
+          ...allowedHits
+            .map((hit) => hit.table_name)
+            .filter((table) => table && !isTableExcluded(table))
+        );
       }
     }
 
@@ -310,7 +324,7 @@ class SearchService {
       pages: Math.ceil(totalResults / limit),
       elapsed_ms: executionTime,
       hits: paginatedResults,
-      tables_searched: [...new Set(tablesSearched)]
+      tables_searched: [...new Set(tablesSearched.filter((table) => !isTableExcluded(table)))]
     };
 
     if (depth === 0) {

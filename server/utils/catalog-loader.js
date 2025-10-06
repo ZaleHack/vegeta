@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 
 import database from '../config/database.js';
 import baseCatalog from '../config/tables-catalog.js';
+import { isTableExcluded, normalizeTableName } from './search-exclusions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,15 +22,7 @@ const SYSTEM_DATABASES = new Set([
 ]);
 
 // Tables qui ne doivent jamais être indexées ou accessibles via la recherche
-const EXCLUDED_TABLES = new Set([
-  'autres.profile_attachments',
-  'autres.profile_shares',
-  'autres.upload_history',
-  'autres.users',
-  'autres.user_logs',
-  'autres.user_sessions'
-]);
-
+// sont définies dans search-exclusions.js
 function collectConfiguredDatabases(catalog = {}) {
   const databases = new Set();
 
@@ -90,17 +83,7 @@ const NUMERIC_TYPES = [
 const DATE_TYPES = ['date', 'datetime', 'timestamp', 'time', 'year'];
 
 function normalizeKey(key) {
-  if (!key) {
-    return key;
-  }
-  if (key.includes('.')) {
-    return key;
-  }
-  const [schema, ...tableParts] = key.split('_');
-  if (!schema || tableParts.length === 0) {
-    return key;
-  }
-  return `${schema}.${tableParts.join('_')}`;
+  return normalizeTableName(key);
 }
 
 function isSearchableType(dataType = '') {
@@ -244,7 +227,7 @@ async function introspectDatabaseCatalog(overrides = {}) {
       continue;
     }
     const key = `${schema}.${table}`;
-    if (EXCLUDED_TABLES.has(key)) {
+    if (isTableExcluded(key)) {
       continue;
     }
     if (!tables.has(key)) {
@@ -301,7 +284,7 @@ function mergeCatalogs(base = {}, overrides = {}) {
 
   for (const [key, overrideValue] of Object.entries(overrides)) {
     const normalizedKey = normalizeKey(key);
-    if (EXCLUDED_TABLES.has(normalizedKey)) {
+    if (isTableExcluded(normalizedKey)) {
       continue;
     }
     const existing = merged[normalizedKey] || {};
@@ -376,7 +359,7 @@ export async function buildCatalog() {
 
   for (const [key, value] of Object.entries(catalogWithOverrides)) {
     const normalizedKey = normalizeKey(key);
-    if (EXCLUDED_TABLES.has(normalizedKey)) {
+    if (isTableExcluded(normalizedKey)) {
       continue;
     }
     if (allowedTableKeys.size > 0 && !allowedTableKeys.has(normalizedKey)) {
