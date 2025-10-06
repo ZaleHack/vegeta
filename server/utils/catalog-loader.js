@@ -23,7 +23,6 @@ const SYSTEM_DATABASES = new Set([
 // Tables qui ne doivent jamais être indexées ou accessibles via la recherche
 const EXCLUDED_TABLES = new Set([
   'autres.search_logs',
-  'autres.profiles',
   'autres.profile_attachments',
   'autres.profile_shares',
   'autres.sanctions',
