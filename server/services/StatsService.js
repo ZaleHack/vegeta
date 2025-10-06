@@ -1,9 +1,6 @@
 import database from '../config/database.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import baseCatalog from '../config/tables-catalog.js';
 import statsCache from './stats-cache.js';
+import { buildCatalog } from '../utils/catalog-loader.js';
 
 /**
  * Service de génération de statistiques basées sur les journaux de recherche
@@ -11,28 +8,43 @@ import statsCache from './stats-cache.js';
  */
 class StatsService {
   constructor() {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.cache = statsCache;
+    this.catalog = {};
+    this.catalogPromise = null;
   }
 
   loadCatalog() {
-    let catalog = { ...baseCatalog };
-    try {
-      if (fs.existsSync(this.catalogPath)) {
-        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
-        const json = JSON.parse(raw);
-        for (const [key, value] of Object.entries(json)) {
-          const [db, ...tableParts] = key.split('_');
-          const tableName = `${db}.${tableParts.join('_')}`;
-          catalog[tableName] = value;
-        }
-      }
-    } catch (error) {
-      console.error('❌ Erreur chargement catalogue:', error);
+    if (this.catalogPromise) {
+      return this.catalogPromise;
     }
-    return catalog;
+
+    this.catalogPromise = buildCatalog()
+      .then((catalog) => {
+        this.catalog = catalog || {};
+        return this.catalog;
+      })
+      .catch((error) => {
+        console.error('❌ Erreur chargement catalogue pour les statistiques:', error);
+        if (!this.catalog || Object.keys(this.catalog).length === 0) {
+          this.catalog = {};
+        }
+        return this.catalog;
+      })
+      .finally(() => {
+        this.catalogPromise = null;
+      });
+
+    return this.catalogPromise;
+  }
+
+  async getCatalog() {
+    if (!this.catalog || Object.keys(this.catalog).length === 0) {
+      await this.loadCatalog();
+    } else if (this.catalogPromise) {
+      await this.catalogPromise;
+    }
+
+    return this.catalog;
   }
 
   /**
@@ -195,7 +207,7 @@ class StatsService {
       return cached;
     }
 
-    const catalog = this.loadCatalog();
+    const catalog = await this.getCatalog();
     const entries = Object.entries(catalog);
     const results = await Promise.all(
       entries.map(async ([tableName, config]) => {

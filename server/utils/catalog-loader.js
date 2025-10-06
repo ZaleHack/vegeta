@@ -1,0 +1,292 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+import database from '../config/database.js';
+import baseCatalog from '../config/tables-catalog.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export const catalogOverridesPath = path.join(
+  __dirname,
+  '../config/tables-catalog.json'
+);
+
+const SYSTEM_DATABASES = new Set([
+  'information_schema',
+  'mysql',
+  'performance_schema',
+  'sys'
+]);
+
+const TEXT_SEARCH_TYPES = [
+  'char',
+  'varchar',
+  'text',
+  'tinytext',
+  'mediumtext',
+  'longtext',
+  'enum',
+  'set',
+  'json'
+];
+
+const NUMERIC_TYPES = [
+  'int',
+  'integer',
+  'smallint',
+  'mediumint',
+  'bigint',
+  'tinyint',
+  'decimal',
+  'numeric',
+  'float',
+  'double',
+  'real'
+];
+
+const DATE_TYPES = ['date', 'datetime', 'timestamp', 'time', 'year'];
+
+function normalizeKey(key) {
+  if (!key) {
+    return key;
+  }
+  if (key.includes('.')) {
+    return key;
+  }
+  const [schema, ...tableParts] = key.split('_');
+  if (!schema || tableParts.length === 0) {
+    return key;
+  }
+  return `${schema}.${tableParts.join('_')}`;
+}
+
+function isSearchableType(dataType = '') {
+  const normalized = dataType.toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (TEXT_SEARCH_TYPES.some((type) => normalized.includes(type))) {
+    return true;
+  }
+  if (NUMERIC_TYPES.some((type) => normalized.includes(type))) {
+    return true;
+  }
+  if (DATE_TYPES.some((type) => normalized.includes(type))) {
+    return true;
+  }
+  return false;
+}
+
+function resolveFilterType(dataType = '') {
+  const normalized = dataType.toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  if (NUMERIC_TYPES.some((type) => normalized.includes(type))) {
+    return 'number';
+  }
+  if (DATE_TYPES.some((type) => normalized.includes(type))) {
+    return 'date';
+  }
+  if (normalized.includes('enum') || normalized.includes('set')) {
+    return 'enum';
+  }
+  return 'string';
+}
+
+function deduplicateArray(values = []) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => (value && typeof value === 'string' ? value.trim() : value))
+        .filter((value) => value !== null && value !== undefined && value !== '')
+    )
+  );
+}
+
+function loadOverrides() {
+  if (!fs.existsSync(catalogOverridesPath)) {
+    return {};
+  }
+
+  try {
+    const raw = fs.readFileSync(catalogOverridesPath, 'utf-8');
+    const json = JSON.parse(raw);
+    const overrides = {};
+
+    for (const [key, value] of Object.entries(json)) {
+      const normalizedKey = normalizeKey(key);
+      overrides[normalizedKey] = value;
+    }
+
+    return overrides;
+  } catch (error) {
+    console.error('❌ Impossible de lire le fichier tables-catalog.json:', error);
+    return {};
+  }
+}
+
+async function introspectDatabaseCatalog() {
+  try {
+    await database.ensureInitialized();
+  } catch (error) {
+    console.warn(
+      '⚠️ Impossible de vérifier la structure des bases de données (initialisation échouée):',
+      error.message
+    );
+    return {};
+  }
+
+  let rows = [];
+  try {
+    rows = await database.query(
+      `
+        SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA NOT IN (${Array.from(SYSTEM_DATABASES)
+          .map(() => '?')
+          .join(', ')})
+        ORDER BY TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION
+      `,
+      Array.from(SYSTEM_DATABASES)
+    );
+  } catch (error) {
+    console.warn('⚠️ Impossible de récupérer les métadonnées des tables:', error.message);
+    return {};
+  }
+
+  const tables = new Map();
+
+  for (const row of rows) {
+    const schema = row.TABLE_SCHEMA;
+    const table = row.TABLE_NAME;
+    if (!schema || !table) {
+      continue;
+    }
+    const key = `${schema}.${table}`;
+    if (!tables.has(key)) {
+      tables.set(key, []);
+    }
+    tables.get(key).push({
+      name: row.COLUMN_NAME,
+      dataType: row.DATA_TYPE
+    });
+  }
+
+  const catalog = {};
+
+  for (const [key, columns] of tables.entries()) {
+    if (!Array.isArray(columns) || columns.length === 0) {
+      continue;
+    }
+
+    const searchable = deduplicateArray(
+      columns
+        .filter((column) => isSearchableType(column.dataType))
+        .map((column) => column.name)
+    );
+
+    if (searchable.length === 0) {
+      continue;
+    }
+
+    const filters = {};
+    for (const column of columns) {
+      const filterType = resolveFilterType(column.dataType);
+      if (filterType) {
+        filters[column.name] = filterType;
+      }
+    }
+
+    const [schema, table] = key.split('.');
+    catalog[key] = {
+      display: table,
+      database: schema,
+      searchable,
+      preview: searchable.slice(0, Math.min(4, searchable.length)),
+      filters,
+      linkedFields: [],
+      theme: 'general'
+    };
+  }
+
+  return catalog;
+}
+
+function mergeCatalogs(base = {}, overrides = {}) {
+  const merged = { ...base };
+
+  for (const [key, overrideValue] of Object.entries(overrides)) {
+    const normalizedKey = normalizeKey(key);
+    const existing = merged[normalizedKey] || {};
+    merged[normalizedKey] = {
+      ...existing,
+      ...overrideValue,
+      database:
+        overrideValue.database || existing.database || normalizedKey.split('.')[0] || 'autres'
+    };
+  }
+
+  return merged;
+}
+
+function finalizeCatalogEntry(key, value, fallback = {}) {
+  const entry = {
+    display: value.display || fallback.display || key.split('.').pop(),
+    database:
+      value.database || fallback.database || key.split('.')[0] || fallback.database || 'autres',
+    searchable: deduplicateArray(value.searchable?.length ? value.searchable : fallback.searchable),
+    preview: deduplicateArray(
+      value.preview?.length ? value.preview : fallback.preview || value.searchable || []
+    ),
+    filters: { ...(fallback.filters || {}), ...(value.filters || {}) },
+    linkedFields: deduplicateArray([
+      ...(fallback.linkedFields || []),
+      ...(value.linkedFields || [])
+    ]),
+    theme: value.theme || fallback.theme || 'general'
+  };
+
+  if (!entry.searchable || entry.searchable.length === 0) {
+    entry.searchable = deduplicateArray(entry.preview || fallback.searchable || []);
+  }
+
+  if (!entry.preview || entry.preview.length === 0) {
+    entry.preview = deduplicateArray(entry.searchable.slice(0, 4));
+  }
+
+  return entry;
+}
+
+export async function buildCatalog() {
+  const overrides = loadOverrides();
+  let dynamicCatalog = {};
+
+  try {
+    dynamicCatalog = await introspectDatabaseCatalog();
+  } catch (error) {
+    console.warn('⚠️ Impossible d\'introspecter le catalogue des tables:', error.message);
+    dynamicCatalog = {};
+  }
+
+  const mergedBase = mergeCatalogs(dynamicCatalog, baseCatalog);
+  const catalogWithOverrides = mergeCatalogs(mergedBase, overrides);
+
+  const finalCatalog = {};
+
+  for (const [key, value] of Object.entries(catalogWithOverrides)) {
+    const normalizedKey = normalizeKey(key);
+    const fallback = dynamicCatalog[normalizedKey] || {};
+    const entry = finalizeCatalogEntry(normalizedKey, value, fallback);
+
+    if (!entry.searchable || entry.searchable.length === 0) {
+      continue;
+    }
+
+    finalCatalog[normalizedKey] = entry;
+  }
+
+  return finalCatalog;
+}

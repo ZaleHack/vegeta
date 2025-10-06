@@ -2,20 +2,22 @@ import database from '../config/database.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
+import { buildCatalog, catalogOverridesPath } from '../utils/catalog-loader.js';
 
 class SearchService {
   constructor() {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
+    this.catalogPath = catalogOverridesPath || path.join(__dirname, '../config/tables-catalog.json');
     this.cache = new InMemoryCache();
-    this.catalog = this.loadCatalog();
+    this.catalog = {};
+    this.catalogPromise = null;
+    this.catalogWatcher = null;
+    this.catalogRefreshTimer = null;
     this.primaryKeyCache = new Map();
-    if (fs.existsSync(this.catalogPath)) {
-      fs.watch(this.catalogPath, () => this.refreshCatalog());
-    }
+    this.loadCatalog();
+    this.setupCatalogWatcher();
   }
 
   extractLinkedIdentifiers(results) {
@@ -32,26 +34,89 @@ class SearchService {
     return Array.from(identifiers);
   }
 
-  loadCatalog() {
-    let catalog = { ...baseCatalog };
-    try {
-      if (fs.existsSync(this.catalogPath)) {
-        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
-        const json = JSON.parse(raw);
-        for (const [key, value] of Object.entries(json)) {
-          const [db, ...tableParts] = key.split('_');
-          const tableName = `${db}.${tableParts.join('_')}`;
-          catalog[tableName] = value;
-        }
+  setupCatalogWatcher() {
+    const scheduleRefresh = () => {
+      if (this.catalogRefreshTimer) {
+        return;
       }
+      this.catalogRefreshTimer = setTimeout(() => {
+        this.catalogRefreshTimer = null;
+        this.refreshCatalog();
+      }, 100);
+      if (typeof this.catalogRefreshTimer?.unref === 'function') {
+        this.catalogRefreshTimer.unref();
+      }
+    };
+    try {
+      if (this.catalogWatcher) {
+        return;
+      }
+
+      if (this.catalogPath && fs.existsSync(this.catalogPath)) {
+        this.catalogWatcher = fs.watch(this.catalogPath, scheduleRefresh);
+        return;
+      }
+
+      const watchDir = this.catalogPath
+        ? path.dirname(this.catalogPath)
+        : path.join(path.dirname(fileURLToPath(import.meta.url)), '../config');
+      this.catalogWatcher = fs.watch(watchDir, (eventType, filename) => {
+        if (!filename) {
+          return;
+        }
+        if (path.basename(filename) === path.basename(this.catalogPath)) {
+          scheduleRefresh();
+        }
+      });
     } catch (error) {
-      console.error('❌ Erreur chargement catalogue:', error);
+      console.warn('⚠️ Impossible de surveiller les changements du catalogue:', error.message);
     }
-    return catalog;
+  }
+
+  loadCatalog() {
+    if (this.catalogPromise) {
+      return this.catalogPromise;
+    }
+
+    this.catalogPromise = buildCatalog()
+      .then((catalog) => {
+        this.catalog = catalog || {};
+        return this.catalog;
+      })
+      .catch((error) => {
+        console.error('❌ Erreur chargement catalogue:', error);
+        if (!this.catalog || Object.keys(this.catalog).length === 0) {
+          this.catalog = {};
+        }
+        return this.catalog;
+      })
+      .finally(() => {
+        this.catalogPromise = null;
+      });
+
+    return this.catalogPromise;
+  }
+
+  async getCatalog() {
+    if (this.catalogPromise) {
+      await this.catalogPromise;
+    }
+
+    if (!this.catalog || Object.keys(this.catalog).length === 0) {
+      await this.loadCatalog();
+    }
+
+    return this.catalog;
   }
 
   refreshCatalog() {
-    this.catalog = this.loadCatalog();
+    this.cache.clear();
+    this.primaryKeyCache.clear();
+    if (this.catalogPromise) {
+      this.catalogPromise.finally(() => this.loadCatalog());
+      return;
+    }
+    this.loadCatalog();
   }
 
   async getPrimaryKey(tableName, config = {}) {
@@ -130,7 +195,7 @@ class SearchService {
     const startTime = Date.now();
     const results = [];
     const tablesSearched = [];
-    const catalog = this.catalog;
+    const catalog = await this.getCatalog();
 
     if (!query || query.trim().length === 0) {
       throw new Error('Le terme de recherche ne peut pas être vide');
@@ -549,7 +614,7 @@ class SearchService {
   }
 
   async getRecordDetails(tableName, id) {
-    const catalog = this.catalog;
+    const catalog = await this.getCatalog();
     if (!catalog[tableName]) {
       throw new Error('Table non autorisée');
     }
