@@ -12,6 +12,9 @@ export default {
       email: 'string'
     },
     theme: 'interne',
+    search: {
+      enabled: false
+    },
     sync: {
       type: 'profile',
       elasticsearchIndex: 'profiles',
@@ -550,7 +553,10 @@ export default {
       decision: 'string',
       date_sanction: 'date'
     },
-    theme: 'pro'
+    theme: 'pro',
+    search: {
+      enabled: false
+    }
   },
 
   'autres.tresor': {
@@ -736,7 +742,10 @@ export default {
     filters: {
       created_at: 'date'
     },
-    theme: 'interne'
+    theme: 'interne',
+    search: {
+      enabled: false
+    }
   },
 
   'autres.collections': {
@@ -775,7 +784,10 @@ export default {
       created_at: 'date'
     },
     linkedFields: ['phone'],
-    theme: 'interne'
+    theme: 'interne',
+    search: {
+      enabled: false
+    }
   },
 
   'autres.search_logs': {
@@ -795,6 +807,9 @@ export default {
       search_date: 'date',
       results_count: 'number'
     },
-    theme: 'interne'
+    theme: 'interne',
+    search: {
+      enabled: false
+    }
   }
 };

@@ -1,6 +1,6 @@
 import database from '../config/database.js';
 import statsCache from './stats-cache.js';
-import { buildCatalog } from '../utils/catalog-loader.js';
+import { buildCatalog, isSearchEnabled } from '../utils/catalog-loader.js';
 import { quoteIdentifier } from '../utils/sql.js';
 import { getTableNameCandidates } from '../utils/table-names.js';
 
@@ -210,7 +210,7 @@ class StatsService {
     }
 
     const catalog = await this.getCatalog();
-    const entries = Object.entries(catalog);
+    const entries = Object.entries(catalog).filter(([, config]) => isSearchEnabled(config));
     const results = await Promise.all(
       entries.map(async ([tableName, config]) => {
         const candidates = getTableNameCandidates(tableName);

@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import InMemoryCache from '../utils/cache.js';
-import { buildCatalog, catalogOverridesPath } from '../utils/catalog-loader.js';
+import { buildCatalog, catalogOverridesPath, isSearchEnabled } from '../utils/catalog-loader.js';
 import { quoteIdentifier, quoteIdentifiers } from '../utils/sql.js';
 import { getTableNameCandidates } from '../utils/table-names.js';
 import { isTableExcluded } from '../utils/search-exclusions.js';
@@ -258,7 +258,7 @@ class SearchService {
 
     // Lancer les recherches en parallèle sur toutes les tables du catalogue
     const searchPromises = Object.entries(catalog)
-      .filter(([tableName]) => !isTableExcluded(tableName))
+      .filter(([tableName, config]) => !isTableExcluded(tableName) && isSearchEnabled(config))
       .map(([tableName, config]) =>
         this.searchInTable(tableName, config, searchTerms, filters)
           .then((tableResults) => ({ tableName, tableResults }))
@@ -742,7 +742,7 @@ class SearchService {
 
   async getRecordDetails(tableName, id) {
     const catalog = await this.getCatalog();
-    if (!catalog[tableName]) {
+    if (!catalog[tableName] || !isSearchEnabled(catalog[tableName])) {
       throw new Error('Table non autorisée');
     }
 
