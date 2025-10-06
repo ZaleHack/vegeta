@@ -22,7 +22,7 @@ class ElasticSearchService {
     this.catalog = this.loadCatalog();
     this.indexes = this.enabled ? this.resolveIndexesFromCatalog(this.catalog) : [];
     const timeoutEnv = Number(process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS);
-    this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 1000;
+    this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 5000;
     this.connectionChecked = false;
     this.connectionCheckPromise = null;
     const retryEnv = Number(process.env.ELASTICSEARCH_RETRY_DELAY_MS);
