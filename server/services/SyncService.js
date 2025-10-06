@@ -22,6 +22,82 @@ class SyncService {
     this.defaultIndex = process.env.ELASTICSEARCH_DEFAULT_INDEX || 'global_search';
     this.resetIndices = new Set();
     this.catalog = this.loadCatalog();
+    this.primaryKeyCache = new Map();
+    this.tableColumnsCache = new Map();
+    this.qualifiedTableNameCache = new Map();
+  }
+
+  formatTableName(tableName) {
+    if (this.qualifiedTableNameCache.has(tableName)) {
+      return this.qualifiedTableNameCache.get(tableName);
+    }
+
+    const parts = tableName.split('.').map((part) => `\`${part}\``);
+    const qualifiedName = parts.join('.');
+    this.qualifiedTableNameCache.set(tableName, qualifiedName);
+    return qualifiedName;
+  }
+
+  async getTableColumns(tableName) {
+    if (this.tableColumnsCache.has(tableName)) {
+      return this.tableColumnsCache.get(tableName);
+    }
+
+    const columns = await database.query(`SHOW COLUMNS FROM ${this.formatTableName(tableName)}`);
+    this.tableColumnsCache.set(tableName, columns);
+    return columns;
+  }
+
+  async resolvePrimaryKey(tableName, tableConfig = {}) {
+    if (this.primaryKeyCache.has(tableName)) {
+      return this.primaryKeyCache.get(tableName);
+    }
+
+    const configuredPrimaryKey = tableConfig?.primaryKey;
+
+    if (configuredPrimaryKey) {
+      const columns = await this.getTableColumns(tableName);
+      const hasConfiguredKey = columns.some((column) => column.Field === configuredPrimaryKey);
+
+      if (hasConfiguredKey) {
+        this.primaryKeyCache.set(tableName, configuredPrimaryKey);
+        return configuredPrimaryKey;
+      }
+
+      console.warn(
+        `⚠️ Clé primaire "${configuredPrimaryKey}" introuvable pour ${tableName}, tentative de détection automatique.`
+      );
+    }
+
+    const keys = await database.query(
+      `SHOW KEYS FROM ${this.formatTableName(tableName)} WHERE Key_name = 'PRIMARY'`
+    );
+
+    if (keys.length > 0) {
+      const primaryKeyColumn =
+        keys.find((key) => key.Seq_in_index === 1)?.Column_name || keys[0].Column_name;
+      this.primaryKeyCache.set(tableName, primaryKeyColumn);
+      return primaryKeyColumn;
+    }
+
+    const columns = await this.getTableColumns(tableName);
+
+    if (!columns.length) {
+      throw new Error(`Impossible de déterminer les colonnes pour ${tableName}`);
+    }
+
+    const fallbackColumn = columns[0]?.Field;
+
+    if (!fallbackColumn) {
+      throw new Error(`Impossible de déterminer une colonne de repli pour ${tableName}`);
+    }
+
+    console.warn(
+      `⚠️ Table ${tableName} sans clé primaire explicite, utilisation de la colonne "${fallbackColumn}" comme clé d'ordonnancement.`
+    );
+
+    this.primaryKeyCache.set(tableName, fallbackColumn);
+    return fallbackColumn;
   }
 
   loadCatalog() {
@@ -64,7 +140,6 @@ class SyncService {
       return;
     }
 
-    const primaryKey = tableConfig.primaryKey || 'id';
     const baseSyncConfig = tableConfig.sync || {};
 
     if (baseSyncConfig.disabled || baseSyncConfig.enabled === false) {
@@ -79,6 +154,9 @@ class SyncService {
         (tableName === 'autres.profiles' ? 'profile' : 'generic'),
       elasticsearchIndex: baseSyncConfig.elasticsearchIndex || this.defaultIndex
     };
+
+    const primaryKey = await this.resolvePrimaryKey(tableName, tableConfig);
+    const qualifiedTableName = this.formatTableName(tableName);
 
     if (!this.useElastic) {
       console.warn(
@@ -118,7 +196,7 @@ class SyncService {
         const whereClause =
           lastPrimaryKey === null ? '' : `WHERE \`${primaryKey}\` > ?`;
         const rows = await database.query(
-          `SELECT * FROM ${tableName} ${whereClause} ORDER BY \`${primaryKey}\` ASC LIMIT ?`,
+          `SELECT * FROM ${qualifiedTableName} ${whereClause} ORDER BY \`${primaryKey}\` ASC LIMIT ?`,
           lastPrimaryKey === null ? [batchSize] : [lastPrimaryKey, batchSize]
         );
 
