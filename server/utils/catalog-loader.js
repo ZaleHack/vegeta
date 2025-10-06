@@ -6,6 +6,10 @@ import database from '../config/database.js';
 import baseCatalog from '../config/tables-catalog.js';
 import { isTableExcluded, normalizeTableName } from './search-exclusions.js';
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -84,6 +88,22 @@ const DATE_TYPES = ['date', 'datetime', 'timestamp', 'time', 'year'];
 
 function normalizeKey(key) {
   return normalizeTableName(key);
+}
+
+export function isSearchEnabled(config = {}) {
+  if (!config || typeof config !== 'object') {
+    return true;
+  }
+
+  if (config.searchDisabled === true) {
+    return false;
+  }
+
+  if (isPlainObject(config.search) && config.search.enabled === false) {
+    return false;
+  }
+
+  return true;
 }
 
 function isSearchableType(dataType = '') {
@@ -321,6 +341,22 @@ function finalizeCatalogEntry(key, value, fallback = {}) {
     ]),
     theme: combined.theme || 'general'
   };
+
+  const fallbackSearchConfig = isPlainObject(fallback.search) ? fallback.search : {};
+  const valueSearchConfig = isPlainObject(value.search)
+    ? value.search
+    : isPlainObject(combined.search)
+      ? combined.search
+      : {};
+  const mergedSearchConfig = { ...fallbackSearchConfig, ...valueSearchConfig };
+
+  if (Object.keys(mergedSearchConfig).length > 0) {
+    entry.search = mergedSearchConfig;
+  }
+
+  if ('searchDisabled' in combined) {
+    entry.searchDisabled = Boolean(combined.searchDisabled);
+  }
 
   if (!entry.searchable || entry.searchable.length === 0) {
     entry.searchable = deduplicateArray(entry.preview || fallback.searchable || []);

@@ -1,5 +1,5 @@
 import database from '../config/database.js';
-import { buildCatalog } from '../utils/catalog-loader.js';
+import { buildCatalog, isSearchEnabled } from '../utils/catalog-loader.js';
 
 function sanitizeIdentifier(name) {
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -56,6 +56,10 @@ async function createIndexes() {
   const catalog = await buildCatalog();
 
   for (const [tableKey, config] of Object.entries(catalog)) {
+    if (!isSearchEnabled(config)) {
+      continue;
+    }
+
     const fields = config.searchable || [];
     if (!fields.length) {
       continue;
