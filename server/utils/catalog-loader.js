@@ -20,6 +20,24 @@ const SYSTEM_DATABASES = new Set([
   'sys'
 ]);
 
+const BASE_CATALOG_DATABASES = new Set(
+  Object.entries(baseCatalog || {})
+    .map(([key, value]) => {
+      const explicitDatabase =
+        typeof value?.database === 'string' ? value.database.trim() : '';
+      if (explicitDatabase) {
+        return explicitDatabase;
+      }
+      if (typeof key === 'string' && key.includes('.')) {
+        return key.split('.')[0];
+      }
+      return null;
+    })
+    .filter((databaseName) =>
+      Boolean(databaseName) && !SYSTEM_DATABASES.has(databaseName)
+    )
+);
+
 const TEXT_SEARCH_TYPES = [
   'char',
   'varchar',
@@ -139,19 +157,42 @@ async function introspectDatabaseCatalog() {
     return {};
   }
 
+  const allowedDatabases = Array.from(BASE_CATALOG_DATABASES);
+
+  if (allowedDatabases.length === 0) {
+    console.warn(
+      "⚠️ Aucun schéma défini dans tables-catalog.js; l'introspection est ignorée"
+    );
+    return {};
+  }
+
   let rows = [];
   try {
-    rows = await database.query(
-      `
+    const parameters = [];
+    let query = `
         SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE
         FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA NOT IN (${Array.from(SYSTEM_DATABASES)
-          .map(() => '?')
-          .join(', ')})
-        ORDER BY TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION
-      `,
-      Array.from(SYSTEM_DATABASES)
-    );
+        WHERE 1 = 1
+      `;
+
+    if (allowedDatabases.length > 0) {
+      query += ` AND TABLE_SCHEMA IN (${allowedDatabases
+        .map(() => '?')
+        .join(', ')})`;
+      parameters.push(...allowedDatabases);
+    }
+
+    const systemDatabases = Array.from(SYSTEM_DATABASES);
+    if (systemDatabases.length > 0) {
+      query += ` AND TABLE_SCHEMA NOT IN (${systemDatabases
+        .map(() => '?')
+        .join(', ')})`;
+      parameters.push(...systemDatabases);
+    }
+
+    query += ' ORDER BY TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION';
+
+    rows = await database.query(query, parameters);
   } catch (error) {
     console.warn('⚠️ Impossible de récupérer les métadonnées des tables:', error.message);
     return {};
@@ -163,6 +204,9 @@ async function introspectDatabaseCatalog() {
     const schema = row.TABLE_SCHEMA;
     const table = row.TABLE_NAME;
     if (!schema || !table) {
+      continue;
+    }
+    if (!BASE_CATALOG_DATABASES.has(schema)) {
       continue;
     }
     const key = `${schema}.${table}`;
