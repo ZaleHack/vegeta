@@ -20,6 +20,9 @@ const SYSTEM_DATABASES = new Set([
   'sys'
 ]);
 
+// Tables qui ne doivent jamais être indexées ou accessibles via la recherche
+const EXCLUDED_TABLES = new Set(['autres.search_logs']);
+
 function collectConfiguredDatabases(catalog = {}) {
   const databases = new Set();
 
@@ -234,6 +237,9 @@ async function introspectDatabaseCatalog(overrides = {}) {
       continue;
     }
     const key = `${schema}.${table}`;
+    if (EXCLUDED_TABLES.has(key)) {
+      continue;
+    }
     if (!tables.has(key)) {
       tables.set(key, []);
     }
@@ -288,6 +294,9 @@ function mergeCatalogs(base = {}, overrides = {}) {
 
   for (const [key, overrideValue] of Object.entries(overrides)) {
     const normalizedKey = normalizeKey(key);
+    if (EXCLUDED_TABLES.has(normalizedKey)) {
+      continue;
+    }
     const existing = merged[normalizedKey] || {};
     merged[normalizedKey] = {
       ...existing,
@@ -352,6 +361,9 @@ export async function buildCatalog() {
 
   for (const [key, value] of Object.entries(catalogWithOverrides)) {
     const normalizedKey = normalizeKey(key);
+    if (EXCLUDED_TABLES.has(normalizedKey)) {
+      continue;
+    }
     const fallback = dynamicCatalog[normalizedKey] || {};
     const entry = finalizeCatalogEntry(normalizedKey, value, fallback);
 
