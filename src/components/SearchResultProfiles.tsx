@@ -36,6 +36,7 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
         const tableLabel = hit.table_name || hit.table;
         const databaseLabel = hit.database || 'Elasticsearch';
         const formattedScore = formatScore(hit.score);
+        const relatedLabel = typeof hit.related_to === 'string' ? hit.related_to : null;
 
         return (
           <div key={idx} className="bg-white shadow-lg rounded-2xl overflow-hidden">
@@ -53,6 +54,11 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
                     {databaseLabel && (
                       <span className="inline-flex items-center rounded-full bg-blue-900/40 px-2 py-0.5 font-medium text-blue-50">
                         {databaseLabel}
+                      </span>
+                    )}
+                    {relatedLabel && (
+                      <span className="inline-flex items-center rounded-full bg-amber-500/30 px-2 py-0.5 font-semibold text-white">
+                        Lié à {relatedLabel}
                       </span>
                     )}
                     {formattedScore && (
