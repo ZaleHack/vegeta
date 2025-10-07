@@ -28,6 +28,13 @@ const FALLBACK_EXCLUDED_FIELDS = new Set([
   'previewEntries'
 ]);
 
+const EXCLUDED_RESULT_FIELDS = new Set(['id', 'id1']);
+
+const shouldExcludeField = (key: string): boolean => {
+  const normalizedKey = key.trim().toLowerCase();
+  return EXCLUDED_RESULT_FIELDS.has(normalizedKey);
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 };
@@ -86,6 +93,9 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
   const seenKeys = new Set<string>();
 
   const pushEntry = (key: string, rawValue: unknown) => {
+    if (shouldExcludeField(key)) {
+      return;
+    }
     if (isEmptyValue(rawValue)) {
       return;
     }
@@ -111,7 +121,7 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
     Object.assign(source, hit.preview as Record<string, unknown>);
   } else {
     Object.entries(hit).forEach(([key, value]) => {
-      if (FALLBACK_EXCLUDED_FIELDS.has(key)) {
+      if (FALLBACK_EXCLUDED_FIELDS.has(key) || shouldExcludeField(key)) {
         return;
       }
       source[key] = value;
