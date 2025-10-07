@@ -243,6 +243,33 @@ class ElasticSearchService {
     return Array.from(indexes);
   }
 
+  serializeRecord(record) {
+    if (!record || typeof record !== 'object') {
+      return {};
+    }
+
+    const serialized = {};
+    for (const [key, value] of Object.entries(record)) {
+      if (value === undefined) {
+        continue;
+      }
+
+      if (value instanceof Date) {
+        serialized[key] = value.toISOString();
+        continue;
+      }
+
+      if (typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(value)) {
+        serialized[key] = value.toString('base64');
+        continue;
+      }
+
+      serialized[key] = value;
+    }
+
+    return serialized;
+  }
+
   normalizeValues(values = []) {
     const output = [];
     const visit = (value) => {
@@ -292,6 +319,7 @@ class ElasticSearchService {
       return null;
     }
 
+    const serializedRecord = this.serializeRecord(normalized);
     const fullName = [normalized.first_name, normalized.last_name]
       .filter((part) => part && String(part).trim().length > 0)
       .join(' ')
@@ -348,6 +376,7 @@ class ElasticSearchService {
       primary_key: 'id',
       primary_value: normalized.id,
       primary_keys: { id: normalized.id },
+      record: serializedRecord,
       raw_values: rawValues,
       full_text: this.buildFullTextFromValues(rawValues)
     };
@@ -393,6 +422,7 @@ class ElasticSearchService {
       return null;
     }
 
+    const serializedRecord = this.serializeRecord(record);
     const preview = this.buildPreview(record, config);
     const rawValues = this.collectSearchValues(record, config, primaryKey);
     const searchTokens = this.buildTokensFromValues(rawValues);
@@ -408,6 +438,7 @@ class ElasticSearchService {
       primary_key: primaryKey || 'id',
       primary_value: key,
       primary_keys: { [primaryKey || 'id']: key },
+      record: serializedRecord,
       raw_values: rawValues,
       full_text: this.buildFullTextFromValues(rawValues)
     };
@@ -725,6 +756,10 @@ class ElasticSearchService {
         ? catalogEntry.linkedFields
         : [];
     const theme = source.theme || catalogEntry.theme;
+    const record =
+      source.record && typeof source.record === 'object' && !Array.isArray(source.record)
+        ? source.record
+        : null;
 
     return {
       table: tableDisplay,
@@ -732,8 +767,11 @@ class ElasticSearchService {
       database: databaseName,
       preview,
       primary_keys: primaryKeys,
+      primary_key: primaryKeyName,
+      primary_value: primaryValue,
       linkedFields,
       theme,
+      record,
       score: typeof hit?._score === 'number' ? hit._score : undefined
     };
   }
@@ -832,6 +870,7 @@ class ElasticSearchService {
           'primary_key',
           'primary_value',
           'primary_keys',
+          'record',
           'preview',
           'linked_fields',
           'theme',
