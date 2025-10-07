@@ -2003,15 +2003,6 @@ const App: React.FC = () => {
     const requestedPage = 1;
     const requestedLimit = 20;
 
-    if (
-      lastQueryRef.current &&
-      lastQueryRef.current.query === trimmedQuery &&
-      lastQueryRef.current.page === requestedPage &&
-      lastQueryRef.current.limit === requestedLimit
-    ) {
-      return;
-    }
-
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
