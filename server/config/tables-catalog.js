@@ -12,9 +12,6 @@ export default {
       email: 'string'
     },
     theme: 'interne',
-    search: {
-      enabled: false
-    },
     sync: {
       type: 'profile',
       elasticsearchIndex: 'profiles',
@@ -506,7 +503,6 @@ export default {
   'autres.education': {
     display: 'education',
     database: 'autres',
-    primaryKey: 'cni',
     searchable: ['prenom', 'nom', 'datenaiss', 'lieunaiss', 'cni', 'corps', 'lib_service', 'lib_org_niv1', 'telephone'],
     preview: ['prenom', 'nom', 'cni', 'corps', 'telephone'],
     filters: {
@@ -514,65 +510,6 @@ export default {
       datenaiss: 'date',
       lieunaiss: 'string',
       telephone: 'string'
-    },
-    theme: 'pro'
-  },
-
-  'autres.edu_sn': {
-    display: 'edu_sn',
-    database: 'autres',
-    primaryKey: 'ID',
-    searchable: [
-      'ID',
-      'CNI',
-      'PRENOM',
-      'NOM',
-      'DATE_NAISSANCE',
-      'LIEU_NAISSANCE',
-      'controldoublon2',
-      'controldoublon',
-      'SEXE',
-      'EMAIL',
-      'EMAIL2',
-      'TELEPHONE1',
-      'TELEPHONE2',
-      'ADRESSE_RESIDENCE',
-      'DIPLOME_ACADEMIQUE',
-      'DISCIPLINE_DIPLOME_ACADEMIQUE',
-      'DIPLOME_PROFESSIONNEL',
-      'SPECIALITE_DIPLOME_PROFESSIONNEL',
-      'ORDRE_ENSEIGNEMENT_CHOISI',
-      'OPTIONSPECIALITE',
-      'EXPERIENCE_ENSEIGNEMENT',
-      'LIBELLE_DERNIER_POSTE',
-      'IA_DERNIER_POSTE',
-      'IEF_DERNIER_POSTE',
-      'IA_DEPOT',
-      'IEF_DEPOT',
-      'DATE_INSCRIPTION',
-      'EXPERIMENTE',
-      'AUTRE_DIPL_ACAD',
-      'etat_doublon'
-    ],
-    linkedFields: ['CNI', 'TELEPHONE1', 'TELEPHONE2', 'EMAIL', 'EMAIL2'],
-    preview: [
-      'PRENOM',
-      'NOM',
-      'CNI',
-      'TELEPHONE1',
-      'TELEPHONE2',
-      'EMAIL',
-      'ORDRE_ENSEIGNEMENT_CHOISI'
-    ],
-    filters: {
-      DATE_NAISSANCE: 'date',
-      DATE_INSCRIPTION: 'date',
-      SEXE: 'enum',
-      IA_DEPOT: 'string',
-      IEF_DEPOT: 'string',
-      ORDRE_ENSEIGNEMENT_CHOISI: 'string',
-      IA_DERNIER_POSTE: 'string',
-      IEF_DERNIER_POSTE: 'string'
     },
     theme: 'pro'
   },
@@ -600,22 +537,6 @@ export default {
       quartier: 'string'
     },
     theme: 'telecom'
-  },
-
-  'autres.sanctions': {
-    display: 'sanctions',
-    database: 'autres',
-    searchable: ['prenom', 'nom', 'cni', 'structure', 'motif', 'decision', 'date_sanction'],
-    preview: ['prenom', 'nom', 'cni', 'structure', 'decision'],
-    filters: {
-      structure: 'string',
-      decision: 'string',
-      date_sanction: 'date'
-    },
-    theme: 'pro',
-    search: {
-      enabled: false
-    }
   },
 
   'autres.tresor': {
@@ -647,9 +568,8 @@ export default {
   'autres.demdikk': {
     display: 'demdikk',
     database: 'autres',
-    primaryKey: 'Numero',
     searchable: ['Prenom', 'Nom', 'Numero', 'PassePort'],
-    preview: ['ID', 'Prenom', 'Nom', 'Numero', 'PassePort'],
+    preview: ['Prenom', 'Nom', 'Numero', 'PassePort'],
     filters: {
       Numero: 'string',
       PassePort: 'string'
@@ -686,28 +606,12 @@ export default {
     theme: 'identite'
   },
 
-  'autres.agents_penitentiare': {
-    display: 'agents_penitentiare',
-    database: 'autres',
-    searchable: [
-      'prenom',
-      'nom',
-      'corps'
-    ],
-    preview: ['prenom', 'nom', 'corps'],
-    filters: {
-      corps: 'string'
-    },
-    theme: 'pro'
-  },
-
   'autres.petrosen': {
     display: 'petrosen',
     database: 'autres',
-    primaryKey: 'telephone',
     searchable: ['nom', 'telephone', 'email', 'departement', 'titre', 'responsable'],
     linkedFields: ['telephone'],
-    preview: ['nom', 'telephone', 'email', 'departement', 'titre', 'responsable'],
+    preview: ['nom', 'telephone', 'email', 'departement', 'titre'],
     filters: {
       departement: 'string',
       titre: 'string',
@@ -793,20 +697,6 @@ export default {
     theme: 'identite'
   },
 
-  'autres.divisions': {
-    display: 'divisions',
-    database: 'autres',
-    searchable: ['name'],
-    preview: ['name', 'created_at'],
-    filters: {
-      created_at: 'date'
-    },
-    theme: 'interne',
-    search: {
-      enabled: false
-    }
-  },
-
   'autres.collections': {
     display: 'collections',
     database: 'autres',
@@ -831,44 +721,5 @@ export default {
     },
     linkedFields: ['phone'],
     theme: 'identite'
-  },
-
-  'autres.identification_requests': {
-    display: 'identification_requests',
-    database: 'autres',
-    searchable: ['phone', 'status', 'created_at', 'user_id'],
-    preview: ['phone', 'status', 'created_at'],
-    filters: {
-      status: 'enum',
-      created_at: 'date'
-    },
-    linkedFields: ['phone'],
-    theme: 'interne',
-    search: {
-      enabled: false
-    }
-  },
-
-  'autres.search_logs': {
-    display: 'search_logs',
-    database: 'autres',
-    searchable: [
-      'username',
-      'search_term',
-      'search_type',
-      'tables_searched',
-      'ip_address',
-      'user_agent'
-    ],
-    preview: ['username', 'search_term', 'search_type', 'results_count'],
-    filters: {
-      search_type: 'string',
-      search_date: 'date',
-      results_count: 'number'
-    },
-    theme: 'interne',
-    search: {
-      enabled: false
-    }
   }
 };

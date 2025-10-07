@@ -1,11 +1,11 @@
 import client from '../config/elasticsearch.js';
 import { normalizeProfileRecord } from '../utils/profile-normalizer.js';
 import InMemoryCache from '../utils/cache.js';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { buildCatalog, catalogOverridesPath } from '../utils/catalog-loader.js';
+import baseCatalog from '../config/tables-catalog.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
-import { isTableExcluded, EXCLUDED_TABLES } from '../utils/search-exclusions.js';
 
 class ElasticSearchService {
   constructor() {
@@ -15,36 +15,19 @@ class ElasticSearchService {
     this.cache = new InMemoryCache(ttl);
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    this.catalogPath = catalogOverridesPath || path.join(__dirname, '../config/tables-catalog.json');
+    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.defaultIndex = process.env.ELASTICSEARCH_DEFAULT_INDEX || 'global_search';
     this.enabled = isElasticsearchEnabled();
     this.initiallyEnabled = this.enabled;
-    this.catalog = {};
-    this.catalogPromise = null;
-    this.indexes = this.enabled ? [this.defaultIndex] : [];
-    this.loadCatalog();
+    this.catalog = this.loadCatalog();
+    this.indexes = this.enabled ? this.resolveIndexesFromCatalog(this.catalog) : [];
     const timeoutEnv = Number(process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS);
-    this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 3000;
+    this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 5000;
     this.connectionChecked = false;
     this.connectionCheckPromise = null;
     const retryEnv = Number(process.env.ELASTICSEARCH_RETRY_DELAY_MS);
     this.retryDelayMs = Number.isFinite(retryEnv) && retryEnv >= 0 ? retryEnv : 15000;
     this.reconnectTimer = null;
-
-    const requestTimeoutEnv = Number(process.env.ELASTICSEARCH_REQUEST_TIMEOUT_MS);
-    const searchRequestTimeoutEnv = Number(process.env.ELASTICSEARCH_SEARCH_TIMEOUT_MS);
-    const abortTimeoutEnv = Number(process.env.ELASTICSEARCH_ABORT_TIMEOUT_MS);
-
-    const baseRequestTimeout =
-      Number.isFinite(requestTimeoutEnv) && requestTimeoutEnv > 0 ? requestTimeoutEnv : 3000;
-
-    this.searchRequestTimeout =
-      Number.isFinite(searchRequestTimeoutEnv) && searchRequestTimeoutEnv > 0
-        ? searchRequestTimeoutEnv
-        : baseRequestTimeout;
-
-    this.searchAbortTimeout =
-      Number.isFinite(abortTimeoutEnv) && abortTimeoutEnv >= 0 ? abortTimeoutEnv : this.searchRequestTimeout + 500;
 
     if (this.enabled) {
       this.scheduleConnectionVerification('initialisation');
@@ -59,27 +42,10 @@ class ElasticSearchService {
     if (!error) {
       return false;
     }
-    if (error.name === 'ConnectionError' || error.name === 'TimeoutError') {
+    if (error.name === 'ConnectionError') {
       return true;
     }
-    if (error.name === 'AbortError' || error.name === 'RequestAbortedError') {
-      return true;
-    }
-    const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
-    if (message.includes('timeout') || message.includes('timed out')) {
-      return true;
-    }
-    if (error?.meta?.statusCode === 0 || error?.meta?.statusCode === 408) {
-      return true;
-    }
-    const errorType = error?.meta?.body?.error?.type;
-    if (errorType && typeof errorType === 'string') {
-      const lowered = errorType.toLowerCase();
-      if (lowered.includes('timeout')) {
-        return true;
-      }
-    }
-    return false;
+    return error?.meta?.statusCode === 0;
   }
 
   disableForSession(context, error) {
@@ -199,30 +165,21 @@ class ElasticSearchService {
   }
 
   loadCatalog() {
-    if (this.catalogPromise) {
-      return this.catalogPromise;
+    let catalog = { ...baseCatalog };
+    try {
+      if (fs.existsSync(this.catalogPath)) {
+        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
+        const json = JSON.parse(raw);
+        for (const [key, value] of Object.entries(json)) {
+          const [db, ...tableParts] = key.split('_');
+          const tableName = `${db}.${tableParts.join('_')}`;
+          catalog[tableName] = value;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erreur chargement catalogue Elasticsearch:', error);
     }
-
-    this.catalogPromise = buildCatalog()
-      .then((catalog) => {
-        this.catalog = catalog || {};
-        if (this.enabled) {
-          this.indexes = this.resolveIndexesFromCatalog(this.catalog);
-        }
-        return this.catalog;
-      })
-      .catch((error) => {
-        console.error('❌ Erreur chargement catalogue Elasticsearch:', error);
-        if (this.enabled && (!this.indexes || this.indexes.length === 0)) {
-          this.indexes = [this.defaultIndex];
-        }
-        return this.catalog;
-      })
-      .finally(() => {
-        this.catalogPromise = null;
-      });
-
-    return this.catalogPromise;
+    return catalog;
   }
 
   resolveIndexesFromCatalog(catalog = {}) {
@@ -241,33 +198,6 @@ class ElasticSearchService {
       indexes.add('profiles');
     }
     return Array.from(indexes);
-  }
-
-  serializeRecord(record) {
-    if (!record || typeof record !== 'object') {
-      return {};
-    }
-
-    const serialized = {};
-    for (const [key, value] of Object.entries(record)) {
-      if (value === undefined) {
-        continue;
-      }
-
-      if (value instanceof Date) {
-        serialized[key] = value.toISOString();
-        continue;
-      }
-
-      if (typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(value)) {
-        serialized[key] = value.toString('base64');
-        continue;
-      }
-
-      serialized[key] = value;
-    }
-
-    return serialized;
   }
 
   normalizeValues(values = []) {
@@ -319,7 +249,6 @@ class ElasticSearchService {
       return null;
     }
 
-    const serializedRecord = this.serializeRecord(normalized);
     const fullName = [normalized.first_name, normalized.last_name]
       .filter((part) => part && String(part).trim().length > 0)
       .join(' ')
@@ -372,11 +301,9 @@ class ElasticSearchService {
       database_name: 'autres',
       preview: previewEntries,
       search_tokens: searchTokens,
-      linked_fields: ['phone', 'email'],
       primary_key: 'id',
       primary_value: normalized.id,
       primary_keys: { id: normalized.id },
-      record: serializedRecord,
       raw_values: rawValues,
       full_text: this.buildFullTextFromValues(rawValues)
     };
@@ -422,7 +349,6 @@ class ElasticSearchService {
       return null;
     }
 
-    const serializedRecord = this.serializeRecord(record);
     const preview = this.buildPreview(record, config);
     const rawValues = this.collectSearchValues(record, config, primaryKey);
     const searchTokens = this.buildTokensFromValues(rawValues);
@@ -434,11 +360,9 @@ class ElasticSearchService {
       database_name: databaseName,
       preview,
       search_tokens: searchTokens,
-      linked_fields: Array.isArray(config.linkedFields) ? config.linkedFields : [],
       primary_key: primaryKey || 'id',
       primary_value: key,
       primary_keys: { [primaryKey || 'id']: key },
-      record: serializedRecord,
       raw_values: rawValues,
       full_text: this.buildFullTextFromValues(rawValues)
     };
@@ -708,70 +632,24 @@ class ElasticSearchService {
     return entries;
   }
 
-  resolveTableNameFromSource(source = {}) {
-    if (source.table_name) {
-      return source.table_name;
-    }
-
-    const table = source.table;
-    const database = source.database_name;
-
-    if (table && database) {
-      return `${database}.${table}`;
-    }
-
-    if (table && typeof table === 'string' && table.includes('.')) {
-      return table;
-    }
-
-    return null;
-  }
-
-  resolvePrimaryKeysFromSource(source = {}, primaryKeyName, primaryValue) {
-    if (source.primary_keys && typeof source.primary_keys === 'object') {
-      return source.primary_keys;
-    }
-
-    if (primaryKeyName && primaryValue !== undefined && primaryValue !== null) {
-      return { [primaryKeyName]: primaryValue };
-    }
-
-    return {};
-  }
-
   normalizeHit(hit) {
     const source = hit?._source || {};
     const preview = this.buildPreviewFromSource(source);
-    const tableName = this.resolveTableNameFromSource(source) || 'autres.profiles';
-    const catalogEntry = this.catalog?.[tableName] || {};
-    const tableDisplay = catalogEntry.display || source.table || tableName;
-    const databaseName =
-      catalogEntry.database || source.database_name || (tableName.includes('.') ? tableName.split('.')[0] : 'Elasticsearch');
-    const primaryKeyName = source.primary_key || catalogEntry.primaryKey || 'id';
+    const tableName = source.table_name || 'autres.profiles';
+    const tableDisplay = source.table || tableName;
+    const primaryKeyName = source.primary_key || 'id';
     const primaryValue = source.primary_value ?? source.id ?? hit?._id;
-    const primaryKeys = this.resolvePrimaryKeysFromSource(source, primaryKeyName, primaryValue);
-    const linkedFields = Array.isArray(source.linked_fields)
-      ? source.linked_fields
-      : Array.isArray(catalogEntry.linkedFields)
-        ? catalogEntry.linkedFields
-        : [];
-    const theme = source.theme || catalogEntry.theme;
-    const record =
-      source.record && typeof source.record === 'object' && !Array.isArray(source.record)
-        ? source.record
-        : null;
+    const primaryKeys =
+      source.primary_keys && typeof source.primary_keys === 'object'
+        ? source.primary_keys
+        : { [primaryKeyName]: primaryValue };
 
     return {
       table: tableDisplay,
       table_name: tableName,
-      database: databaseName,
+      database: source.database_name || 'Elasticsearch',
       preview,
       primary_keys: primaryKeys,
-      primary_key: primaryKeyName,
-      primary_value: primaryValue,
-      linkedFields,
-      theme,
-      record,
       score: typeof hit?._score === 'number' ? hit._score : undefined
     };
   }
@@ -805,50 +683,8 @@ class ElasticSearchService {
 
     let hits;
     let took;
-    const excludedTables = Array.from(EXCLUDED_TABLES.values());
-
     try {
-      const boolQuery = {
-        should: [
-          {
-            multi_match: {
-              query,
-              fields: [
-                'full_name^2',
-                'first_name',
-                'last_name',
-                'phone',
-                'email',
-                'search_tokens',
-                'full_text',
-                'raw_values'
-              ],
-              fuzziness: 'AUTO'
-            }
-          },
-          {
-            term: {
-              'primary_value.keyword': {
-                value: query,
-                boost: 5
-              }
-            }
-          }
-        ],
-        minimum_should_match: 1
-      };
-
-      if (excludedTables.length > 0) {
-        boolQuery.must_not = [
-          {
-            terms: {
-              'table_name.keyword': excludedTables
-            }
-          }
-        ];
-      }
-
-      const searchOptions = {
+      const response = await client.search({
         index: indexes,
         ignore_unavailable: true,
         from,
@@ -870,44 +706,45 @@ class ElasticSearchService {
           'primary_key',
           'primary_value',
           'primary_keys',
-          'record',
           'preview',
-          'linked_fields',
-          'theme',
           'search_tokens',
           'full_text',
           'raw_values'
         ],
-        query: { bool: boolQuery }
-      };
-
-      const transportOptions = {
-        requestTimeout: this.searchRequestTimeout
-      };
-
-      let abortTimer = null;
-      if (
-        Number.isFinite(this.searchAbortTimeout) &&
-        this.searchAbortTimeout > 0 &&
-        typeof AbortController === 'function'
-      ) {
-        const controller = new AbortController();
-        abortTimer = setTimeout(() => controller.abort(), this.searchAbortTimeout);
-        if (typeof abortTimer.unref === 'function') {
-          abortTimer.unref();
+        query: {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query,
+                  fields: [
+                    'full_name^2',
+                    'first_name',
+                    'last_name',
+                    'phone',
+                    'email',
+                    'search_tokens',
+                    'full_text',
+                    'raw_values'
+                  ],
+                  fuzziness: 'AUTO'
+                }
+              },
+              {
+                term: {
+                  'primary_value.keyword': {
+                    value: query,
+                    boost: 5
+                  }
+                }
+              }
+            ],
+            minimum_should_match: 1
+          }
         }
-        transportOptions.signal = controller.signal;
-      }
-
-      try {
-        const response = await client.search(searchOptions, transportOptions);
-        hits = response.hits;
-        took = response.took;
-      } finally {
-        if (abortTimer) {
-          clearTimeout(abortTimer);
-        }
-      }
+      });
+      hits = response.hits;
+      took = response.took;
     } catch (error) {
       if (this.isConnectionError(error)) {
         console.error('❌ Recherche Elasticsearch indisponible:', error.message);
@@ -923,20 +760,12 @@ class ElasticSearchService {
     }
 
     const total = typeof hits.total === 'number' ? hits.total : hits.total?.value ?? 0;
-    const normalizedHits = hits.hits
-      .map((hit) => this.normalizeHit(hit))
-      .filter((hit) => !isTableExcluded(hit.table_name || hit.table));
+    const normalizedHits = hits.hits.map((hit) => this.normalizeHit(hit));
     const response = {
       total,
       hits: normalizedHits,
       elapsed_ms: took,
-      tables_searched: Array.from(
-        new Set(
-          normalizedHits
-            .map((hit) => hit.table_name)
-            .filter((table) => table && !isTableExcluded(table))
-        )
-      )
+      tables_searched: Array.from(new Set(normalizedHits.map((hit) => hit.table_name).filter(Boolean)))
     };
 
     this.cache.set(cacheKey, response);

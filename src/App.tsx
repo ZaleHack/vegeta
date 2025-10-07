@@ -137,11 +137,6 @@ interface SearchResult extends RawSearchResult {
   previewEntries: NormalizedPreviewEntry[];
 }
 
-interface RelatedSearchGroup<T> {
-  value: string;
-  hits: T[];
-}
-
 interface SearchResponse {
   total: number;
   page: number;
@@ -150,12 +145,10 @@ interface SearchResponse {
   elapsed_ms: number;
   hits: SearchResult[];
   tables_searched: string[];
-  related_queries?: RelatedSearchGroup<SearchResult>[];
 }
 
-type SearchResponseFromApi = Omit<SearchResponse, 'hits' | 'related_queries'> & {
+type SearchResponseFromApi = Omit<SearchResponse, 'hits'> & {
   hits: RawSearchResult[];
-  related_queries?: RelatedSearchGroup<RawSearchResult>[];
   error?: string;
 };
 
@@ -167,22 +160,9 @@ const mapPreviewEntries = (hits: RawSearchResult[] | undefined): SearchResult[] 
       }))
     : [];
 
-const mapRelatedQueries = (
-  related: RelatedSearchGroup<RawSearchResult>[] | undefined
-): RelatedSearchGroup<SearchResult>[] =>
-  Array.isArray(related)
-    ? related
-        .map((group) => ({
-          value: group.value,
-          hits: mapPreviewEntries(group.hits)
-        }))
-        .filter((group) => group.hits.length > 0)
-    : [];
-
 const normalizeSearchResponse = (data: SearchResponseFromApi): SearchResponse => ({
   ...data,
-  hits: mapPreviewEntries(data.hits),
-  related_queries: mapRelatedQueries(data.related_queries)
+  hits: mapPreviewEntries(data.hits)
 });
 
 const formatScore = (score?: number) => {
@@ -5323,7 +5303,6 @@ useEffect(() => {
                             const formattedScore = formatScore(result.score);
                             const tableLabel = result.table_name || result.table;
                             const databaseLabel = result.database || 'Elasticsearch';
-                            const relatedLabel = typeof result.related_to === 'string' ? result.related_to : null;
 
                             return (
                               <div
@@ -5347,11 +5326,6 @@ useEffect(() => {
                                       {databaseLabel && (
                                         <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-600 dark:bg-gray-700/70 dark:text-gray-300">
                                           {databaseLabel}
-                                        </span>
-                                      )}
-                                      {relatedLabel && (
-                                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700 dark:bg-amber-900/60 dark:text-amber-200">
-                                          Lié à {relatedLabel}
                                         </span>
                                       )}
                                       {formattedScore && (
@@ -5489,45 +5463,6 @@ useEffect(() => {
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                           Affichage progressif des résultats...
                         </button>
-                      </div>
-                    )}
-                    {Array.isArray(searchResults.related_queries) && searchResults.related_queries.length > 0 && (
-                      <div className="border-t border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-900/30">
-                        <div className="px-8 py-6">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                            Résultats liés automatiquement
-                          </h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                            Les identifiants détectés (CNI, NIN, téléphones, numéros, etc.) ont déclenché des recherches complémentaires.
-                          </p>
-                        </div>
-                        <div className="space-y-10 px-8 pb-8">
-                          {searchResults.related_queries.map((related, index) => (
-                            <div
-                              key={`${related.value}-${index}`}
-                              className="bg-white/80 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-md"
-                            >
-                              <div className="flex items-center justify-between mb-4">
-                                <div>
-                                  <h4 className="text-md font-semibold text-gray-900 dark:text-gray-100">
-                                    Recherche automatique : {related.value}
-                                  </h4>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    Résultats supplémentaires trouvés à partir des données détectées.
-                                  </p>
-                                </div>
-                                <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/60 dark:text-amber-200">
-                                  {related.hits.length} résultat(s)
-                                </span>
-                              </div>
-                              <SearchResultProfiles
-                                hits={related.hits}
-                                query={related.value}
-                                onCreateProfile={openCreateProfile}
-                              />
-                            </div>
-                          ))}
-                        </div>
                       </div>
                     )}
                 </div>
