@@ -13,6 +13,74 @@ class UploadService {
     }
     return { database: 'autres', table: tableName };
   }
+  sanitizeColumnName(name, fallbackIndex, usedNames) {
+    const RESERVED_NAMES = new Set(['id', 'upload_id', 'created_at']);
+    let baseName = '';
+
+    if (name !== undefined && name !== null) {
+      baseName = String(name).trim();
+    }
+
+    if (!baseName) {
+      baseName = `column_${fallbackIndex + 1}`;
+    }
+
+    baseName = baseName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_]/g, '_')
+      .replace(/_{2,}/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toLowerCase();
+
+    if (!baseName) {
+      baseName = `column_${fallbackIndex + 1}`;
+    }
+
+    if (/^\d/.test(baseName)) {
+      baseName = `col_${baseName}`;
+    }
+
+    let candidate = baseName;
+    let suffix = 1;
+    while (RESERVED_NAMES.has(candidate) || usedNames.has(candidate)) {
+      candidate = `${baseName}_${suffix}`;
+      suffix += 1;
+    }
+
+    usedNames.add(candidate);
+    return candidate;
+  }
+
+  normalizeRowsForNewTable(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return { columns: [], rows: [] };
+    }
+
+    const originalColumns = Object.keys(rows[0]);
+    const usedNames = new Set();
+    const columnMap = new Map();
+
+    const normalizedColumns = originalColumns.map((column, index) => {
+      const normalized = this.sanitizeColumnName(column, index, usedNames);
+      columnMap.set(column, normalized);
+      return normalized;
+    });
+
+    const normalizedRows = rows.map((row) => {
+      const normalizedRow = {};
+      for (const [key, value] of Object.entries(row)) {
+        const normalizedKey = columnMap.get(key);
+        if (normalizedKey) {
+          normalizedRow[normalizedKey] = value;
+        }
+      }
+      return normalizedRow;
+    });
+
+    return { columns: normalizedColumns, rows: normalizedRows };
+  }
+
   async uploadCSV(filePath, targetTable, mode = 'insert', userId = null) {
     const startTime = Date.now();
     let totalRows = 0;
@@ -35,17 +103,23 @@ class UploadService {
           .on('error', reject);
       });
 
-      totalRows = rows.length;
-
-      if (totalRows === 0) {
+      if (rows.length === 0) {
         throw new Error('Le fichier CSV est vide');
       }
 
+      let processedRows = rows;
+      let normalizedColumns = [];
+
       // Si c'est une nouvelle table, la créer
       if (mode === 'new_table') {
-        await this.createTableFromCSV(targetTable, rows[0]);
+        const normalization = this.normalizeRowsForNewTable(rows);
+        processedRows = normalization.rows;
+        normalizedColumns = normalization.columns;
+        await this.createTableFromCSV(targetTable, normalizedColumns);
         await this.addTableToCatalog(targetTable);
       }
+
+      totalRows = processedRows.length;
 
       // Créer une entrée d'historique avant l'insertion pour récupérer l'ID
       if (userId) {
@@ -64,7 +138,7 @@ class UploadService {
       }
 
       // Insérer les données
-      for (const [index, row] of rows.entries()) {
+      for (const [index, row] of processedRows.entries()) {
         try {
           await this.insertRow(targetTable, row, mode, uploadId);
           successRows++;
@@ -102,9 +176,16 @@ class UploadService {
     }
   }
 
-  async createTableFromCSV(tableName, sampleRow) {
+  async createTableFromCSV(tableName, columnsInput) {
     const { database: db, table } = this.parseTableName(tableName);
-    const columns = Object.keys(sampleRow);
+    const columns = Array.isArray(columnsInput)
+      ? columnsInput
+      : Object.keys(columnsInput || {});
+
+    if (columns.length === 0) {
+      throw new Error('Aucune colonne valide détectée dans le fichier CSV');
+    }
+
     const columnDefinitions = columns
       .map(col => `\`${col}\` TEXT`)
       .join(', ');
