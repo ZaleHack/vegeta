@@ -365,7 +365,7 @@ class SearchService {
         // Terme obligatoire (doit être présent)
         for (const field of searchableFields) {
           termConditions.push(`${field} LIKE ?`);
-          params.push(`${term.value}%`);
+          params.push(`%${term.value}%`);
         }
       } else if (term.type === 'field') {
         // Recherche par champ spécifique
@@ -377,17 +377,17 @@ class SearchService {
         if (matchingFields.length > 0) {
           for (const field of matchingFields) {
             termConditions.push(`${field} LIKE ?`);
-            params.push(`${term.value}%`);
+            params.push(`%${term.value}%`);
           }
         } else if (config.searchable.includes(term.field)) {
           termConditions.push(`${term.field} LIKE ?`);
-          params.push(`${term.value}%`);
+          params.push(`%${term.value}%`);
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
         for (const field of searchableFields) {
           termConditions.push(`${field} LIKE ?`);
-          params.push(`${term.value}%`);
+          params.push(`%${term.value}%`);
         }
       }
 
@@ -424,7 +424,7 @@ class SearchService {
       const excludeConditions = [];
       for (const field of searchableFields) {
         excludeConditions.push(`${field} NOT LIKE ?`);
-        params.push(`${term.value}%`);
+        params.push(`%${term.value}%`);
       }
       if (excludeConditions.length > 0) {
         sql += ` AND (${excludeConditions.join(' AND ')})`;
