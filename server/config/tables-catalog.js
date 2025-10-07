@@ -514,6 +514,23 @@ export default {
     theme: 'pro'
   },
 
+  'autres.edu_sn': {
+    display: 'edu_sn',
+    database: 'autres',
+    autoDiscover: {
+      search: ['prenom', 'nom', 'nin', 'cni', 'telephone', 'email', 'fonction'],
+      preview: ['prenom', 'nom', 'cni', 'telephone'],
+      linked: ['cni', 'telephone'],
+      filters: {
+        cni: 'string',
+        nin: 'string',
+        telephone: 'string',
+        fonction: 'string'
+      }
+    },
+    theme: 'pro'
+  },
+
   'autres.esolde_new': {
     display: 'esolde_new',
     database: 'autres',

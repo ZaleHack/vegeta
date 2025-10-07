@@ -13,6 +13,8 @@ class SearchService {
     this.cache = new InMemoryCache();
     this.catalog = this.loadCatalog();
     this.primaryKeyCache = new Map();
+    this.tableColumnsCache = new Map();
+    this.resolvedConfigCache = new Map();
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
     }
@@ -52,6 +54,118 @@ class SearchService {
 
   refreshCatalog() {
     this.catalog = this.loadCatalog();
+    this.primaryKeyCache.clear();
+    this.tableColumnsCache.clear();
+    this.resolvedConfigCache.clear();
+  }
+
+  async getTableColumns(tableName) {
+    if (this.tableColumnsCache.has(tableName)) {
+      return this.tableColumnsCache.get(tableName);
+    }
+
+    try {
+      const columns = await database.query(`SHOW COLUMNS FROM ${tableName}`);
+      this.tableColumnsCache.set(tableName, columns);
+      return columns;
+    } catch (error) {
+      console.warn(
+        `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
+        error.message
+      );
+      this.tableColumnsCache.set(tableName, []);
+      return [];
+    }
+  }
+
+  findBestMatch(pattern, columnNames) {
+    const lowerPattern = pattern.toLowerCase();
+    const exact = columnNames.find(
+      (name) => name.toLowerCase() === lowerPattern
+    );
+    if (exact) {
+      return exact;
+    }
+
+    return (
+      columnNames.find((name) => name.toLowerCase().includes(lowerPattern)) ||
+      null
+    );
+  }
+
+  mapPatternList(patterns = [], columnNames = []) {
+    const matches = [];
+    for (const pattern of patterns) {
+      const match = this.findBestMatch(pattern, columnNames);
+      if (match && !matches.includes(match)) {
+        matches.push(match);
+      }
+    }
+    return matches;
+  }
+
+  isLikelyLinkedField(fieldName) {
+    const lower = fieldName.toLowerCase();
+    return (
+      lower.includes('cni') ||
+      lower.includes('nin') ||
+      lower.includes('tel') ||
+      lower.includes('phone')
+    );
+  }
+
+  async getEffectiveConfig(tableName, config) {
+    if (!config?.autoDiscover) {
+      return config;
+    }
+
+    if (this.resolvedConfigCache.has(tableName)) {
+      return this.resolvedConfigCache.get(tableName);
+    }
+
+    const resolved = { ...config };
+    const columns = await this.getTableColumns(tableName);
+    const columnNames = columns.map((col) => col.Field);
+
+    const auto = config.autoDiscover || {};
+    let searchable = this.mapPatternList(auto.search, columnNames);
+
+    if (searchable.length === 0) {
+      searchable = columnNames.filter((name) => {
+        const lower = name.toLowerCase();
+        return !['id', 'created_at', 'updated_at'].includes(lower);
+      });
+    }
+
+    let preview = this.mapPatternList(auto.preview, columnNames);
+    if (preview.length === 0) {
+      preview = searchable.slice(0, 5);
+    }
+
+    let linkedFields = this.mapPatternList(auto.linked, columnNames);
+    if (linkedFields.length === 0) {
+      linkedFields = preview.filter((field) => this.isLikelyLinkedField(field));
+    }
+
+    const filters = {};
+    if (auto.filters) {
+      for (const [pattern, type] of Object.entries(auto.filters)) {
+        const match = this.findBestMatch(pattern, columnNames);
+        if (match) {
+          filters[match] = type;
+        }
+      }
+    }
+
+    resolved.searchable = searchable;
+    resolved.preview = preview;
+    resolved.linkedFields = linkedFields;
+    if (Object.keys(filters).length > 0) {
+      resolved.filters = filters;
+    }
+
+    this.resolvedConfigCache.set(tableName, resolved);
+    return resolved;
   }
 
   async getPrimaryKey(tableName, config = {}) {
@@ -312,8 +426,9 @@ class SearchService {
 
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
-    const primaryKey = await this.getPrimaryKey(tableName, config);
-    
+    const effectiveConfig = await this.getEffectiveConfig(tableName, config);
+    const primaryKey = await this.getPrimaryKey(tableName, effectiveConfig);
+
     // Vérifier si la table existe
     try {
       await database.query(`SELECT 1 FROM ${tableName} LIMIT 1`);
@@ -323,13 +438,13 @@ class SearchService {
     }
 
     const fields = new Set([
-      ...(config.preview || []),
-      ...(config.linkedFields || []),
-      ...(config.searchable || []),
+      ...(effectiveConfig.preview || []),
+      ...(effectiveConfig.linkedFields || []),
+      ...(effectiveConfig.searchable || []),
       primaryKey,
     ]);
     const selectFields = Array.from(fields).join(', ');
-    const searchableFields = config.searchable || [];
+    const searchableFields = effectiveConfig.searchable || [];
 
     if (searchableFields.length === 0) {
       return results;
@@ -379,7 +494,7 @@ class SearchService {
             termConditions.push(`${field} LIKE ?`);
             params.push(`${term.value}%`);
           }
-        } else if (config.searchable.includes(term.field)) {
+        } else if (effectiveConfig.searchable.includes(term.field)) {
           termConditions.push(`${term.field} LIKE ?`);
           params.push(`${term.value}%`);
         }
@@ -437,14 +552,14 @@ class SearchService {
       const rows = await database.query(sql, params);
 
       for (const row of rows) {
-        const preview = this.buildPreview(row, config);
+        const preview = this.buildPreview(row, effectiveConfig);
         results.push({
-          table: config.display,
-          database: config.database,
+          table: effectiveConfig.display,
+          database: effectiveConfig.database,
           preview: preview,
           primary_keys: { [primaryKey]: row[primaryKey] },
           score: this.calculateRelevanceScore(row, searchTerms, searchableFields),
-          linkedFields: config.linkedFields || []
+          linkedFields: effectiveConfig.linkedFields || []
         });
       }
     } catch (error) {
