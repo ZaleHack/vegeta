@@ -158,6 +158,9 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     const trimmed = query.trim();
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+    const depthValue = parseInt(depth, 10);
     if (await Blacklist.exists(trimmed)) {
       try {
         await UserLog.create({
@@ -176,11 +179,11 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Aucun résultat trouvé' });
     }
 
-    if (page < 1) {
+    if (!Number.isFinite(pageNumber) || pageNumber < 1) {
       return res.status(400).json({ error: 'La page doit être >= 1' });
     }
 
-    if (limit < 1 || limit > 100) {
+    if (!Number.isFinite(limitNumber) || limitNumber < 1 || limitNumber > 100) {
       return res.status(400).json({ error: 'La limite doit être entre 1 et 100' });
     }
 
@@ -188,109 +191,148 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'followLinks doit être un booléen' });
     }
 
-    if (isNaN(parseInt(depth)) || parseInt(depth) < 1) {
+    if (!Number.isFinite(depthValue) || depthValue < 1) {
       return res.status(400).json({ error: 'depth doit être >= 1' });
     }
 
     const elastic = getElasticService();
-    if (!elastic || elastic.isOperational?.() !== true) {
-      return res.status(503).json({ error: 'Service de recherche indisponible (Elasticsearch).' });
-    }
+    const elasticOperational = elastic && elastic.isOperational?.() === true;
+    let results;
+    let hitsForAccess = [];
 
-    const es = await elastic.search(trimmed, parseInt(page), parseInt(limit));
-    const tablesSearched = new Set(
-      Array.isArray(es.tables_searched) && es.tables_searched.length > 0
-        ? es.tables_searched
-        : ['profiles']
-    );
-
-    const results = {
-      total: es.total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      pages: Math.ceil(es.total / parseInt(limit)),
-      elapsed_ms: es.elapsed_ms,
-      hits: es.hits,
-      tables_searched: Array.from(tablesSearched)
-    };
-
-    const originalHits = Array.isArray(results.hits) ? results.hits : [];
-    const followupCandidates = new Set();
-
-    const normalizedQueryValues = new Set(
-      normalizeFollowupValues(trimmed).map((value) => value.toLowerCase())
-    );
-
-    originalHits.forEach((hit) => {
-      extractFollowupValuesFromHit(hit).forEach((value) => {
-        if (!value || value.length < MIN_FOLLOWUP_LENGTH) {
-          return;
-        }
-        if (normalizedQueryValues.has(value.toLowerCase())) {
-          return;
-        }
-        followupCandidates.add(value);
-      });
-    });
-
-    const followupValues = Array.from(followupCandidates).slice(0, MAX_FOLLOWUP_QUERIES);
-    const existingIdentities = new Set(
-      originalHits.map((hit) => buildHitIdentity(hit)).filter(Boolean)
-    );
-    const relatedQueries = [];
-    const relatedHitsForAccess = [];
-
-    if (followupValues.length > 0) {
-      const followupResults = await Promise.all(
-        followupValues.map(async (value) => {
-          try {
-            const response = await elastic.search(value, 1, Math.max(parseInt(limit), 20));
-            return { value, response };
-          } catch (error) {
-            console.error('Erreur recherche associée:', error.message || error);
-            return { value, response: null };
-          }
-        })
+    if (elasticOperational) {
+      const es = await elastic.search(trimmed, pageNumber, limitNumber);
+      const tablesSearched = new Set(
+        Array.isArray(es.tables_searched) && es.tables_searched.length > 0
+          ? es.tables_searched
+          : ['profiles']
       );
 
-      followupResults.forEach(({ value, response }) => {
-        if (!response || !Array.isArray(response.hits) || response.hits.length === 0) {
-          return;
-        }
+      results = {
+        total: es.total,
+        page: pageNumber,
+        limit: limitNumber,
+        pages: Math.ceil(es.total / limitNumber),
+        elapsed_ms: es.elapsed_ms,
+        hits: es.hits,
+        tables_searched: Array.from(tablesSearched)
+      };
 
-        if (Array.isArray(response.tables_searched)) {
-          response.tables_searched.forEach((table) => tablesSearched.add(table));
-        }
+      const originalHits = Array.isArray(results.hits) ? results.hits : [];
+      const followupCandidates = new Set();
 
-        const filteredHits = response.hits.filter((hit) => {
-          const identity = buildHitIdentity(hit);
-          if (!identity) {
-            return true;
+      const normalizedQueryValues = new Set(
+        normalizeFollowupValues(trimmed).map((value) => value.toLowerCase())
+      );
+
+      originalHits.forEach((hit) => {
+        extractFollowupValuesFromHit(hit).forEach((value) => {
+          if (!value || value.length < MIN_FOLLOWUP_LENGTH) {
+            return;
           }
-          if (existingIdentities.has(identity)) {
-            return false;
+          if (normalizedQueryValues.has(value.toLowerCase())) {
+            return;
           }
-          existingIdentities.add(identity);
-          return true;
+          followupCandidates.add(value);
         });
-
-        if (filteredHits.length === 0) {
-          return;
-        }
-
-        const annotatedHits = filteredHits.map((hit) => ({ ...hit, related_to: value }));
-        relatedHitsForAccess.push(...annotatedHits);
-        relatedQueries.push({ value, hits: annotatedHits });
       });
+
+      const followupValues = Array.from(followupCandidates).slice(0, MAX_FOLLOWUP_QUERIES);
+      const existingIdentities = new Set(
+        originalHits.map((hit) => buildHitIdentity(hit)).filter(Boolean)
+      );
+      const relatedQueries = [];
+      const relatedHitsForAccess = [];
+
+      if (followupValues.length > 0) {
+        const followupResults = await Promise.all(
+          followupValues.map(async (value) => {
+            try {
+              const response = await elastic.search(value, 1, Math.max(limitNumber, 20));
+              return { value, response };
+            } catch (error) {
+              console.error('Erreur recherche associée:', error.message || error);
+              return { value, response: null };
+            }
+          })
+        );
+
+        followupResults.forEach(({ value, response }) => {
+          if (!response || !Array.isArray(response.hits) || response.hits.length === 0) {
+            return;
+          }
+
+          if (Array.isArray(response.tables_searched)) {
+            response.tables_searched.forEach((table) => tablesSearched.add(table));
+          }
+
+          const filteredHits = response.hits.filter((hit) => {
+            const identity = buildHitIdentity(hit);
+            if (!identity) {
+              return true;
+            }
+            if (existingIdentities.has(identity)) {
+              return false;
+            }
+            existingIdentities.add(identity);
+            return true;
+          });
+
+          if (filteredHits.length === 0) {
+            return;
+          }
+
+          const annotatedHits = filteredHits.map((hit) => ({ ...hit, related_to: value }));
+          relatedHitsForAccess.push(...annotatedHits);
+          relatedQueries.push({ value, hits: annotatedHits });
+        });
+      }
+
+      if (relatedQueries.length > 0) {
+        results.related_queries = relatedQueries;
+      }
+
+      results.tables_searched = Array.from(tablesSearched);
+      hitsForAccess = [...originalHits, ...relatedHitsForAccess];
+    } else {
+      results = await searchService.search(
+        trimmed,
+        filters,
+        pageNumber,
+        limitNumber,
+        req.user,
+        search_type,
+        {
+          followLinks,
+          maxDepth: depthValue
+        }
+      );
+
+      if (!results || typeof results !== 'object') {
+        results = {
+          total: 0,
+          page: pageNumber,
+          limit: limitNumber,
+          pages: 0,
+          elapsed_ms: 0,
+          hits: [],
+          tables_searched: []
+        };
+      }
+
+      results.page = Number.isFinite(results.page) ? results.page : pageNumber;
+      results.limit = Number.isFinite(results.limit) ? results.limit : limitNumber;
+      results.pages = Number.isFinite(results.pages)
+        ? results.pages
+        : Math.ceil((results.total || 0) / (results.limit || limitNumber || 1));
+      results.tables_searched = Array.isArray(results.tables_searched)
+        ? results.tables_searched.filter(Boolean)
+        : [];
+      results.hits = Array.isArray(results.hits) ? results.hits : [];
+      hitsForAccess = results.hits;
     }
 
-    if (relatedQueries.length > 0) {
-      results.related_queries = relatedQueries;
-    }
-
-    results.tables_searched = Array.from(tablesSearched);
-
-    searchAccessManager.remember(req.user.id, [...originalHits, ...relatedHitsForAccess]);
+    searchAccessManager.remember(req.user.id, hitsForAccess);
 
     const searchTypeValue = typeof search_type === 'string' && search_type ? search_type : 'global';
     const userAgent = req.get('user-agent') || null;
