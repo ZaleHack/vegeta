@@ -1,5 +1,63 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 import database from '../config/database.js';
-import { buildCatalog, isSearchEnabled } from '../utils/catalog-loader.js';
+import baseCatalog from '../config/tables-catalog.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const catalogPath = path.join(__dirname, '../config/tables-catalog.json');
+
+function loadCatalog() {
+  let catalog = { ...baseCatalog };
+
+  try {
+    if (fs.existsSync(catalogPath)) {
+      const raw = fs.readFileSync(catalogPath, 'utf-8');
+      const json = JSON.parse(raw);
+
+      for (const [key, value] of Object.entries(json)) {
+        let db;
+        let tableKey;
+
+        if (key.includes('.')) {
+          const [schema, ...tableParts] = key.split('.');
+          if (!schema || tableParts.length === 0) {
+            console.warn(`⚠️ Entrée de catalogue invalide ignorée: ${key}`);
+            continue;
+          }
+
+          db = schema;
+          tableKey = tableParts.join('.');
+        } else {
+          const [schema, ...tableParts] = key.split('_');
+          if (!schema || tableParts.length === 0) {
+            console.warn(`⚠️ Entrée de catalogue invalide ignorée: ${key}`);
+            continue;
+          }
+
+          db = schema;
+          tableKey = tableParts.join('_');
+        }
+
+        const tableName = `${db}.${tableKey}`;
+        const existing = catalog[tableName] || {};
+        const merged = { ...existing, ...value };
+
+        if (!merged.database) {
+          merged.database = db;
+        }
+
+        catalog[tableName] = merged;
+      }
+    }
+  } catch (error) {
+    console.error('❌ Erreur chargement catalogue:', error);
+  }
+
+  return catalog;
+}
 
 function sanitizeIdentifier(name) {
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -21,45 +79,10 @@ async function indexExists(schema, table, indexName) {
   return Boolean(existingIndex);
 }
 
-const tableColumnsCache = new Map();
-
-async function getTableColumns(schema, table) {
-  const cacheKey = `${schema}.${table}`;
-  if (tableColumnsCache.has(cacheKey)) {
-    return tableColumnsCache.get(cacheKey);
-  }
-
-  try {
-    const rows = await database.query(
-      `
-        SELECT COLUMN_NAME
-        FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA = ?
-          AND TABLE_NAME = ?
-      `,
-      [schema, table]
-    );
-
-    const columns = rows.map((row) => row.COLUMN_NAME);
-    tableColumnsCache.set(cacheKey, columns);
-    return columns;
-  } catch (error) {
-    console.warn(
-      `⚠️ Impossible de récupérer les colonnes pour ${schema}.${table}: ${error.message}`
-    );
-    tableColumnsCache.set(cacheKey, []);
-    return [];
-  }
-}
-
 async function createIndexes() {
-  const catalog = await buildCatalog();
+  const catalog = loadCatalog();
 
   for (const [tableKey, config] of Object.entries(catalog)) {
-    if (!isSearchEnabled(config)) {
-      continue;
-    }
-
     const fields = config.searchable || [];
     if (!fields.length) {
       continue;
@@ -69,20 +92,7 @@ async function createIndexes() {
     const schema = config.database || defaultSchema || 'autres';
     const table = defaultTable || tableKey;
 
-    const columns = await getTableColumns(schema, table);
-    if (!columns.length) {
-      console.log(`⚠️ Table ${schema}.${table} introuvable - indexation ignorée`);
-      continue;
-    }
-
     for (const field of fields) {
-      if (!columns.includes(field)) {
-        console.log(
-          `⚠️ Colonne ${schema}.${table}.${field} introuvable - indexation ignorée`
-        );
-        continue;
-      }
-
       const indexName = `idx_${sanitizeIdentifier(schema)}_${sanitizeIdentifier(table)}_${sanitizeIdentifier(field)}`.slice(0, 63);
 
       try {

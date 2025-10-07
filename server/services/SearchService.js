@@ -2,27 +2,20 @@ import database from '../config/database.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
-import { buildCatalog, catalogOverridesPath, isSearchEnabled } from '../utils/catalog-loader.js';
-import { quoteIdentifier, quoteIdentifiers } from '../utils/sql.js';
-import { getTableNameCandidates } from '../utils/table-names.js';
-import { isTableExcluded } from '../utils/search-exclusions.js';
 
 class SearchService {
   constructor() {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    this.catalogPath = catalogOverridesPath || path.join(__dirname, '../config/tables-catalog.json');
+    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.cache = new InMemoryCache();
-    this.catalog = {};
-    this.catalogPromise = null;
-    this.catalogWatcher = null;
-    this.catalogRefreshTimer = null;
+    this.catalog = this.loadCatalog();
     this.primaryKeyCache = new Map();
-    this.tableIdentifierCache = new Map();
-    this.tableColumnsCache = new Map();
-    this.loadCatalog();
-    this.setupCatalogWatcher();
+    if (fs.existsSync(this.catalogPath)) {
+      fs.watch(this.catalogPath, () => this.refreshCatalog());
+    }
   }
 
   extractLinkedIdentifiers(results) {
@@ -39,234 +32,74 @@ class SearchService {
     return Array.from(identifiers);
   }
 
-  setupCatalogWatcher() {
-    const scheduleRefresh = () => {
-      if (this.catalogRefreshTimer) {
-        return;
-      }
-      this.catalogRefreshTimer = setTimeout(() => {
-        this.catalogRefreshTimer = null;
-        this.refreshCatalog();
-      }, 100);
-      if (typeof this.catalogRefreshTimer?.unref === 'function') {
-        this.catalogRefreshTimer.unref();
-      }
-    };
-    try {
-      if (this.catalogWatcher) {
-        return;
-      }
-
-      if (this.catalogPath && fs.existsSync(this.catalogPath)) {
-        this.catalogWatcher = fs.watch(this.catalogPath, scheduleRefresh);
-        return;
-      }
-
-      const watchDir = this.catalogPath
-        ? path.dirname(this.catalogPath)
-        : path.join(path.dirname(fileURLToPath(import.meta.url)), '../config');
-      this.catalogWatcher = fs.watch(watchDir, (eventType, filename) => {
-        if (!filename) {
-          return;
-        }
-        if (path.basename(filename) === path.basename(this.catalogPath)) {
-          scheduleRefresh();
-        }
-      });
-    } catch (error) {
-      console.warn('⚠️ Impossible de surveiller les changements du catalogue:', error.message);
-    }
-  }
-
   loadCatalog() {
-    if (this.catalogPromise) {
-      return this.catalogPromise;
-    }
-
-    this.catalogPromise = buildCatalog()
-      .then((catalog) => {
-        this.catalog = catalog || {};
-        return this.catalog;
-      })
-      .catch((error) => {
-        console.error('❌ Erreur chargement catalogue:', error);
-        if (!this.catalog || Object.keys(this.catalog).length === 0) {
-          this.catalog = {};
+    let catalog = { ...baseCatalog };
+    try {
+      if (fs.existsSync(this.catalogPath)) {
+        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
+        const json = JSON.parse(raw);
+        for (const [key, value] of Object.entries(json)) {
+          const [db, ...tableParts] = key.split('_');
+          const tableName = `${db}.${tableParts.join('_')}`;
+          catalog[tableName] = value;
         }
-        return this.catalog;
-      })
-      .finally(() => {
-        this.catalogPromise = null;
-      });
-
-    return this.catalogPromise;
-  }
-
-  async getCatalog() {
-    if (this.catalogPromise) {
-      await this.catalogPromise;
+      }
+    } catch (error) {
+      console.error('❌ Erreur chargement catalogue:', error);
     }
-
-    if (!this.catalog || Object.keys(this.catalog).length === 0) {
-      await this.loadCatalog();
-    }
-
-    return this.catalog;
+    return catalog;
   }
 
   refreshCatalog() {
-    this.cache.clear();
-    this.primaryKeyCache.clear();
-    this.tableIdentifierCache.clear();
-    this.tableColumnsCache.clear();
-    if (this.catalogPromise) {
-      this.catalogPromise.finally(() => this.loadCatalog());
-      return;
-    }
-    this.loadCatalog();
+    this.catalog = this.loadCatalog();
   }
 
-  async getPrimaryKey(tableName, config = {}, resolvedTable = null) {
+  async getPrimaryKey(tableName, config = {}) {
+    if (config.primaryKey) {
+      return config.primaryKey;
+    }
+
     if (this.primaryKeyCache.has(tableName)) {
       return this.primaryKeyCache.get(tableName);
     }
-
-    const configuredPrimaryKey =
-      typeof config.primaryKey === 'string' && config.primaryKey.trim().length > 0
-        ? config.primaryKey.trim()
-        : null;
-
-    const remember = (value) => {
-      this.primaryKeyCache.set(tableName, value);
-      return value;
-    };
-
-    let resolved = resolvedTable;
-
-    if (!resolved) {
-      try {
-        resolved = await this.resolveTableIdentifier(tableName);
-      } catch (error) {
-        console.warn(
-          `⚠️ Table ${tableName} inaccessible pour la détection de clé primaire:`,
-          error.message
-        );
-
-        if (configuredPrimaryKey) {
-          return remember(configuredPrimaryKey);
-        }
-
-        const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
-        return remember(fallback);
-      }
-    }
-
-    const columns = await this.getTableColumns(resolved, tableName);
-    const columnLookup = new Map(
-      columns.map((column) => [column.toLowerCase(), column])
-    );
-
-    if (configuredPrimaryKey) {
-      const normalizedPrimaryKey = configuredPrimaryKey.toLowerCase();
-      const matchedConfiguredKey = columnLookup.get(normalizedPrimaryKey);
-
-      if (matchedConfiguredKey) {
-        return remember(matchedConfiguredKey);
-      }
-
-      if (columns.length === 0) {
-        return remember(configuredPrimaryKey);
-      }
-
-      console.warn(
-        `⚠️ Clé primaire "${configuredPrimaryKey}" introuvable pour ${tableName}, tentative de détection automatique.`
-      );
-    }
-
     try {
       const rows = await database.query(
-        `SHOW KEYS FROM ${resolved.escaped} WHERE Key_name = 'PRIMARY'`
+        `SHOW KEYS FROM ${tableName} WHERE Key_name = 'PRIMARY'`
       );
-
-      if (Array.isArray(rows) && rows.length > 0) {
-        const primaryKeyColumn =
-          rows.find((row) => row.Seq_in_index === 1)?.Column_name ||
-          rows[0].Column_name;
-
-        if (primaryKeyColumn) {
-          const matched = columnLookup.get(primaryKeyColumn.toLowerCase()) || primaryKeyColumn;
-          return remember(matched);
-        }
+      if (rows.length > 0 && rows[0].Column_name) {
+        const pk = rows[0].Column_name;
+        this.primaryKeyCache.set(tableName, pk);
+        return pk;
       }
     } catch (error) {
       console.warn(
-        `⚠️ Impossible de déterminer la clé primaire pour ${resolved.raw}:`,
+        `⚠️ Impossible de déterminer la clé primaire pour ${tableName}:`,
         error.message
       );
     }
 
-    const idColumn = columnLookup.get('id');
-    if (idColumn) {
-      return remember(idColumn);
+    try {
+      const columns = await database.query(
+        `SHOW COLUMNS FROM ${tableName}`
+      );
+      const hasId = columns.some((col) => col.Field === 'id');
+      const fallback =
+        hasId
+          ? 'id'
+          : config.searchable?.[0] ||
+            config.preview?.[0] ||
+            (columns[0] ? columns[0].Field : 'id');
+      this.primaryKeyCache.set(tableName, fallback);
+      return fallback;
+    } catch (error) {
+      console.warn(
+        `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
+        error.message
+      );
+      const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
+      this.primaryKeyCache.set(tableName, fallback);
+      return fallback;
     }
-
-    const fallbackCandidates = [
-      ...(Array.isArray(config.searchable) ? config.searchable : []),
-      ...(Array.isArray(config.preview) ? config.preview : [])
-    ];
-
-    for (const candidate of fallbackCandidates) {
-      if (!candidate) {
-        continue;
-      }
-      const matched = columnLookup.get(candidate.toLowerCase());
-      if (matched) {
-        return remember(matched);
-      }
-    }
-
-    if (columns.length > 0) {
-      return remember(columns[0]);
-    }
-
-    const fallback =
-      configuredPrimaryKey || config.searchable?.[0] || config.preview?.[0] || 'id';
-    return remember(fallback);
-  }
-
-  async resolveTableIdentifier(tableName) {
-    if (!tableName) {
-      throw new Error('Nom de table invalide');
-    }
-
-    if (this.tableIdentifierCache.has(tableName)) {
-      const cached = this.tableIdentifierCache.get(tableName);
-      if (cached) {
-        return cached;
-      }
-    }
-
-    const candidates = getTableNameCandidates(tableName);
-    let lastError = null;
-
-    for (const candidate of candidates) {
-      const escapedCandidate = quoteIdentifier(candidate);
-      try {
-        await database.query(`SELECT 1 FROM ${escapedCandidate} LIMIT 1`);
-        const resolved = { raw: candidate, escaped: escapedCandidate };
-        this.tableIdentifierCache.set(tableName, resolved);
-        return resolved;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-
-    this.tableIdentifierCache.set(tableName, null);
-    if (lastError) {
-      throw lastError;
-    }
-
-    throw new Error(`Impossible de résoudre la table ${tableName}`);
   }
 
   async search(
@@ -297,7 +130,7 @@ class SearchService {
     const startTime = Date.now();
     const results = [];
     const tablesSearched = [];
-    const catalog = await this.getCatalog();
+    const catalog = this.catalog;
 
     if (!query || query.trim().length === 0) {
       throw new Error('Le terme de recherche ne peut pas être vide');
@@ -307,20 +140,19 @@ class SearchService {
     const searchTerms = this.parseSearchQuery(query);
 
     // Lancer les recherches en parallèle sur toutes les tables du catalogue
-    const searchPromises = Object.entries(catalog)
-      .filter(([tableName, config]) => !isTableExcluded(tableName) && isSearchEnabled(config))
-      .map(([tableName, config]) =>
+    const searchPromises = Object.entries(catalog).map(
+      ([tableName, config]) =>
         this.searchInTable(tableName, config, searchTerms, filters)
           .then((tableResults) => ({ tableName, tableResults }))
           .catch((error) => {
             console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
             return { tableName, tableResults: [] };
           }),
-      );
+    );
 
     const tableSearches = await Promise.all(searchPromises);
     for (const { tableName, tableResults } of tableSearches) {
-      if (tableResults.length > 0 && !isTableExcluded(tableName)) {
+      if (tableResults.length > 0) {
         const enrichedResults = tableResults.map(result => ({
           ...result,
           table_name: tableName
@@ -331,6 +163,7 @@ class SearchService {
     }
 
     let extraSearches = 0;
+    const identifiersFollowed = [];
 
     if (followLinks && depth < maxDepth) {
       const linkedIds = this.extractLinkedIdentifiers(results);
@@ -338,21 +171,15 @@ class SearchService {
         if (!seen.has(id)) {
           seen.add(id);
           extraSearches++;
+          identifiersFollowed.push(id);
           const sub = await this.search(id, {}, 1, 50, null, 'linked', {
             followLinks,
             maxDepth,
             depth: depth + 1,
             seen
           });
-          const allowedHits = sub.hits.filter(
-            (hit) => !isTableExcluded(hit.table_name || hit.table)
-          );
-          results.push(...allowedHits);
-          tablesSearched.push(
-            ...allowedHits
-              .map((hit) => hit.table_name)
-              .filter((table) => table && !isTableExcluded(table))
-          );
+          results.push(...sub.hits);
+          tablesSearched.push(...sub.tables_searched);
         }
       }
     }
@@ -385,15 +212,8 @@ class SearchService {
         const sub = await this.search(val, {}, 1, 50, null, 'linked', {
           depth: depth + 1
         });
-        const allowedHits = sub.hits.filter(
-          (hit) => !isTableExcluded(hit.table_name || hit.table)
-        );
-        results.push(...allowedHits);
-        tablesSearched.push(
-          ...allowedHits
-            .map((hit) => hit.table_name)
-            .filter((table) => table && !isTableExcluded(table))
-        );
+        results.push(...sub.hits);
+        tablesSearched.push(...sub.tables_searched);
       }
     }
 
@@ -422,7 +242,7 @@ class SearchService {
       pages: Math.ceil(totalResults / limit),
       elapsed_ms: executionTime,
       hits: paginatedResults,
-      tables_searched: [...new Set(tablesSearched.filter((table) => !isTableExcluded(table)))]
+      tables_searched: [...new Set(tablesSearched)]
     };
 
     if (depth === 0) {
@@ -492,66 +312,30 @@ class SearchService {
 
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
-
-    let resolvedTable;
+    const primaryKey = await this.getPrimaryKey(tableName, config);
+    
+    // Vérifier si la table existe
     try {
-      resolvedTable = await this.resolveTableIdentifier(tableName);
+      await database.query(`SELECT 1 FROM ${tableName} LIMIT 1`);
     } catch (error) {
       console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
       return results;
     }
 
-    const primaryKey = await this.getPrimaryKey(tableName, config, resolvedTable);
-
-    const availableColumns = await this.getTableColumns(resolvedTable, tableName);
-    const availableColumnMap = new Map(
-      availableColumns.map((column) => [column.toLowerCase(), column])
-    );
-
-    const sanitizeFields = (fields = []) => {
-      const seen = new Set();
-      const sanitized = [];
-
-      for (const field of fields) {
-        if (!field) {
-          continue;
-        }
-
-        const normalized = field.toLowerCase();
-        const resolved = availableColumnMap.get(normalized);
-
-        if (resolved && !seen.has(resolved)) {
-          seen.add(resolved);
-          sanitized.push(resolved);
-        }
-      }
-
-      return sanitized;
-    };
-
-    const normalizedPrimaryKey =
-      primaryKey && availableColumnMap.get(primaryKey.toLowerCase());
-
-    const fieldList = sanitizeFields([
+    const fields = new Set([
       ...(config.preview || []),
       ...(config.linkedFields || []),
       ...(config.searchable || []),
-      normalizedPrimaryKey || primaryKey,
+      primaryKey,
     ]);
-
-    const searchableFields = sanitizeFields(config.searchable || []);
-    const selectFields = fieldList.length > 0 ? quoteIdentifiers(fieldList) : '*';
-
-    const searchableFieldMap = new Map(
-      searchableFields.map((field) => [field.toLowerCase(), field])
-    );
+    const selectFields = Array.from(fields).join(', ');
+    const searchableFields = config.searchable || [];
 
     if (searchableFields.length === 0) {
       return results;
     }
 
-    const escapedTable = resolvedTable.escaped;
-    let sql = `SELECT ${selectFields} FROM ${escapedTable} WHERE `;
+    let sql = `SELECT ${selectFields} FROM ${tableName} WHERE `;
     const params = [];
     let conditions = [];
     let currentGroup = [];
@@ -574,14 +358,14 @@ class SearchService {
       if (term.type === 'exact') {
         // Recherche exacte
         for (const field of searchableFields) {
-          termConditions.push(`${quoteIdentifier(field)} = ?`);
+          termConditions.push(`${field} = ?`);
           params.push(term.value);
         }
       } else if (term.type === 'required') {
         // Terme obligatoire (doit être présent)
         for (const field of searchableFields) {
-          termConditions.push(`${quoteIdentifier(field)} LIKE ?`);
-          params.push(`%${term.value}%`);
+          termConditions.push(`${field} LIKE ?`);
+          params.push(`${term.value}%`);
         }
       } else if (term.type === 'field') {
         // Recherche par champ spécifique
@@ -592,21 +376,18 @@ class SearchService {
 
         if (matchingFields.length > 0) {
           for (const field of matchingFields) {
-            termConditions.push(`${quoteIdentifier(field)} LIKE ?`);
-            params.push(`%${term.value}%`);
+            termConditions.push(`${field} LIKE ?`);
+            params.push(`${term.value}%`);
           }
-        } else {
-          const directField = searchableFieldMap.get(term.field);
-          if (directField) {
-            termConditions.push(`${quoteIdentifier(directField)} LIKE ?`);
-            params.push(`%${term.value}%`);
-          }
+        } else if (config.searchable.includes(term.field)) {
+          termConditions.push(`${term.field} LIKE ?`);
+          params.push(`${term.value}%`);
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
         for (const field of searchableFields) {
-          termConditions.push(`${quoteIdentifier(field)} LIKE ?`);
-          params.push(`%${term.value}%`);
+          termConditions.push(`${field} LIKE ?`);
+          params.push(`${term.value}%`);
         }
       }
 
@@ -642,8 +423,8 @@ class SearchService {
     for (const term of excludeTerms) {
       const excludeConditions = [];
       for (const field of searchableFields) {
-        excludeConditions.push(`${quoteIdentifier(field)} NOT LIKE ?`);
-        params.push(`%${term.value}%`);
+        excludeConditions.push(`${field} NOT LIKE ?`);
+        params.push(`${term.value}%`);
       }
       if (excludeConditions.length > 0) {
         sql += ` AND (${excludeConditions.join(' AND ')})`;
@@ -671,30 +452,6 @@ class SearchService {
     }
 
     return results;
-  }
-
-  async getTableColumns(resolvedTable, tableName) {
-    const cacheKey = resolvedTable?.raw || tableName;
-
-    if (this.tableColumnsCache.has(cacheKey)) {
-      return this.tableColumnsCache.get(cacheKey);
-    }
-
-    try {
-      const rows = await database.query(
-        `SHOW COLUMNS FROM ${resolvedTable.escaped}`
-      );
-      const columns = rows.map((row) => row.Field).filter(Boolean);
-      this.tableColumnsCache.set(cacheKey, columns);
-      return columns;
-    } catch (error) {
-      console.warn(
-        `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
-        error.message
-      );
-      this.tableColumnsCache.set(cacheKey, []);
-      return [];
-    }
   }
 
   buildPreview(record, config) {
@@ -792,20 +549,13 @@ class SearchService {
   }
 
   async getRecordDetails(tableName, id) {
-    const catalog = await this.getCatalog();
-    if (!catalog[tableName] || !isSearchEnabled(catalog[tableName])) {
+    const catalog = this.catalog;
+    if (!catalog[tableName]) {
       throw new Error('Table non autorisée');
     }
 
-    const resolvedTable = await this.resolveTableIdentifier(tableName);
-    const primaryKey = await this.getPrimaryKey(
-      tableName,
-      catalog[tableName],
-      resolvedTable
-    );
-    const escapedTable = resolvedTable.escaped;
-    const escapedPrimaryKey = quoteIdentifier(primaryKey);
-    const sql = `SELECT * FROM ${escapedTable} WHERE ${escapedPrimaryKey} = ?`;
+    const primaryKey = await this.getPrimaryKey(tableName, catalog[tableName]);
+    const sql = `SELECT * FROM ${tableName} WHERE ${primaryKey} = ?`;
     const record = await database.queryOne(sql, [id]);
     
     if (!record) {

@@ -1,8 +1,9 @@
 import database from '../config/database.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import baseCatalog from '../config/tables-catalog.js';
 import statsCache from './stats-cache.js';
-import { buildCatalog, isSearchEnabled } from '../utils/catalog-loader.js';
-import { quoteIdentifier } from '../utils/sql.js';
-import { getTableNameCandidates } from '../utils/table-names.js';
 
 /**
  * Service de génération de statistiques basées sur les journaux de recherche
@@ -10,43 +11,28 @@ import { getTableNameCandidates } from '../utils/table-names.js';
  */
 class StatsService {
   constructor() {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.cache = statsCache;
-    this.catalog = {};
-    this.catalogPromise = null;
   }
 
   loadCatalog() {
-    if (this.catalogPromise) {
-      return this.catalogPromise;
-    }
-
-    this.catalogPromise = buildCatalog()
-      .then((catalog) => {
-        this.catalog = catalog || {};
-        return this.catalog;
-      })
-      .catch((error) => {
-        console.error('❌ Erreur chargement catalogue pour les statistiques:', error);
-        if (!this.catalog || Object.keys(this.catalog).length === 0) {
-          this.catalog = {};
+    let catalog = { ...baseCatalog };
+    try {
+      if (fs.existsSync(this.catalogPath)) {
+        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
+        const json = JSON.parse(raw);
+        for (const [key, value] of Object.entries(json)) {
+          const [db, ...tableParts] = key.split('_');
+          const tableName = `${db}.${tableParts.join('_')}`;
+          catalog[tableName] = value;
         }
-        return this.catalog;
-      })
-      .finally(() => {
-        this.catalogPromise = null;
-      });
-
-    return this.catalogPromise;
-  }
-
-  async getCatalog() {
-    if (!this.catalog || Object.keys(this.catalog).length === 0) {
-      await this.loadCatalog();
-    } else if (this.catalogPromise) {
-      await this.catalogPromise;
+      }
+    } catch (error) {
+      console.error('❌ Erreur chargement catalogue:', error);
     }
-
-    return this.catalog;
+    return catalog;
   }
 
   /**
@@ -209,38 +195,26 @@ class StatsService {
       return cached;
     }
 
-    const catalog = await this.getCatalog();
-    const entries = Object.entries(catalog).filter(([, config]) => isSearchEnabled(config));
+    const catalog = this.loadCatalog();
+    const entries = Object.entries(catalog);
     const results = await Promise.all(
       entries.map(async ([tableName, config]) => {
-        const candidates = getTableNameCandidates(tableName);
-        let count = 0;
-        let lastError = null;
-
-        for (const candidate of candidates) {
-          try {
-            const escapedCandidate = quoteIdentifier(candidate);
-            const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${escapedCandidate}`);
-            count = result?.count || 0;
-            lastError = null;
-            break;
-          } catch (error) {
-            lastError = error;
-          }
+        try {
+          const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${tableName}`);
+          return [tableName, {
+            total_records: result?.count || 0,
+            table_name: config.display,
+            database: config.database
+          }];
+        } catch (error) {
+          console.warn(`Table ${tableName} non accessible:`, error.message);
+          return [tableName, {
+            total_records: 0,
+            table_name: config.display,
+            database: config.database,
+            error: error.message
+          }];
         }
-
-        if (lastError) {
-          console.warn(`Table ${tableName} non accessible:`, lastError.message);
-        }
-
-        return [tableName, {
-          total_records: count,
-          table_name: config.display,
-          database: config.database,
-          ...(lastError
-            ? { error: lastError.message }
-            : {})
-        }];
       })
     );
 

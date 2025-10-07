@@ -11,50 +11,15 @@ const sanitizeList = (value = '') =>
     .map(origin => origin.trim())
     .filter(Boolean);
 
-const truthyValues = new Set(['true', '1', 'yes', 'on']);
-const falsyValues = new Set(['false', '0', 'no', 'off']);
-
-const normalizeBooleanEnv = (value, defaultValue = true) => {
-  if (typeof value === 'undefined' || value === null) {
-    return defaultValue;
-  }
-
-  const normalized = String(value).trim().toLowerCase();
-
-  if (truthyValues.has(normalized)) {
-    return true;
-  }
-
-  if (falsyValues.has(normalized)) {
-    return false;
-  }
-
-  return defaultValue;
-};
-
 const ensureSearchConfiguration = () => {
-  const rawValue = process.env.USE_ELASTICSEARCH;
-  const useElastic = normalizeBooleanEnv(rawValue, true);
-
-  if (typeof rawValue === 'undefined') {
+  if (typeof process.env.USE_ELASTICSEARCH === 'undefined') {
+    process.env.USE_ELASTICSEARCH = 'true';
     console.warn(
       '⚠️ USE_ELASTICSEARCH non défini. Activation par défaut d\'Elasticsearch pour accélérer les recherches.'
     );
-  } else if (
-    rawValue &&
-    !truthyValues.has(rawValue.trim().toLowerCase()) &&
-    !falsyValues.has(rawValue.trim().toLowerCase())
-  ) {
-    console.warn(
-      `⚠️ Valeur USE_ELASTICSEARCH inconnue ("${rawValue}"). Utilisation de ${
-        useElastic ? 'true' : 'false'
-      } après normalisation.`
-    );
   }
 
-  process.env.USE_ELASTICSEARCH = useElastic ? 'true' : 'false';
-
-  if (useElastic && !process.env.ELASTICSEARCH_URL) {
+  if (process.env.USE_ELASTICSEARCH === 'true' && !process.env.ELASTICSEARCH_URL) {
     process.env.ELASTICSEARCH_URL = 'http://localhost:9200';
     console.warn(
       '⚠️ ELASTICSEARCH_URL non défini. Utilisation de http://localhost:9200 comme valeur par défaut.'

@@ -4,10 +4,6 @@ export interface BaseSearchHit {
   database?: string;
   preview?: Record<string, unknown> | null;
   primary_keys?: Record<string, unknown> | null;
-  primary_key?: string | null;
-  primary_value?: unknown;
-  record?: Record<string, unknown> | null;
-  related_to?: string;
   score?: number;
   [key: string]: unknown;
 }
@@ -28,15 +24,8 @@ const FALLBACK_EXCLUDED_FIELDS = new Set([
   'table_name',
   'database',
   'primary_keys',
-  'primary_key',
-  'primary_value',
   'score',
-  'previewEntries',
-  'linkedFields',
-  'theme',
-  'record',
-  'raw_values',
-  'related_to'
+  'previewEntries'
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -117,106 +106,47 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
     seenKeys.add(normalizedKey);
   };
 
-  const record = isRecord(hit.record) ? (hit.record as Record<string, unknown>) : null;
-
-  if (record) {
-    Object.entries(record).forEach(([key, value]) => {
-      if (key.toLowerCase() === 'id') {
-        return;
-      }
-      pushEntry(key, value);
-    });
-  }
-
+  const source: Record<string, unknown> = {};
   if (isRecord(hit.preview)) {
-    Object.entries(hit.preview as Record<string, unknown>).forEach(([key, value]) => {
-      if (key.toLowerCase() === 'id') {
-        return;
-      }
-      pushEntry(key, value);
-    });
-  }
-
-  if (!record && !isRecord(hit.preview)) {
+    Object.assign(source, hit.preview as Record<string, unknown>);
+  } else {
     Object.entries(hit).forEach(([key, value]) => {
       if (FALLBACK_EXCLUDED_FIELDS.has(key)) {
         return;
       }
-
-      if (key.toLowerCase() === 'id') {
-        return;
-      }
-
-      if (key === 'data') {
-        let parsed: unknown = value;
-        if (typeof parsed === 'string') {
-          try {
-            parsed = JSON.parse(parsed);
-          } catch {
-            // Keep raw string value on parse error
-          }
-        }
-
-        if (isRecord(parsed)) {
-          Object.entries(parsed).forEach(([nestedKey, nestedValue]) => {
-            pushEntry(nestedKey, nestedValue);
-          });
-          return;
-        }
-
-        if (Array.isArray(parsed)) {
-          pushEntry(key, parsed.map((item) => (isRecord(item) ? JSON.stringify(item) : item)));
-          return;
-        }
-
-        pushEntry(key, parsed);
-        return;
-      }
-
-      pushEntry(key, value);
+      source[key] = value;
     });
   }
 
-  if (record || isRecord(hit.preview)) {
-    Object.entries(hit).forEach(([key, value]) => {
-      if (FALLBACK_EXCLUDED_FIELDS.has(key)) {
-        return;
+  Object.entries(source).forEach(([key, value]) => {
+    if (key === 'data') {
+      let parsed: unknown = value;
+      if (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed);
+        } catch {
+          // Ignore parse errors and use raw string value
+        }
       }
-      if (key.toLowerCase() === 'id') {
-        return;
-      }
-      if (key === 'data') {
-        let parsed: unknown = value;
-        if (typeof parsed === 'string') {
-          try {
-            parsed = JSON.parse(parsed);
-          } catch {
-            // Ignore parse errors and use raw string value
-          }
-        }
 
-        if (isRecord(parsed)) {
-          Object.entries(parsed).forEach(([nestedKey, nestedValue]) => {
-            pushEntry(nestedKey, nestedValue);
-          });
-          return;
-        }
-
-        if (Array.isArray(parsed)) {
-          pushEntry(
-            key,
-            parsed.map((item) => (isRecord(item) ? JSON.stringify(item) : item))
-          );
-          return;
-        }
-
-        pushEntry(key, parsed);
+      if (isRecord(parsed)) {
+        Object.entries(parsed).forEach(([nestedKey, nestedValue]) => {
+          pushEntry(nestedKey, nestedValue);
+        });
         return;
       }
 
-      pushEntry(key, value);
-    });
-  }
+      if (Array.isArray(parsed)) {
+        pushEntry(key, parsed.map((item) => (isRecord(item) ? JSON.stringify(item) : item)));
+        return;
+      }
+
+      pushEntry(key, parsed);
+      return;
+    }
+
+    pushEntry(key, value);
+  });
 
   return entries;
 };

@@ -145,41 +145,15 @@ router.delete('/history/:id', authenticate, requireAdmin, async (req, res) => {
 // Obtenir la liste des bases disponibles
 router.get('/databases', authenticate, (req, res) => {
   const databases = [
-    { id: 'autres.affaire_etrangere', name: 'autres - affaire_etrangere', description: 'Agents des affaires étrangères' },
-    { id: 'autres.agents_collectes_ansd', name: 'autres - agents_collectes_ansd', description: 'Agents de collecte ANSD' },
-    { id: 'autres.agents_penitentiare', name: 'autres - agents_penitentiare', description: 'Agents de l’administration pénitentiaire' },
-    { id: 'autres.agent_non_fonctionnaire', name: 'autres - agent_non_fonctionnaire', description: 'Agents non fonctionnaires' },
-    { id: 'autres.alignement_janvier2024', name: 'autres - alignement_janvier2024', description: 'Alignement janvier 2024' },
-    { id: 'autres.annuaire_gendarmerie', name: 'autres - annuaire_gendarmerie', description: 'Annuaire des unités de gendarmerie' },
-    { id: 'autres.candidats_ansd', name: 'autres - candidats_ansd', description: 'Candidats ANSD' },
-    { id: 'autres.collectes1', name: 'autres - collectes1', description: 'Données collecte population' },
-    { id: 'autres.collections', name: 'autres - collections', description: 'Collectes diverses' },
-    { id: 'autres.comptable_local', name: 'autres - comptable_local', description: 'Comptables locaux' },
-    { id: 'autres.conseil_constitutionel', name: 'autres - conseil_constitutionel', description: 'Personnel du Conseil constitutionnel' },
-    { id: 'autres.demdikk', name: 'autres - demdikk', description: 'Personnel Dem Dikk' },
-    { id: 'autres.divisions', name: 'autres - divisions', description: 'Divisions administratives internes' },
-    { id: 'autres.education', name: 'autres - education', description: 'Agents du ministère de l’éducation' },
-    { id: 'autres.entreprises', name: 'autres - entreprises', description: 'Registre des entreprises' },
-    { id: 'autres.esolde_new', name: 'autres - esolde_new', description: 'Référentiel esolde (nouvelle version)' },
-    { id: 'autres.fichemilitaire', name: 'autres - fichemilitaire', description: 'Fiches militaires' },
-    { id: 'autres.fpublique', name: 'autres - fpublique', description: 'Fonction publique' },
-    { id: 'autres.identification_requests', name: 'autres - identification_requests', description: 'Demandes d’identification' },
-    { id: 'autres.identified_numbers', name: 'autres - identified_numbers', description: 'Numéros identifiés' },
-    { id: 'autres.ong', name: 'autres - ong', description: 'Organisations non gouvernementales' },
-    { id: 'autres.petrosen', name: 'autres - petrosen', description: 'Contacts Petrosen' },
-    { id: 'autres.sanctions', name: 'autres - sanctions', description: 'Sanctions administratives' },
-    { id: 'autres.sde_clients', name: 'autres - sde_clients', description: 'Clients SDE' },
-    { id: 'autres.search_logs', name: 'autres - search_logs', description: 'Journaux de recherche' },
-    { id: 'autres.tresor', name: 'autres - tresor', description: 'Personnel du Trésor' },
-    { id: 'autres.uvs', name: 'autres - uvs', description: 'Université virtuelle du Sénégal' },
-    { id: 'autres.Vehicules', name: 'autres - vehicules', description: 'Immatriculations véhicules' },
-    { id: 'esolde.mytable', name: 'esolde - mytable', description: 'Référentiel esolde historique' },
-    { id: 'elections.dakar', name: 'elections - dakar', description: 'Électeurs région de Dakar' },
-    { id: 'expresso.expresso', name: 'expresso - expresso', description: 'Données Expresso Money' },
-    { id: 'permis.tables', name: 'permis - tables', description: 'Permis de conduire' },
+    { id: 'esolde.mytable', name: 'esolde - mytable', description: 'Données employés esolde' },
+    { id: 'rhpolice.personne_concours', name: 'rhpolice - personne_concours', description: 'Concours police nationale' },
     { id: 'renseignement.agentfinance', name: 'renseignement - agentfinance', description: 'Agents finances publiques' },
     { id: 'rhgendarmerie.personne', name: 'rhgendarmerie - personne', description: 'Personnel gendarmerie' },
-    { id: 'rhpolice.personne_concours', name: 'rhpolice - personne_concours', description: 'Concours police nationale' }
+    { id: 'permis.tables', name: 'permis - tables', description: 'Permis de conduire' },
+    { id: 'expresso.expresso', name: 'expresso - expresso', description: 'Données Expresso Money' },
+    { id: 'elections.dakar', name: 'elections - dakar', description: 'Électeurs région Dakar' },
+    { id: 'autres.Vehicules', name: 'autres - vehicules', description: 'Immatriculations véhicules' },
+    { id: 'autres.entreprises', name: 'autres - entreprises', description: 'Registre des entreprises' }
   ];
 
   res.json({ databases });
