@@ -190,29 +190,33 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
         if (typeof parsed === 'string') {
           try {
             parsed = JSON.parse(parsed);
-        } catch {
-          // Ignore parse errors and use raw string value
+          } catch {
+            // Ignore parse errors and use raw string value
+          }
         }
-      }
 
-      if (isRecord(parsed)) {
-        Object.entries(parsed).forEach(([nestedKey, nestedValue]) => {
-          pushEntry(nestedKey, nestedValue);
-        });
+        if (isRecord(parsed)) {
+          Object.entries(parsed).forEach(([nestedKey, nestedValue]) => {
+            pushEntry(nestedKey, nestedValue);
+          });
+          return;
+        }
+
+        if (Array.isArray(parsed)) {
+          pushEntry(
+            key,
+            parsed.map((item) => (isRecord(item) ? JSON.stringify(item) : item))
+          );
+          return;
+        }
+
+        pushEntry(key, parsed);
         return;
       }
 
-      if (Array.isArray(parsed)) {
-        pushEntry(key, parsed.map((item) => (isRecord(item) ? JSON.stringify(item) : item)));
-        return;
-      }
-
-      pushEntry(key, parsed);
-      return;
-    }
-
-    pushEntry(key, value);
-  });
+      pushEntry(key, value);
+    });
+  }
 
   return entries;
 };
