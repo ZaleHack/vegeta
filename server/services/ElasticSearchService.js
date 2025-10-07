@@ -839,7 +839,10 @@ class ElasticSearchService {
           'full_text',
           'raw_values'
         ],
-        query: { bool: boolQuery },
+        query: { bool: boolQuery }
+      };
+
+      const transportOptions = {
         requestTimeout: this.searchRequestTimeout
       };
 
@@ -854,11 +857,11 @@ class ElasticSearchService {
         if (typeof abortTimer.unref === 'function') {
           abortTimer.unref();
         }
-        searchOptions.signal = controller.signal;
+        transportOptions.signal = controller.signal;
       }
 
       try {
-        const response = await client.search(searchOptions);
+        const response = await client.search(searchOptions, transportOptions);
         hits = response.hits;
         took = response.took;
       } finally {
