@@ -24,12 +24,27 @@ class ElasticSearchService {
     this.indexes = this.enabled ? [this.defaultIndex] : [];
     this.loadCatalog();
     const timeoutEnv = Number(process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS);
-    this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 5000;
+    this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 3000;
     this.connectionChecked = false;
     this.connectionCheckPromise = null;
     const retryEnv = Number(process.env.ELASTICSEARCH_RETRY_DELAY_MS);
     this.retryDelayMs = Number.isFinite(retryEnv) && retryEnv >= 0 ? retryEnv : 15000;
     this.reconnectTimer = null;
+
+    const requestTimeoutEnv = Number(process.env.ELASTICSEARCH_REQUEST_TIMEOUT_MS);
+    const searchRequestTimeoutEnv = Number(process.env.ELASTICSEARCH_SEARCH_TIMEOUT_MS);
+    const abortTimeoutEnv = Number(process.env.ELASTICSEARCH_ABORT_TIMEOUT_MS);
+
+    const baseRequestTimeout =
+      Number.isFinite(requestTimeoutEnv) && requestTimeoutEnv > 0 ? requestTimeoutEnv : 3000;
+
+    this.searchRequestTimeout =
+      Number.isFinite(searchRequestTimeoutEnv) && searchRequestTimeoutEnv > 0
+        ? searchRequestTimeoutEnv
+        : baseRequestTimeout;
+
+    this.searchAbortTimeout =
+      Number.isFinite(abortTimeoutEnv) && abortTimeoutEnv >= 0 ? abortTimeoutEnv : this.searchRequestTimeout + 500;
 
     if (this.enabled) {
       this.scheduleConnectionVerification('initialisation');
@@ -44,10 +59,27 @@ class ElasticSearchService {
     if (!error) {
       return false;
     }
-    if (error.name === 'ConnectionError') {
+    if (error.name === 'ConnectionError' || error.name === 'TimeoutError') {
       return true;
     }
-    return error?.meta?.statusCode === 0;
+    if (error.name === 'AbortError' || error.name === 'RequestAbortedError') {
+      return true;
+    }
+    const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+    if (message.includes('timeout') || message.includes('timed out')) {
+      return true;
+    }
+    if (error?.meta?.statusCode === 0 || error?.meta?.statusCode === 408) {
+      return true;
+    }
+    const errorType = error?.meta?.body?.error?.type;
+    if (errorType && typeof errorType === 'string') {
+      const lowered = errorType.toLowerCase();
+      if (lowered.includes('timeout')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   disableForSession(context, error) {
@@ -778,7 +810,7 @@ class ElasticSearchService {
         ];
       }
 
-      const response = await client.search({
+      const searchOptions = {
         index: indexes,
         ignore_unavailable: true,
         from,
@@ -807,10 +839,33 @@ class ElasticSearchService {
           'full_text',
           'raw_values'
         ],
-        query: { bool: boolQuery }
-      });
-      hits = response.hits;
-      took = response.took;
+        query: { bool: boolQuery },
+        requestTimeout: this.searchRequestTimeout
+      };
+
+      let abortTimer = null;
+      if (
+        Number.isFinite(this.searchAbortTimeout) &&
+        this.searchAbortTimeout > 0 &&
+        typeof AbortController === 'function'
+      ) {
+        const controller = new AbortController();
+        abortTimer = setTimeout(() => controller.abort(), this.searchAbortTimeout);
+        if (typeof abortTimer.unref === 'function') {
+          abortTimer.unref();
+        }
+        searchOptions.signal = controller.signal;
+      }
+
+      try {
+        const response = await client.search(searchOptions);
+        hits = response.hits;
+        took = response.took;
+      } finally {
+        if (abortTimer) {
+          clearTimeout(abortTimer);
+        }
+      }
     } catch (error) {
       if (this.isConnectionError(error)) {
         console.error('❌ Recherche Elasticsearch indisponible:', error.message);
