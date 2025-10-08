@@ -322,13 +322,7 @@ class SearchService {
       return results;
     }
 
-    const fields = new Set([
-      ...(config.preview || []),
-      ...(config.linkedFields || []),
-      ...(config.searchable || []),
-      primaryKey,
-    ]);
-    const selectFields = Array.from(fields).join(', ');
+    const selectFields = '*';
     const searchableFields = config.searchable || [];
 
     if (searchableFields.length === 0) {
@@ -437,7 +431,7 @@ class SearchService {
       const rows = await database.query(sql, params);
 
       for (const row of rows) {
-        const preview = this.buildPreview(row, config);
+        const preview = this.buildPreview(row);
         results.push({
           table: config.display,
           database: config.database,
@@ -454,12 +448,14 @@ class SearchService {
     return results;
   }
 
-  buildPreview(record, config) {
-    const fields = new Set([...(config.preview || []), ...(config.linkedFields || [])]);
+  buildPreview(record) {
     const preview = {};
 
-    fields.forEach(field => {
-      const value = record[field];
+    Object.entries(record).forEach(([field, value]) => {
+      if (field && field.toLowerCase() === 'id') {
+        return;
+      }
+
       if (value !== null && value !== undefined && value !== '') {
         preview[field] = value;
       }
