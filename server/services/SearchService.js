@@ -5,6 +5,22 @@ import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
 
+const EXTRA_IDENTIFIER_FIELDS = new Set([
+  'CNI',
+  'Numero',
+  'numero',
+  'nin',
+  'NIN',
+  'Telephone1',
+  'Telephone2',
+  'TELEPHONE1',
+  'TELEPHONE2',
+  'Phone',
+  'PHONE',
+  '=',
+  'PHONE '
+]);
+
 class SearchService {
   constructor() {
     const __filename = fileURLToPath(import.meta.url);
@@ -189,28 +205,13 @@ class SearchService {
       const extraValues = new Set();
       const phoneRegex = /^tel(ephone)?\d*$/i;
       const queryNormalized = String(query).trim().toLowerCase();
-      const extraFieldNames = new Set([
-        'CNI',
-        'Numero',
-        'numero',
-        'nin',
-        'NIN',
-        'Telephone1',
-        'Telephone2',
-        'TELEPHONE1',
-        'TELEPHONE2',
-        'Phone',
-        'PHONE',
-        '=',
-        'PHONE '
-      ]);
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
           const keyLower = key.toLowerCase();
           const valueStr = String(value).trim();
           const matchesConfiguredFields =
-            extraFieldNames.has(key) ||
+            EXTRA_IDENTIFIER_FIELDS.has(key) ||
             keyLower === 'cni' ||
             keyLower === 'tet' ||
             phoneRegex.test(keyLower);
