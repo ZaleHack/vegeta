@@ -28,7 +28,7 @@ const FALLBACK_EXCLUDED_FIELDS = new Set([
   'previewEntries'
 ]);
 
-const EXCLUDED_RESULT_FIELDS = new Set(['id', 'id1']);
+const EXCLUDED_RESULT_FIELDS = new Set(['id']);
 
 const shouldExcludeField = (key: string): boolean => {
   const normalizedKey = key.trim().toLowerCase();
