@@ -389,6 +389,13 @@ class SearchService {
         break;
       }
 
+      if (
+        mode === 'contains' &&
+        !this.shouldExecuteContainsMode(searchTerms, fetchedRows.size)
+      ) {
+        continue;
+      }
+
       const queryDefinition = this.buildSearchQuery(
         tableName,
         searchableFields,
@@ -439,9 +446,49 @@ class SearchService {
   }
 
   shouldRunContainsSearch(searchTerms) {
-    return searchTerms.some(term =>
-      term && ['normal', 'required', 'field'].includes(term.type)
-    );
+    return searchTerms.some(term => {
+      if (!term || !['normal', 'required', 'field'].includes(term.type)) {
+        return false;
+      }
+
+      const normalized = this.normalizeSearchTerm(term.value);
+      if (!normalized || normalized.length < 3) {
+        return false;
+      }
+
+      if (this.isNumericSearchTerm(normalized)) {
+        return normalized.length >= 6;
+      }
+
+      return normalized.length >= 4 || normalized.includes(' ');
+    });
+  }
+
+  shouldExecuteContainsMode(searchTerms, fetchedCount) {
+    if (fetchedCount === 0) {
+      return true;
+    }
+
+    if (fetchedCount >= 5) {
+      return false;
+    }
+
+    return searchTerms.some(term => {
+      if (!term || !['normal', 'required', 'field'].includes(term.type)) {
+        return false;
+      }
+
+      const normalized = this.normalizeSearchTerm(term.value);
+      if (!normalized || normalized.length < 3) {
+        return false;
+      }
+
+      if (this.isNumericSearchTerm(normalized)) {
+        return normalized.length >= 8;
+      }
+
+      return normalized.length >= 5 || normalized.includes(' ');
+    });
   }
 
   buildSearchQuery(
