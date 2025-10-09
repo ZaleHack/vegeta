@@ -616,7 +616,7 @@ class SearchService {
       return null;
     }
 
-    const safeValue = `${value}`.trim().toLowerCase();
+    const safeValue = `${value}`.trim();
     if (safeValue.length === 0) {
       return null;
     }
@@ -788,15 +788,14 @@ class SearchService {
   }
 
   wrapFieldForSearch(field) {
-    const escapedField = this.escapeFieldName(field);
-    return `LOWER(CAST(${escapedField} AS CHAR))`;
+    return this.escapeFieldName(field);
   }
 
   normalizeSearchTerm(value) {
     if (value === undefined || value === null) {
       return '';
     }
-    return `${value}`.trim().toLowerCase();
+    return `${value}`.trim();
   }
 
   normalizeIdentifierValue(value) {
