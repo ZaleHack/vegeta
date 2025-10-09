@@ -774,14 +774,17 @@ class SearchService {
       return field;
     }
 
-    if (field.includes('.')) {
-      return field
-        .split('.')
-        .map(part => `\`${part.replace(/`/g, '')}\``)
-        .join('.');
+    const trimmed = field.trim();
+    const identifierPattern = /^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
+
+    if (!identifierPattern.test(trimmed)) {
+      return field;
     }
 
-    return `\`${field.replace(/`/g, '')}\``;
+    return trimmed
+      .split('.')
+      .map(part => `\`${part}\``)
+      .join('.');
   }
 
   wrapFieldForSearch(field) {
