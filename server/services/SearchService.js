@@ -5,21 +5,18 @@ import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
 
-const EXTRA_IDENTIFIER_FIELDS = new Set([
-  'CNI',
-  'Numero',
-  'numero',
-  'nin',
-  'NIN',
-  'Telephone1',
-  'Telephone2',
-  'TELEPHONE1',
-  'TELEPHONE2',
-  'Phone',
-  'PHONE',
-  '=',
-  'PHONE '
+const IDENTIFIER_KEYWORDS = new Set([
+  'cni',
+  'telephone',
+  'telephone1',
+  'telephone2',
+  'tel',
+  'phone',
+  'passeport',
+  'passport'
 ]);
+
+const MIN_IDENTIFIER_LENGTH = 3;
 
 class SearchService {
   constructor() {
@@ -29,6 +26,7 @@ class SearchService {
     this.cache = new InMemoryCache();
     this.catalog = this.loadCatalog();
     this.primaryKeyCache = new Map();
+    this.columnsCache = new Map();
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
     }
@@ -68,6 +66,7 @@ class SearchService {
 
   refreshCatalog() {
     this.catalog = this.loadCatalog();
+    this.columnsCache.clear();
   }
 
   async getPrimaryKey(tableName, config = {}) {
@@ -131,7 +130,8 @@ class SearchService {
       followLinks = false,
       maxDepth = 1,
       depth = 0,
-      seen = new Set()
+      seen = new Set(),
+      seenIdentifiers = new Set()
     } = options;
 
     let cacheKey;
@@ -154,6 +154,13 @@ class SearchService {
 
     const offset = (page - 1) * limit;
     const searchTerms = this.parseSearchQuery(query);
+
+    const trimmedQuery = this.normalizeIdentifierValue(query);
+    const queryKey = this.normalizeIdentifierKey(trimmedQuery);
+    if (queryKey) {
+      seenIdentifiers.add(queryKey);
+    }
+    const sanitizedQuery = this.sanitizeIdentifierValue(trimmedQuery);
 
     // Lancer les recherches en parallèle sur toutes les tables du catalogue
     const searchPromises = Object.entries(catalog).map(
@@ -192,7 +199,8 @@ class SearchService {
             followLinks,
             maxDepth,
             depth: depth + 1,
-            seen
+            seen,
+            seenIdentifiers
           });
           results.push(...sub.hits);
           tablesSearched.push(...sub.tables_searched);
@@ -203,37 +211,83 @@ class SearchService {
     // Recherche supplémentaire pour les valeurs d'identifiants (CNI, NIN, téléphones, etc.) trouvées
     if (depth === 0) {
       const extraValues = new Set();
-      const phoneRegex = /^tel(ephone)?\d*$/i;
-      const queryNormalized = String(query).trim().toLowerCase();
+      const queryNormalized = trimmedQuery.toLowerCase();
+
+      if (
+        sanitizedQuery &&
+        sanitizedQuery.length >= MIN_IDENTIFIER_LENGTH &&
+        sanitizedQuery !== trimmedQuery &&
+        /\d/.test(sanitizedQuery)
+      ) {
+        const extraKey = this.normalizeIdentifierKey(sanitizedQuery);
+        if (extraKey && !seenIdentifiers.has(extraKey)) {
+          seenIdentifiers.add(extraKey);
+          extraValues.add(sanitizedQuery);
+        }
+      }
+
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
-          const keyLower = key.toLowerCase();
-          const valueStr = String(value).trim();
-          const matchesConfiguredFields =
-            EXTRA_IDENTIFIER_FIELDS.has(key) ||
-            keyLower === 'cni' ||
-            keyLower === 'tet' ||
-            phoneRegex.test(keyLower);
+          if (!this.isIdentifierField(key)) {
+            continue;
+          }
 
+          const normalizedValue = this.normalizeIdentifierValue(value);
+          if (!normalizedValue) {
+            continue;
+          }
+
+          const normalizedLower = normalizedValue.toLowerCase();
           if (
-            matchesConfiguredFields &&
-            valueStr &&
-            valueStr.toLowerCase() !== queryNormalized
+            normalizedLower === queryNormalized ||
+            normalizedLower.length < MIN_IDENTIFIER_LENGTH
           ) {
-            extraValues.add(valueStr);
+            continue;
+          }
+
+          const valueKey = this.normalizeIdentifierKey(normalizedValue);
+          if (valueKey && !seenIdentifiers.has(valueKey)) {
+            seenIdentifiers.add(valueKey);
+            extraValues.add(normalizedValue);
+          }
+
+          const sanitizedValue = this.sanitizeIdentifierValue(normalizedValue);
+          const sanitizedKey = this.normalizeIdentifierKey(sanitizedValue);
+          if (
+            sanitizedValue &&
+            sanitizedValue.length >= MIN_IDENTIFIER_LENGTH &&
+            sanitizedValue !== normalizedValue &&
+            sanitizedKey &&
+            !seenIdentifiers.has(sanitizedKey)
+          ) {
+            seenIdentifiers.add(sanitizedKey);
+            extraValues.add(sanitizedValue);
           }
         }
       }
 
-      for (const val of extraValues) {
-        if (val.toLowerCase() === queryNormalized) continue;
-        extraSearches++;
-        const sub = await this.search(val, {}, 1, 50, null, 'linked', {
-          depth: depth + 1
-        });
-        results.push(...sub.hits);
-        tablesSearched.push(...sub.tables_searched);
+      if (extraValues.size > 0) {
+        const extraSearchPromises = Array.from(extraValues).map((val) =>
+          this.search(val, {}, 1, 50, null, 'linked', {
+            depth: depth + 1,
+            seenIdentifiers
+          })
+        );
+
+        const extraResults = await Promise.allSettled(extraSearchPromises);
+        for (const sub of extraResults) {
+          if (sub.status === 'fulfilled' && sub.value) {
+            extraSearches++;
+            results.push(...sub.value.hits);
+            tablesSearched.push(...sub.value.tables_searched);
+          } else if (sub.status === 'rejected') {
+            console.error(
+              '❌ Erreur lors de la recherche complémentaire sur identifiant:',
+              sub.reason?.message || sub.reason
+            );
+          }
+        }
       }
     }
 
@@ -342,7 +396,10 @@ class SearchService {
       return results;
     }
 
-    const searchableFields = config.searchable || [];
+    const searchableFields = await this.getAugmentedSearchableFields(
+      tableName,
+      config
+    );
 
     if (searchableFields.length === 0) {
       return results;
@@ -488,7 +545,8 @@ class SearchService {
 
       const fieldConditions = [];
       for (const field of searchableFields) {
-        fieldConditions.push(`${field} NOT LIKE ?`);
+        const wrappedField = this.wrapFieldForSearch(field);
+        fieldConditions.push(`${wrappedField} NOT LIKE ?`);
         params.push(pattern);
       }
 
@@ -510,8 +568,9 @@ class SearchService {
 
     if (term.type === 'exact') {
       for (const field of searchableFields) {
-        termConditions.push(`${field} = ?`);
-        params.push(term.value);
+        const wrappedField = this.wrapFieldForSearch(field);
+        termConditions.push(`${wrappedField} = ?`);
+        params.push(this.normalizeSearchTerm(term.value));
       }
       return termConditions;
     }
@@ -522,7 +581,8 @@ class SearchService {
     }
 
     const pushConditionForField = field => {
-      termConditions.push(`${field} LIKE ?`);
+      const wrappedField = this.wrapFieldForSearch(field);
+      termConditions.push(`${wrappedField} LIKE ?`);
       params.push(pattern);
     };
 
@@ -531,11 +591,13 @@ class SearchService {
         pushConditionForField(field);
       }
     } else if (term.type === 'field') {
-      const termField = term.field.toLowerCase();
-      const matchingFields = searchableFields.filter(field =>
-        field.toLowerCase().includes(termField) ||
-        termField.includes(field.toLowerCase())
-      );
+      const termField = this.canonicalizeFieldKey(term.field);
+      const matchingFields = searchableFields.filter(field => {
+        const fieldCanonical = this.canonicalizeFieldKey(field);
+        return (
+          fieldCanonical.includes(termField) || termField.includes(fieldCanonical)
+        );
+      });
 
       if (matchingFields.length > 0) {
         for (const field of matchingFields) {
@@ -554,7 +616,7 @@ class SearchService {
       return null;
     }
 
-    const safeValue = `${value}`.trim();
+    const safeValue = `${value}`.trim().toLowerCase();
     if (safeValue.length === 0) {
       return null;
     }
@@ -600,37 +662,42 @@ class SearchService {
       for (const field of searchableFields) {
         const value = record[field];
         if (!value) continue;
-        
+
         const fieldValue = value.toString().toLowerCase();
-        
+        const identifierField = this.isIdentifierField(field);
+
         if (term.type === 'exact' && fieldValue === searchValue) {
-          score += 15; // Score plus élevé pour les correspondances exactes
+          score += identifierField ? 30 : 15; // Boost pour les identifiants
           termFound = true;
         } else if (fieldValue.includes(searchValue)) {
           const position = fieldValue.indexOf(searchValue);
           const lengthRatio = searchValue.length / fieldValue.length;
           let termScore = (10 - position * 0.1) * lengthRatio;
-          
+
           // Bonus pour les correspondances au début du champ
           if (position === 0) {
             termScore *= 1.5;
           }
-          
+
           // Bonus pour les termes obligatoires
           if (term.type === 'required') {
             termScore *= 2;
             termFound = true;
           }
-          
+
           // Bonus pour les recherches par champ spécifique
           if (term.type === 'field') {
             termScore *= 1.3;
           }
-          
+
+          if (identifierField) {
+            termScore *= 1.4;
+          }
+
           score += termScore;
         }
       }
-      
+
       if (term.type === 'required' && termFound) {
         requiredTermsFound++;
       }
@@ -688,6 +755,133 @@ class SearchService {
       database: catalog[tableName].database,
       details: details
     };
+  }
+
+  normalizeFieldName(field) {
+    return field ? field.toString().toLowerCase() : '';
+  }
+
+  canonicalizeFieldKey(field) {
+    return this.normalizeFieldName(field).replace(/[^a-z0-9]/g, '');
+  }
+
+  escapeFieldName(field) {
+    if (typeof field !== 'string' || field.length === 0) {
+      return field;
+    }
+
+    if (field.includes('`')) {
+      return field;
+    }
+
+    if (field.includes('.')) {
+      return field
+        .split('.')
+        .map(part => `\`${part.replace(/`/g, '')}\``)
+        .join('.');
+    }
+
+    return `\`${field.replace(/`/g, '')}\``;
+  }
+
+  wrapFieldForSearch(field) {
+    const escapedField = this.escapeFieldName(field);
+    return `LOWER(CAST(${escapedField} AS CHAR))`;
+  }
+
+  normalizeSearchTerm(value) {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return `${value}`.trim().toLowerCase();
+  }
+
+  normalizeIdentifierValue(value) {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return `${value}`.trim();
+  }
+
+  sanitizeIdentifierValue(value) {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return `${value}`.replace(/[^0-9a-zA-Z]/g, '').trim();
+  }
+
+  normalizeIdentifierKey(value) {
+    if (!value) {
+      return '';
+    }
+    return `${value}`.trim().toLowerCase();
+  }
+
+  isIdentifierField(field) {
+    const canonical = this.canonicalizeFieldKey(field);
+    if (!canonical) {
+      return false;
+    }
+
+    if (IDENTIFIER_KEYWORDS.has(canonical)) {
+      return true;
+    }
+
+    if (canonical.startsWith('telephone')) {
+      return true;
+    }
+
+    if (canonical.startsWith('phone')) {
+      return true;
+    }
+
+    if (canonical.startsWith('tel') && canonical.length <= 7) {
+      return true;
+    }
+
+    if (canonical.includes('passeport') || canonical.includes('passport')) {
+      return true;
+    }
+
+    if (canonical.includes('cni')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  async getAugmentedSearchableFields(tableName, config) {
+    if (this.columnsCache.has(tableName)) {
+      return this.columnsCache.get(tableName);
+    }
+
+    const configured = Array.isArray(config.searchable)
+      ? [...config.searchable]
+      : [];
+    const fieldSet = new Set(configured);
+
+    try {
+      const columns = await database.query(`SHOW COLUMNS FROM ${tableName}`);
+      for (const column of columns) {
+        const fieldName = column.Field;
+        if (this.isIdentifierField(fieldName) && !fieldSet.has(fieldName)) {
+          configured.push(fieldName);
+          fieldSet.add(fieldName);
+        }
+      }
+    } catch (error) {
+      console.warn(
+        `⚠️ Impossible de récupérer les colonnes pour ${tableName} (identifiants):`,
+        error.message
+      );
+    }
+
+    const uniqueFields = configured.filter(
+      (field, index) => configured.indexOf(field) === index
+    );
+
+    this.columnsCache.set(tableName, uniqueFields);
+    return uniqueFields;
   }
 }
 
