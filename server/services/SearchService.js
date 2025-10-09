@@ -1,36 +1,22 @@
 import database from '../config/database.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import baseCatalog from '../config/tables-catalog.js';
+import { loadCatalog, watchCatalog } from '../utils/catalog.js';
+import {
+  computeFieldWeight,
+  canonicalizeFieldKey,
+  isIdentifierField
+} from '../utils/search-helpers.js';
 import InMemoryCache from '../utils/cache.js';
-
-const IDENTIFIER_KEYWORDS = new Set([
-  'cni',
-  'telephone',
-  'telephone1',
-  'telephone2',
-  'tel',
-  'phone',
-  'passeport',
-  'passport'
-]);
 
 const MIN_IDENTIFIER_LENGTH = 3;
 
 class SearchService {
   constructor() {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.cache = new InMemoryCache();
-    this.catalog = this.loadCatalog();
+    this.catalog = loadCatalog();
     this.primaryKeyCache = new Map();
     this.columnsCache = new Map();
     this.columnMetadataCache = new Map();
-    if (fs.existsSync(this.catalogPath)) {
-      fs.watch(this.catalogPath, () => this.refreshCatalog());
-    }
+    this.stopWatchingCatalog = watchCatalog(() => this.refreshCatalog());
   }
 
   extractLinkedIdentifiers(results) {
@@ -47,26 +33,8 @@ class SearchService {
     return Array.from(identifiers);
   }
 
-  loadCatalog() {
-    let catalog = { ...baseCatalog };
-    try {
-      if (fs.existsSync(this.catalogPath)) {
-        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
-        const json = JSON.parse(raw);
-        for (const [key, value] of Object.entries(json)) {
-          const [db, ...tableParts] = key.split('_');
-          const tableName = `${db}.${tableParts.join('_')}`;
-          catalog[tableName] = value;
-        }
-      }
-    } catch (error) {
-      console.error('❌ Erreur chargement catalogue:', error);
-    }
-    return catalog;
-  }
-
   refreshCatalog() {
-    this.catalog = this.loadCatalog();
+    this.catalog = loadCatalog();
     this.columnsCache.clear();
     this.columnMetadataCache.clear();
   }
@@ -231,7 +199,7 @@ class SearchService {
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
-          if (!this.isIdentifierField(key)) {
+          if (!isIdentifierField(key)) {
             continue;
           }
 
@@ -318,7 +286,9 @@ class SearchService {
       pages: Math.ceil(totalResults / limit),
       elapsed_ms: executionTime,
       hits: paginatedResults,
-      tables_searched: [...new Set(tablesSearched)]
+      tables_searched: [...new Set(tablesSearched)],
+      facets: {},
+      suggestions: []
     };
 
     if (depth === 0) {
@@ -460,7 +430,7 @@ class SearchService {
         database: config.database,
         preview: preview,
         primary_keys: { [primaryKey]: row[primaryKey] },
-        score: this.calculateRelevanceScore(row, searchTerms, searchableFields),
+        score: this.calculateRelevanceScore(row, searchTerms, searchableFields, config),
         linkedFields: config.linkedFields || []
       });
     }
@@ -613,9 +583,9 @@ class SearchService {
         pushConditionForField(field);
       }
     } else if (term.type === 'field') {
-      const termField = this.canonicalizeFieldKey(term.field);
+      const termField = canonicalizeFieldKey(term.field);
       const matchingFields = searchableFields.filter(field => {
-        const fieldCanonical = this.canonicalizeFieldKey(field);
+        const fieldCanonical = canonicalizeFieldKey(field);
         return (
           fieldCanonical.includes(termField) || termField.includes(fieldCanonical)
         );
@@ -666,14 +636,25 @@ class SearchService {
     return preview;
   }
 
-  calculateRelevanceScore(record, searchTerms, searchableFields) {
+  calculateRelevanceScore(record, searchTerms, searchableFields, tableConfig = {}) {
     let score = 0;
     let requiredTermsFound = 0;
     let requiredTermsTotal = 0;
+    const weightCache = new Map();
+
+    const resolveWeight = (field) => {
+      if (!field) {
+        return 1;
+      }
+      if (!weightCache.has(field)) {
+        weightCache.set(field, computeFieldWeight(field, tableConfig));
+      }
+      return weightCache.get(field);
+    };
 
     for (const term of searchTerms) {
       if (term.type === 'exclude' || term.type === 'operator') continue;
-      
+
       if (term.type === 'required') {
         requiredTermsTotal++;
       }
@@ -686,15 +667,17 @@ class SearchService {
         if (!value) continue;
 
         const fieldValue = value.toString().toLowerCase();
-        const identifierField = this.isIdentifierField(field);
+        const identifierField = isIdentifierField(field);
+        const fieldWeight = resolveWeight(field);
 
         if (term.type === 'exact' && fieldValue === searchValue) {
-          score += identifierField ? 30 : 15; // Boost pour les identifiants
+          const base = identifierField ? 30 : 15;
+          score += base * fieldWeight;
           termFound = true;
         } else if (fieldValue.includes(searchValue)) {
           const position = fieldValue.indexOf(searchValue);
           const lengthRatio = searchValue.length / fieldValue.length;
-          let termScore = (10 - position * 0.1) * lengthRatio;
+          let termScore = (10 - position * 0.1) * lengthRatio * fieldWeight;
 
           // Bonus pour les correspondances au début du champ
           if (position === 0) {
@@ -713,7 +696,7 @@ class SearchService {
           }
 
           if (identifierField) {
-            termScore *= 1.4;
+            termScore *= 1.4 + fieldWeight * 0.05;
           }
 
           score += termScore;
@@ -777,14 +760,6 @@ class SearchService {
       database: catalog[tableName].database,
       details: details
     };
-  }
-
-  normalizeFieldName(field) {
-    return field ? field.toString().toLowerCase() : '';
-  }
-
-  canonicalizeFieldKey(field) {
-    return this.normalizeFieldName(field).replace(/[^a-z0-9]/g, '');
   }
 
   escapeFieldName(field) {
@@ -885,39 +860,6 @@ class SearchService {
     return null;
   }
 
-  isIdentifierField(field) {
-    const canonical = this.canonicalizeFieldKey(field);
-    if (!canonical) {
-      return false;
-    }
-
-    if (IDENTIFIER_KEYWORDS.has(canonical)) {
-      return true;
-    }
-
-    if (canonical.startsWith('telephone')) {
-      return true;
-    }
-
-    if (canonical.startsWith('phone')) {
-      return true;
-    }
-
-    if (canonical.startsWith('tel') && canonical.length <= 7) {
-      return true;
-    }
-
-    if (canonical.includes('passeport') || canonical.includes('passport')) {
-      return true;
-    }
-
-    if (canonical.includes('cni')) {
-      return true;
-    }
-
-    return false;
-  }
-
   async getAugmentedSearchableFields(tableName, config) {
     if (this.columnsCache.has(tableName)) {
       if (!this.columnMetadataCache.has(tableName)) {
@@ -935,7 +877,7 @@ class SearchService {
 
     for (const column of columns) {
       const fieldName = column.Field;
-      if (this.isIdentifierField(fieldName) && !fieldSet.has(fieldName)) {
+      if (isIdentifierField(fieldName) && !fieldSet.has(fieldName)) {
         configured.push(fieldName);
         fieldSet.add(fieldName);
       }
