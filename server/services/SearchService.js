@@ -27,6 +27,7 @@ class SearchService {
     this.catalog = this.loadCatalog();
     this.primaryKeyCache = new Map();
     this.columnsCache = new Map();
+    this.columnMetadataCache = new Map();
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
     }
@@ -67,6 +68,7 @@ class SearchService {
   refreshCatalog() {
     this.catalog = this.loadCatalog();
     this.columnsCache.clear();
+    this.columnMetadataCache.clear();
   }
 
   async getPrimaryKey(tableName, config = {}) {
@@ -409,6 +411,7 @@ class SearchService {
     const fetchedRows = new Map();
     const shouldRunContains = this.shouldRunContainsSearch(searchTerms);
     const matchModes = shouldRunContains ? ['prefix', 'contains'] : ['prefix'];
+    const columnMetadata = this.columnMetadataCache.get(tableName) || new Map();
 
     for (const mode of matchModes) {
       const remaining = perTableLimit - fetchedRows.size;
@@ -421,7 +424,8 @@ class SearchService {
         searchableFields,
         searchTerms,
         mode,
-        remaining
+        remaining,
+        columnMetadata
       );
 
       if (!queryDefinition) {
@@ -470,8 +474,20 @@ class SearchService {
     );
   }
 
-  buildSearchQuery(tableName, searchableFields, searchTerms, matchMode, limit) {
-    const whereClause = this.buildWhereClause(searchTerms, searchableFields, matchMode);
+  buildSearchQuery(
+    tableName,
+    searchableFields,
+    searchTerms,
+    matchMode,
+    limit,
+    columnMetadata = new Map()
+  ) {
+    const whereClause = this.buildWhereClause(
+      searchTerms,
+      searchableFields,
+      matchMode,
+      columnMetadata
+    );
 
     if (!whereClause) {
       return null;
@@ -486,7 +502,7 @@ class SearchService {
     };
   }
 
-  buildWhereClause(searchTerms, searchableFields, matchMode) {
+  buildWhereClause(searchTerms, searchableFields, matchMode, columnMetadata) {
     const params = [];
     const conditions = [];
     let currentGroup = [];
@@ -510,7 +526,8 @@ class SearchService {
         term,
         searchableFields,
         matchMode,
-        params
+        params,
+        columnMetadata
       );
 
       if (termConditions.length === 0) {
@@ -563,14 +580,19 @@ class SearchService {
     };
   }
 
-  buildTermConditions(term, searchableFields, matchMode, params) {
+  buildTermConditions(term, searchableFields, matchMode, params, columnMetadata) {
     const termConditions = [];
 
     if (term.type === 'exact') {
+      const normalizedValue = this.normalizeSearchTerm(term.value);
       for (const field of searchableFields) {
         const wrappedField = this.wrapFieldForSearch(field);
+        const metadata = this.getColumnMetadataForField(columnMetadata, field);
+        if (metadata?.isNumeric && !this.isNumericSearchTerm(term.value)) {
+          continue;
+        }
         termConditions.push(`${wrappedField} = ?`);
-        params.push(this.normalizeSearchTerm(term.value));
+        params.push(normalizedValue);
       }
       return termConditions;
     }
@@ -798,6 +820,17 @@ class SearchService {
     return `${value}`.trim();
   }
 
+  isNumericSearchTerm(value) {
+    if (value === undefined || value === null) {
+      return false;
+    }
+    const normalized = `${value}`.trim();
+    if (normalized.length === 0) {
+      return false;
+    }
+    return /^-?\d+(\.\d+)?$/.test(normalized);
+  }
+
   normalizeIdentifierValue(value) {
     if (value === undefined || value === null) {
       return '';
@@ -817,6 +850,39 @@ class SearchService {
       return '';
     }
     return `${value}`.trim().toLowerCase();
+  }
+
+  getColumnMetadataForField(columnMetadata, field) {
+    if (!field || !columnMetadata || typeof columnMetadata.get !== 'function') {
+      return null;
+    }
+
+    if (columnMetadata.has(field)) {
+      return columnMetadata.get(field);
+    }
+
+    const sanitized = field.replace(/`/g, '');
+    if (columnMetadata.has(sanitized)) {
+      return columnMetadata.get(sanitized);
+    }
+
+    const lowerSanitized = sanitized.toLowerCase();
+    if (columnMetadata.has(lowerSanitized)) {
+      return columnMetadata.get(lowerSanitized);
+    }
+
+    const parts = sanitized.split('.');
+    const fieldName = parts[parts.length - 1];
+    if (columnMetadata.has(fieldName)) {
+      return columnMetadata.get(fieldName);
+    }
+
+    const lowerFieldName = fieldName.toLowerCase();
+    if (columnMetadata.has(lowerFieldName)) {
+      return columnMetadata.get(lowerFieldName);
+    }
+
+    return null;
   }
 
   isIdentifierField(field) {
@@ -854,6 +920,9 @@ class SearchService {
 
   async getAugmentedSearchableFields(tableName, config) {
     if (this.columnsCache.has(tableName)) {
+      if (!this.columnMetadataCache.has(tableName)) {
+        await this.loadColumnMetadata(tableName);
+      }
       return this.columnsCache.get(tableName);
     }
 
@@ -862,20 +931,14 @@ class SearchService {
       : [];
     const fieldSet = new Set(configured);
 
-    try {
-      const columns = await database.query(`SHOW COLUMNS FROM ${tableName}`);
-      for (const column of columns) {
-        const fieldName = column.Field;
-        if (this.isIdentifierField(fieldName) && !fieldSet.has(fieldName)) {
-          configured.push(fieldName);
-          fieldSet.add(fieldName);
-        }
+    const columns = await this.loadColumnMetadata(tableName);
+
+    for (const column of columns) {
+      const fieldName = column.Field;
+      if (this.isIdentifierField(fieldName) && !fieldSet.has(fieldName)) {
+        configured.push(fieldName);
+        fieldSet.add(fieldName);
       }
-    } catch (error) {
-      console.warn(
-        `⚠️ Impossible de récupérer les colonnes pour ${tableName} (identifiants):`,
-        error.message
-      );
     }
 
     const uniqueFields = configured.filter(
@@ -884,6 +947,48 @@ class SearchService {
 
     this.columnsCache.set(tableName, uniqueFields);
     return uniqueFields;
+  }
+
+  async loadColumnMetadata(tableName) {
+    if (this.columnMetadataCache.has(tableName)) {
+      const metadataMap = this.columnMetadataCache.get(tableName);
+      return Array.from(new Set(metadataMap.values()));
+    }
+
+    try {
+      const columns = await database.query(`SHOW COLUMNS FROM ${tableName}`);
+      const metadataMap = new Map();
+      for (const column of columns) {
+        const metadata = {
+          Field: column.Field,
+          Type: column.Type,
+          isNumeric: this.isNumericColumnType(column.Type)
+        };
+        metadataMap.set(column.Field, metadata);
+        metadataMap.set(column.Field.toLowerCase(), metadata);
+      }
+      this.columnMetadataCache.set(tableName, metadataMap);
+      return columns.map(column => ({
+        ...column,
+        isNumeric: this.isNumericColumnType(column.Type)
+      }));
+    } catch (error) {
+      console.warn(
+        `⚠️ Impossible de récupérer les colonnes pour ${tableName} (métadonnées):`,
+        error.message
+      );
+      const metadataMap = new Map();
+      this.columnMetadataCache.set(tableName, metadataMap);
+      return [];
+    }
+  }
+
+  isNumericColumnType(type) {
+    if (!type) {
+      return false;
+    }
+    const normalized = String(type).toLowerCase();
+    return /int|decimal|numeric|float|double|real|bit|bool|year/.test(normalized);
   }
 }
 
