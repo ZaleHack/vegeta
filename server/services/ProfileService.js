@@ -412,7 +412,7 @@ class ProfileService {
 
           const signatureWidth = 120;
           const signatureX = pageWidth - margin - signatureWidth;
-          const signatureY = doc.page.height - doc.page.margins.bottom - 42;
+          const signatureY = doc.page.height - doc.page.margins.bottom - 24;
 
           doc
             .moveTo(signatureX, signatureY)
@@ -508,13 +508,24 @@ class ProfileService {
         let textX = margin + sectionPadding;
         let textWidth = innerWidth - sectionPadding * 2;
 
+        const ensureSpace = (height = 0) => {
+          const bottomLimit = doc.page.height - doc.page.margins.bottom - 80;
+          if (y + height <= bottomLimit) {
+            return;
+          }
+
+          doc.addPage();
+          y = doc.page.margins.top + 20;
+        };
+
         const drawSectionHeader = (title) => {
           const headerTitle = title ? String(title) : 'Informations';
+          const headerHeightBox = 32;
+          ensureSpace(headerHeightBox + 20);
           doc.save();
           doc.lineWidth(1);
           doc.fillColor(accentSoft);
           doc.strokeColor(borderColor);
-          const headerHeightBox = 32;
           doc.roundedRect(margin, y, innerWidth, headerHeightBox, 12).fillAndStroke();
           doc
             .fillColor(accentDark)
@@ -526,8 +537,10 @@ class ProfileService {
         };
 
         const addField = (label, value) => {
-          if (!value && value !== 0) return;
+          if (value === null || value === undefined) return;
+          if (typeof value === 'string' && value.trim() === '') return;
           const safeLabel = label ? String(label) : '';
+          ensureSpace(60);
           doc
             .fillColor(accentDark)
             .font('Helvetica-Bold')
@@ -542,11 +555,7 @@ class ProfileService {
           y = doc.y + 12;
         };
 
-        drawSectionHeader('Informations principales');
-        addField('Nom', profile.last_name);
-        addField('Prénom', profile.first_name);
-        addField('Téléphone', profile.phone);
-        addField('Email', profile.email);
+        let hasContent = false;
 
         if (profile.extra_fields) {
           try {
@@ -554,12 +563,25 @@ class ProfileService {
               ? profile.extra_fields
               : JSON.parse(profile.extra_fields);
             extras.forEach(cat => {
+              const fields = (Array.isArray(cat?.fields) ? cat.fields : []).filter(f => {
+                if (!f) return false;
+                const value = f.value;
+                if (value === null || value === undefined) return false;
+                if (typeof value === 'string' && value.trim() === '') return false;
+                return true;
+              });
+
+              if (fields.length === 0) {
+                return;
+              }
+
               const title = cat && typeof cat.title === 'string' && cat.title.trim()
                 ? cat.title.trim()
-                : 'Informations supplémentaires';
+                : 'Informations personnalisées';
               drawSectionHeader(title);
-              (Array.isArray(cat?.fields) ? cat.fields : []).forEach(f => {
+              fields.forEach(f => {
                 addField(f.key, f.value);
+                hasContent = true;
               });
             });
           } catch (_) {
@@ -568,12 +590,23 @@ class ProfileService {
         }
 
         if (profile.comment) {
+          hasContent = true;
           drawSectionHeader('Commentaire');
           doc
             .fillColor(textSecondary)
             .font('Helvetica')
             .fontSize(12)
             .text(String(profile.comment), textX, y, { width: textWidth });
+          y = doc.y + 12;
+        }
+
+        if (!hasContent) {
+          drawSectionHeader('Informations personnalisées');
+          doc
+            .fillColor(textSecondary)
+            .font('Helvetica')
+            .fontSize(12)
+            .text('Aucune information personnalisée disponible.', textX, y, { width: textWidth });
           y = doc.y + 12;
         }
 
