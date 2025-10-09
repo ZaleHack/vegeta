@@ -333,7 +333,7 @@ class SearchService {
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
     const primaryKey = await this.getPrimaryKey(tableName, config);
-
+    
     // Vérifier si la table existe
     try {
       await database.query(`SELECT 1 FROM ${tableName} LIMIT 1`);
@@ -342,105 +342,23 @@ class SearchService {
       return results;
     }
 
+    const selectFields = '*';
     const searchableFields = config.searchable || [];
 
     if (searchableFields.length === 0) {
       return results;
     }
 
-    const perTableLimit = 50;
-    const fetchedRows = new Map();
-    const shouldRunContains = this.shouldRunContainsSearch(searchTerms);
-    const matchModes = shouldRunContains ? ['prefix', 'contains'] : ['prefix'];
-
-    for (const mode of matchModes) {
-      const remaining = perTableLimit - fetchedRows.size;
-      if (remaining <= 0) {
-        break;
-      }
-
-      const queryDefinition = this.buildSearchQuery(
-        tableName,
-        searchableFields,
-        searchTerms,
-        mode,
-        remaining
-      );
-
-      if (!queryDefinition) {
-        continue;
-      }
-
-      try {
-        const rows = await database.query(queryDefinition.sql, queryDefinition.params);
-        for (const row of rows) {
-          const pkValue = row[primaryKey];
-          if (pkValue === undefined || pkValue === null) {
-            continue;
-          }
-          const key = String(pkValue);
-          if (!fetchedRows.has(key)) {
-            fetchedRows.set(key, row);
-          }
-        }
-      } catch (error) {
-        console.error(`❌ Erreur SQL table ${tableName}:`, error.message);
-      }
-
-      if (mode === 'prefix' && fetchedRows.size >= perTableLimit) {
-        break;
-      }
-    }
-
-    for (const row of fetchedRows.values()) {
-      const preview = this.buildPreview(row);
-      results.push({
-        table: config.display,
-        database: config.database,
-        preview: preview,
-        primary_keys: { [primaryKey]: row[primaryKey] },
-        score: this.calculateRelevanceScore(row, searchTerms, searchableFields),
-        linkedFields: config.linkedFields || []
-      });
-    }
-
-    return results;
-  }
-
-  shouldRunContainsSearch(searchTerms) {
-    return searchTerms.some(term =>
-      term && ['normal', 'required', 'field'].includes(term.type)
-    );
-  }
-
-  buildSearchQuery(tableName, searchableFields, searchTerms, matchMode, limit) {
-    const whereClause = this.buildWhereClause(searchTerms, searchableFields, matchMode);
-
-    if (!whereClause) {
-      return null;
-    }
-
-    const limitValue = Math.max(1, limit || 1);
-    const sql = `SELECT * FROM ${tableName} WHERE ${whereClause.conditions} LIMIT ${limitValue}`;
-
-    return {
-      sql,
-      params: whereClause.params
-    };
-  }
-
-  buildWhereClause(searchTerms, searchableFields, matchMode) {
+    let sql = `SELECT ${selectFields} FROM ${tableName} WHERE `;
     const params = [];
-    const conditions = [];
+    let conditions = [];
     let currentGroup = [];
-    let operator = 'AND';
+    let operator = 'AND'; // Opérateur par défaut
 
     for (const term of searchTerms) {
-      if (term.type === 'exclude') {
-        continue;
-      }
-
+      if (term.type === 'exclude') continue; // Traité séparément
       if (term.type === 'operator') {
+        // Changer l'opérateur pour les prochains termes
         if (currentGroup.length > 0) {
           conditions.push(`(${currentGroup.join(' OR ')})`);
           currentGroup = [];
@@ -449,24 +367,56 @@ class SearchService {
         continue;
       }
 
-      const termConditions = this.buildTermConditions(
-        term,
-        searchableFields,
-        matchMode,
-        params
-      );
+      const termConditions = [];
 
-      if (termConditions.length === 0) {
-        continue;
+      if (term.type === 'exact') {
+        // Recherche exacte
+        for (const field of searchableFields) {
+          termConditions.push(`${field} = ?`);
+          params.push(term.value);
+        }
+      } else if (term.type === 'required') {
+        // Terme obligatoire (doit être présent)
+        for (const field of searchableFields) {
+          termConditions.push(`${field} LIKE ?`);
+          params.push(`${term.value}%`);
+        }
+      } else if (term.type === 'field') {
+        // Recherche par champ spécifique
+        const matchingFields = searchableFields.filter(field =>
+          field.toLowerCase().includes(term.field) ||
+          term.field.includes(field.toLowerCase())
+        );
+
+        if (matchingFields.length > 0) {
+          for (const field of matchingFields) {
+            termConditions.push(`${field} LIKE ?`);
+            params.push(`${term.value}%`);
+          }
+        } else if (config.searchable.includes(term.field)) {
+          termConditions.push(`${term.field} LIKE ?`);
+          params.push(`${term.value}%`);
+        }
+      } else if (term.type === 'normal') {
+        // Recherche normale dans tous les champs
+        for (const field of searchableFields) {
+          termConditions.push(`${field} LIKE ?`);
+          params.push(`${term.value}%`);
+        }
       }
 
-      if (term.type === 'required') {
-        conditions.push(`(${termConditions.join(' OR ')})`);
-      } else {
-        currentGroup.push(`(${termConditions.join(' OR ')})`);
+      if (termConditions.length > 0) {
+        if (term.type === 'required') {
+          // Les termes obligatoires sont ajoutés directement
+          conditions.push(`(${termConditions.join(' OR ')})`);
+        } else {
+          // Les autres termes sont groupés selon l'opérateur
+          currentGroup.push(`(${termConditions.join(' OR ')})`);
+        }
       }
     }
-
+    
+    // Ajouter le dernier groupe
     if (currentGroup.length > 0) {
       if (operator === 'OR') {
         conditions.push(`(${currentGroup.join(' OR ')})`);
@@ -476,94 +426,46 @@ class SearchService {
     }
 
     if (conditions.length === 0) {
-      return null;
+      return results;
     }
 
-    const excludeTerms = searchTerms.filter(term => term.type === 'exclude');
-    const excludeClauses = [];
+    // Joindre les conditions avec AND par défaut
+    sql += conditions.join(' AND ');
 
+    // Gestion des exclusions
+    const excludeTerms = searchTerms.filter(t => t.type === 'exclude');
     for (const term of excludeTerms) {
-      const pattern = this.buildLikePattern(term.value, matchMode);
-      if (!pattern) continue;
-
-      const fieldConditions = [];
+      const excludeConditions = [];
       for (const field of searchableFields) {
-        fieldConditions.push(`${field} NOT LIKE ?`);
-        params.push(pattern);
+        excludeConditions.push(`${field} NOT LIKE ?`);
+        params.push(`${term.value}%`);
       }
-
-      if (fieldConditions.length > 0) {
-        excludeClauses.push(`(${fieldConditions.join(' AND ')})`);
-      }
-    }
-
-    const allConditions = [...conditions, ...excludeClauses];
-
-    return {
-      conditions: allConditions.join(' AND '),
-      params
-    };
-  }
-
-  buildTermConditions(term, searchableFields, matchMode, params) {
-    const termConditions = [];
-
-    if (term.type === 'exact') {
-      for (const field of searchableFields) {
-        termConditions.push(`${field} = ?`);
-        params.push(term.value);
-      }
-      return termConditions;
-    }
-
-    const pattern = this.buildLikePattern(term.value, matchMode);
-    if (!pattern) {
-      return termConditions;
-    }
-
-    const pushConditionForField = field => {
-      termConditions.push(`${field} LIKE ?`);
-      params.push(pattern);
-    };
-
-    if (term.type === 'required' || term.type === 'normal') {
-      for (const field of searchableFields) {
-        pushConditionForField(field);
-      }
-    } else if (term.type === 'field') {
-      const termField = term.field.toLowerCase();
-      const matchingFields = searchableFields.filter(field =>
-        field.toLowerCase().includes(termField) ||
-        termField.includes(field.toLowerCase())
-      );
-
-      if (matchingFields.length > 0) {
-        for (const field of matchingFields) {
-          pushConditionForField(field);
-        }
-      } else if (searchableFields.includes(term.field)) {
-        pushConditionForField(term.field);
+      if (excludeConditions.length > 0) {
+        sql += ` AND (${excludeConditions.join(' AND ')})`;
       }
     }
 
-    return termConditions;
-  }
+    sql += ' LIMIT 50'; // Limite par table
 
-  buildLikePattern(value, matchMode) {
-    if (value === undefined || value === null) {
-      return null;
+    try {
+      const rows = await database.query(sql, params);
+
+      for (const row of rows) {
+        const preview = this.buildPreview(row);
+        results.push({
+          table: config.display,
+          database: config.database,
+          preview: preview,
+          primary_keys: { [primaryKey]: row[primaryKey] },
+          score: this.calculateRelevanceScore(row, searchTerms, searchableFields),
+          linkedFields: config.linkedFields || []
+        });
+      }
+    } catch (error) {
+      console.error(`❌ Erreur SQL table ${tableName}:`, error.message);
     }
 
-    const safeValue = `${value}`.trim();
-    if (safeValue.length === 0) {
-      return null;
-    }
-
-    if (matchMode === 'contains') {
-      return `%${safeValue}%`;
-    }
-
-    return `${safeValue}%`;
+    return results;
   }
 
   buildPreview(record) {
