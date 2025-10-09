@@ -23,6 +23,17 @@ Copiez ensuite vos paramètres sensibles (connexion MySQL, clés JWT, etc.) dans
 - `PAYLOAD_ENCRYPTION_KEY` : clé AES-256 encodée en base64 utilisée par l'API pour déchiffrer les requêtes JSON chiffrées par le front.
 - `VITE_PAYLOAD_ENCRYPTION_KEY` : copie côté client (toujours préfixée `VITE_`) de la même clé AES-256 encodée en base64 ; elle est injectée par Vite lors du build pour chiffrer les payloads sortants.
 
+### Variables d'environnement recherche / synchronisation
+
+- `USE_ELASTICSEARCH` : active la recherche distribuée (true par défaut).
+- `ELASTICSEARCH_URL` : URL du cluster Elasticsearch ciblé.
+- `ELASTICSEARCH_DEFAULT_INDEX` : index global utilisé lorsque `tables-catalog.js` ne définit pas explicitement `sync.elasticsearchIndex`.
+- `ELASTICSEARCH_CACHE_TTL_MS` : durée de vie du cache mémoire des requêtes (`60000` ms par défaut).
+- `SYNC_BATCH_SIZE` : taille des lots pour l'indexation initiale (full load).
+- `SYNC_INCREMENTAL_BATCH_SIZE` : nombre d'évènements CDC traités par `sync:incremental`.
+- `SYNC_INCREMENTAL_POLL_MS` : période de scrutation (en ms) du worker incrémental intégré.
+- `ENABLE_INCREMENTAL_SYNC` : si `true`, démarre le worker incrémental en même temps que `npm run server`.
+
 ### Rotation de la clé de chiffrement des payloads
 
 1. Générer une nouvelle clé aléatoire de 32 octets et l'encoder en base64 :
@@ -48,18 +59,29 @@ Les deux commandes peuvent être exécutées en parallèle pendant le développe
 - `npm run lint` : exécute les vérifications lint/formatting.
 - `node server/scripts/init-database.js` : crée les tables nécessaires si elles n'existent pas.
 - `node server/scripts/create-search-indexes.js` : crée les index SQL sur toutes les colonnes recherchées.
-- `node server/scripts/sync-all.js` : synchronise les données pour la recherche.
+- `node server/scripts/sync-all.js` : synchronise les données pour la recherche (chargement complet).
+- `npm run sync:incremental` : traite le journal d'évènements `autres.search_sync_events` et pousse les deltas vers Elasticsearch.
+- `npm run search:setup-triggers` : installe/renouvelle les triggers MySQL qui alimentent la table de queue `search_sync_events`.
 - `npm run search:bootstrap` : enchaîne la création des index SQL et la synchronisation Elasticsearch.
+- `npm run search:verify` : compare le volume de documents entre MySQL et Elasticsearch pour toutes les tables synchronisées.
 
 ### Indexation initiale Elasticsearch
 
-`USE_ELASTICSEARCH` est désormais activé par défaut lors du démarrage du serveur. Vérifiez simplement que `ELASTICSEARCH_URL` pointe vers votre cluster Elasticsearch (la valeur par défaut `http://localhost:9200` est utilisée si rien n'est renseigné). Après avoir configuré votre cluster et défini les variables d'environnement nécessaires (par exemple `SYNC_BATCH_SIZE` pour ajuster la taille des lots), exécutez :
+`USE_ELASTICSEARCH` est désormais activé par défaut lors du démarrage du serveur. Vérifiez simplement que `ELASTICSEARCH_URL` pointe vers votre cluster Elasticsearch (la valeur par défaut `http://localhost:9200` est utilisée si rien n'est renseigné). Après avoir configuré votre cluster et défini les variables d'environnement nécessaires (`SYNC_BATCH_SIZE`, `SYNC_INCREMENTAL_BATCH_SIZE`, etc.), exécutez :
 
 ```bash
 npm run search:bootstrap
 ```
 
-Les scripts créent les index SQL sur toutes les colonnes déclarées `searchable`, puis lisent les tables référencées dans `server/config/tables-catalog.js` (dont `autres.profiles`) pour alimenter l'index `profiles` d'Elasticsearch en purgant l'index si besoin. Assurez-vous que la base MySQL contient les données à indexer avant de lancer cette opération.
+Les scripts créent les index SQL sur toutes les colonnes déclarées `searchable`, puis lisent les tables référencées dans `server/config/tables-catalog.js` (dont `autres.profiles`) pour alimenter les index Elasticsearch (`profiles`, `global_search`, etc.) en purgant les index si besoin. Assurez-vous que la base MySQL contient les données à indexer avant de lancer cette opération.
+
+### Synchronisation incrémentale
+
+1. Exécuter `npm run search:setup-triggers` pour créer/mettre à jour les triggers MySQL qui alimentent `autres.search_sync_events`.
+2. Lancer `npm run sync:incremental` ponctuellement (ou planifier un cron) pour vider la file d'évènements et répercuter les modifications côté Elasticsearch. En production, vous pouvez démarrer le worker intégré en exportant `ENABLE_INCREMENTAL_SYNC=true` avant `npm run server` : le service `IncrementalSyncService` lira automatiquement les évènements et les poussera vers Elasticsearch.
+3. Ajuster si besoin `SYNC_INCREMENTAL_BATCH_SIZE` (nombre d'évènements traités par lot) et `SYNC_INCREMENTAL_POLL_MS` (période du worker interne) dans vos variables d'environnement.
+
+Pour valider l'état de la synchronisation, exécutez `npm run search:verify`. Le script compare les comptes de documents entre MySQL et Elasticsearch et échoue si une divergence est détectée.
 
 ### Diagnostic : « Elasticsearch indisponible. Bascule sur le moteur de recherche local pour les CDR. »
 

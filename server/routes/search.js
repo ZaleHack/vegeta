@@ -39,7 +39,9 @@ router.post('/', authenticate, async (req, res) => {
       limit = 20,
       search_type = 'global',
       followLinks = false,
-      depth = 1
+      depth = 1,
+      facets = [],
+      autocomplete = false
     } = req.body;
 
     if (!query || query.trim().length === 0) {
@@ -87,11 +89,11 @@ router.post('/', authenticate, async (req, res) => {
     const elastic = getElasticService();
     const canUseElastic = elastic?.isOperational?.() === true;
     if (canUseElastic) {
-      const es = await elastic.search(
-        trimmed,
-        parseInt(page),
-        parseInt(limit)
-      );
+      const es = await elastic.search(trimmed, parseInt(page), parseInt(limit), {
+        filters,
+        facets,
+        autocomplete
+      });
       if (elastic?.isOperational?.() === true) {
         const tablesSearched =
           Array.isArray(es.tables_searched) && es.tables_searched.length > 0
@@ -104,7 +106,9 @@ router.post('/', authenticate, async (req, res) => {
           pages: Math.ceil(es.total / parseInt(limit)),
           elapsed_ms: es.elapsed_ms,
           hits: es.hits,
-          tables_searched: tablesSearched
+          tables_searched: tablesSearched,
+          facets: es.facets || {},
+          suggestions: es.suggestions || []
         };
       }
     }
@@ -119,6 +123,12 @@ router.post('/', authenticate, async (req, res) => {
         search_type,
         { followLinks, maxDepth: parseInt(depth) }
       );
+      if (!results.facets) {
+        results.facets = {};
+      }
+      if (!results.suggestions) {
+        results.suggestions = [];
+      }
     }
 
     searchAccessManager.remember(req.user.id, results.hits || []);
