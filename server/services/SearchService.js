@@ -5,6 +5,31 @@ import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
 
+const UNIQUE_SEARCH_FIELDS = new Set([
+  'CNI',
+  'cni',
+  'NIN',
+  'nin',
+  'Phone',
+  'PHONE',
+  'TELEPHONE',
+  'Telephone',
+  'Numero',
+  'NUMERO',
+  'Telephone1',
+  'Telephone2',
+  'TELEPHONE1',
+  'TELEPHONE2',
+  'PassePort',
+  'PASSEPORT',
+  'Passeport',
+  'Email',
+  'EMAIL',
+  'mail',
+  'Mail',
+  'MAIL'
+]);
+
 class SearchService {
   constructor() {
     const __filename = fileURLToPath(import.meta.url);
@@ -184,20 +209,18 @@ class SearchService {
       }
     }
 
-    // Recherche supplémentaire pour les valeurs CNI, TET ou téléphone trouvées
+    // Recherche supplémentaire pour les champs uniques trouvés dans les résultats
     if (depth === 0) {
       const extraValues = new Set();
-      const phoneRegex = /^tel(ephone)?\d*$/i;
       const queryNormalized = String(query).trim().toLowerCase();
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
-          const keyLower = key.toLowerCase();
+          if (!UNIQUE_SEARCH_FIELDS.has(key)) {
+            continue;
+          }
           const valueStr = String(value).trim();
           if (
-            (keyLower === 'cni' ||
-              keyLower === 'tet' ||
-              phoneRegex.test(keyLower)) &&
             valueStr &&
             valueStr.toLowerCase() !== queryNormalized
           ) {
