@@ -67,16 +67,16 @@ class ElasticSearchService {
 
     const normalizedContext = typeof context === 'string' ? context.toLowerCase() : '';
     if (normalizedContext === 'initialisation' || normalizedContext === 'initialization') {
-      this.initiallyEnabled = false;
-      if (process.env.USE_ELASTICSEARCH !== 'false') {
-        process.env.USE_ELASTICSEARCH = 'false';
+      if (this.initiallyEnabled) {
         console.warn(
-          'ℹ️ Bascule automatique vers la recherche SQL: Elasticsearch restera désactivé tant que la connexion ne sera pas rétablie.'
+          'ℹ️ Elasticsearch indisponible au démarrage. Une reconnexion automatique sera tentée.'
         );
       }
-      return;
     }
-    this.scheduleReconnect();
+
+    if (this.initiallyEnabled) {
+      this.scheduleReconnect();
+    }
   }
 
   scheduleReconnect(delay = this.retryDelayMs) {
