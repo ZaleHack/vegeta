@@ -3046,6 +3046,7 @@ useEffect(() => {
         notifySuccess('Données chargées avec succès');
         setUploadTable('');
         setUploadFile(null);
+        lastQueryRef.current = null;
         fetchUploadHistory();
       } else {
         notifyError(data.error || 'Erreur lors du chargement');
@@ -3088,6 +3089,7 @@ useEffect(() => {
           });
           const data = await res.json();
           if (res.ok) {
+            lastQueryRef.current = null;
             fetchUploadHistory();
           } else {
             notifyError(data.error || 'Erreur lors de la suppression');
