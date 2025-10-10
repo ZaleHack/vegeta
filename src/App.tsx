@@ -160,6 +160,34 @@ const mapPreviewEntries = (hits: RawSearchResult[] | undefined): SearchResult[] 
       }))
     : [];
 
+const EXCLUDED_SEARCH_KEYS = new Set(['id', 'ID']);
+
+const getSearchableValues = (value: unknown, key?: string): string[] => {
+  if (key && EXCLUDED_SEARCH_KEYS.has(key)) {
+    return [];
+  }
+
+  if (value == null) {
+    return [];
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return [String(value)];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => getSearchableValues(item));
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).flatMap(([childKey, childValue]) =>
+      getSearchableValues(childValue, childKey)
+    );
+  }
+
+  return [];
+};
+
 const normalizeSearchResponse = (data: SearchResponseFromApi): SearchResponse => ({
   ...data,
   hits: mapPreviewEntries(data.hits)
@@ -1083,10 +1111,8 @@ const App: React.FC = () => {
       return base;
     }
     const lowered = trimmedSearch.toLowerCase();
-    return base.filter(
-      (r) =>
-        r.phone.includes(trimmedSearch) ||
-        (r.user_login || '').toLowerCase().includes(lowered)
+    return base.filter((request) =>
+      getSearchableValues(request).some((value) => value.toLowerCase().includes(lowered))
     );
   }, [requests, isAdmin, currentUser, hiddenRequestIds, requestSearch, requestStatusFilter]);
 
