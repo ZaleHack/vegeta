@@ -105,16 +105,28 @@ class UploadService {
   async createTableFromCSV(tableName, sampleRow) {
     const { database: db, table } = this.parseTableName(tableName);
     const columns = Object.keys(sampleRow);
-    const columnDefinitions = columns
-      .map(col => `\`${col}\` TEXT`)
-      .join(', ');
+    const idColumn = columns.find(col => col && col.trim().toLowerCase() === 'id');
+    const hasIdColumn = Boolean(idColumn);
+
+    const columnDefinitions = columns.map(col => `\`${col}\` TEXT`);
+
+    const tableDefinitions = [];
+
+    if (!hasIdColumn) {
+      tableDefinitions.push('id INT AUTO_INCREMENT PRIMARY KEY');
+    }
+
+    tableDefinitions.push('upload_id INT');
+    tableDefinitions.push(...columnDefinitions);
+    tableDefinitions.push('created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+
+    if (hasIdColumn) {
+      tableDefinitions.push(`PRIMARY KEY (\`${idColumn}\`)`);
+    }
 
     const sql = `
       CREATE TABLE IF NOT EXISTS \`${db}\`.\`${table}\` (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        upload_id INT,
-        ${columnDefinitions},
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ${tableDefinitions.join(',\n        ')}
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `;
 
