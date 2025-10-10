@@ -1,5 +1,8 @@
 import database from '../config/database.js';
-import { loadCatalog, watchCatalog } from '../utils/catalog.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import baseCatalog from '../config/tables-catalog.js';
 import ElasticSearchService from './ElasticSearchService.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
 
@@ -11,17 +14,17 @@ const DEFAULT_BATCH_SIZE = 500;
  */
 class SyncService {
   constructor() {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.elasticService = new ElasticSearchService();
     this.useElastic = isElasticsearchEnabled();
     this.defaultIndex = process.env.ELASTICSEARCH_DEFAULT_INDEX || 'global_search';
     this.resetIndices = new Set();
-    this.catalog = loadCatalog();
+    this.catalog = this.loadCatalog();
     this.primaryKeyCache = new Map();
     this.tableColumnsCache = new Map();
     this.qualifiedTableNameCache = new Map();
-    this.stopWatchingCatalog = watchCatalog(() => {
-      this.catalog = loadCatalog();
-    });
   }
 
   formatTableName(tableName) {
@@ -97,6 +100,24 @@ class SyncService {
     return fallbackColumn;
   }
 
+  loadCatalog() {
+    let catalog = { ...baseCatalog };
+    try {
+      if (fs.existsSync(this.catalogPath)) {
+        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
+        const json = JSON.parse(raw);
+        for (const [key, value] of Object.entries(json)) {
+          const [db, ...tableParts] = key.split('_');
+          const tableName = `${db}.${tableParts.join('_')}`;
+          catalog[tableName] = value;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erreur chargement catalogue:', error);
+    }
+    return catalog;
+  }
+
   resolveBatchSize(syncConfig = {}) {
     const envBatch = Number(process.env.SYNC_BATCH_SIZE);
     if (Number.isFinite(envBatch) && envBatch > 0) {
@@ -112,7 +133,7 @@ class SyncService {
   }
 
   async syncTable(tableName, config = null) {
-    const catalog = config ? null : this.catalog || loadCatalog();
+    const catalog = config ? null : this.catalog || this.loadCatalog();
     const tableConfig = config || catalog?.[tableName];
     if (!tableConfig) {
       console.warn(`⚠️ Table ${tableName} absente du catalogue, synchronisation ignorée.`);
@@ -226,7 +247,7 @@ class SyncService {
   }
 
   async syncAllTables() {
-    this.catalog = loadCatalog();
+    this.catalog = this.loadCatalog();
     for (const [tableName, config] of Object.entries(this.catalog)) {
       await this.syncTable(tableName, config);
     }
