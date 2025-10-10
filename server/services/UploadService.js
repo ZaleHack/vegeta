@@ -108,16 +108,39 @@ class UploadService {
     const idColumn = columns.find(col => col && col.trim().toLowerCase() === 'id');
     const hasIdColumn = Boolean(idColumn);
 
+    const MAX_SIGNED_BIGINT = BigInt('9223372036854775807');
+    const MIN_SIGNED_BIGINT = BigInt('-9223372036854775808');
+
     const columnDefinitions = columns.map(col => {
       const normalized = col && col.trim().toLowerCase();
 
       if (hasIdColumn && normalized === 'id') {
         const sampleValue = sampleRow[col];
-        const isIntegerId =
+        const sampleString =
           sampleValue !== undefined &&
-          sampleValue !== null &&
-          sampleValue !== '' &&
-          /^-?\d+$/.test(String(sampleValue));
+          sampleValue !== null
+            ? String(sampleValue).trim()
+            : '';
+
+        let isIntegerId = false;
+
+        if (sampleString !== '' && /^-?\d+$/.test(sampleString)) {
+          const unsignedDigits = sampleString.startsWith('-')
+            ? sampleString.slice(1)
+            : sampleString;
+          const trimmedDigits = unsignedDigits.replace(/^0+/, '') || '0';
+
+          if (trimmedDigits.length <= 19) {
+            try {
+              const numericValue = BigInt(sampleString);
+              if (numericValue <= MAX_SIGNED_BIGINT && numericValue >= MIN_SIGNED_BIGINT) {
+                isIntegerId = true;
+              }
+            } catch (error) {
+              isIntegerId = false;
+            }
+          }
+        }
 
         return `\`${col}\` ${isIntegerId ? 'BIGINT' : 'VARCHAR(255)'}`;
       }
