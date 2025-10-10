@@ -405,31 +405,6 @@ class ProfileService {
         const textPrimary = '#0F172A';
         const textSecondary = '#1F2937';
 
-        const canonicalizeKey = value => {
-          if (value === null || value === undefined) {
-            return '';
-          }
-          const text = String(value).trim();
-          if (!text) {
-            return '';
-          }
-          let normalized = text;
-          if (typeof normalized.normalize === 'function') {
-            normalized = normalized.normalize('NFD').replace(/\p{Diacritic}/gu, '');
-          }
-          return normalized.toLowerCase().replace(/[^a-z0-9]/g, '');
-        };
-
-        const defaultFieldKeys = new Set([
-          'firstname',
-          'lastname',
-          'prenom',
-          'nom',
-          'phone',
-          'telephone',
-          'email'
-        ]);
-
         const addSignature = () => {
           const { x, y } = doc;
           const size = doc._fontSize;
@@ -437,7 +412,7 @@ class ProfileService {
 
           const signatureWidth = 120;
           const signatureX = pageWidth - margin - signatureWidth;
-          const signatureY = doc.page.height - doc.page.margins.bottom - 12;
+          const signatureY = doc.page.height - doc.page.margins.bottom - 42;
 
           doc
             .moveTo(signatureX, signatureY)
@@ -479,7 +454,6 @@ class ProfileService {
             align: 'center'
           });
         doc.fillColor(textPrimary);
-        let pageHasContent = true;
 
         // Body positioning
         let y = headerHeight + 30;
@@ -516,7 +490,6 @@ class ProfileService {
                 .roundedRect(photoX - 4, y - 4, photoSize + 8, photoSize + 8, 12)
                 .stroke(borderColor);
               y += photoSize + 30;
-              pageHasContent = true;
             }
           } catch (_) {
             // ignore image errors
@@ -535,30 +508,13 @@ class ProfileService {
         let textX = margin + sectionPadding;
         let textWidth = innerWidth - sectionPadding * 2;
 
-        const ensureSpace = (height = 0) => {
-          const bottomLimit = doc.page.height - doc.page.margins.bottom - 60;
-          if (y + height <= bottomLimit) {
-            return;
-          }
-
-          if (!pageHasContent) {
-            y = doc.page.margins.top + 20;
-            return;
-          }
-
-          doc.addPage();
-          y = doc.page.margins.top + 20;
-          pageHasContent = false;
-        };
-
         const drawSectionHeader = (title) => {
           const headerTitle = title ? String(title) : 'Informations';
-          const headerHeightBox = 32;
-          ensureSpace(headerHeightBox + 20);
           doc.save();
           doc.lineWidth(1);
           doc.fillColor(accentSoft);
           doc.strokeColor(borderColor);
+          const headerHeightBox = 32;
           doc.roundedRect(margin, y, innerWidth, headerHeightBox, 12).fillAndStroke();
           doc
             .fillColor(accentDark)
@@ -567,14 +523,11 @@ class ProfileService {
             .text(headerTitle.toUpperCase(), margin + 16, y + 10);
           doc.restore();
           y += headerHeightBox + 14;
-          pageHasContent = true;
         };
 
         const addField = (label, value) => {
-          if (value === null || value === undefined) return;
-          if (typeof value === 'string' && value.trim() === '') return;
+          if (!value && value !== 0) return;
           const safeLabel = label ? String(label) : '';
-          ensureSpace(60);
           doc
             .fillColor(accentDark)
             .font('Helvetica-Bold')
@@ -587,10 +540,13 @@ class ProfileService {
             .fontSize(12)
             .text(String(value), textX, y, { width: textWidth });
           y = doc.y + 12;
-          pageHasContent = true;
         };
 
-        let hasContent = false;
+        drawSectionHeader('Informations principales');
+        addField('Nom', profile.last_name);
+        addField('Prénom', profile.first_name);
+        addField('Téléphone', profile.phone);
+        addField('Email', profile.email);
 
         if (profile.extra_fields) {
           try {
@@ -598,30 +554,12 @@ class ProfileService {
               ? profile.extra_fields
               : JSON.parse(profile.extra_fields);
             extras.forEach(cat => {
-              const fields = (Array.isArray(cat?.fields) ? cat.fields : []).filter(f => {
-                if (!f) return false;
-                const value = f.value;
-                if (value === null || value === undefined) return false;
-                if (typeof value === 'string' && value.trim() === '') return false;
-                const keyToken = canonicalizeKey(f.key);
-                if (!keyToken) return false;
-                if (defaultFieldKeys.has(keyToken)) {
-                  return false;
-                }
-                return true;
-              });
-
-              if (fields.length === 0) {
-                return;
-              }
-
               const title = cat && typeof cat.title === 'string' && cat.title.trim()
                 ? cat.title.trim()
-                : 'Informations personnalisées';
+                : 'Informations supplémentaires';
               drawSectionHeader(title);
-              fields.forEach(f => {
+              (Array.isArray(cat?.fields) ? cat.fields : []).forEach(f => {
                 addField(f.key, f.value);
-                hasContent = true;
               });
             });
           } catch (_) {
@@ -630,7 +568,6 @@ class ProfileService {
         }
 
         if (profile.comment) {
-          hasContent = true;
           drawSectionHeader('Commentaire');
           doc
             .fillColor(textSecondary)
@@ -638,18 +575,6 @@ class ProfileService {
             .fontSize(12)
             .text(String(profile.comment), textX, y, { width: textWidth });
           y = doc.y + 12;
-          pageHasContent = true;
-        }
-
-        if (!hasContent) {
-          drawSectionHeader('Informations personnalisées');
-          doc
-            .fillColor(textSecondary)
-            .font('Helvetica')
-            .fontSize(12)
-            .text('Aucune information personnalisée disponible.', textX, y, { width: textWidth });
-          y = doc.y + 12;
-          pageHasContent = true;
         }
 
         doc.end();

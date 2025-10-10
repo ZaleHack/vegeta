@@ -5,25 +5,6 @@ const DEFAULT_DEV_ORIGINS = ['http://localhost:5173'];
 let cachedSecret;
 let cachedPayloadEncryptionKey;
 
-const normalizeBooleanEnv = value => {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) {
-      return true;
-    }
-
-    if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) {
-      return false;
-    }
-  }
-
-  return undefined;
-};
-
 const sanitizeList = (value = '') =>
   value
     .split(',')
@@ -31,15 +12,11 @@ const sanitizeList = (value = '') =>
     .filter(Boolean);
 
 const ensureSearchConfiguration = () => {
-  const normalizedFlag = normalizeBooleanEnv(process.env.USE_ELASTICSEARCH);
-
-  if (typeof normalizedFlag === 'undefined') {
+  if (typeof process.env.USE_ELASTICSEARCH === 'undefined') {
     process.env.USE_ELASTICSEARCH = 'true';
     console.warn(
       '⚠️ USE_ELASTICSEARCH non défini. Activation par défaut d\'Elasticsearch pour accélérer les recherches.'
     );
-  } else {
-    process.env.USE_ELASTICSEARCH = normalizedFlag ? 'true' : 'false';
   }
 
   if (process.env.USE_ELASTICSEARCH === 'true' && !process.env.ELASTICSEARCH_URL) {

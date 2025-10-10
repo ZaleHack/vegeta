@@ -60,23 +60,7 @@ class ElasticSearchService {
     this.indexes = [];
     this.cache.clear();
     this.connectionChecked = false;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-
-    const normalizedContext = typeof context === 'string' ? context.toLowerCase() : '';
-    if (normalizedContext === 'initialisation' || normalizedContext === 'initialization') {
-      if (this.initiallyEnabled) {
-        console.warn(
-          'ℹ️ Elasticsearch indisponible au démarrage. Une reconnexion automatique sera tentée.'
-        );
-      }
-    }
-
-    if (this.initiallyEnabled) {
-      this.scheduleReconnect();
-    }
+    this.scheduleReconnect();
   }
 
   scheduleReconnect(delay = this.retryDelayMs) {

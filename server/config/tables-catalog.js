@@ -408,7 +408,6 @@ export default {
     display: 'affaire_etrangere',
     database: 'autres',
     searchable: ['prenom', 'nom', 'cni', 'corps', 'emploi', 'lib_service', 'lib_org_nv1'],
-    linkedFields: ['cni'],
     preview: ['prenom', 'nom', 'cni', 'corps', 'emploi'],
     filters: {
       corps: 'string',
@@ -422,45 +421,12 @@ export default {
     display: 'agent_non_fonctionnaire',
     database: 'autres',
     searchable: ['prenom', 'nom', 'datenaiss', 'cni', 'sexe', 'corps', 'emploi', 'lib_service', 'lib_org_niv1'],
-    linkedFields: ['cni'],
     preview: ['prenom', 'nom', 'cni', 'corps', 'emploi'],
     filters: {
       sexe: 'enum',
       corps: 'string',
       emploi: 'string',
       datenaiss: 'date'
-    },
-    theme: 'pro'
-  },
-
-  'autres.edu_sn': {
-    display: 'edu_sn',
-    database: 'autres',
-    searchable: [
-      'PRENOM',
-      'NOM',
-      'CNI',
-      'TELEPHONE1',
-      'TELEPHONE2',
-      'EMAIL',
-      'EMAIL2',
-      'ADRESSE_RESIDENCE',
-      'DIPLOME_ACADEMIQUE',
-      'DISCIPLINE_DIPLOME_ACADEMIQUE',
-      'DIPLOME_PROFESSIONNEL',
-      'SPECIALITE_DIPLOME_PROFESSIONNEL',
-      'LIBELLE_DERNIER_POSTE',
-      'IA_DEPOT',
-      'IEF_DEPOT'
-    ],
-    linkedFields: ['CNI', 'TELEPHONE1', 'TELEPHONE2'],
-    preview: ['PRENOM', 'NOM', 'CNI', 'TELEPHONE1', 'EMAIL'],
-    filters: {
-      SEXE: 'enum',
-      DATE_NAISSANCE: 'date',
-      IA_DEPOT: 'string',
-      IEF_DEPOT: 'string',
-      ORDRE_ENSEIGNEMENT_CHOISI: 'string'
     },
     theme: 'pro'
   },
@@ -538,7 +504,6 @@ export default {
     display: 'education',
     database: 'autres',
     searchable: ['prenom', 'nom', 'datenaiss', 'lieunaiss', 'cni', 'corps', 'lib_service', 'lib_org_niv1', 'telephone'],
-    linkedFields: ['cni', 'telephone'],
     preview: ['prenom', 'nom', 'cni', 'corps', 'telephone'],
     filters: {
       corps: 'string',
@@ -736,15 +701,14 @@ export default {
     display: 'collections',
     database: 'autres',
     searchable: ['Nom', 'Prenom', 'DateNaissance', 'CNI', 'Telephone', 'Localite'],
-    linkedFields: ['CNI', 'Telephone'],
-    preview: ['Nom', 'Prenom', 'CNI', 'Telephone', 'Localite'],
+    preview: ['Nom', 'Prenom', 'Telephone', 'Localite'],
     filters: {
       DateNaissance: 'date',
       CNI: 'string',
       Telephone: 'string',
       Localite: 'string'
     },
-    theme: 'identite'
+    theme: 'identite',
   },
 
   'autres.identified_numbers': {

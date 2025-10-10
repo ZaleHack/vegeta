@@ -654,7 +654,6 @@ const App: React.FC = () => {
   const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
-  const instantSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressiveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastQueryRef = useRef<{ query: string; page: number; limit: number } | null>(null);
   const initialRoute = useMemo<InitialRoute>(() => {
@@ -1997,12 +1996,21 @@ const App: React.FC = () => {
 
   const handleSearch = async (e?: React.FormEvent, forcedQuery?: string) => {
     e?.preventDefault();
-    if (loading && !forcedQuery) return;
+    if (loading) return;
     const trimmedQuery = (forcedQuery ?? searchQuery).trim();
     if (!trimmedQuery) return;
 
     const requestedPage = 1;
     const requestedLimit = 20;
+
+    if (
+      lastQueryRef.current &&
+      lastQueryRef.current.query === trimmedQuery &&
+      lastQueryRef.current.page === requestedPage &&
+      lastQueryRef.current.limit === requestedLimit
+    ) {
+      return;
+    }
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -2041,38 +2049,6 @@ const App: React.FC = () => {
       abortControllerRef.current = null;
     }
   };
-
-  useEffect(() => {
-    if (instantSearchTimeoutRef.current) {
-      clearTimeout(instantSearchTimeoutRef.current);
-      instantSearchTimeoutRef.current = null;
-    }
-
-    const trimmedQuery = searchQuery.trim();
-
-    if (!trimmedQuery) {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-      setLoading(false);
-      setSearchResults(null);
-      setSearchError('');
-      return;
-    }
-
-    instantSearchTimeoutRef.current = setTimeout(() => {
-      instantSearchTimeoutRef.current = null;
-      handleSearch(undefined, trimmedQuery);
-    }, 300);
-
-    return () => {
-      if (instantSearchTimeoutRef.current) {
-        clearTimeout(instantSearchTimeoutRef.current);
-        instantSearchTimeoutRef.current = null;
-      }
-    };
-  }, [searchQuery]);
 
   const loadMoreResults = async () => {
     if (loading) return;
@@ -2158,6 +2134,7 @@ const App: React.FC = () => {
 
     if (query) {
       setSearchQuery(query);
+      handleSearch(undefined, query);
     }
 
     if (hasParams && typeof window !== 'undefined') {
