@@ -1,13 +1,10 @@
 import client from '../config/elasticsearch.js';
-import database from '../config/database.js';
 import { normalizeProfileRecord } from '../utils/profile-normalizer.js';
 import InMemoryCache from '../utils/cache.js';
-import { loadCatalog, watchCatalog, resolveTableComponents } from '../utils/catalog.js';
-import {
-  computeFieldWeight,
-  buildSuggestionsFromValues,
-  isIdentifierField
-} from '../utils/search-helpers.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import baseCatalog from '../config/tables-catalog.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
 
 class ElasticSearchService {
@@ -16,10 +13,13 @@ class ElasticSearchService {
     const parsedTtl = Number(ttlEnv);
     const ttl = Number.isFinite(parsedTtl) && parsedTtl > 0 ? parsedTtl : 60000;
     this.cache = new InMemoryCache(ttl);
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.defaultIndex = process.env.ELASTICSEARCH_DEFAULT_INDEX || 'global_search';
     this.enabled = isElasticsearchEnabled();
     this.initiallyEnabled = this.enabled;
-    this.catalog = loadCatalog();
+    this.catalog = this.loadCatalog();
     this.indexes = this.enabled ? this.resolveIndexesFromCatalog(this.catalog) : [];
     const timeoutEnv = Number(process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS);
     this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 5000;
@@ -28,18 +28,6 @@ class ElasticSearchService {
     const retryEnv = Number(process.env.ELASTICSEARCH_RETRY_DELAY_MS);
     this.retryDelayMs = Number.isFinite(retryEnv) && retryEnv >= 0 ? retryEnv : 15000;
     this.reconnectTimer = null;
-
-    this.stopWatchingCatalog = watchCatalog(() => {
-      this.catalog = loadCatalog();
-      this.indexes = this.resolveIndexesFromCatalog(this.catalog);
-      this.indexDefinitionCache = new Map();
-      this.tableColumnCache = new Map();
-      this.tableSearchSchemaCache = new Map();
-    });
-
-    this.indexDefinitionCache = new Map();
-    this.tableColumnCache = new Map();
-    this.tableSearchSchemaCache = new Map();
 
     if (this.enabled) {
       this.scheduleConnectionVerification('initialisation');
@@ -72,6 +60,22 @@ class ElasticSearchService {
     this.indexes = [];
     this.cache.clear();
     this.connectionChecked = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    const normalizedContext = typeof context === 'string' ? context.toLowerCase() : '';
+    if (normalizedContext === 'initialisation' || normalizedContext === 'initialization') {
+      this.initiallyEnabled = false;
+      if (process.env.USE_ELASTICSEARCH !== 'false') {
+        process.env.USE_ELASTICSEARCH = 'false';
+        console.warn(
+          'ℹ️ Bascule automatique vers la recherche SQL: Elasticsearch restera désactivé tant que la connexion ne sera pas rétablie.'
+        );
+      }
+      return;
+    }
     this.scheduleReconnect();
   }
 
@@ -176,6 +180,24 @@ class ElasticSearchService {
     }
   }
 
+  loadCatalog() {
+    let catalog = { ...baseCatalog };
+    try {
+      if (fs.existsSync(this.catalogPath)) {
+        const raw = fs.readFileSync(this.catalogPath, 'utf-8');
+        const json = JSON.parse(raw);
+        for (const [key, value] of Object.entries(json)) {
+          const [db, ...tableParts] = key.split('_');
+          const tableName = `${db}.${tableParts.join('_')}`;
+          catalog[tableName] = value;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erreur chargement catalogue Elasticsearch:', error);
+    }
+    return catalog;
+  }
+
   resolveIndexesFromCatalog(catalog = {}) {
     const indexes = new Set();
     Object.entries(catalog).forEach(([tableName, config]) => {
@@ -192,188 +214,6 @@ class ElasticSearchService {
       indexes.add('profiles');
     }
     return Array.from(indexes);
-  }
-
-  async getTableColumns(tableName) {
-    if (this.tableColumnCache.has(tableName)) {
-      return this.tableColumnCache.get(tableName);
-    }
-
-    try {
-      const columns = await database.query(`SHOW COLUMNS FROM ${tableName}`);
-      this.tableColumnCache.set(tableName, columns);
-      return columns;
-    } catch (error) {
-      console.warn(`⚠️ Impossible de récupérer les colonnes pour ${tableName}:`, error.message);
-      this.tableColumnCache.set(tableName, []);
-      return [];
-    }
-  }
-
-  async getTableSearchSchema(tableName, config = {}) {
-    if (this.tableSearchSchemaCache.has(tableName)) {
-      return this.tableSearchSchemaCache.get(tableName);
-    }
-
-    const columns = await this.getTableColumns(tableName);
-    const descriptors = columns.map((column) => ({
-      name: column.Field,
-      type: column.Type,
-      weight: computeFieldWeight(column.Field, config),
-      isIdentifier: isIdentifierField(column.Field)
-    }));
-
-    const schema = {
-      table: tableName,
-      columns: descriptors,
-      filters: config.filters || {}
-    };
-
-    this.tableSearchSchemaCache.set(tableName, schema);
-    return schema;
-  }
-
-  async buildIndexDefinition(indexName) {
-    if (this.indexDefinitionCache.has(indexName)) {
-      return this.indexDefinitionCache.get(indexName);
-    }
-
-    const columnProperties = {};
-    const filterTypes = {};
-    const fieldWeights = {};
-
-    const associatedTables = Object.entries(this.catalog).filter(([tableName, config]) => {
-      const syncConfig = config?.sync || {};
-      const targetIndex = syncConfig.elasticsearchIndex || this.defaultIndex;
-      return targetIndex === indexName;
-    });
-
-    for (const [tableName, config] of associatedTables) {
-      const schema = await this.getTableSearchSchema(tableName, config);
-      const tableFieldWeights = {};
-
-      schema.columns.forEach((column) => {
-        if (!columnProperties[column.name]) {
-          columnProperties[column.name] = {
-            type: 'text',
-            analyzer: 'standard',
-            fields: {
-              keyword: { type: 'keyword', ignore_above: 256 }
-            }
-          };
-        }
-        tableFieldWeights[column.name] = column.weight;
-      });
-
-      Object.entries(schema.filters || {}).forEach(([filterField, filterType]) => {
-        filterTypes[filterField] = filterType || 'keyword';
-      });
-
-      fieldWeights[tableName] = tableFieldWeights;
-    }
-
-    const settings = {
-      analysis: {
-        filter: {
-          autocomplete_filter: {
-            type: 'edge_ngram',
-            min_gram: 2,
-            max_gram: 20
-          }
-        },
-        analyzer: {
-          autocomplete: {
-            type: 'custom',
-            tokenizer: 'standard',
-            filter: ['lowercase', 'asciifolding', 'autocomplete_filter']
-          },
-          autocomplete_search: {
-            type: 'custom',
-            tokenizer: 'standard',
-            filter: ['lowercase', 'asciifolding']
-          }
-        }
-      }
-    };
-
-    const mappings = {
-      dynamic_templates: [
-        {
-          columns_template: {
-            path_match: 'columns.*',
-            mapping: {
-              type: 'text',
-              analyzer: 'standard',
-              fields: {
-                keyword: {
-                  type: 'keyword',
-                  ignore_above: 256
-                }
-              }
-            }
-          }
-        },
-        {
-          filter_template: {
-            path_match: 'filter_values.*',
-            mapping: {
-              type: 'keyword'
-            }
-          }
-        },
-        {
-          suggestions_template: {
-            path_match: 'suggestions',
-            mapping: {
-              type: 'completion',
-              analyzer: 'autocomplete',
-              search_analyzer: 'autocomplete_search'
-            }
-          }
-        }
-      ],
-      properties: {
-        table: { type: 'keyword' },
-        table_name: { type: 'keyword' },
-        database_name: { type: 'keyword' },
-        preview: { type: 'object', enabled: true },
-        search_tokens: {
-          type: 'text',
-          analyzer: 'autocomplete',
-          search_analyzer: 'autocomplete_search',
-          fields: {
-            keyword: { type: 'keyword', ignore_above: 256 }
-          }
-        },
-        primary_key: { type: 'keyword' },
-        primary_value: { type: 'keyword' },
-        primary_keys: { type: 'object', enabled: true },
-        raw_values: {
-          type: 'text',
-          analyzer: 'standard',
-          search_analyzer: 'standard'
-        },
-        full_text: {
-          type: 'text',
-          analyzer: 'standard',
-          search_analyzer: 'standard'
-        },
-        filter_values: { type: 'object', enabled: true },
-        columns: { type: 'object', enabled: true, properties: {} },
-        column_weights: { type: 'object', enabled: true },
-        suggestions: {
-          type: 'completion',
-          analyzer: 'autocomplete',
-          search_analyzer: 'autocomplete_search'
-        }
-      }
-    };
-
-    Object.assign(mappings.properties.columns.properties || (mappings.properties.columns.properties = {}), columnProperties);
-
-    const definition = { settings, mappings, fieldWeights, filterTypes };
-    this.indexDefinitionCache.set(indexName, definition);
-    return definition;
   }
 
   normalizeValues(values = []) {
@@ -460,39 +300,6 @@ class ElasticSearchService {
       normalized.extra_fields
     ]);
     const searchTokens = this.buildTokensFromValues(rawValues);
-    const profileConfig = this.catalog?.['autres.profiles'] || {};
-    const filterValues = {};
-
-    if (normalized.division_id !== null && normalized.division_id !== undefined) {
-      filterValues.division_id = normalized.division_id;
-    }
-
-    const columnValues = {
-      first_name: normalized.first_name || null,
-      last_name: normalized.last_name || null,
-      full_name: fullName || null,
-      phone: normalized.phone || null,
-      email: normalized.email || null,
-      comment: commentPreview
-    };
-
-    const columnWeights = {};
-
-    Object.keys(columnValues).forEach((key) => {
-      if (columnValues[key] === null || columnValues[key] === undefined || columnValues[key] === '') {
-        delete columnValues[key];
-        return;
-      }
-      columnWeights[key] = computeFieldWeight(key, profileConfig);
-    });
-
-    const suggestions = buildSuggestionsFromValues([
-      ...rawValues,
-      normalized.id,
-      normalized.phone,
-      normalized.email,
-      fullName
-    ]);
 
     return {
       id: normalized.id,
@@ -514,11 +321,7 @@ class ElasticSearchService {
       primary_value: normalized.id,
       primary_keys: { id: normalized.id },
       raw_values: rawValues,
-      full_text: this.buildFullTextFromValues(rawValues),
-      filter_values: filterValues,
-      column_weights: columnWeights,
-      columns: columnValues,
-      suggestions
+      full_text: this.buildFullTextFromValues(rawValues)
     };
   }
 
@@ -543,45 +346,17 @@ class ElasticSearchService {
       ...(config.preview || []),
       ...(config.linkedFields || [])
     ]);
-
     if (primaryKey) {
       fields.add(primaryKey);
     }
 
-    if (record && typeof record === 'object') {
-      Object.keys(record).forEach((field) => fields.add(field));
-    }
-
-    const filterFields = Object.keys(config.filters || {});
-    filterFields.forEach((field) => fields.add(field));
-
-    const columnValues = {};
-    const filterValues = {};
-    const columnWeights = {};
     const values = [];
-
     fields.forEach((field) => {
-      if (!field || !record) {
-        return;
-      }
-      const value = record[field];
-      if (value === null || value === undefined || value === '') {
-        return;
-      }
-      columnValues[field] = value;
-      columnWeights[field] = computeFieldWeight(field, config);
-      if (filterFields.includes(field)) {
-        filterValues[field] = value;
-      }
-      values.push(value);
+      if (!field) return;
+      values.push(record[field]);
     });
 
-    return {
-      normalizedValues: this.normalizeValues(values),
-      columnValues,
-      filterValues,
-      columnWeights
-    };
+    return this.normalizeValues(values);
   }
 
   buildGenericDocument(record, { tableName, config = {}, primaryKey }) {
@@ -591,17 +366,8 @@ class ElasticSearchService {
     }
 
     const preview = this.buildPreview(record, config);
-    const {
-      normalizedValues,
-      columnValues,
-      filterValues,
-      columnWeights
-    } = this.collectSearchValues(
-      record,
-      config,
-      primaryKey
-    );
-    const searchTokens = this.buildTokensFromValues(normalizedValues);
+    const rawValues = this.collectSearchValues(record, config, primaryKey);
+    const searchTokens = this.buildTokensFromValues(rawValues);
     const databaseName = config.database || (tableName ? tableName.split('.')[0] : null);
 
     return {
@@ -613,16 +379,8 @@ class ElasticSearchService {
       primary_key: primaryKey || 'id',
       primary_value: key,
       primary_keys: { [primaryKey || 'id']: key },
-      raw_values: normalizedValues,
-      full_text: this.buildFullTextFromValues(normalizedValues),
-      columns: columnValues,
-      column_weights: columnWeights,
-      filter_values: filterValues,
-      suggestions: buildSuggestionsFromValues([
-        ...normalizedValues,
-        key,
-        record?.[config.primaryKey || 'id']
-      ])
+      raw_values: rawValues,
+      full_text: this.buildFullTextFromValues(rawValues)
     };
   }
 
@@ -679,40 +437,6 @@ class ElasticSearchService {
         if (this.isConnectionError(error)) {
           console.error('❌ Échec suppression profil Elasticsearch:', error.message);
           this.disableForSession('deleteProfile', error);
-          return;
-        }
-        throw error;
-      }
-    }
-
-    this.cache.clear();
-  }
-
-  async deleteGenericDocument({ index = this.defaultIndex, tableName, primaryValue }) {
-    if (!this.enabled) {
-      return;
-    }
-
-    if (!(await this.ensureOperational('deleteGenericDocument'))) {
-      return;
-    }
-
-    if (!tableName || primaryValue === undefined || primaryValue === null) {
-      return;
-    }
-
-    const documentId = `${tableName}::${primaryValue}`;
-    try {
-      await client.delete({
-        index,
-        id: String(documentId)
-      });
-    } catch (error) {
-      const status = error?.meta?.statusCode;
-      if (status !== 404) {
-        if (this.isConnectionError(error)) {
-          console.error('❌ Échec suppression document Elasticsearch:', error.message);
-          this.disableForSession('deleteGenericDocument', error);
           return;
         }
         throw error;
@@ -844,12 +568,7 @@ class ElasticSearchService {
 
     if (recreate) {
       try {
-        const definition = await this.buildIndexDefinition(index);
-        await client.indices.create({
-          index,
-          settings: definition.settings,
-          mappings: definition.mappings
-        });
+        await client.indices.create({ index });
       } catch (error) {
         if (this.isConnectionError(error)) {
           console.error("❌ Impossible de créer l'index Elasticsearch:", error.message);
@@ -953,14 +672,8 @@ class ElasticSearchService {
 
   async search(query, page = 1, limit = 20, options = {}) {
     const from = (page - 1) * limit;
-    const {
-      indexes = this.indexes,
-      filters = {},
-      facets = [],
-      autocomplete = false
-    } = options;
-
-    const cacheKey = JSON.stringify({ query, page, limit, indexes, filters, facets, autocomplete });
+    const { indexes = this.indexes } = options;
+    const cacheKey = JSON.stringify({ query, page, limit, indexes });
     const cached = this.cache.get(cacheKey);
     if (cached) {
       return cached;
@@ -971,9 +684,7 @@ class ElasticSearchService {
         total: 0,
         hits: [],
         elapsed_ms: 0,
-        tables_searched: [],
-        facets: {},
-        suggestions: []
+        tables_searched: []
       };
     }
 
@@ -982,150 +693,12 @@ class ElasticSearchService {
         total: 0,
         hits: [],
         elapsed_ms: 0,
-        tables_searched: [],
-        facets: {},
-        suggestions: []
+        tables_searched: []
       };
     }
-
-    const definitions = await Promise.all(indexes.map((index) => this.buildIndexDefinition(index)));
-    const weightedFields = new Map();
-    const aggregatedFilterTypes = {};
-
-    definitions.forEach((definition) => {
-      Object.assign(aggregatedFilterTypes, definition.filterTypes || {});
-      const tableWeights = definition.fieldWeights || {};
-      Object.values(tableWeights).forEach((weights = {}) => {
-        Object.entries(weights).forEach(([field, weight]) => {
-          const path = `columns.${field}`;
-          const existing = weightedFields.get(path) || 1;
-          weightedFields.set(path, Math.max(existing, weight || 1));
-        });
-      });
-    });
-
-    const multiMatchFields = Array.from(weightedFields.entries()).map(([field, weight]) =>
-      weight && weight > 0 ? `${field}^${Math.max(1, Math.round(weight * 100) / 100)}` : field
-    );
-
-    if (multiMatchFields.length === 0) {
-      multiMatchFields.push('columns.*^1.2');
-    }
-
-    multiMatchFields.push('full_text^2', 'raw_values', 'search_tokens^1.5');
-
-    const filterClauses = [];
-    Object.entries(filters || {}).forEach(([field, value]) => {
-      if (value === undefined || value === null || value === '') {
-        return;
-      }
-
-      const filterType = aggregatedFilterTypes[field] || 'keyword';
-      const path = `filter_values.${field}`;
-
-      if (Array.isArray(value)) {
-        filterClauses.push({ terms: { [path]: value } });
-        return;
-      }
-
-      if (typeof value === 'object' && value !== null) {
-        const range = {};
-        if (value.from !== undefined) {
-          range.gte = value.from;
-        }
-        if (value.to !== undefined) {
-          range.lte = value.to;
-        }
-        if (Object.keys(range).length > 0) {
-          filterClauses.push({ range: { [path]: range } });
-        }
-        return;
-      }
-
-      if (filterType === 'number' || filterType === 'numeric') {
-        const numericValue = Number(value);
-        if (!Number.isNaN(numericValue)) {
-          filterClauses.push({ term: { [path]: numericValue } });
-        }
-        return;
-      }
-
-      filterClauses.push({ term: { [path]: value } });
-    });
-
-    const shouldQueries = [
-      {
-        multi_match: {
-          query,
-          type: 'best_fields',
-          fields: multiMatchFields,
-          fuzziness: 'AUTO'
-        }
-      },
-      {
-        multi_match: {
-          query,
-          type: 'phrase_prefix',
-          fields: ['columns.*^1.5', 'full_text', 'search_tokens']
-        }
-      },
-      {
-        term: {
-          primary_value: {
-            value: query,
-            boost: 5
-          }
-        }
-      },
-      {
-        term: {
-          'search_tokens.keyword': {
-            value: query.toLowerCase(),
-            boost: 3
-          }
-        }
-      }
-    ];
-
-    const boolQuery = {
-      bool: {
-        should: shouldQueries,
-        minimum_should_match: 1,
-        filter: filterClauses
-      }
-    };
-
-    const aggs = {};
-    (Array.isArray(facets) ? facets : []).forEach((facet) => {
-      if (!facet || typeof facet !== 'string') {
-        return;
-      }
-      const fieldPath = `filter_values.${facet}`;
-      aggs[`facet_${facet}`] = {
-        terms: {
-          field: fieldPath,
-          size: 20
-        }
-      };
-    });
-
-    const suggest = autocomplete
-      ? {
-          global_suggest: {
-            prefix: query,
-            completion: {
-              field: 'suggestions',
-              size: 10,
-              skip_duplicates: true
-            }
-          }
-        }
-      : undefined;
 
     let hits;
     let took;
-    let aggregations;
-    let suggestions = [];
     try {
       const response = await client.search({
         index: indexes,
@@ -1152,22 +725,42 @@ class ElasticSearchService {
           'preview',
           'search_tokens',
           'full_text',
-          'raw_values',
-          'filter_values',
-          'columns'
+          'raw_values'
         ],
-        query: boolQuery,
-        aggs: Object.keys(aggs).length ? aggs : undefined,
-        suggest
+        query: {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query,
+                  fields: [
+                    'full_name^2',
+                    'first_name',
+                    'last_name',
+                    'phone',
+                    'email',
+                    'search_tokens',
+                    'full_text',
+                    'raw_values'
+                  ],
+                  fuzziness: 'AUTO'
+                }
+              },
+              {
+                term: {
+                  'primary_value.keyword': {
+                    value: query,
+                    boost: 5
+                  }
+                }
+              }
+            ],
+            minimum_should_match: 1
+          }
+        }
       });
       hits = response.hits;
       took = response.took;
-      aggregations = response.aggregations;
-      if (autocomplete && response.suggest?.global_suggest?.length) {
-        suggestions = response.suggest.global_suggest[0].options
-          .map((option) => option.text)
-          .filter(Boolean);
-      }
     } catch (error) {
       if (this.isConnectionError(error)) {
         console.error('❌ Recherche Elasticsearch indisponible:', error.message);
@@ -1176,9 +769,7 @@ class ElasticSearchService {
           total: 0,
           hits: [],
           elapsed_ms: 0,
-          tables_searched: [],
-          facets: {},
-          suggestions: []
+          tables_searched: []
         };
       }
       throw error;
@@ -1186,28 +777,11 @@ class ElasticSearchService {
 
     const total = typeof hits.total === 'number' ? hits.total : hits.total?.value ?? 0;
     const normalizedHits = hits.hits.map((hit) => this.normalizeHit(hit));
-    const facetResults = {};
-
-    if (aggregations) {
-      Object.entries(aggregations).forEach(([key, bucket]) => {
-        if (!key.startsWith('facet_') || !bucket?.buckets) {
-          return;
-        }
-        const facetName = key.replace(/^facet_/, '');
-        facetResults[facetName] = bucket.buckets.map((entry) => ({
-          key: entry.key,
-          count: entry.doc_count
-        }));
-      });
-    }
-
     const response = {
       total,
       hits: normalizedHits,
       elapsed_ms: took,
-      tables_searched: Array.from(new Set(normalizedHits.map((hit) => hit.table_name).filter(Boolean))),
-      facets: facetResults,
-      suggestions
+      tables_searched: Array.from(new Set(normalizedHits.map((hit) => hit.table_name).filter(Boolean)))
     };
 
     this.cache.set(cacheKey, response);
