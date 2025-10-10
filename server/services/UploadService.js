@@ -108,7 +108,22 @@ class UploadService {
     const idColumn = columns.find(col => col && col.trim().toLowerCase() === 'id');
     const hasIdColumn = Boolean(idColumn);
 
-    const columnDefinitions = columns.map(col => `\`${col}\` TEXT`);
+    const columnDefinitions = columns.map(col => {
+      const normalized = col && col.trim().toLowerCase();
+
+      if (hasIdColumn && normalized === 'id') {
+        const sampleValue = sampleRow[col];
+        const isIntegerId =
+          sampleValue !== undefined &&
+          sampleValue !== null &&
+          sampleValue !== '' &&
+          /^-?\d+$/.test(String(sampleValue));
+
+        return `\`${col}\` ${isIntegerId ? 'BIGINT' : 'VARCHAR(255)'}`;
+      }
+
+      return `\`${col}\` TEXT`;
+    });
 
     const tableDefinitions = [];
 
