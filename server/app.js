@@ -110,7 +110,7 @@ app.use(
 app.use(enforceCors);
 
 app.use(payloadEncryptionMiddleware);
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
 const uploadsPath = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsPath)) {

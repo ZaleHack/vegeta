@@ -2,8 +2,8 @@ import express from 'express';
 import crypto from 'crypto';
 import { getPayloadEncryptionKey } from '../config/environment.js';
 
-const jsonParser = express.json({ limit: '50mb' });
-const MAX_ENCRYPTED_PAYLOAD_SIZE = 50 * 1024 * 1024; // 50 MB
+const jsonParser = express.json({ limit: '200mb' });
+const MAX_ENCRYPTED_PAYLOAD_SIZE = 200 * 1024 * 1024; // 200 MB
 
 const base64ToBuffer = (value) => {
   try {
@@ -22,7 +22,7 @@ const readRawBody = (req) =>
       total += chunk.length;
       if (total > MAX_ENCRYPTED_PAYLOAD_SIZE) {
         req.destroy();
-        const error = new Error('Encrypted payload exceeds maximum allowed size (50 MB).');
+        const error = new Error('Encrypted payload exceeds maximum allowed size (200 MB).');
         error.code = 'PAYLOAD_TOO_LARGE';
         reject(error);
         return;
