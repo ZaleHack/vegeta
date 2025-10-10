@@ -86,6 +86,9 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
   const seenKeys = new Set<string>();
 
   const pushEntry = (key: string, rawValue: unknown) => {
+    if (key.toLowerCase() === 'id') {
+      return;
+    }
     if (isEmptyValue(rawValue)) {
       return;
     }
