@@ -412,7 +412,7 @@ class ProfileService {
 
           const signatureWidth = 120;
           const signatureX = pageWidth - margin - signatureWidth;
-          const signatureY = doc.page.height - doc.page.margins.bottom - 42;
+          const signatureY = doc.page.height - doc.page.margins.bottom - 18;
 
           doc
             .moveTo(signatureX, signatureY)
@@ -542,32 +542,49 @@ class ProfileService {
           y = doc.y + 12;
         };
 
-        drawSectionHeader('Informations principales');
-        addField('Nom', profile.last_name);
-        addField('Prénom', profile.first_name);
-        addField('Téléphone', profile.phone);
-        addField('Email', profile.email);
-
-        if (profile.extra_fields) {
+        const parseExtraFields = () => {
+          if (!profile.extra_fields) {
+            return [];
+          }
           try {
             const extras = Array.isArray(profile.extra_fields)
               ? profile.extra_fields
               : JSON.parse(profile.extra_fields);
-            extras.forEach(cat => {
-              const title = cat && typeof cat.title === 'string' && cat.title.trim()
-                ? cat.title.trim()
-                : 'Informations supplémentaires';
-              drawSectionHeader(title);
-              (Array.isArray(cat?.fields) ? cat.fields : []).forEach(f => {
-                addField(f.key, f.value);
-              });
-            });
-          } catch (_) {
-            // ignore parsing errors
-          }
-        }
+            return extras
+              .map(cat => {
+                const rawFields = Array.isArray(cat?.fields) ? cat.fields : [];
+                const filteredFields = rawFields.filter(field => {
+                  const value = field?.value;
+                  return value || value === 0;
+                });
 
-        if (profile.comment) {
+                if (filteredFields.length === 0) {
+                  return null;
+                }
+
+                const title = cat && typeof cat.title === 'string' && cat.title.trim()
+                  ? cat.title.trim()
+                  : 'Informations supplémentaires';
+
+                return {
+                  title,
+                  fields: filteredFields
+                };
+              })
+              .filter(Boolean);
+          } catch (_) {
+            return [];
+          }
+        };
+
+        const extraCategories = parseExtraFields();
+
+        extraCategories.forEach(category => {
+          drawSectionHeader(category.title);
+          category.fields.forEach(field => addField(field.key, field.value));
+        });
+
+        if (profile.comment && String(profile.comment).trim()) {
           drawSectionHeader('Commentaire');
           doc
             .fillColor(textSecondary)
