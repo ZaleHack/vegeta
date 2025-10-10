@@ -184,20 +184,39 @@ class SearchService {
       }
     }
 
-    // Recherche supplémentaire pour les valeurs CNI, TET ou téléphone trouvées
+    // Recherche supplémentaire pour les valeurs d'identifiants (CNI, NIN, téléphones, etc.) trouvées
     if (depth === 0) {
       const extraValues = new Set();
       const phoneRegex = /^tel(ephone)?\d*$/i;
       const queryNormalized = String(query).trim().toLowerCase();
+      const extraFieldNames = new Set([
+        'CNI',
+        'Numero',
+        'numero',
+        'nin',
+        'NIN',
+        'Telephone1',
+        'Telephone2',
+        'TELEPHONE1',
+        'TELEPHONE2',
+        'Phone',
+        'PHONE',
+        '=',
+        'PHONE '
+      ]);
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
           const keyLower = key.toLowerCase();
           const valueStr = String(value).trim();
+          const matchesConfiguredFields =
+            extraFieldNames.has(key) ||
+            keyLower === 'cni' ||
+            keyLower === 'tet' ||
+            phoneRegex.test(keyLower);
+
           if (
-            (keyLower === 'cni' ||
-              keyLower === 'tet' ||
-              phoneRegex.test(keyLower)) &&
+            matchesConfiguredFields &&
             valueStr &&
             valueStr.toLowerCase() !== queryNormalized
           ) {
