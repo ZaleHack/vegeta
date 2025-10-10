@@ -634,25 +634,6 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await query(`
-        CREATE TABLE IF NOT EXISTS autres.search_sync_events (
-          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-          schema_name VARCHAR(64) NOT NULL,
-          table_name VARCHAR(128) NOT NULL,
-          primary_key VARCHAR(128) NOT NULL,
-          primary_value VARCHAR(255) NOT NULL,
-          operation ENUM('insert','update','delete') NOT NULL,
-          payload JSON NULL,
-          attempts INT UNSIGNED NOT NULL DEFAULT 0,
-          last_error TEXT NULL,
-          processed_at DATETIME NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          INDEX idx_search_sync_pending (processed_at, id),
-          INDEX idx_search_sync_table (schema_name, table_name, processed_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-      `);
-
       console.log('✅ Tables système créées avec succès');
     } catch (error) {
       console.error('❌ Erreur création tables système:', error);

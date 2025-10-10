@@ -38,7 +38,6 @@ import {
 // Initialisation de la base de données
 import database from './config/database.js';
 import initDatabase from './scripts/init-database.js';
-import IncrementalSyncService from './services/IncrementalSyncService.js';
 
 ensureEnvironment();
 
@@ -222,12 +221,6 @@ const server = app.listen(PORT, () => {
   setTimeout(() => {
     initDatabase().catch(console.error);
   }, 3000);
-
-  if (process.env.ENABLE_INCREMENTAL_SYNC?.toLowerCase() === 'true') {
-    console.log('🔁 Démarrage du worker de synchronisation incrémentale');
-    global.__incrementalSyncService = new IncrementalSyncService();
-    global.__incrementalSyncService.start();
-  }
 });
 
 server.on('error', (error) => {
@@ -244,14 +237,6 @@ server.on('error', (error) => {
 const shutdown = () => {
   console.log('Arrêt du serveur SORA...');
   server.close(() => {
-    if (global.__incrementalSyncService) {
-      try {
-        global.__incrementalSyncService.stop();
-        global.__incrementalSyncService = null;
-      } catch (error) {
-        console.error('⚠️ Erreur arrêt worker incrémental:', error.message);
-      }
-    }
     database.close()
       .then(() => {
         console.log('✅ Connexions fermées');
