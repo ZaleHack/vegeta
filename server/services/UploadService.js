@@ -108,7 +108,17 @@ class UploadService {
     const idColumn = columns.find(col => col && col.trim().toLowerCase() === 'id');
     const hasIdColumn = Boolean(idColumn);
 
-    const columnDefinitions = columns.map(col => `\`${col}\` TEXT`);
+    const columnDefinitions = columns
+      .filter(Boolean)
+      .map(col => {
+        const normalized = col.trim().toLowerCase();
+
+        if (normalized === 'id') {
+          return `\`${col}\` VARCHAR(191)`;
+        }
+
+        return `\`${col}\` TEXT`;
+      });
 
     const tableDefinitions = [];
 
