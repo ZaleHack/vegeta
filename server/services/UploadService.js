@@ -209,7 +209,7 @@ class UploadService {
     try {
       const { database: db, table } = this.parseTableName(tableName);
       const columns = await database.query(`SHOW COLUMNS FROM \`${db}\`.\`${table}\``);
-      const columnNames = columns.map(col => col.Field);
+      const columnNames = columns.map((col) => col.field);
 
       const __filename = fileURLToPath(import.meta.url);
       const __dirname = path.dirname(__filename);

@@ -91,8 +91,8 @@ class SearchService {
       const rows = await database.query(
         `SHOW KEYS FROM ${tableName} WHERE Key_name = 'PRIMARY'`
       );
-      if (rows.length > 0 && rows[0].Column_name) {
-        const pk = rows[0].Column_name;
+      if (rows.length > 0 && rows[0].column_name) {
+        const pk = rows[0].column_name;
         this.primaryKeyCache.set(tableName, pk);
         return pk;
       }
@@ -107,13 +107,13 @@ class SearchService {
       const columns = await database.query(
         `SHOW COLUMNS FROM ${tableName}`
       );
-      const hasId = columns.some((col) => col.Field === 'id');
+      const hasId = columns.some((col) => col.field === 'id');
       const fallback =
         hasId
           ? 'id'
           : config.searchable?.[0] ||
             config.preview?.[0] ||
-            (columns[0] ? columns[0].Field : 'id');
+            (columns[0] ? columns[0].field : 'id');
       this.primaryKeyCache.set(tableName, fallback);
       return fallback;
     } catch (error) {

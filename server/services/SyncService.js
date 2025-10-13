@@ -57,7 +57,7 @@ class SyncService {
 
     if (configuredPrimaryKey) {
       const columns = await this.getTableColumns(tableName);
-      const hasConfiguredKey = columns.some((column) => column.Field === configuredPrimaryKey);
+      const hasConfiguredKey = columns.some((column) => column.field === configuredPrimaryKey);
 
       if (hasConfiguredKey) {
         this.primaryKeyCache.set(tableName, configuredPrimaryKey);
@@ -75,7 +75,7 @@ class SyncService {
 
     if (keys.length > 0) {
       const primaryKeyColumn =
-        keys.find((key) => key.Seq_in_index === 1)?.Column_name || keys[0].Column_name;
+        keys.find((key) => key.seq_in_index === 1)?.column_name || keys[0].column_name;
       this.primaryKeyCache.set(tableName, primaryKeyColumn);
       return primaryKeyColumn;
     }
@@ -86,7 +86,7 @@ class SyncService {
       throw new Error(`Impossible de déterminer les colonnes pour ${tableName}`);
     }
 
-    const fallbackColumn = columns[0]?.Field;
+    const fallbackColumn = columns[0]?.field;
 
     if (!fallbackColumn) {
       throw new Error(`Impossible de déterminer une colonne de repli pour ${tableName}`);
