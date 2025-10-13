@@ -130,21 +130,23 @@ class DatabaseManager {
         telephone TEXT
       )`,
 
-      // Base rhpolice - personne_concours
-      `CREATE TABLE IF NOT EXISTS rhpolice_personne_concours (
+      // Base rhpolice - personne_all
+      `CREATE TABLE IF NOT EXISTS rhpolice_personne_all (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         prenom TEXT,
         nom TEXT,
-        date_naiss TEXT,
-        lieu_naiss TEXT,
+        date_naissance TEXT,
+        lieu_naissance TEXT,
         sexe TEXT,
         adresse TEXT,
         email TEXT,
         telephone TEXT,
         cni TEXT,
         prenom_pere TEXT,
+        prenom_mere TEXT,
         nom_pere TEXT,
-        nom_mere TEXT
+        nom_mere TEXT,
+        telephone2 TEXT
       )`,
 
       // Base renseignement - agentfinance
@@ -170,25 +172,38 @@ class DatabaseManager {
         prenom TEXT,
         nom TEXT,
         codesex TEXT,
-        naissville TEXT,
+        lieu_naissance TEXT,
         codereligion TEXT,
         codesituperso TEXT,
         adresse TEXT,
-        tel TEXT,
+        telephone TEXT,
         email TEXT,
-        carteidentite TEXT,
+        cni TEXT,
         cartedelivre TEXT,
+        prevenirnom TEXT,
+        prevenirtel TEXT,
         pere TEXT,
         mere TEXT,
         cartedate TEXT,
         naissdate TEXT,
         dateentree TEXT,
         datesortie TEXT,
+        dateentreeservice TEXT,
+        codemodesortie TEXT,
+        photoname TEXT,
+        matsolde TEXT,
+        idgrade TEXT,
+        idcommandement TEXT,
+        idfonction TEXT,
         dateservicemil TEXT,
+        dateliberation TEXT,
         gradeservice TEXT,
         armeservice TEXT,
         origine TEXT,
-        dateserment TEXT
+        dateserment TEXT,
+        grsang TEXT,
+        mdp TEXT,
+        rang TEXT
       )`,
 
       // Base permis - tables
@@ -197,20 +212,26 @@ class DatabaseManager {
         numero_permis TEXT,
         date_obtention TEXT,
         categorie TEXT,
-        prenoms TEXT,
+        prenom TEXT,
         nom TEXT,
         sexe TEXT,
         date_naissance TEXT,
         lieu_naissance TEXT,
         adresse TEXT,
         code_localite TEXT,
-        numeropiece TEXT
+        code_pays TEXT,
+        code_profession TEXT,
+        boite_postale TEXT,
+        telephone TEXT,
+        fax TEXT,
+        code_piece TEXT,
+        cni TEXT
       )`,
 
       // Base expresso - expresso
       `CREATE TABLE IF NOT EXISTS expresso_expresso (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        numero TEXT,
+        telephone TEXT,
         prenom TEXT,
         nom TEXT,
         cni TEXT,
