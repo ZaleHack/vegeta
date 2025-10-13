@@ -160,7 +160,7 @@ const mapPreviewEntries = (hits: RawSearchResult[] | undefined): SearchResult[] 
       }))
     : [];
 
-const EXCLUDED_SEARCH_KEYS = new Set(['id', 'ID']);
+const EXCLUDED_SEARCH_KEYS = new Set<string>();
 
 const getSearchableValues = (value: unknown, key?: string): string[] => {
   if (key && EXCLUDED_SEARCH_KEYS.has(key)) {

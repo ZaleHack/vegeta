@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
+import { UNIQUE_SEARCH_FIELDS } from '../utils/search-constants.js';
 
 const EXCLUDED_SEARCH_TABLES = new Set(
   [
@@ -36,33 +37,6 @@ const EXCLUDED_SEARCH_TABLES = new Set(
     'user_logs',
     'user_sessions'
   ].map((name) => name.toLowerCase())
-);
-
-const UNIQUE_SEARCH_FIELDS = new Set(
-  [
-    'CNI',
-    'cni',
-    'NIN',
-    'nin',
-    'Phone',
-    'PHONE',
-    'TELEPHONE',
-    'Telephone',
-    'Numero',
-    'NUMERO',
-    'Telephone1',
-    'Telephone2',
-    'TELEPHONE1',
-    'TELEPHONE2',
-    'PassePort',
-    'PASSEPORT',
-    'Passeport',
-    'Email',
-    'EMAIL',
-    'mail',
-    'Mail',
-    'MAIL'
-  ].map((field) => field.toLowerCase())
 );
 
 class SearchService {
@@ -321,6 +295,65 @@ class SearchService {
     return Array.from(identifiers);
   }
 
+  normalizeIdentifierValue(value) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    if (Buffer.isBuffer(value)) {
+      return value.toString('utf8').trim();
+    }
+
+    return String(value);
+  }
+
+  extractUniqueIdentifiersFromRow(row) {
+    const identifiers = [];
+    if (!row || typeof row !== 'object') {
+      return identifiers;
+    }
+
+    const seen = new Set();
+
+    for (const [field, value] of Object.entries(row)) {
+      const normalizedField = this.normalizeFieldName(field);
+      if (!normalizedField || !UNIQUE_SEARCH_FIELDS.has(normalizedField)) {
+        continue;
+      }
+
+      const normalizedValue = this.normalizeIdentifierValue(value);
+      if (!normalizedValue) {
+        continue;
+      }
+
+      const dedupeKey = `${normalizedField}:${normalizedValue.toLowerCase()}`;
+      if (seen.has(dedupeKey)) {
+        continue;
+      }
+
+      seen.add(dedupeKey);
+      identifiers.push({
+        field,
+        normalizedField,
+        value: normalizedValue
+      });
+    }
+
+    return identifiers;
+  }
+
   loadCatalog() {
     let catalog = { ...baseCatalog };
     try {
@@ -490,6 +523,18 @@ class SearchService {
     if (depth === 0) {
       const extraValues = new Set();
       const queryNormalized = String(query).trim().toLowerCase();
+      const addExtraValue = (rawValue) => {
+        const valueStr = this.normalizeIdentifierValue(rawValue);
+        if (!valueStr) {
+          return;
+        }
+        const normalizedValue = valueStr.toLowerCase();
+        if (normalizedValue === queryNormalized) {
+          return;
+        }
+        extraValues.add(valueStr);
+      };
+
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
@@ -497,12 +542,22 @@ class SearchService {
           if (!UNIQUE_SEARCH_FIELDS.has(normalizedKey)) {
             continue;
           }
-          const valueStr = String(value).trim();
-          if (
-            valueStr &&
-            valueStr.toLowerCase() !== queryNormalized
-          ) {
-            extraValues.add(valueStr);
+          addExtraValue(value);
+        }
+
+        if (res.primary_keys && typeof res.primary_keys === 'object') {
+          for (const [key, value] of Object.entries(res.primary_keys)) {
+            const normalizedKey = this.normalizeFieldName(key);
+            if (!UNIQUE_SEARCH_FIELDS.has(normalizedKey)) {
+              continue;
+            }
+            addExtraValue(value);
+          }
+        }
+
+        if (Array.isArray(res.unique_identifiers)) {
+          for (const identifier of res.unique_identifiers) {
+            addExtraValue(identifier?.value);
           }
         }
       }
@@ -559,13 +614,14 @@ class SearchService {
     // Gestion des guillemets pour les phrases exactes
     const quotedPhrases = [];
     let cleanQuery = query;
-    
+
     // Extraire les phrases entre guillemets
     const quoteMatches = query.match(/"[^"]+"/g);
     if (quoteMatches) {
       quoteMatches.forEach((match, index) => {
         const placeholder = `__QUOTED_${index}__`;
-        quotedPhrases.push(match.slice(1, -1)); // Enlever les guillemets
+        const extracted = match.slice(1, -1).trim();
+        quotedPhrases.push(extracted);
         cleanQuery = cleanQuery.replace(match, placeholder);
       });
     }
@@ -580,24 +636,37 @@ class SearchService {
       // Restaurer les phrases quotées
       if (word.startsWith('__QUOTED_')) {
         const index = parseInt(word.match(/\d+/)[0]);
-        terms.push({ type: 'exact', value: quotedPhrases[index] });
+        const phrase = quotedPhrases[index];
+        if (phrase) {
+          terms.push({ type: 'exact', value: phrase });
+        }
       } else if (word.startsWith('-')) {
         // Exclusion
-        const excludeValue = word.slice(1);
+        const excludeValue = word.slice(1).trim();
         if (excludeValue.startsWith('__QUOTED_')) {
           const index = parseInt(excludeValue.match(/\d+/)[0]);
-          terms.push({ type: 'exclude', value: quotedPhrases[index] });
+          const phrase = quotedPhrases[index];
+          if (phrase) {
+            terms.push({ type: 'exclude', value: phrase });
+          }
         } else {
-          terms.push({ type: 'exclude', value: excludeValue });
+          if (excludeValue) {
+            terms.push({ type: 'exclude', value: excludeValue });
+          }
         }
       } else if (word.startsWith('+')) {
         // Terme obligatoire
-        terms.push({ type: 'required', value: word.slice(1) });
+        const requiredValue = word.slice(1).trim();
+        if (requiredValue) {
+          terms.push({ type: 'required', value: requiredValue });
+        }
       } else if (word.includes(':')) {
         // Recherche par champ
         const [field, ...valueParts] = word.split(':');
-        const value = valueParts.join(':'); // Au cas où il y aurait plusieurs ':'
-        terms.push({ type: 'field', field: field.toLowerCase(), value: value });
+        const value = valueParts.join(':').trim(); // Au cas où il y aurait plusieurs ':'
+        if (field && value) {
+          terms.push({ type: 'field', field: field.toLowerCase(), value: value });
+        }
       } else if (word.toUpperCase() === 'AND' || word.toUpperCase() === 'ET') {
         terms.push({ type: 'operator', value: 'AND' });
       } else if (word.toUpperCase() === 'OR' || word.toUpperCase() === 'OU') {
@@ -626,38 +695,45 @@ class SearchService {
 
     const columnInfo = await this.getTableColumns(tableName);
     const tableColumns = Array.isArray(columnInfo?.columns)
-      ? columnInfo.columns.filter(Boolean)
+      ? columnInfo.columns.filter((column) => typeof column === 'string' && column.length > 0)
       : [];
+
+    const fields = new Set(
+      [
+        ...tableColumns,
+        ...(config.preview || []),
+        ...(config.linkedFields || []),
+        ...(config.searchable || []),
+        primaryKey
+      ].filter(Boolean)
+    );
 
     const resolvedPrimaryColumn =
       this.resolveColumnFromInfo(primaryKey, columnInfo) ||
       tableColumns[0] ||
       primaryKey;
 
-    const fields = new Set([
-      ...tableColumns,
-      ...(config.preview || []),
-      ...(config.linkedFields || []),
-      ...(config.searchable || []),
-      primaryKey,
-    ].filter(Boolean));
+    const formattedTable = this.formatTableName(tableName);
 
-    const mappedSelectFields = this.mapFields(Array.from(fields), columnInfo);
+    let selectFields = `${formattedTable}.*`;
+    if (tableColumns.length === 0) {
+      const mappedSelectFields = this.mapFields(Array.from(fields), columnInfo);
 
-    if (
-      !mappedSelectFields.some((field) => field.alias === primaryKey) &&
-      resolvedPrimaryColumn
-    ) {
-      mappedSelectFields.push({ column: resolvedPrimaryColumn, alias: primaryKey });
+      if (
+        !mappedSelectFields.some((field) => field.alias === primaryKey) &&
+        resolvedPrimaryColumn
+      ) {
+        mappedSelectFields.push({ column: resolvedPrimaryColumn, alias: primaryKey });
+      }
+
+      if (mappedSelectFields.length === 0) {
+        return results;
+      }
+
+      selectFields = mappedSelectFields
+        .map(({ column, alias }) => this.buildSelectClause(column, alias))
+        .join(', ');
     }
-
-    if (mappedSelectFields.length === 0) {
-      return results;
-    }
-
-    const selectFields = mappedSelectFields
-      .map(({ column, alias }) => this.buildSelectClause(column, alias))
-      .join(', ');
 
     let searchableMappings = this.mapFields(config.searchable || [], columnInfo);
 
@@ -685,7 +761,6 @@ class SearchService {
     const searchableColumns = searchableMappings.map(({ column }) => column);
     const searchableAliases = searchableMappings.map(({ alias }) => alias);
 
-    const formattedTable = this.formatTableName(tableName);
     let sql = `SELECT ${selectFields} FROM ${formattedTable} WHERE `;
     const params = [];
     let conditions = [];
@@ -716,7 +791,7 @@ class SearchService {
         // Terme obligatoire (doit être présent)
         for (const field of searchableColumns) {
           termConditions.push(`${this.quoteIdentifier(field)} LIKE ?`);
-          params.push(`${term.value}%`);
+          params.push(`%${term.value}%`);
         }
       } else if (term.type === 'field') {
         // Recherche par champ spécifique
@@ -728,7 +803,7 @@ class SearchService {
         if (matchingFields.length > 0) {
           for (const { column } of matchingFields) {
             termConditions.push(`${this.quoteIdentifier(column)} LIKE ?`);
-            params.push(`${term.value}%`);
+            params.push(`%${term.value}%`);
           }
         } else {
           const resolvedColumn = this.resolveColumnFromInfo(
@@ -739,14 +814,14 @@ class SearchService {
             termConditions.push(
               `${this.quoteIdentifier(resolvedColumn)} LIKE ?`
             );
-            params.push(`${term.value}%`);
+            params.push(`%${term.value}%`);
           }
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
         for (const field of searchableColumns) {
           termConditions.push(`${this.quoteIdentifier(field)} LIKE ?`);
-          params.push(`${term.value}%`);
+          params.push(`%${term.value}%`);
         }
       }
 
@@ -783,7 +858,7 @@ class SearchService {
       const excludeConditions = [];
       for (const field of searchableColumns) {
         excludeConditions.push(`${this.quoteIdentifier(field)} NOT LIKE ?`);
-        params.push(`${term.value}%`);
+        params.push(`%${term.value}%`);
       }
       if (excludeConditions.length > 0) {
         sql += ` AND (${excludeConditions.join(' AND ')})`;
@@ -798,13 +873,15 @@ class SearchService {
       for (const row of rows) {
         const preview = this.buildPreview(row, config);
         const primaryValue = this.getFieldValue(row, primaryKey);
+        const uniqueIdentifiers = this.extractUniqueIdentifiersFromRow(row);
         results.push({
           table: config.display,
           database: config.database,
           preview: preview,
           primary_keys: { [primaryKey]: primaryValue },
           score: this.calculateRelevanceScore(row, searchTerms, searchableAliases),
-          linkedFields: config.linkedFields || []
+          linkedFields: config.linkedFields || [],
+          unique_identifiers: uniqueIdentifiers
         });
       }
     } catch (error) {
@@ -827,9 +904,6 @@ class SearchService {
       }
 
       const normalizedField = typeof field === 'string' ? field.toLowerCase() : String(field);
-      if (normalizedField === 'id') {
-        return;
-      }
 
       if (value === null || value === undefined || value === '') {
         return;
@@ -870,44 +944,51 @@ class SearchService {
 
     for (const term of searchTerms) {
       if (term.type === 'exclude' || term.type === 'operator') continue;
-      
+
       if (term.type === 'required') {
         requiredTermsTotal++;
       }
-      
+
       const searchValue = term.value.toLowerCase();
       let termFound = false;
-      
+
       for (const field of searchableFields) {
         const value = this.getFieldValue(record, field);
         if (!value) continue;
 
         const fieldValue = value.toString().toLowerCase();
-        
+        const normalizedField =
+          typeof field === 'string' ? field.toLowerCase() : this.normalizeFieldName(String(field));
+        const isUniqueField = normalizedField && UNIQUE_SEARCH_FIELDS.has(normalizedField);
+
         if (term.type === 'exact' && fieldValue === searchValue) {
-          score += 15; // Score plus élevé pour les correspondances exactes
+          score += isUniqueField ? 35 : 15; // Bonus supplémentaire sur les identifiants uniques
           termFound = true;
         } else if (fieldValue.includes(searchValue)) {
           const position = fieldValue.indexOf(searchValue);
           const lengthRatio = searchValue.length / fieldValue.length;
           let termScore = (10 - position * 0.1) * lengthRatio;
-          
+
           // Bonus pour les correspondances au début du champ
           if (position === 0) {
             termScore *= 1.5;
           }
-          
+
           // Bonus pour les termes obligatoires
           if (term.type === 'required') {
             termScore *= 2;
             termFound = true;
           }
-          
+
           // Bonus pour les recherches par champ spécifique
           if (term.type === 'field') {
             termScore *= 1.3;
           }
-          
+
+          if (isUniqueField) {
+            termScore *= 1.6;
+          }
+
           score += termScore;
         }
       }
