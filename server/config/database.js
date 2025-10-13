@@ -187,11 +187,11 @@ class DatabaseManager {
         }
 
         const expectedType = definition.type?.trim().toUpperCase();
-        const actualType = columnInfo.COLUMN_TYPE?.trim().toUpperCase();
+        const actualType = columnInfo.column_type?.trim().toUpperCase();
         const typeMatches = expectedType === actualType;
 
         const expectedNullable = definition.nullable !== false;
-        const actualNullable = columnInfo.IS_NULLABLE === 'YES';
+        const actualNullable = columnInfo.is_nullable === 'YES';
         const nullableMatches = expectedNullable === actualNullable;
 
         const expectedDefault = Object.prototype.hasOwnProperty.call(definition, 'default')
@@ -201,16 +201,16 @@ class DatabaseManager {
         let defaultMatches = true;
         if (expectedDefault !== undefined) {
           if (expectedDefault === null) {
-            defaultMatches = columnInfo.COLUMN_DEFAULT === null;
+            defaultMatches = columnInfo.column_default === null;
           } else if (typeof expectedDefault === 'object' && expectedDefault?.raw) {
-            defaultMatches = (columnInfo.COLUMN_DEFAULT || '').toUpperCase() === expectedDefault.raw.toUpperCase();
+            defaultMatches = (columnInfo.column_default || '').toUpperCase() === expectedDefault.raw.toUpperCase();
           } else {
-            defaultMatches = (columnInfo.COLUMN_DEFAULT ?? '') === String(expectedDefault);
+            defaultMatches = (columnInfo.column_default ?? '') === String(expectedDefault);
           }
         }
 
         const expectedExtra = definition.extra ? definition.extra.trim().toUpperCase() : '';
-        const actualExtra = columnInfo.EXTRA ? columnInfo.EXTRA.trim().toUpperCase() : '';
+        const actualExtra = columnInfo.extra ? columnInfo.extra.trim().toUpperCase() : '';
         const extraMatches = expectedExtra === actualExtra;
 
         if (!typeMatches || !nullableMatches || !defaultMatches || !extraMatches) {
@@ -274,19 +274,19 @@ class DatabaseManager {
         `);
 
         const hasExpectedConstraint = foreignKeys.some(
-          (fk) => fk.CONSTRAINT_NAME === expectedConstraintName && fk.DELETE_RULE === 'SET NULL'
+          (fk) => fk.constraint_name === expectedConstraintName && fk.delete_rule === 'SET NULL'
         );
 
         // Drop unexpected constraints to avoid conflicts when recreating
         for (const fk of foreignKeys) {
-          if (fk.CONSTRAINT_NAME !== expectedConstraintName || fk.DELETE_RULE !== 'SET NULL') {
-            await dropForeignKeyIfExists(fk.CONSTRAINT_NAME);
+          if (fk.constraint_name !== expectedConstraintName || fk.delete_rule !== 'SET NULL') {
+            await dropForeignKeyIfExists(fk.constraint_name);
           }
         }
 
         const requiresConstraint = !hasExpectedConstraint;
-        const requiresNullableColumn = divisionColumn.IS_NULLABLE !== 'YES';
-        const currentColumnType = normalizeColumnType(divisionColumn.COLUMN_TYPE);
+        const requiresNullableColumn = divisionColumn.is_nullable !== 'YES';
+        const currentColumnType = normalizeColumnType(divisionColumn.column_type);
 
         if (requiresNullableColumn || currentColumnType !== normalizeColumnType(divisionIdColumnType)) {
           await this.pool.execute(`
@@ -354,7 +354,7 @@ class DatabaseManager {
         FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = 'autres' AND TABLE_NAME = 'divisions' AND COLUMN_NAME = 'id'
       `);
-      const divisionIdColumnType = normalizeColumnType(divisionIdColumnInfo?.COLUMN_TYPE);
+      const divisionIdColumnType = normalizeColumnType(divisionIdColumnInfo?.column_type);
 
       await query(`
         CREATE TABLE IF NOT EXISTS autres.users (
