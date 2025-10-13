@@ -39,6 +39,9 @@ const EXCLUDED_SEARCH_TABLES = new Set(
   ].map((name) => name.toLowerCase())
 );
 
+const MAX_LINKED_IDENTIFIER_SEARCHES = 5;
+const MAX_EXTRA_IDENTIFIER_SEARCHES = 5;
+
 class SearchService {
   constructor() {
     const __filename = fileURLToPath(import.meta.url);
@@ -599,6 +602,9 @@ class SearchService {
     if (followLinks && depth < maxDepth) {
       const linkedIds = this.extractLinkedIdentifiers(results);
       for (const id of linkedIds) {
+        if (identifiersFollowed.length >= MAX_LINKED_IDENTIFIER_SEARCHES) {
+          break;
+        }
         if (!seen.has(id)) {
           seen.add(id);
           extraSearches++;
@@ -658,7 +664,12 @@ class SearchService {
         }
       }
 
-      for (const val of extraValues) {
+      const limitedExtraValues = Array.from(extraValues).slice(
+        0,
+        MAX_EXTRA_IDENTIFIER_SEARCHES
+      );
+
+      for (const val of limitedExtraValues) {
         if (val.toLowerCase() === queryNormalized) continue;
         extraSearches++;
         const sub = await this.search(val, {}, 1, 50, null, 'linked', {
