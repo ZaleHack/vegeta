@@ -432,13 +432,23 @@ export default {
   'autres.agent_non_fonctionnaire': {
     display: 'agent_non_fonctionnaire',
     database: 'autres',
-    searchable: ['prenom', 'nom', 'datenaiss', 'cni', 'sexe', 'corps', 'emploi', 'lib_service', 'lib_org_niv1'],
+    searchable: [
+      'prenom',
+      'nom',
+      'date_naissance',
+      'cni',
+      'sexe',
+      'corps',
+      'emploi',
+      'lib_service',
+      'lib_org_niv1'
+    ],
     preview: ['prenom', 'nom', 'cni', 'corps', 'emploi'],
     filters: {
       sexe: 'enum',
       corps: 'string',
       emploi: 'string',
-      datenaiss: 'date'
+      date_naissance: 'date'
     },
     theme: 'pro'
   },
@@ -460,13 +470,13 @@ export default {
   'autres.annuaire_gendarmerie': {
     display: 'annuaire_gendarmerie',
     database: 'autres',
-    searchable: ['libelle', 'telephone', 'souscategorie', 'secteur'],
-    preview: ['libelle', 'telephone', 'souscategorie', 'secteur'],
+    searchable: ['Libelle', 'Telephone', 'SousCategorie', 'Secteur'],
+    preview: ['Libelle', 'Telephone', 'SousCategorie', 'Secteur'],
     filters: {
-      libelle: 'string',
-      telephone: 'string',
-      souscategorie: 'string',
-      secteur: 'string'
+      Libelle: 'string',
+      Telephone: 'string',
+      SousCategorie: 'string',
+      Secteur: 'string'
     },
     theme: 'pro'
   },
@@ -474,12 +484,20 @@ export default {
   'autres.collectes1': {
     display: 'collectes1',
     database: 'autres',
-    searchable: ['nom', 'prenom', 'datenaiss', 'lieunaiss', 'sexe', 'telephone', 'profession'],
+    searchable: [
+      'nom',
+      'prenom',
+      'date_naissance',
+      'lieu_naissance',
+      'sexe',
+      'telephone',
+      'profession'
+    ],
     preview: ['nom', 'prenom', 'telephone', 'profession'],
     filters: {
       sexe: 'enum',
-      datenaiss: 'date',
-      lieunaiss: 'string',
+      date_naissance: 'date',
+      lieu_naissance: 'string',
       profession: 'string'
     },
     theme: 'identite'
@@ -501,12 +519,23 @@ export default {
   'autres.conseil_constitutionel': {
     display: 'conseil_constitutionel',
     database: 'autres',
-    searchable: ['prenom', 'nom', 'datenaiss', 'sexe', 'cni', 'corps', 'appellation', 'lib_service', 'lib_org_niv1', 'telephone'],
+    searchable: [
+      'prenom',
+      'nom',
+      'date_naissance',
+      'sexe',
+      'cni',
+      'corps',
+      'appellation',
+      'lib_service',
+      'lib_org_niv1',
+      'telephone'
+    ],
     preview: ['prenom', 'nom', 'cni', 'corps', 'telephone'],
     filters: {
       sexe: 'enum',
       corps: 'string',
-      datenaiss: 'date',
+      date_naissance: 'date',
       telephone: 'string'
     },
     theme: 'pro'
@@ -515,15 +544,59 @@ export default {
   'autres.education': {
     display: 'education',
     database: 'autres',
-    searchable: ['prenom', 'nom', 'datenaiss', 'lieunaiss', 'cni', 'corps', 'lib_service', 'lib_org_niv1', 'telephone'],
+    searchable: [
+      'prenom',
+      'nom',
+      'date_naissance',
+      'lieu_naissance',
+      'cni',
+      'corps',
+      'lib_service',
+      'lib_org_niv1',
+      'telephone'
+    ],
     preview: ['prenom', 'nom', 'cni', 'corps', 'telephone'],
     filters: {
       corps: 'string',
-      datenaiss: 'date',
-      lieunaiss: 'string',
+      date_naissance: 'date',
+      lieu_naissance: 'string',
       telephone: 'string'
     },
     theme: 'pro'
+  },
+
+  'autres.edu_sn': {
+    display: 'edu_sn',
+    database: 'autres',
+    searchable: [
+      'cni',
+      'prenom',
+      'nom',
+      'date_naissance',
+      'lieu_naissance',
+      'sexe',
+      'email',
+      'email2',
+      'teelphone1',
+      'telephone2',
+      'adresse_residence',
+      'diplome_academique',
+      'discipline_diplome_academique',
+      'diplome_profesionnel',
+      'specialite_diplome_professionel',
+      'ordre_enseignement_choisi',
+      'experience_enseignement'
+    ],
+    preview: ['cni', 'prenom', 'nom', 'teelphone1', 'telephone2', 'email'],
+    filters: {
+      sexe: 'enum',
+      date_naissance: 'date',
+      ordre_enseignement_choisi: 'string',
+      experience_enseignement: 'string',
+      ia_depot: 'string',
+      ief_depot: 'string'
+    },
+    theme: 'education'
   },
 
   'autres.esolde_new': {
@@ -580,11 +653,11 @@ export default {
   'autres.demdikk': {
     display: 'demdikk',
     database: 'autres',
-    searchable: ['prenom', 'nom', 'numero', 'passeport'],
-    preview: ['prenom', 'nom', 'numero', 'passeport'],
+    searchable: ['prenom', 'nom', 'numero', 'cni'],
+    preview: ['prenom', 'nom', 'numero', 'cni'],
     filters: {
       numero: 'string',
-      passeport: 'string'
+      cni: 'string'
     },
     theme: 'identite'
   },
@@ -593,23 +666,23 @@ export default {
     display: 'vehicules',
     database: 'autres',
     searchable: [
-      'numero_immatriculation',
-      'code_type',
-      'numero_serie',
-      'prenoms',
-      'nom',
-      'tel_fixe',
-      'tel_portable',
-      'marque',
-      'categorie'
+      'Numero_Immatriculation',
+      'Code_Type',
+      'Numero_Serie',
+      'Prenoms',
+      'Nom',
+      'Tel_Fixe',
+      'Tel_Portable',
+      'Marque',
+      'Categorie'
     ],
-    preview: ['numero_immatriculation', 'marque', 'categorie', 'prenoms', 'nom'],
+    preview: ['Numero_Immatriculation', 'Marque', 'Categorie', 'Prenoms', 'Nom'],
     filters: {
-      categorie: 'string',
-      marque: 'string',
-      energie: 'string',
-      date_mise_circulation: 'date',
-      genre: 'string'
+      Categorie: 'string',
+      Marque: 'string',
+      Energie: 'string',
+      Date_Mise_Circulation: 'date',
+      Genre: 'string'
     },
     theme: 'transport'
   },
@@ -617,15 +690,26 @@ export default {
   'autres.agents_collectes_ansd': {
     display: 'agents_collectes_ansd',
     database: 'autres',
-    searchable: ['prenom', 'nom', 'cni', 'date_naiss', 'telephone'],
+    searchable: ['prenom', 'nom', 'cni', 'date_naissance', 'telephone'],
     linkedFields: ['cni', 'telephone'],
     preview: ['prenom', 'nom', 'cni', 'telephone'],
     filters: {
       cni: 'string',
-      date_naiss: 'date',
+      date_naissance: 'date',
       telephone: 'string'
     },
     theme: 'identite'
+  },
+
+  'autres.agents_penitentiare': {
+    display: 'agents_penitentiare',
+    database: 'autres',
+    searchable: ['prenom', 'nom', 'corps'],
+    preview: ['prenom', 'nom', 'corps'],
+    filters: {
+      corps: 'string'
+    },
+    theme: 'pro'
   },
 
   'autres.petrosen': {
@@ -645,15 +729,120 @@ export default {
   'autres.candidats_ansd': {
     display: 'candidats_ansd',
     database: 'autres',
-    searchable: ['nin', 'prenom', 'nom', 'date_naiss', 'lieu_naiss', 'adresse', 'email', 'telephone', 'telephone2'],
+    searchable: [
+      'cni',
+      'prenom',
+      'nom',
+      'date_naissance',
+      'lieu_naissance',
+      'adresse',
+      'email',
+      'telephone',
+      'telephone2'
+    ],
     linkedFields: ['telephone', 'telephone2'],
-    preview: ['nin', 'prenom', 'nom', 'telephone', 'email'],
+    preview: ['cni', 'prenom', 'nom', 'telephone', 'email'],
     filters: {
-      date_naiss: 'date',
-      lieu_naiss: 'string',
+      date_naissance: 'date',
+      lieu_naissance: 'string',
       telephone: 'string'
     },
     theme: 'identite'
+  },
+
+  'autres.cdr_cases': {
+    display: 'cdr_cases',
+    database: 'autres',
+    searchable: ['name', 'user_id'],
+    preview: ['name', 'user_id', 'created_at'],
+    filters: {
+      user_id: 'number',
+      created_at: 'date'
+    },
+    theme: 'telecom'
+  },
+
+  'autres.cdr_case_files': {
+    display: 'cdr_case_files',
+    database: 'autres',
+    searchable: ['filename', 'cdr_number'],
+    preview: ['filename', 'cdr_number', 'line_count'],
+    filters: {
+      case_id: 'number',
+      uploaded_at: 'date'
+    },
+    theme: 'telecom'
+  },
+
+  'autres.cdr_case_shares': {
+    display: 'cdr_case_shares',
+    database: 'autres',
+    searchable: ['case_id', 'user_id'],
+    preview: ['case_id', 'user_id', 'created_at'],
+    filters: {
+      case_id: 'number',
+      user_id: 'number'
+    },
+    theme: 'telecom'
+  },
+
+  'autres.cdr_de_test': {
+    display: 'cdr_de_test',
+    database: 'autres',
+    searchable: [
+      'oce',
+      'type_cdr',
+      'cdr_numb',
+      'numero_intl_appelant',
+      'numero_intl_appele',
+      'numero_intl_appele_original',
+      'imei_appelant',
+      'imei_appele',
+      'imei_appele_original',
+      'imsi_appelant',
+      'imsi_appele',
+      'cgi_appelant',
+      'cgi_appele',
+      'cgi_appele_original',
+      'nom_localisation'
+    ],
+    preview: ['oce', 'type_cdr', 'numero_intl_appelant', 'numero_intl_appele', 'cdr_numb'],
+    filters: {
+      date_debut: 'date',
+      date_fin: 'date',
+      latitude: 'number',
+      longitude: 'number'
+    },
+    theme: 'telecom'
+  },
+
+  'autres.cdr_records': {
+    display: 'cdr_records',
+    database: 'autres',
+    searchable: [
+      'oce',
+      'type_cdr',
+      'numero_intl_appelant',
+      'numero_intl_appele',
+      'numero_intl_appele_original',
+      'imei_appelant',
+      'imei_appele',
+      'imei_appele_original',
+      'imsi_appelant',
+      'imsi_appele',
+      'cgi_appelant',
+      'cgi_appele',
+      'cgi_appele_original',
+      'nom_localisation'
+    ],
+    preview: ['oce', 'type_cdr', 'numero_intl_appelant', 'numero_intl_appele', 'nom_localisation'],
+    filters: {
+      date_debut: 'date',
+      date_fin: 'date',
+      latitude: 'number',
+      longitude: 'number'
+    },
+    theme: 'telecom'
   },
 
   'autres.fichemilitaire': {
@@ -663,8 +852,8 @@ export default {
       'nom',
       'prenom',
       'genre',
-      'matricule_solde',
-      'matricule_militaire',
+      'matriculesolde',
+      'matriculemilitaire',
       'cni',
       'grade',
       'bataillon',
@@ -675,7 +864,7 @@ export default {
       genre: 'enum',
       grade: 'string',
       bataillon: 'string',
-      date_de_naissance: 'date'
+      date_naissance: 'date'
     },
     theme: 'militaire'
   },
@@ -684,16 +873,17 @@ export default {
     display: 'ong',
     database: 'autres',
     searchable: [
-      'organization_name',
-      'name',
-      'email_address',
-      'telephone'
+      'OrganizationName',
+      'Name',
+      'EmailAddress',
+      'Telephone',
+      'Type'
     ],
-    preview: ['organization_name', 'name', 'email_address', 'telephone'],
+    preview: ['OrganizationName', 'Name', 'EmailAddress', 'Telephone'],
     filters: {
-      type: 'string',
-      select_area_of_interest: 'string',
-      select_sectors_of_interest: 'string'
+      Type: 'string',
+      SelectAreaofInterest: 'string',
+      SelectSectorsofInterest: 'string'
     },
     theme: 'ong'
   },
@@ -713,10 +903,32 @@ export default {
     theme: 'entreprise'
   },
 
+  'autres.leaks': {
+    display: 'leaks',
+    database: 'autres',
+    searchable: ['cni', 'nom', 'prenom', 'email', 'telephone', 'dataset', 'source', 'risk_level'],
+    preview: ['cni', 'nom', 'prenom', 'dataset', 'risk_level'],
+    filters: {
+      dataset: 'string',
+      risk_level: 'string',
+      date_leak: 'date'
+    },
+    theme: 'securite'
+  },
+
   'autres.uvs': {
     display: 'uvs',
     database: 'autres',
-    searchable: ['id', 'matricule', 'cni_passeport', 'prenom', 'nom', 'telephone', 'email', 'login'],
+    searchable: [
+      'id',
+      'matricule',
+      'cni',
+      'prenom',
+      'nom',
+      'telephone',
+      'email',
+      'login'
+    ],
     linkedFields: ['telephone'],
     preview: ['id', 'prenom', 'nom', 'telephone', 'email'],
     filters: {
@@ -740,7 +952,127 @@ export default {
       telephone: 'string',
       localite: 'string'
     },
-    theme: 'identite',
+    theme: 'identite'
+  },
+
+  'autres.blacklist': {
+    display: 'blacklist',
+    database: 'autres',
+    searchable: ['number'],
+    preview: ['number', 'created_at'],
+    filters: {
+      created_at: 'date'
+    },
+    theme: 'securite'
+  },
+
+  'autres.notifications': {
+    display: 'notifications',
+    database: 'autres',
+    searchable: ['type', 'data'],
+    preview: ['type', 'user_id', 'read_at'],
+    filters: {
+      user_id: 'number',
+      read_at: 'date'
+    },
+    theme: 'systeme'
+  },
+
+  'autres.profile_attachments': {
+    display: 'profile_attachments',
+    database: 'autres',
+    searchable: ['original_name', 'file_path'],
+    preview: ['original_name', 'file_path', 'created_at'],
+    filters: {
+      profile_id: 'number',
+      created_at: 'date'
+    },
+    theme: 'interne'
+  },
+
+  'autres.profile_shares': {
+    display: 'profile_shares',
+    database: 'autres',
+    searchable: ['profile_id', 'user_id'],
+    preview: ['profile_id', 'user_id', 'created_at'],
+    filters: {
+      profile_id: 'number',
+      user_id: 'number'
+    },
+    theme: 'interne'
+  },
+
+  'autres.sanctions': {
+    display: 'sanctions',
+    database: 'autres',
+    searchable: ['cni', 'nom', 'prenom', 'motif', 'source', 'statut'],
+    preview: ['cni', 'nom', 'prenom', 'motif', 'statut'],
+    filters: {
+      date_sanction: 'date',
+      statut: 'string',
+      source: 'string'
+    },
+    theme: 'securite'
+  },
+
+  'autres.search_logs': {
+    display: 'search_logs',
+    database: 'autres',
+    searchable: ['username', 'search_term', 'search_type', 'ip_address', 'user_agent'],
+    preview: ['username', 'search_term', 'results_count', 'search_date'],
+    filters: {
+      user_id: 'number',
+      search_date: 'date'
+    },
+    theme: 'systeme'
+  },
+
+  'autres.search_sync_events': {
+    display: 'search_sync_events',
+    database: 'autres',
+    searchable: ['schema_name', 'table_name', 'primary_value', 'operation'],
+    preview: ['schema_name', 'table_name', 'operation', 'processed_at'],
+    filters: {
+      created_at: 'date',
+      processed_at: 'date'
+    },
+    theme: 'systeme'
+  },
+
+  'autres.upload_history': {
+    display: 'upload_history',
+    database: 'autres',
+    searchable: ['table_name', 'file_name', 'upload_mode'],
+    preview: ['table_name', 'file_name', 'total_rows', 'success_rows'],
+    filters: {
+      user_id: 'number',
+      created_at: 'date'
+    },
+    theme: 'systeme'
+  },
+
+  'autres.user_logs': {
+    display: 'user_logs',
+    database: 'autres',
+    searchable: ['action', 'details'],
+    preview: ['user_id', 'action', 'created_at'],
+    filters: {
+      user_id: 'number',
+      created_at: 'date'
+    },
+    theme: 'systeme'
+  },
+
+  'autres.user_sessions': {
+    display: 'user_sessions',
+    database: 'autres',
+    searchable: ['user_id'],
+    preview: ['user_id', 'login_at', 'logout_at'],
+    filters: {
+      login_at: 'date',
+      logout_at: 'date'
+    },
+    theme: 'systeme'
   },
 
   'autres.identified_numbers': {
