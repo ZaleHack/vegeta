@@ -11,6 +11,28 @@ class DatabaseManager {
     this.init();
   }
 
+  static #normalizeRow(row) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+      return row;
+    }
+
+    return Object.entries(row).reduce((acc, [key, value]) => {
+      if (typeof key === 'string') {
+        acc[key.toLowerCase()] = value;
+      } else {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+  }
+
+  static #normalizeRows(rows) {
+    if (!Array.isArray(rows)) {
+      return rows;
+    }
+    return rows.map((row) => DatabaseManager.#normalizeRow(row));
+  }
+
   async init() {
     if (!this.initPromise) {
       this.initPromise = this.#initInternal();
@@ -413,10 +435,10 @@ class DatabaseManager {
       await query(`
         CREATE TABLE IF NOT EXISTS autres.annuaire_gendarmerie (
           id INT AUTO_INCREMENT PRIMARY KEY,
-          Libelle VARCHAR(255) NOT NULL,
-          Telephone VARCHAR(50) NOT NULL,
-          SousCategorie VARCHAR(255) DEFAULT NULL,
-          Secteur VARCHAR(255) DEFAULT NULL,
+          libelle VARCHAR(255) NOT NULL,
+          telephone VARCHAR(50) NOT NULL,
+          souscategorie VARCHAR(255) DEFAULT NULL,
+          secteur VARCHAR(255) DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
@@ -426,7 +448,7 @@ class DatabaseManager {
           id INT AUTO_INCREMENT PRIMARY KEY,
           date DATE DEFAULT NULL,
           matricule VARCHAR(100) DEFAULT NULL,
-          cniPasseport VARCHAR(100) DEFAULT NULL,
+          cni_passeport VARCHAR(100) DEFAULT NULL,
           prenom VARCHAR(255) DEFAULT NULL,
           genre VARCHAR(50) DEFAULT NULL,
           nom VARCHAR(255) DEFAULT NULL,
@@ -444,12 +466,12 @@ class DatabaseManager {
       await query(`
         CREATE TABLE IF NOT EXISTS autres.collections (
           id INT AUTO_INCREMENT PRIMARY KEY,
-          Nom VARCHAR(255) NOT NULL,
-          Prenom VARCHAR(255) NOT NULL,
-          DateNaissance DATE DEFAULT NULL,
-          CNI VARCHAR(100) DEFAULT NULL,
-          Telephone VARCHAR(50) DEFAULT NULL,
-          Localite VARCHAR(255) DEFAULT NULL,
+          nom VARCHAR(255) NOT NULL,
+          prenom VARCHAR(255) NOT NULL,
+          date_naissance DATE DEFAULT NULL,
+          cni VARCHAR(100) DEFAULT NULL,
+          telephone VARCHAR(50) DEFAULT NULL,
+          localite VARCHAR(255) DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
@@ -652,7 +674,7 @@ class DatabaseManager {
         await this.ensureInitialized();
       }
       const [rows] = await this.pool.execute(sql, params);
-      return rows;
+      return DatabaseManager.#normalizeRows(rows);
     } catch (error) {
       console.error('❌ Erreur requête SQL:', error);
       throw error;
@@ -672,7 +694,8 @@ class DatabaseManager {
       }
 
       const [rows] = await this.pool.execute(sql, params);
-      return rows[0] || null;
+      const [row] = DatabaseManager.#normalizeRows(rows);
+      return row || null;
     } catch (error) {
       console.error('❌ Erreur requête SQL:', error);
       throw error;
@@ -692,12 +715,13 @@ class DatabaseManager {
 
     const wrapQuery = async (sql, params = []) => {
       const [rows] = await connection.execute(sql, params);
-      return rows;
+      return DatabaseManager.#normalizeRows(rows);
     };
 
     const wrapQueryOne = async (sql, params = []) => {
       const [rows] = await connection.execute(sql, params);
-      return rows[0] || null;
+      const [row] = DatabaseManager.#normalizeRows(rows);
+      return row || null;
     };
 
     try {

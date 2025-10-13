@@ -150,17 +150,17 @@ class DatabaseManager {
       // Base renseignement - agentfinance
       `CREATE TABLE IF NOT EXISTS renseignement_agentfinance (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        MATRICULE TEXT,
-        PRENOM TEXT,
-        NOM TEXT,
-        CORPS TEXT,
-        EMPLOI TEXT,
-        COD_SECTION TEXT,
-        SECTION TEXT,
-        COD_CHAPITRE TEXT,
-        CHAPITRE TEXT,
-        POSTE TEXT,
-        DIRECTION TEXT
+        matricule TEXT,
+        prenom TEXT,
+        nom TEXT,
+        corps TEXT,
+        emploi TEXT,
+        cod_section TEXT,
+        section TEXT,
+        cod_chapitre TEXT,
+        chapitre TEXT,
+        poste TEXT,
+        direction TEXT
       )`,
 
       // Base rhgendarmerie - personne
@@ -194,17 +194,17 @@ class DatabaseManager {
       // Base permis - tables
       `CREATE TABLE IF NOT EXISTS permis_tables (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        NumeroPermis TEXT,
-        DateObtention TEXT,
-        Categorie TEXT,
-        Prenoms TEXT,
-        Nom TEXT,
-        Sexe TEXT,
-        DateNaissance TEXT,
-        LieuNaissance TEXT,
-        Adresse TEXT,
-        CodeLocalite TEXT,
-        Numeropiece TEXT
+        numero_permis TEXT,
+        date_obtention TEXT,
+        categorie TEXT,
+        prenoms TEXT,
+        nom TEXT,
+        sexe TEXT,
+        date_naissance TEXT,
+        lieu_naissance TEXT,
+        adresse TEXT,
+        code_localite TEXT,
+        numeropiece TEXT
       )`,
 
       // Base expresso - expresso
@@ -226,46 +226,46 @@ class DatabaseManager {
         nom TEXT,
         datenaiss TEXT,
         lieunaiss TEXT,
-        CNI TEXT
+        cni TEXT
       )`,
 
       // Base autres - Vehicules
       `CREATE TABLE IF NOT EXISTS autres_vehicules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        Numero_Immatriculation TEXT,
-        Code_Type TEXT,
-        Numero_Serie TEXT,
-        Date_Immatriculation TEXT,
-        Serie_Immatriculation TEXT,
-        Categorie TEXT,
-        Marque TEXT,
-        Appelation_Com TEXT,
-        Genre TEXT,
-        Carrosserie TEXT,
-        Etat_Initial TEXT,
-        Immat_Etrangere TEXT,
-        Date_Etrangere TEXT,
-        Date_Mise_Circulation TEXT,
-        Date_Premiere_Immat TEXT,
-        Energie TEXT,
-        Puissance_Adm TEXT,
-        Cylindre TEXT,
-        Places_Assises INTEGER,
-        PTR TEXT,
-        PTAC_Code TEXT,
-        Poids_Vide TEXT,
-        CU TEXT,
-        Prenoms TEXT,
-        Nom TEXT,
-        Date_Naissance TEXT,
-        Exact TEXT,
-        Lieu_Naissance TEXT,
-        Adresse_Vehicule TEXT,
-        Code_Localite TEXT,
-        Tel_Fixe TEXT,
-        Tel_Portable TEXT,
-        PrecImmat TEXT,
-        Date_PrecImmat TEXT
+        numero_immatriculation TEXT,
+        code_type TEXT,
+        numero_serie TEXT,
+        date_immatriculation TEXT,
+        serie_immatriculation TEXT,
+        categorie TEXT,
+        marque TEXT,
+        appelation_com TEXT,
+        genre TEXT,
+        carrosserie TEXT,
+        etat_initial TEXT,
+        immat_etrangere TEXT,
+        date_etrangere TEXT,
+        date_mise_circulation TEXT,
+        date_premiere_immat TEXT,
+        energie TEXT,
+        puissance_adm TEXT,
+        cylindre TEXT,
+        places_assises INTEGER,
+        ptr TEXT,
+        ptac_code TEXT,
+        poids_vide TEXT,
+        cu TEXT,
+        prenoms TEXT,
+        nom TEXT,
+        date_naissance TEXT,
+        exact TEXT,
+        lieu_naissance TEXT,
+        adresse_vehicule TEXT,
+        code_localite TEXT,
+        tel_fixe TEXT,
+        tel_portable TEXT,
+        prec_immat TEXT,
+        date_precimmat TEXT
       )`,
 
       // Base autres - entreprises
@@ -311,10 +311,10 @@ class DatabaseManager {
       // Base autres - annuaire gendarmerie
       `CREATE TABLE IF NOT EXISTS autres_annuaire_gendarmerie (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        Libelle TEXT,
-        Telephone TEXT,
-        SousCategorie TEXT,
-        Secteur TEXT,
+        libelle TEXT,
+        telephone TEXT,
+        souscategorie TEXT,
+        secteur TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
 
@@ -323,7 +323,7 @@ class DatabaseManager {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT,
         matricule TEXT,
-        cniPasseport TEXT,
+        cni_passeport TEXT,
         prenom TEXT,
         genre TEXT,
         nom TEXT,
@@ -340,12 +340,12 @@ class DatabaseManager {
       // Base autres - collections
       `CREATE TABLE IF NOT EXISTS autres_collections (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        Nom TEXT,
-        Prenom TEXT,
-        DateNaissance TEXT,
-        CNI TEXT,
-        Telephone TEXT,
-        Localite TEXT,
+        nom TEXT,
+        prenom TEXT,
+        date_naissance TEXT,
+        cni TEXT,
+        telephone TEXT,
+        localite TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
 
@@ -385,10 +385,10 @@ class DatabaseManager {
 
       `CREATE TABLE IF NOT EXISTS autres_demdikk (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        Prenom TEXT,
-        Nom TEXT,
-        Numero TEXT,
-        PassePort TEXT
+        prenom TEXT,
+        nom TEXT,
+        numero TEXT,
+        passeport TEXT
       )`
     ];
   }

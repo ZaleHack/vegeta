@@ -16,11 +16,11 @@ router.get('/', authenticate, async (req, res) => {
 
     if (search) {
       whereClause = `WHERE CONCAT_WS(' ',
-        Numero_Immatriculation, Code_Type, Numero_Serie, Date_Immatriculation, Serie_Immatriculation,
-        Categorie, Marque, Appelation_Com, Genre, Carrosserie, Etat_Initial, Immat_Etrangere, Date_Etrangere,
-        Date_Mise_Circulation, Date_Premiere_Immat, Energie, Puissance_Adm, Cylindre, Places_Assises,
-        PTR, PTAC_Code, Poids_Vide, CU, Prenoms, Nom, Date_Naissance, Exact, Lieu_Naissance,
-        Adresse_Vehicule, Code_Localite, Tel_Fixe, Tel_Portable, PrecImmat, Date_PrecImmat
+        numero_immatriculation, code_type, numero_serie, date_immatriculation, serie_immatriculation,
+        categorie, marque, appelation_com, genre, carrosserie, etat_initial, immat_etrangere, date_etrangere,
+        date_mise_circulation, date_premiere_immat, energie, puissance_adm, cylindre, places_assises,
+        ptr, ptac_code, poids_vide, cu, prenoms, nom, date_naissance, exact, lieu_naissance,
+        adresse_vehicule, code_localite, tel_fixe, tel_portable, prec_immat, date_precimmat
       ) LIKE ?`;
       params.push(`%${search}%`);
     }
@@ -32,11 +32,41 @@ router.get('/', authenticate, async (req, res) => {
 
     const rows = await database.query(
       `SELECT
-        ID, Numero_Immatriculation, Code_Type, Numero_Serie, Date_Immatriculation, Serie_Immatriculation,
-        Categorie, Marque, Appelation_Com, Genre, Carrosserie, Etat_Initial, Immat_Etrangere, Date_Etrangere,
-        Date_Mise_Circulation, Date_Premiere_Immat, Energie, Puissance_Adm, Cylindre, Places_Assises,
-        PTR, PTAC_Code, Poids_Vide, CU, Prenoms, Nom, Date_Naissance, Exact, Lieu_Naissance,
-        Adresse_Vehicule, Code_Localite, Tel_Fixe, Tel_Portable, PrecImmat, Date_PrecImmat
+        id,
+        numero_immatriculation,
+        code_type,
+        numero_serie,
+        date_immatriculation,
+        serie_immatriculation,
+        categorie,
+        marque,
+        appelation_com,
+        genre,
+        carrosserie,
+        etat_initial,
+        immat_etrangere,
+        date_etrangere,
+        date_mise_circulation,
+        date_premiere_immat,
+        energie,
+        puissance_adm,
+        cylindre,
+        places_assises,
+        ptr,
+        ptac_code,
+        poids_vide,
+        cu,
+        prenoms,
+        nom,
+        date_naissance,
+        exact,
+        lieu_naissance,
+        adresse_vehicule,
+        code_localite,
+        tel_fixe,
+        tel_portable,
+        prec_immat,
+        date_precimmat
       FROM vehicules ${whereClause} LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
