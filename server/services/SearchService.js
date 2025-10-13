@@ -5,30 +5,32 @@ import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
 
-const UNIQUE_SEARCH_FIELDS = new Set([
-  'CNI',
-  'cni',
-  'NIN',
-  'nin',
-  'Phone',
-  'PHONE',
-  'TELEPHONE',
-  'Telephone',
-  'Numero',
-  'NUMERO',
-  'Telephone1',
-  'Telephone2',
-  'TELEPHONE1',
-  'TELEPHONE2',
-  'PassePort',
-  'PASSEPORT',
-  'Passeport',
-  'Email',
-  'EMAIL',
-  'mail',
-  'Mail',
-  'MAIL'
-]);
+const UNIQUE_SEARCH_FIELDS = new Set(
+  [
+    'CNI',
+    'cni',
+    'NIN',
+    'nin',
+    'Phone',
+    'PHONE',
+    'TELEPHONE',
+    'Telephone',
+    'Numero',
+    'NUMERO',
+    'Telephone1',
+    'Telephone2',
+    'TELEPHONE1',
+    'TELEPHONE2',
+    'PassePort',
+    'PASSEPORT',
+    'Passeport',
+    'Email',
+    'EMAIL',
+    'mail',
+    'Mail',
+    'MAIL'
+  ].map((field) => field.toLowerCase())
+);
 
 class SearchService {
   constructor() {
@@ -41,6 +43,56 @@ class SearchService {
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
     }
+  }
+
+  normalizeFieldName(field) {
+    if (typeof field !== 'string') {
+      return field;
+    }
+    return field.toLowerCase();
+  }
+
+  getFieldValue(record, field) {
+    if (!record || field === undefined || field === null) {
+      return undefined;
+    }
+
+    if (typeof field === 'string') {
+      const normalized = this.normalizeFieldName(field);
+      if (normalized && Object.prototype.hasOwnProperty.call(record, normalized)) {
+        return record[normalized];
+      }
+      if (Object.prototype.hasOwnProperty.call(record, field)) {
+        return record[field];
+      }
+    }
+
+    return record[field];
+  }
+
+  getColumnNameFromRow(row) {
+    if (!row || typeof row !== 'object') {
+      return null;
+    }
+
+    return (
+      row.column_name ||
+      row.column ||
+      row.field ||
+      row.Field ||
+      row.COLUMN_NAME ||
+      row.COLUMN ||
+      row.name ||
+      null
+    );
+  }
+
+  getNormalizedColumnName(row) {
+    const name = this.getColumnNameFromRow(row);
+    if (typeof name === 'string') {
+      return name.toLowerCase();
+    }
+    return null;
   }
 
   extractLinkedIdentifiers(results) {
@@ -81,6 +133,7 @@ class SearchService {
 
   async getPrimaryKey(tableName, config = {}) {
     if (config.primaryKey) {
+      this.primaryKeyCache.set(tableName, config.primaryKey);
       return config.primaryKey;
     }
 
@@ -91,8 +144,9 @@ class SearchService {
       const rows = await database.query(
         `SHOW KEYS FROM ${tableName} WHERE Key_name = 'PRIMARY'`
       );
-      if (rows.length > 0 && rows[0].Column_name) {
-        const pk = rows[0].Column_name;
+      if (rows.length > 0) {
+        const primaryRow = rows.find((row) => this.getColumnNameFromRow(row));
+        const pk = this.getColumnNameFromRow(primaryRow || rows[0]);
         this.primaryKeyCache.set(tableName, pk);
         return pk;
       }
@@ -107,13 +161,19 @@ class SearchService {
       const columns = await database.query(
         `SHOW COLUMNS FROM ${tableName}`
       );
-      const hasId = columns.some((col) => col.Field === 'id');
+      const columnDetails = columns
+        .map((col) => ({
+          original: this.getColumnNameFromRow(col),
+          normalized: this.getNormalizedColumnName(col)
+        }))
+        .filter((col) => col.original);
+      const idColumn = columnDetails.find((col) => col.normalized === 'id');
       const fallback =
-        hasId
-          ? 'id'
-          : config.searchable?.[0] ||
-            config.preview?.[0] ||
-            (columns[0] ? columns[0].Field : 'id');
+        idColumn?.original ||
+        config.searchable?.[0] ||
+        config.preview?.[0] ||
+        columnDetails[0]?.original ||
+        'id';
       this.primaryKeyCache.set(tableName, fallback);
       return fallback;
     } catch (error) {
@@ -216,7 +276,8 @@ class SearchService {
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
-          if (!UNIQUE_SEARCH_FIELDS.has(key)) {
+          const normalizedKey = this.normalizeFieldName(key);
+          if (!UNIQUE_SEARCH_FIELDS.has(normalizedKey)) {
             continue;
           }
           const valueStr = String(value).trim();
@@ -461,11 +522,12 @@ class SearchService {
 
       for (const row of rows) {
         const preview = this.buildPreview(row, config);
+        const primaryValue = this.getFieldValue(row, primaryKey);
         results.push({
           table: config.display,
           database: config.database,
           preview: preview,
-          primary_keys: { [primaryKey]: row[primaryKey] },
+          primary_keys: { [primaryKey]: primaryValue },
           score: this.calculateRelevanceScore(row, searchTerms, searchableFields),
           linkedFields: config.linkedFields || []
         });
@@ -482,7 +544,7 @@ class SearchService {
     const preview = {};
 
     fields.forEach(field => {
-      const value = record[field];
+      const value = this.getFieldValue(record, field);
       if (value !== null && value !== undefined && value !== '') {
         preview[field] = value;
       }
@@ -507,9 +569,9 @@ class SearchService {
       let termFound = false;
       
       for (const field of searchableFields) {
-        const value = record[field];
+        const value = this.getFieldValue(record, field);
         if (!value) continue;
-        
+
         const fieldValue = value.toString().toLowerCase();
         
         if (term.type === 'exact' && fieldValue === searchValue) {

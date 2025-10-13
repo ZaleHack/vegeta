@@ -315,7 +315,7 @@ class ElasticSearchService {
 
     fields.forEach((field) => {
       if (!field) return;
-      const value = record[field];
+      const value = this.getFieldValue(record, field);
       if (value !== null && value !== undefined && value !== '') {
         preview[field] = value;
       }
@@ -337,14 +337,14 @@ class ElasticSearchService {
     const values = [];
     fields.forEach((field) => {
       if (!field) return;
-      values.push(record[field]);
+      values.push(this.getFieldValue(record, field));
     });
 
     return this.normalizeValues(values);
   }
 
   buildGenericDocument(record, { tableName, config = {}, primaryKey }) {
-    const key = primaryKey && record ? record[primaryKey] : null;
+    const key = primaryKey && record ? this.getFieldValue(record, primaryKey) : null;
     if (key === null || key === undefined) {
       return null;
     }
@@ -366,6 +366,31 @@ class ElasticSearchService {
       raw_values: rawValues,
       full_text: this.buildFullTextFromValues(rawValues)
     };
+  }
+
+  normalizeFieldName(field) {
+    if (typeof field !== 'string') {
+      return field;
+    }
+    return field.toLowerCase();
+  }
+
+  getFieldValue(record, field) {
+    if (!record || field === undefined || field === null) {
+      return undefined;
+    }
+
+    if (typeof field === 'string') {
+      const normalized = this.normalizeFieldName(field);
+      if (normalized && Object.prototype.hasOwnProperty.call(record, normalized)) {
+        return record[normalized];
+      }
+      if (Object.prototype.hasOwnProperty.call(record, field)) {
+        return record[field];
+      }
+    }
+
+    return record[field];
   }
 
   async indexProfile(profile) {

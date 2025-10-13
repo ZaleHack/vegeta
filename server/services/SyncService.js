@@ -39,13 +39,20 @@ class SyncService {
   }
 
   extractColumnName(column) {
-    return (
+    const rawName =
       column?.Field ||
       column?.field ||
-      column?.COLUMN_NAME ||
+      column?.Column_name ||
       column?.column_name ||
-      null
-    );
+      column?.COLUMN_NAME ||
+      column?.name ||
+      null;
+
+    if (typeof rawName === 'string') {
+      return rawName.toLowerCase();
+    }
+
+    return null;
   }
 
   getSeqInIndex(key) {
@@ -58,10 +65,13 @@ class SyncService {
     }
 
     const columns = await database.query(`SHOW COLUMNS FROM ${this.formatTableName(tableName)}`);
-    const normalizedColumns = columns.map((column) => ({
-      ...column,
-      name: this.extractColumnName(column)
-    }));
+    const normalizedColumns = columns.map((column) => {
+      const name = this.extractColumnName(column);
+      return {
+        ...column,
+        name
+      };
+    });
     this.tableColumnsCache.set(tableName, normalizedColumns);
     return normalizedColumns;
   }
