@@ -310,16 +310,50 @@ class ElasticSearchService {
   }
 
   buildPreview(record, config = {}) {
-    const preview = {};
-    const fields = new Set([...(config.preview || []), ...(config.linkedFields || [])]);
+    if (!record || typeof record !== 'object') {
+      return {};
+    }
 
-    fields.forEach((field) => {
-      if (!field) return;
-      const value = this.getFieldValue(record, field);
-      if (value !== null && value !== undefined && value !== '') {
-        preview[field] = value;
+    const preview = {};
+
+    const setValue = (field, value) => {
+      if (!field) {
+        return;
       }
+
+      const normalizedField = typeof field === 'string' ? field.toLowerCase() : String(field);
+      if (normalizedField === 'id') {
+        return;
+      }
+
+      if (value === null || value === undefined || value === '') {
+        return;
+      }
+
+      if (Buffer.isBuffer(value)) {
+        preview[field] = value.toString('utf8');
+        return;
+      }
+
+      if (value instanceof Date) {
+        preview[field] = value.toISOString();
+        return;
+      }
+
+      preview[field] = value;
+    };
+
+    Object.entries(record).forEach(([field, value]) => {
+      setValue(field, value);
     });
+
+    if (Object.keys(preview).length === 0) {
+      const fields = new Set([...(config.preview || []), ...(config.linkedFields || [])]);
+      fields.forEach((field) => {
+        const value = this.getFieldValue(record, field);
+        setValue(field, value);
+      });
+    }
 
     return preview;
   }
