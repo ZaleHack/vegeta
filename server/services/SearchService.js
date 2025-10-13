@@ -48,8 +48,85 @@ class SearchService {
     this.catalog = this.loadCatalog();
     this.primaryKeyCache = new Map();
     this.columnCache = new Map();
+    this.tableAvailability = new Map();
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
+    }
+  }
+
+  isMissingTableError(error) {
+    if (!error) {
+      return false;
+    }
+
+    if (error.code === 'ER_NO_SUCH_TABLE' || error.code === 'ER_BAD_TABLE_ERROR') {
+      return true;
+    }
+
+    if (error.errno === 1146) {
+      return true;
+    }
+
+    const message = error.sqlMessage || error.message;
+    if (typeof message === 'string') {
+      return message.toLowerCase().includes("doesn't exist");
+    }
+
+    return false;
+  }
+
+  markTableUnavailable(tableName, error = null) {
+    if (!tableName) {
+      return;
+    }
+
+    const alreadyKnown = this.tableAvailability.get(tableName) === false;
+    this.tableAvailability.set(tableName, false);
+    this.columnCache.set(tableName, null);
+    this.primaryKeyCache.delete(tableName);
+
+    if (!alreadyKnown) {
+      const reason = error?.sqlMessage || error?.message || 'Table inaccessible';
+      console.warn(`⚠️ Table ${tableName} ignorée pour la recherche: ${reason}`);
+    }
+  }
+
+  markTableAvailable(tableName) {
+    if (!tableName) {
+      return;
+    }
+    this.tableAvailability.set(tableName, true);
+  }
+
+  async ensureTableAvailable(tableName) {
+    if (!tableName) {
+      return false;
+    }
+
+    if (this.tableAvailability.has(tableName)) {
+      return this.tableAvailability.get(tableName);
+    }
+
+    const formattedTable = this.formatTableName(tableName);
+
+    try {
+      await database.query(`SELECT 1 FROM ${formattedTable} LIMIT 1`, [], {
+        suppressErrorLog: true
+      });
+      this.markTableAvailable(tableName);
+      return true;
+    } catch (error) {
+      if (this.isMissingTableError(error)) {
+        this.markTableUnavailable(tableName, error);
+        return false;
+      }
+
+      console.warn(
+        `⚠️ Impossible de vérifier la disponibilité de ${tableName}:`,
+        error.message
+      );
+      this.tableAvailability.delete(tableName);
+      return false;
     }
   }
 
@@ -173,13 +250,18 @@ class SearchService {
 
       const info = { columns, lookup };
       this.columnCache.set(tableName, info);
+      this.markTableAvailable(tableName);
       return info;
     } catch (error) {
-      console.warn(
-        `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
-        error.message
-      );
-      this.columnCache.set(tableName, null);
+      if (this.isMissingTableError(error)) {
+        this.markTableUnavailable(tableName, error);
+      } else {
+        console.warn(
+          `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
+          error.message
+        );
+        this.columnCache.set(tableName, null);
+      }
       return null;
     }
   }
@@ -374,6 +456,10 @@ class SearchService {
 
   refreshCatalog() {
     this.catalog = this.loadCatalog();
+    this.cache.clear();
+    this.primaryKeyCache.clear();
+    this.columnCache.clear();
+    this.tableAvailability.clear();
   }
 
   async getPrimaryKey(tableName, config = {}) {
@@ -397,6 +483,10 @@ class SearchService {
         return pk;
       }
     } catch (error) {
+      if (this.isMissingTableError(error)) {
+        this.markTableUnavailable(tableName, error);
+        return null;
+      }
       console.warn(
         `⚠️ Impossible de déterminer la clé primaire pour ${tableName}:`,
         error.message
@@ -424,6 +514,12 @@ class SearchService {
       this.primaryKeyCache.set(tableName, fallback);
       return fallback;
     } catch (error) {
+      if (this.isMissingTableError(error)) {
+        this.markTableUnavailable(tableName, error);
+        const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
+        this.primaryKeyCache.set(tableName, fallback);
+        return fallback;
+      }
       console.warn(
         `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
         error.message
@@ -682,16 +778,12 @@ class SearchService {
 
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
-    const primaryKey = await this.getPrimaryKey(tableName, config);
-
-    // Vérifier si la table existe
-    try {
-      const formattedTable = this.formatTableName(tableName);
-      await database.query(`SELECT 1 FROM ${formattedTable} LIMIT 1`);
-    } catch (error) {
-      console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
+    const isAvailable = await this.ensureTableAvailable(tableName);
+    if (!isAvailable) {
       return results;
     }
+
+    const primaryKey = (await this.getPrimaryKey(tableName, config)) || 'id';
 
     const columnInfo = await this.getTableColumns(tableName);
     const tableColumns = Array.isArray(columnInfo?.columns)
@@ -885,7 +977,11 @@ class SearchService {
         });
       }
     } catch (error) {
-      console.error(`❌ Erreur SQL table ${tableName}:`, error.message);
+      if (this.isMissingTableError(error)) {
+        this.markTableUnavailable(tableName, error);
+      } else {
+        console.error(`❌ Erreur SQL table ${tableName}:`, error.message);
+      }
     }
 
     return results;
