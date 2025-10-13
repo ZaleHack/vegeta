@@ -142,10 +142,21 @@ async function isColumnIndexed(schema, table, columnName) {
   const existing = await database.queryOne(
     `
       SELECT 1
-      FROM information_schema.STATISTICS
-      WHERE TABLE_SCHEMA = ?
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
+      FROM information_schema.STATISTICS AS stats
+      WHERE stats.TABLE_SCHEMA = ?
+        AND stats.TABLE_NAME = ?
+        AND stats.COLUMN_NAME = ?
+        AND (
+          stats.SEQ_IN_INDEX = 1
+          OR NOT EXISTS (
+            SELECT 1
+            FROM information_schema.STATISTICS AS s2
+            WHERE s2.TABLE_SCHEMA = stats.TABLE_SCHEMA
+              AND s2.TABLE_NAME = stats.TABLE_NAME
+              AND s2.INDEX_NAME = stats.INDEX_NAME
+              AND s2.SEQ_IN_INDEX > 1
+          )
+        )
       LIMIT 1
     `,
     [schema, table, columnName]
