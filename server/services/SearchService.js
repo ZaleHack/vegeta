@@ -79,6 +79,19 @@ class SearchService {
     }
   }
 
+  formatTableName(tableName) {
+    if (typeof tableName !== 'string' || tableName.trim() === '') {
+      return tableName;
+    }
+
+    return tableName
+      .split('.')
+      .map((segment) => segment.trim())
+      .filter((segment) => segment.length > 0)
+      .map((segment) => `\`${segment.replace(/`/g, '``')}\``)
+      .join('.');
+  }
+
   isTableExcluded(tableName) {
     if (!tableName) {
       return false;
@@ -171,7 +184,8 @@ class SearchService {
     }
 
     try {
-      const rows = await database.query(`SHOW COLUMNS FROM ${tableName}`);
+      const formattedTable = this.formatTableName(tableName);
+      const rows = await database.query(`SHOW COLUMNS FROM ${formattedTable}`);
       const columns = rows
         .map((row) => this.getColumnNameFromRow(row))
         .filter((name) => typeof name === 'string');
@@ -339,8 +353,9 @@ class SearchService {
       return this.primaryKeyCache.get(tableName);
     }
     try {
+      const formattedTable = this.formatTableName(tableName);
       const rows = await database.query(
-        `SHOW KEYS FROM ${tableName} WHERE Key_name = 'PRIMARY'`
+        `SHOW KEYS FROM ${formattedTable} WHERE Key_name = 'PRIMARY'`
       );
       if (rows.length > 0) {
         const primaryRow = rows.find((row) => this.getColumnNameFromRow(row));
@@ -356,8 +371,9 @@ class SearchService {
     }
 
     try {
+      const formattedTable = this.formatTableName(tableName);
       const columns = await database.query(
-        `SHOW COLUMNS FROM ${tableName}`
+        `SHOW COLUMNS FROM ${formattedTable}`
       );
       const columnDetails = columns
         .map((col) => ({
@@ -601,7 +617,8 @@ class SearchService {
 
     // Vérifier si la table existe
     try {
-      await database.query(`SELECT 1 FROM ${tableName} LIMIT 1`);
+      const formattedTable = this.formatTableName(tableName);
+      await database.query(`SELECT 1 FROM ${formattedTable} LIMIT 1`);
     } catch (error) {
       console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
       return results;
@@ -668,7 +685,8 @@ class SearchService {
     const searchableColumns = searchableMappings.map(({ column }) => column);
     const searchableAliases = searchableMappings.map(({ alias }) => alias);
 
-    let sql = `SELECT ${selectFields} FROM ${tableName} WHERE `;
+    const formattedTable = this.formatTableName(tableName);
+    let sql = `SELECT ${selectFields} FROM ${formattedTable} WHERE `;
     const params = [];
     let conditions = [];
     let currentGroup = [];
@@ -932,9 +950,11 @@ class SearchService {
     }
 
     const primaryKey = await this.getPrimaryKey(tableName, catalog[tableName]);
-    const sql = `SELECT * FROM ${tableName} WHERE ${primaryKey} = ?`;
+    const formattedTable = this.formatTableName(tableName);
+    const quotedPrimaryKey = this.quoteIdentifier(primaryKey);
+    const sql = `SELECT * FROM ${formattedTable} WHERE ${quotedPrimaryKey} = ?`;
     const record = await database.queryOne(sql, [id]);
-    
+
     if (!record) {
       throw new Error('Enregistrement non trouvé');
     }
