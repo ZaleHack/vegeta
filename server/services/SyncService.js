@@ -38,14 +38,32 @@ class SyncService {
     return qualifiedName;
   }
 
+  extractColumnName(column) {
+    return (
+      column?.Field ||
+      column?.field ||
+      column?.COLUMN_NAME ||
+      column?.column_name ||
+      null
+    );
+  }
+
+  getSeqInIndex(key) {
+    return key?.Seq_in_index ?? key?.seq_in_index ?? null;
+  }
+
   async getTableColumns(tableName) {
     if (this.tableColumnsCache.has(tableName)) {
       return this.tableColumnsCache.get(tableName);
     }
 
     const columns = await database.query(`SHOW COLUMNS FROM ${this.formatTableName(tableName)}`);
-    this.tableColumnsCache.set(tableName, columns);
-    return columns;
+    const normalizedColumns = columns.map((column) => ({
+      ...column,
+      name: this.extractColumnName(column)
+    }));
+    this.tableColumnsCache.set(tableName, normalizedColumns);
+    return normalizedColumns;
   }
 
   async resolvePrimaryKey(tableName, tableConfig = {}) {
@@ -57,11 +75,15 @@ class SyncService {
 
     if (configuredPrimaryKey) {
       const columns = await this.getTableColumns(tableName);
-      const hasConfiguredKey = columns.some((column) => column.Field === configuredPrimaryKey);
+      const configuredKeyLower = configuredPrimaryKey.toLowerCase();
+      const matchingColumn = columns.find((column) => {
+        const name = column.name || this.extractColumnName(column);
+        return name?.toLowerCase() === configuredKeyLower;
+      });
 
-      if (hasConfiguredKey) {
-        this.primaryKeyCache.set(tableName, configuredPrimaryKey);
-        return configuredPrimaryKey;
+      if (matchingColumn?.name) {
+        this.primaryKeyCache.set(tableName, matchingColumn.name);
+        return matchingColumn.name;
       }
 
       console.warn(
@@ -74,10 +96,13 @@ class SyncService {
     );
 
     if (keys.length > 0) {
-      const primaryKeyColumn =
-        keys.find((key) => key.Seq_in_index === 1)?.Column_name || keys[0].Column_name;
-      this.primaryKeyCache.set(tableName, primaryKeyColumn);
-      return primaryKeyColumn;
+      const primaryKeyKey =
+        keys.find((key) => this.getSeqInIndex(key) === 1) || keys[0];
+      const primaryKeyColumn = this.extractColumnName(primaryKeyKey);
+      if (primaryKeyColumn) {
+        this.primaryKeyCache.set(tableName, primaryKeyColumn);
+        return primaryKeyColumn;
+      }
     }
 
     const columns = await this.getTableColumns(tableName);
@@ -86,7 +111,7 @@ class SyncService {
       throw new Error(`Impossible de déterminer les colonnes pour ${tableName}`);
     }
 
-    const fallbackColumn = columns[0]?.Field;
+    const fallbackColumn = columns[0]?.name || this.extractColumnName(columns[0]);
 
     if (!fallbackColumn) {
       throw new Error(`Impossible de déterminer une colonne de repli pour ${tableName}`);
