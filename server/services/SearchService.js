@@ -790,15 +790,31 @@ class SearchService {
       ? columnInfo.columns.filter((column) => typeof column === 'string' && column.length > 0)
       : [];
 
-    const fields = new Set(
+    const selectFieldCandidates = new Set(
       [
-        ...tableColumns,
         ...(config.preview || []),
         ...(config.linkedFields || []),
         ...(config.searchable || []),
         primaryKey
       ].filter(Boolean)
     );
+
+    for (const column of tableColumns) {
+      if (
+        typeof column === 'string' &&
+        UNIQUE_SEARCH_FIELDS.has(column.toLowerCase())
+      ) {
+        selectFieldCandidates.add(column);
+      }
+    }
+
+    if (selectFieldCandidates.size === 0 && tableColumns.length > 0) {
+      for (const column of tableColumns.slice(0, 10)) {
+        if (column) {
+          selectFieldCandidates.add(column);
+        }
+      }
+    }
 
     const resolvedPrimaryColumn =
       this.resolveColumnFromInfo(primaryKey, columnInfo) ||
@@ -807,21 +823,24 @@ class SearchService {
 
     const formattedTable = this.formatTableName(tableName);
 
+    const mappedSelectFields = this.mapFields(
+      Array.from(selectFieldCandidates),
+      columnInfo
+    );
+
+    if (
+      resolvedPrimaryColumn &&
+      !mappedSelectFields.some(
+        ({ alias, column }) =>
+          alias === primaryKey || column === resolvedPrimaryColumn
+      )
+    ) {
+      mappedSelectFields.push({ column: resolvedPrimaryColumn, alias: primaryKey });
+    }
+
     let selectFields = `${formattedTable}.*`;
-    if (tableColumns.length === 0) {
-      const mappedSelectFields = this.mapFields(Array.from(fields), columnInfo);
 
-      if (
-        !mappedSelectFields.some((field) => field.alias === primaryKey) &&
-        resolvedPrimaryColumn
-      ) {
-        mappedSelectFields.push({ column: resolvedPrimaryColumn, alias: primaryKey });
-      }
-
-      if (mappedSelectFields.length === 0) {
-        return results;
-      }
-
+    if (mappedSelectFields.length > 0) {
       selectFields = mappedSelectFields
         .map(({ column, alias }) => this.buildSelectClause(column, alias))
         .join(', ');
@@ -836,7 +855,7 @@ class SearchService {
 
       const fallbackColumns = preferredColumns.length > 0
         ? preferredColumns
-        : Array.from(fields).filter(
+        : Array.from(selectFieldCandidates).filter(
             (field) => typeof field === 'string' && field.toLowerCase() !== 'id'
           );
 
