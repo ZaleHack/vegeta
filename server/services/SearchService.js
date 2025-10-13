@@ -608,17 +608,23 @@ class SearchService {
     }
 
     const columnInfo = await this.getTableColumns(tableName);
+    const tableColumns = Array.isArray(columnInfo?.columns)
+      ? columnInfo.columns.filter(Boolean)
+      : [];
+
     const resolvedPrimaryColumn =
       this.resolveColumnFromInfo(primaryKey, columnInfo) ||
-      columnInfo?.columns?.[0] ||
+      tableColumns[0] ||
       primaryKey;
 
     const fields = new Set([
+      ...tableColumns,
       ...(config.preview || []),
       ...(config.linkedFields || []),
       ...(config.searchable || []),
       primaryKey,
-    ]);
+    ].filter(Boolean));
+
     const mappedSelectFields = this.mapFields(Array.from(fields), columnInfo);
 
     if (
@@ -636,7 +642,24 @@ class SearchService {
       .map(({ column, alias }) => this.buildSelectClause(column, alias))
       .join(', ');
 
-    const searchableMappings = this.mapFields(config.searchable || [], columnInfo);
+    let searchableMappings = this.mapFields(config.searchable || [], columnInfo);
+
+    if (searchableMappings.length === 0) {
+      const preferredColumns = tableColumns.filter(
+        (column) => typeof column === 'string' && column.toLowerCase() !== 'id'
+      );
+
+      const fallbackColumns = preferredColumns.length > 0
+        ? preferredColumns
+        : Array.from(fields).filter(
+            (field) => typeof field === 'string' && field.toLowerCase() !== 'id'
+          );
+
+      searchableMappings = fallbackColumns.map((column) => ({
+        column,
+        alias: column,
+      }));
+    }
 
     if (searchableMappings.length === 0) {
       return results;
@@ -774,15 +797,50 @@ class SearchService {
   }
 
   buildPreview(record, config) {
-    const fields = new Set([...(config.preview || []), ...(config.linkedFields || [])]);
+    if (!record || typeof record !== 'object') {
+      return {};
+    }
+
     const preview = {};
 
-    fields.forEach(field => {
-      const value = this.getFieldValue(record, field);
-      if (value !== null && value !== undefined && value !== '') {
-        preview[field] = value;
+    const setValue = (field, value) => {
+      if (!field) {
+        return;
       }
+
+      const normalizedField = typeof field === 'string' ? field.toLowerCase() : String(field);
+      if (normalizedField === 'id') {
+        return;
+      }
+
+      if (value === null || value === undefined || value === '') {
+        return;
+      }
+
+      if (Buffer.isBuffer(value)) {
+        preview[field] = value.toString('utf8');
+        return;
+      }
+
+      if (value instanceof Date) {
+        preview[field] = value.toISOString();
+        return;
+      }
+
+      preview[field] = value;
+    };
+
+    Object.entries(record).forEach(([field, value]) => {
+      setValue(field, value);
     });
+
+    if (Object.keys(preview).length === 0 && config) {
+      const fields = new Set([...(config.preview || []), ...(config.linkedFields || [])]);
+      fields.forEach((field) => {
+        const value = this.getFieldValue(record, field);
+        setValue(field, value);
+      });
+    }
 
     return preview;
   }
