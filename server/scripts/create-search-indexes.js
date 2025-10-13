@@ -79,6 +79,22 @@ async function indexExists(schema, table, indexName) {
   return Boolean(existingIndex);
 }
 
+async function columnExists(schema, table, columnName) {
+  const existingColumn = await database.queryOne(
+    `
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = ?
+        AND COLUMN_NAME = ?
+      LIMIT 1
+    `,
+    [schema, table, columnName]
+  );
+
+  return Boolean(existingColumn);
+}
+
 async function createIndexes() {
   const catalog = loadCatalog();
 
@@ -96,6 +112,14 @@ async function createIndexes() {
       const indexName = `idx_${sanitizeIdentifier(schema)}_${sanitizeIdentifier(table)}_${sanitizeIdentifier(field)}`.slice(0, 63);
 
       try {
+        const hasColumn = await columnExists(schema, table, field);
+        if (!hasColumn) {
+          console.log(
+            `⚠️ Colonne ${field} introuvable dans ${schema}.${table}, index ${indexName} ignoré`
+          );
+          continue;
+        }
+
         const exists = await indexExists(schema, table, indexName);
         if (exists) {
           console.log(`ℹ️ Index ${indexName} déjà présent`);
