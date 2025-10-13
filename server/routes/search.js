@@ -83,42 +83,102 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'depth doit être >= 1' });
     }
 
-    let results;
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const depthNumber = parseInt(depth);
+
+    const sqlPromise = searchService
+      .search(trimmed, filters, pageNumber, limitNumber, req.user, search_type, {
+        followLinks,
+        maxDepth: depthNumber
+      })
+      .catch((error) => {
+        console.error('Erreur recherche SQL:', error);
+        return null;
+      });
+
     const elastic = getElasticService();
     const canUseElastic = elastic?.isOperational?.() === true;
-    if (canUseElastic) {
-      const es = await elastic.search(
-        trimmed,
-        parseInt(page),
-        parseInt(limit)
-      );
-      if (elastic?.isOperational?.() === true) {
-        const tablesSearched =
-          Array.isArray(es.tables_searched) && es.tables_searched.length > 0
-            ? es.tables_searched
-            : ['profiles'];
-        results = {
-          total: es.total,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          pages: Math.ceil(es.total / parseInt(limit)),
-          elapsed_ms: es.elapsed_ms,
-          hits: es.hits,
-          tables_searched: tablesSearched
-        };
+
+    const elasticPromise = canUseElastic
+      ? elastic
+          .search(trimmed, pageNumber, limitNumber)
+          .catch((error) => {
+            console.error('Erreur recherche Elasticsearch:', error);
+            return null;
+          })
+      : Promise.resolve(null);
+
+    const [sqlResults, esResults] = await Promise.all([sqlPromise, elasticPromise]);
+
+    let results = sqlResults;
+
+    if (esResults && Array.isArray(esResults.hits)) {
+      const combined = new Map();
+      const addHits = (hits = []) => {
+        for (const hit of hits) {
+          if (!hit) continue;
+          const tableIdentifier = hit.table_name || `${hit.database}:${hit.table}`;
+          const primaryValues =
+            hit.primary_keys && typeof hit.primary_keys === 'object'
+              ? Object.values(hit.primary_keys).join(':')
+              : '';
+          const key = `${tableIdentifier}:${primaryValues}`;
+          if (!combined.has(key)) {
+            combined.set(key, hit);
+          }
+        }
+      };
+
+      if (sqlResults?.hits) {
+        addHits(sqlResults.hits);
       }
+      addHits(esResults.hits);
+
+      const combinedHits = Array.from(combined.values());
+      const sortedCombinedHits = searchService.sortResults(combinedHits);
+      const offset = (pageNumber - 1) * limitNumber;
+      const paginatedCombinedHits = sortedCombinedHits.slice(offset, offset + limitNumber);
+      const totalCombined = sortedCombinedHits.length;
+      const tablesSearched = new Set([
+        ...(sqlResults?.tables_searched || []),
+        ...(esResults.tables_searched || [])
+      ]);
+
+      results = {
+        total: totalCombined,
+        page: pageNumber,
+        limit: limitNumber,
+        pages: limitNumber > 0 ? Math.ceil(totalCombined / limitNumber) : 0,
+        elapsed_ms: Math.max(sqlResults?.elapsed_ms ?? 0, esResults.elapsed_ms ?? 0),
+        hits: paginatedCombinedHits,
+        tables_searched: Array.from(tablesSearched)
+      };
+    }
+
+    if (!results && esResults) {
+      const totalEs = esResults.total ?? 0;
+      results = {
+        total: totalEs,
+        page: pageNumber,
+        limit: limitNumber,
+        pages: limitNumber > 0 ? Math.ceil(totalEs / limitNumber) : 0,
+        elapsed_ms: esResults.elapsed_ms ?? 0,
+        hits: esResults.hits || [],
+        tables_searched: esResults.tables_searched || []
+      };
     }
 
     if (!results) {
-      results = await searchService.search(
-        trimmed,
-        filters,
-        parseInt(page),
-        parseInt(limit),
-        req.user,
-        search_type,
-        { followLinks, maxDepth: parseInt(depth) }
-      );
+      results = {
+        total: 0,
+        page: pageNumber,
+        limit: limitNumber,
+        pages: 0,
+        elapsed_ms: 0,
+        hits: [],
+        tables_searched: []
+      };
     }
 
     searchAccessManager.remember(req.user.id, results.hits || []);
