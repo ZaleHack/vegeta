@@ -130,8 +130,8 @@ class DatabaseManager {
         telephone TEXT
       )`,
 
-      // Base rhpolice - personne_all
-      `CREATE TABLE IF NOT EXISTS rhpolice_personne_all (
+      // Base rhpolice - personne_concours
+      `CREATE TABLE IF NOT EXISTS rhpolice_personne_concours (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         prenom TEXT,
         nom TEXT,

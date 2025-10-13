@@ -146,7 +146,7 @@ router.delete('/history/:id', authenticate, requireAdmin, async (req, res) => {
 router.get('/databases', authenticate, (req, res) => {
   const databases = [
     { id: 'esolde.mytable', name: 'esolde - mytable', description: 'Données employés esolde' },
-    { id: 'rhpolice.personne_all', name: 'rhpolice - personne_all', description: 'Personnels police nationale' },
+    { id: 'rhpolice.personne_concours', name: 'rhpolice - personne_concours', description: 'Personnels police nationale' },
     { id: 'renseignement.agentfinance', name: 'renseignement - agentfinance', description: 'Agents finances publiques' },
     { id: 'rhgendarmerie.personne', name: 'rhgendarmerie - personne', description: 'Personnel gendarmerie' },
     { id: 'permis.tables', name: 'permis - tables', description: 'Permis de conduire' },

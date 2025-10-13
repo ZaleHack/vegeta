@@ -37,8 +37,8 @@ export default {
   },
 
   // Base rhpolice
-  'rhpolice.personne_all': {
-    display: 'personne_all',
+  'rhpolice.personne_concours': {
+    display: 'personne_concours',
     database: 'rhpolice',
     primaryKey: 'cni',
     searchable: [
