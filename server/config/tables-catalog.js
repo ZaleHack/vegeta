@@ -58,13 +58,25 @@ export default {
   'renseignement.agentfinance': {
     display: 'agentfinance',
     database: 'renseignement',
-    searchable: ['MATRICULE', 'PRENOM', 'NOM', 'CORPS', 'EMPLOI', 'COD_SECTION', 'SECTION', 'COD_CHAPITRE', 'CHAPITRE', 'POSTE', 'DIRECTION'],
-    preview: ['MATRICULE', 'PRENOM', 'NOM', 'CORPS', 'EMPLOI'],
+    searchable: [
+      'matricule',
+      'prenom',
+      'nom',
+      'corps',
+      'emploi',
+      'cod_section',
+      'section',
+      'cod_chapitre',
+      'chapitre',
+      'poste',
+      'direction'
+    ],
+    preview: ['matricule', 'prenom', 'nom', 'corps', 'emploi'],
     filters: {
-      CORPS: 'string',
-      EMPLOI: 'string',
-      SECTION: 'string',
-      DIRECTION: 'string'
+      corps: 'string',
+      emploi: 'string',
+      section: 'string',
+      direction: 'string'
     },
     theme: 'pro'
   },
@@ -90,13 +102,13 @@ export default {
   'permis.tables': {
     display: 'permis',
     database: 'permis',
-    searchable: ['NumeroPermis', 'Prenoms', 'Nom', 'Numeropiece', 'Categorie', 'LieuNaissance'],
-    preview: ['NumeroPermis', 'Prenoms', 'Nom', 'Categorie', 'DateObtention'],
+    searchable: ['numero_permis', 'prenoms', 'nom', 'numeropiece', 'categorie', 'lieu_naissance'],
+    preview: ['numero_permis', 'prenoms', 'nom', 'categorie', 'date_obtention'],
     filters: {
-      Categorie: 'enum',
-      Sexe: 'enum',
-      DateObtention: 'date',
-      DateNaissance: 'date'
+      categorie: 'enum',
+      sexe: 'enum',
+      date_obtention: 'date',
+      date_naissance: 'date'
     },
     theme: 'transport'
   },
@@ -120,10 +132,10 @@ export default {
   'elections.bambey': {
     display: 'bambey',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -133,10 +145,10 @@ export default {
   'elections.dagana': {
     display: 'dagana',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -146,10 +158,10 @@ export default {
   'elections.dakar': {
     display: 'dakar',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -159,10 +171,10 @@ export default {
   'elections.diourbel': {
     display: 'diourbel',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -172,10 +184,10 @@ export default {
   'elections.fatick': {
     display: 'fatick',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -185,10 +197,10 @@ export default {
   'elections.guediawaye': {
     display: 'guediawaye',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -198,10 +210,10 @@ export default {
   'elections.guinguineo': {
     display: 'guinguineo',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -211,10 +223,10 @@ export default {
   'elections.kaffrine': {
     display: 'kaffrine',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -224,10 +236,10 @@ export default {
   'elections.kaolack': {
     display: 'kaolack',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -237,10 +249,10 @@ export default {
   'elections.kedougou': {
     display: 'kedougou',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -250,10 +262,10 @@ export default {
   'elections.kolda': {
     display: 'kolda',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -263,10 +275,10 @@ export default {
   'elections.louga': {
     display: 'louga',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -276,10 +288,10 @@ export default {
   'elections.matam': {
     display: 'matam',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -289,10 +301,10 @@ export default {
   'elections.mbacke': {
     display: 'mbacke',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -302,10 +314,10 @@ export default {
   'elections.nioro': {
     display: 'nioro',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -315,10 +327,10 @@ export default {
   'elections.pikine': {
     display: 'pikine',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -328,10 +340,10 @@ export default {
   'elections.podor': {
     display: 'podor',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -341,10 +353,10 @@ export default {
   'elections.rufisque': {
     display: 'rufisque',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -354,10 +366,10 @@ export default {
   'elections.saintlouis': {
     display: 'saintlouis',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -367,10 +379,10 @@ export default {
   'elections.sedhiou': {
     display: 'sedhiou',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -380,10 +392,10 @@ export default {
   'elections.thies': {
     display: 'thies',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -393,10 +405,10 @@ export default {
   'elections.ziguinchor': {
     display: 'ziguinchor',
     database: 'elections',
-    searchable: ['numero_electeur', 'prenoms', 'nom', 'CNI', 'lieunaiss'],
-    preview: ['numero_electeur', 'prenoms', 'nom', 'CNI'],
+    searchable: ['numero_electeur', 'prenoms', 'nom', 'cni', 'lieunaiss'],
+    preview: ['numero_electeur', 'prenoms', 'nom', 'cni'],
     filters: {
-      CNI: 'string',
+      cni: 'string',
       datenaiss: 'date',
       lieunaiss: 'string'
     },
@@ -448,13 +460,13 @@ export default {
   'autres.annuaire_gendarmerie': {
     display: 'annuaire_gendarmerie',
     database: 'autres',
-    searchable: ['Libelle', 'Telephone', 'SousCategorie', 'Secteur'],
-    preview: ['Libelle', 'Telephone', 'SousCategorie', 'Secteur'],
+    searchable: ['libelle', 'telephone', 'souscategorie', 'secteur'],
+    preview: ['libelle', 'telephone', 'souscategorie', 'secteur'],
     filters: {
-      Libelle: 'string',
-      Telephone: 'string',
-      SousCategorie: 'string',
-      Secteur: 'string'
+      libelle: 'string',
+      telephone: 'string',
+      souscategorie: 'string',
+      secteur: 'string'
     },
     theme: 'pro'
   },
@@ -568,26 +580,36 @@ export default {
   'autres.demdikk': {
     display: 'demdikk',
     database: 'autres',
-    searchable: ['Prenom', 'Nom', 'Numero', 'PassePort'],
-    preview: ['Prenom', 'Nom', 'Numero', 'PassePort'],
+    searchable: ['prenom', 'nom', 'numero', 'passeport'],
+    preview: ['prenom', 'nom', 'numero', 'passeport'],
     filters: {
-      Numero: 'string',
-      PassePort: 'string'
+      numero: 'string',
+      passeport: 'string'
     },
     theme: 'identite'
   },
 
-  'autres.Vehicules': {
-    display: 'Vehicules',
+  'autres.vehicules': {
+    display: 'vehicules',
     database: 'autres',
-    searchable: ['Numero_Immatriculation', 'Code_Type', 'Numero_Serie', 'Prenoms', 'Nom', 'Tel_Fixe', 'Tel_Portable', 'Marque', 'Categorie'],
-    preview: ['Numero_Immatriculation', 'Marque', 'Categorie', 'Prenoms', 'Nom'],
+    searchable: [
+      'numero_immatriculation',
+      'code_type',
+      'numero_serie',
+      'prenoms',
+      'nom',
+      'tel_fixe',
+      'tel_portable',
+      'marque',
+      'categorie'
+    ],
+    preview: ['numero_immatriculation', 'marque', 'categorie', 'prenoms', 'nom'],
     filters: {
-      Categorie: 'string',
-      Marque: 'string',
-      Energie: 'string',
-      Date_Mise_Circulation: 'date',
-      Genre: 'string'
+      categorie: 'string',
+      marque: 'string',
+      energie: 'string',
+      date_mise_circulation: 'date',
+      genre: 'string'
     },
     theme: 'transport'
   },
@@ -637,13 +659,23 @@ export default {
   'autres.fichemilitaire': {
     display: 'fichemilitaire',
     database: 'autres',
-    searchable: ['Nom', 'Prenom', 'Genre', 'MatriculeSolde', 'MatriculeMilitaire', 'CNI', 'Grade', 'Bataillon', 'Compagnie'],
-    preview: ['Nom', 'Prenom', 'CNI', 'Grade', 'Bataillon'],
+    searchable: [
+      'nom',
+      'prenom',
+      'genre',
+      'matricule_solde',
+      'matricule_militaire',
+      'cni',
+      'grade',
+      'bataillon',
+      'compagnie'
+    ],
+    preview: ['nom', 'prenom', 'cni', 'grade', 'bataillon'],
     filters: {
-      Genre: 'enum',
-      Grade: 'string',
-      Bataillon: 'string',
-      DateDeNaissance: 'date'
+      genre: 'enum',
+      grade: 'string',
+      bataillon: 'string',
+      date_de_naissance: 'date'
     },
     theme: 'militaire'
   },
@@ -652,16 +684,16 @@ export default {
     display: 'ong',
     database: 'autres',
     searchable: [
-      'OrganizationName',
-      'Name',
-      'EmailAddress',
-      'Telephone'
+      'organization_name',
+      'name',
+      'email_address',
+      'telephone'
     ],
-    preview: ['OrganizationName', 'Name', 'EmailAddress', 'Telephone'],
+    preview: ['organization_name', 'name', 'email_address', 'telephone'],
     filters: {
-      Type: 'string',
-      SelectAreaofInterest: 'string',
-      SelectSectorsofInterest: 'string'
+      type: 'string',
+      select_area_of_interest: 'string',
+      select_sectors_of_interest: 'string'
     },
     theme: 'ong'
   },
@@ -684,7 +716,7 @@ export default {
   'autres.uvs': {
     display: 'uvs',
     database: 'autres',
-    searchable: ['id', 'matricule', 'cniPasseport', 'prenom', 'nom', 'telephone', 'email', 'login'],
+    searchable: ['id', 'matricule', 'cni_passeport', 'prenom', 'nom', 'telephone', 'email', 'login'],
     linkedFields: ['telephone'],
     preview: ['id', 'prenom', 'nom', 'telephone', 'email'],
     filters: {
@@ -700,13 +732,13 @@ export default {
   'autres.collections': {
     display: 'collections',
     database: 'autres',
-    searchable: ['Nom', 'Prenom', 'DateNaissance', 'CNI', 'Telephone', 'Localite'],
-    preview: ['Nom', 'Prenom', 'Telephone', 'Localite'],
+    searchable: ['nom', 'prenom', 'date_naissance', 'cni', 'telephone', 'localite'],
+    preview: ['nom', 'prenom', 'telephone', 'localite'],
     filters: {
-      DateNaissance: 'date',
-      CNI: 'string',
-      Telephone: 'string',
-      Localite: 'string'
+      date_naissance: 'date',
+      cni: 'string',
+      telephone: 'string',
+      localite: 'string'
     },
     theme: 'identite',
   },

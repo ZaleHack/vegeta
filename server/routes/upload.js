@@ -152,7 +152,7 @@ router.get('/databases', authenticate, (req, res) => {
     { id: 'permis.tables', name: 'permis - tables', description: 'Permis de conduire' },
     { id: 'expresso.expresso', name: 'expresso - expresso', description: 'Données Expresso Money' },
     { id: 'elections.dakar', name: 'elections - dakar', description: 'Électeurs région Dakar' },
-    { id: 'autres.Vehicules', name: 'autres - vehicules', description: 'Immatriculations véhicules' },
+    { id: 'autres.vehicules', name: 'autres - vehicules', description: 'Immatriculations véhicules' },
     { id: 'autres.entreprises', name: 'autres - entreprises', description: 'Registre des entreprises' }
   ];
 
