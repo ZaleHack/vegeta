@@ -106,6 +106,121 @@ class DatabaseManager {
           .trim();
       };
 
+      const escapeDefaultValue = (value) => {
+        if (value === null) {
+          return 'DEFAULT NULL';
+        }
+
+        if (value && typeof value === 'object' && 'raw' in value) {
+          return `DEFAULT ${value.raw}`;
+        }
+
+        if (typeof value === 'number') {
+          return `DEFAULT ${value}`;
+        }
+
+        if (typeof value === 'boolean') {
+          return `DEFAULT ${value ? 1 : 0}`;
+        }
+
+        const stringValue = String(value ?? '');
+        const escaped = stringValue.replace(/'/g, "''");
+        return `DEFAULT '${escaped}'`;
+      };
+
+      const buildColumnDefinition = (definition) => {
+        const parts = [definition.type];
+        const isNullable = definition.nullable !== false;
+        parts.push(isNullable ? 'NULL' : 'NOT NULL');
+
+        if (Object.prototype.hasOwnProperty.call(definition, 'default')) {
+          parts.push(escapeDefaultValue(definition.default));
+        }
+
+        if (definition.extra) {
+          parts.push(definition.extra);
+        }
+
+        return parts.filter(Boolean).join(' ');
+      };
+
+      const getColumnInfo = async (tableName, columnName) => {
+        const [schemaName, ...rawTableParts] = tableName.split('.');
+        const tableId = rawTableParts.join('.');
+
+        if (!schemaName || !tableId) {
+          throw new Error(`Table name invalide: ${tableName}`);
+        }
+
+        return queryOne(
+          `
+            SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+          `,
+          [schemaName, tableId, columnName]
+        );
+      };
+
+      const ensureColumnDefinition = async (tableName, columnName, definition, existingInfo = null) => {
+        const columnInfo = existingInfo || (await getColumnInfo(tableName, columnName));
+        const columnDefinition = buildColumnDefinition(definition);
+
+        const applyColumn = async (action) => {
+          const positionClause = definition.after
+            ? ` AFTER \`${definition.after}\``
+            : definition.first
+              ? ' FIRST'
+              : '';
+
+          const sqlAction =
+            action === 'add'
+              ? `ALTER TABLE ${tableName} ADD COLUMN \`${columnName}\` ${columnDefinition}${positionClause}`
+              : `ALTER TABLE ${tableName} MODIFY COLUMN \`${columnName}\` ${columnDefinition}`;
+
+          await this.pool.execute(sqlAction);
+        };
+
+        if (!columnInfo) {
+          await applyColumn('add');
+          return { existed: false, changed: true };
+        }
+
+        const expectedType = definition.type?.trim().toUpperCase();
+        const actualType = columnInfo.COLUMN_TYPE?.trim().toUpperCase();
+        const typeMatches = expectedType === actualType;
+
+        const expectedNullable = definition.nullable !== false;
+        const actualNullable = columnInfo.IS_NULLABLE === 'YES';
+        const nullableMatches = expectedNullable === actualNullable;
+
+        const expectedDefault = Object.prototype.hasOwnProperty.call(definition, 'default')
+          ? definition.default
+          : undefined;
+
+        let defaultMatches = true;
+        if (expectedDefault !== undefined) {
+          if (expectedDefault === null) {
+            defaultMatches = columnInfo.COLUMN_DEFAULT === null;
+          } else if (typeof expectedDefault === 'object' && expectedDefault?.raw) {
+            defaultMatches = (columnInfo.COLUMN_DEFAULT || '').toUpperCase() === expectedDefault.raw.toUpperCase();
+          } else {
+            defaultMatches = (columnInfo.COLUMN_DEFAULT ?? '') === String(expectedDefault);
+          }
+        }
+
+        const expectedExtra = definition.extra ? definition.extra.trim().toUpperCase() : '';
+        const actualExtra = columnInfo.EXTRA ? columnInfo.EXTRA.trim().toUpperCase() : '';
+        const extraMatches = expectedExtra === actualExtra;
+
+        if (!typeMatches || !nullableMatches || !defaultMatches || !extraMatches) {
+          await applyColumn('modify');
+          return { existed: true, changed: true };
+        }
+
+        return { existed: true, changed: false };
+      };
+
       const cleanOrphanedDivisionReferences = async () => {
         await this.pool.execute(`
           UPDATE autres.users u
@@ -485,7 +600,7 @@ class DatabaseManager {
           phone VARCHAR(50) DEFAULT NULL,
           email VARCHAR(255) DEFAULT NULL,
           comment TEXT NOT NULL DEFAULT '',
-          extra_fields TEXT,
+          extra_fields TEXT NOT NULL DEFAULT '[]',
           photo_path VARCHAR(255) DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -493,6 +608,48 @@ class DatabaseManager {
           FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
+
+      const commentInfo = await getColumnInfo('autres.profiles', 'comment');
+      if (commentInfo) {
+        await this.pool.execute(
+          `UPDATE autres.profiles SET comment = '' WHERE comment IS NULL OR LOWER(TRIM(comment)) = 'null'`
+        );
+      }
+      await ensureColumnDefinition(
+        'autres.profiles',
+        'comment',
+        {
+          type: 'TEXT',
+          nullable: false,
+          default: '',
+          after: 'email'
+        },
+        commentInfo
+      );
+
+      const extraFieldsInfo = await getColumnInfo('autres.profiles', 'extra_fields');
+      if (extraFieldsInfo) {
+        await this.pool.execute(
+          `
+            UPDATE autres.profiles
+            SET extra_fields = '[]'
+            WHERE extra_fields IS NULL
+              OR TRIM(extra_fields) = ''
+              OR LOWER(TRIM(extra_fields)) = 'null'
+          `
+        );
+      }
+      await ensureColumnDefinition(
+        'autres.profiles',
+        'extra_fields',
+        {
+          type: 'TEXT',
+          nullable: false,
+          default: '[]',
+          after: 'comment'
+        },
+        extraFieldsInfo
+      );
 
       await query(`
         CREATE TABLE IF NOT EXISTS autres.profile_attachments (
