@@ -33,10 +33,38 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 };
 
 const formatLabel = (key: string): string => {
-  return key
+  const sanitized = key
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+  if (!sanitized) {
+    return key;
+  }
+
+  return sanitized
+    .split(' ')
+    .map((word) => {
+      if (!word) {
+        return word;
+      }
+
+      const alphaNumeric = word.replace(/[^a-zA-Z0-9]/g, '');
+      if (!alphaNumeric) {
+        return word;
+      }
+
+      if (/^[0-9]+$/.test(alphaNumeric)) {
+        return word;
+      }
+
+      if (/^[a-zA-Z]+$/.test(alphaNumeric) && alphaNumeric.length <= 3) {
+        return word.toUpperCase();
+      }
+
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
 };
 
 const isEmptyValue = (value: unknown): boolean => {
@@ -86,14 +114,16 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
   const seenKeys = new Set<string>();
 
   const pushEntry = (key: string, rawValue: unknown) => {
-    if (key.toLowerCase() === 'id') {
+    const normalizedKey = typeof key === 'string' ? key.trim() : String(key);
+    const dedupeKey = normalizedKey.toLowerCase();
+
+    if (dedupeKey === 'id') {
       return;
     }
     if (isEmptyValue(rawValue)) {
       return;
     }
-    const normalizedKey = key;
-    if (seenKeys.has(normalizedKey)) {
+    if (seenKeys.has(dedupeKey)) {
       return;
     }
     const value = stringifyValue(rawValue);
@@ -106,7 +136,7 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
       label,
       value
     });
-    seenKeys.add(normalizedKey);
+    seenKeys.add(dedupeKey);
   };
 
   const source: Record<string, unknown> = {};
