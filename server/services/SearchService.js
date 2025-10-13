@@ -5,6 +5,39 @@ import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
 
+const EXCLUDED_SEARCH_TABLES = new Set(
+  [
+    'autres.blacklist',
+    'autres.divisions',
+    'autres.profiles',
+    'autres.profile_attachments',
+    'autres.profile_shares',
+    'autres.structuresanctions',
+    'autres.structuresanction',
+    'autres.search_logs',
+    'autres.search_sync_events',
+    'autres.upload_history',
+    'autres.users',
+    'autres.users_log',
+    'autres.user_logs',
+    'autres.user_sessions',
+    'blacklist',
+    'divisions',
+    'profiles',
+    'profile_attachments',
+    'profile_shares',
+    'structuresanctions',
+    'structuresanction',
+    'search_logs',
+    'search_sync_events',
+    'upload_history',
+    'users',
+    'users_log',
+    'user_logs',
+    'user_sessions'
+  ].map((name) => name.toLowerCase())
+);
+
 const UNIQUE_SEARCH_FIELDS = new Set(
   [
     'CNI',
@@ -44,6 +77,20 @@ class SearchService {
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
     }
+  }
+
+  isTableExcluded(tableName) {
+    if (!tableName) {
+      return false;
+    }
+
+    const normalized = String(tableName).toLowerCase();
+    if (EXCLUDED_SEARCH_TABLES.has(normalized)) {
+      return true;
+    }
+
+    const [, withoutSchema = normalized] = normalized.split('.');
+    return EXCLUDED_SEARCH_TABLES.has(withoutSchema);
   }
 
   normalizeFieldName(field) {
@@ -367,6 +414,9 @@ class SearchService {
     const results = [];
     const tablesSearched = [];
     const catalog = this.catalog;
+    const searchableCatalogEntries = Object.entries(catalog).filter(
+      ([tableName]) => !this.isTableExcluded(tableName)
+    );
 
     if (!query || query.trim().length === 0) {
       throw new Error('Le terme de recherche ne peut pas être vide');
@@ -376,7 +426,7 @@ class SearchService {
     const searchTerms = this.parseSearchQuery(query);
 
     // Lancer les recherches en parallèle sur toutes les tables du catalogue
-    const searchPromises = Object.entries(catalog).map(
+    const searchPromises = searchableCatalogEntries.map(
       ([tableName, config]) =>
         this.searchInTable(tableName, config, searchTerms, filters)
           .then((tableResults) => ({ tableName, tableResults }))
