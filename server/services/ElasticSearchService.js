@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
+import { UNIQUE_SEARCH_FIELDS } from '../utils/search-constants.js';
 
 class ElasticSearchService {
   constructor() {
@@ -322,9 +323,6 @@ class ElasticSearchService {
       }
 
       const normalizedField = typeof field === 'string' ? field.toLowerCase() : String(field);
-      if (normalizedField === 'id') {
-        return;
-      }
 
       if (value === null || value === undefined || value === '') {
         return;
@@ -691,6 +689,62 @@ class ElasticSearchService {
     return entries;
   }
 
+  normalizeIdentifierValue(value) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    if (Buffer.isBuffer(value)) {
+      return value.toString('utf8').trim();
+    }
+
+    return String(value);
+  }
+
+  extractUniqueIdentifiers(source, preview = {}) {
+    const identifiers = [];
+    const seen = new Set();
+
+    const processRecord = (record) => {
+      if (!record || typeof record !== 'object') {
+        return;
+      }
+      Object.entries(record).forEach(([key, value]) => {
+        const normalizedKey = typeof key === 'string' ? key.toLowerCase() : String(key);
+        if (!normalizedKey || !UNIQUE_SEARCH_FIELDS.has(normalizedKey)) {
+          return;
+        }
+        const normalizedValue = this.normalizeIdentifierValue(value);
+        if (!normalizedValue) {
+          return;
+        }
+        const dedupeKey = `${normalizedKey}:${normalizedValue.toLowerCase()}`;
+        if (seen.has(dedupeKey)) {
+          return;
+        }
+        seen.add(dedupeKey);
+        identifiers.push({ field: key, normalizedField: normalizedKey, value: normalizedValue });
+      });
+    };
+
+    processRecord(source);
+    processRecord(preview);
+
+    return identifiers;
+  }
+
   normalizeHit(hit) {
     const source = hit?._source || {};
     const preview = this.buildPreviewFromSource(source);
@@ -703,13 +757,16 @@ class ElasticSearchService {
         ? source.primary_keys
         : { [primaryKeyName]: primaryValue };
 
+    const uniqueIdentifiers = this.extractUniqueIdentifiers(source, preview);
+
     return {
       table: tableDisplay,
       table_name: tableName,
       database: source.database_name || 'Elasticsearch',
       preview,
       primary_keys: primaryKeys,
-      score: typeof hit?._score === 'number' ? hit._score : undefined
+      score: typeof hit?._score === 'number' ? hit._score : undefined,
+      unique_identifiers: uniqueIdentifiers
     };
   }
 
