@@ -49,7 +49,8 @@ import {
   X,
   Scan,
   MapPinOff,
-  CheckCircle2
+  CheckCircle2,
+  Sparkles
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
@@ -104,6 +105,31 @@ const FRAUD_ROLE_LABELS: Record<string, string> = {
   caller: 'Appelant',
   callee: 'Appelé',
   target: 'Cible'
+};
+
+const SUGGESTED_SEARCHES = [
+  'CNI 192837465',
+  'Téléphone +22505060708',
+  'Immatriculation AB-123-CD',
+  'Nom DUPONT Marie'
+];
+
+type ScoreFilter = 'all' | 'high' | 'medium' | 'low';
+
+const SCORE_FILTER_OPTIONS: { value: ScoreFilter; label: string }[] = [
+  { value: 'all', label: 'Tous les scores' },
+  { value: 'high', label: 'Score ≥ 80' },
+  { value: 'medium', label: 'Score 50-79' },
+  { value: 'low', label: 'Score < 50' }
+];
+
+const normalizeLabelValue = (value: unknown, fallback: string): string => {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : fallback;
 };
 
 const getUploadModeLabel = (mode?: string | null) => {
@@ -681,9 +707,150 @@ const App: React.FC = () => {
   const [displayedHits, setDisplayedHits] = useState<SearchResult[]>([]);
   const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [selectedTables, setSelectedTables] = useState<string[]>([]);
+  const [selectedDatabases, setSelectedDatabases] = useState<string[]>([]);
+  const [scoreFilter, setScoreFilter] = useState<ScoreFilter>('all');
   const abortControllerRef = useRef<AbortController | null>(null);
   const progressiveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastQueryRef = useRef<{ query: string; page: number; limit: number } | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const stored = window.localStorage.getItem('recentSearches');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setRecentSearches(parsed.filter((entry) => typeof entry === 'string'));
+        }
+      }
+    } catch (error) {
+      console.warn('Impossible de charger les recherches récentes', error);
+    }
+  }, []);
+
+  const updateRecentSearches = useCallback((query: string) => {
+    const normalized = query.trim();
+    if (!normalized) {
+      return;
+    }
+
+    setRecentSearches((prev) => {
+      const next = [normalized, ...prev.filter((entry) => entry !== normalized)].slice(0, 5);
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem('recentSearches', JSON.stringify(next));
+        } catch (error) {
+          console.warn("Impossible d'enregistrer les recherches récentes", error);
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const availableTables = useMemo(() => {
+    if (!searchResults || !Array.isArray(searchResults.hits)) {
+      return [] as string[];
+    }
+
+    const seen = new Set<string>();
+    searchResults.hits.forEach((hit) => {
+      const label = normalizeLabelValue(
+        (hit.table_name as string | undefined | null) ?? (hit.table as string | undefined | null),
+        'Non spécifié'
+      );
+      seen.add(label);
+    });
+    return Array.from(seen).sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [searchResults]);
+
+  const availableDatabases = useMemo(() => {
+    if (!searchResults || !Array.isArray(searchResults.hits)) {
+      return [] as string[];
+    }
+
+    const seen = new Set<string>();
+    searchResults.hits.forEach((hit) => {
+      const label = normalizeLabelValue(hit.database as string | undefined | null, 'Autre source');
+      seen.add(label);
+    });
+    return Array.from(seen).sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [searchResults]);
+
+  const hasActiveFilters = selectedTables.length > 0 || selectedDatabases.length > 0 || scoreFilter !== 'all';
+
+  const toggleTableFilter = useCallback((table: string) => {
+    setSelectedTables((prev) =>
+      prev.includes(table) ? prev.filter((entry) => entry !== table) : [...prev, table]
+    );
+  }, []);
+
+  const toggleDatabaseFilter = useCallback((database: string) => {
+    setSelectedDatabases((prev) =>
+      prev.includes(database) ? prev.filter((entry) => entry !== database) : [...prev, database]
+    );
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setSelectedTables([]);
+    setSelectedDatabases([]);
+    setScoreFilter('all');
+  }, []);
+
+  const applySearchFilters = useCallback(
+    (hits: SearchResult[]) => {
+      const toScore = (score: unknown): number | undefined => {
+        if (typeof score === 'number' && Number.isFinite(score)) {
+          return score;
+        }
+        const parsed = Number(score);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      };
+
+      const filtered = hits.filter((hit) => {
+        const tableLabel = normalizeLabelValue(
+          (hit.table_name as string | undefined | null) ?? (hit.table as string | undefined | null),
+          'Non spécifié'
+        );
+        const databaseLabel = normalizeLabelValue(hit.database as string | undefined | null, 'Autre source');
+        const matchesTable = selectedTables.length === 0 || selectedTables.includes(tableLabel);
+        const matchesDatabase =
+          selectedDatabases.length === 0 || selectedDatabases.includes(databaseLabel);
+
+        const numericScore = toScore(hit.score);
+        let matchesScore = true;
+
+        switch (scoreFilter) {
+          case 'high':
+            matchesScore = (numericScore ?? 0) >= 80;
+            break;
+          case 'medium':
+            matchesScore = (numericScore ?? 0) >= 50 && (numericScore ?? 0) < 80;
+            break;
+          case 'low':
+            matchesScore = numericScore !== undefined && numericScore < 50;
+            break;
+          default:
+            matchesScore = true;
+            break;
+        }
+
+        return matchesTable && matchesDatabase && matchesScore;
+      });
+
+      return filtered.sort((a, b) => {
+        const scoreA = toScore(a.score) ?? -Infinity;
+        const scoreB = toScore(b.score) ?? -Infinity;
+        return scoreB - scoreA;
+      });
+    },
+    [scoreFilter, selectedDatabases, selectedTables]
+  );
+
   const initialRoute = useMemo<InitialRoute>(() => {
     if (typeof window === 'undefined') {
       return {};
@@ -766,6 +933,16 @@ const App: React.FC = () => {
     },
     []
   );
+
+  useEffect(() => {
+    if (!searchResults) {
+      resetProgressiveDisplay();
+      return;
+    }
+
+    const filteredHits = applySearchFilters(searchResults.hits);
+    progressivelyDisplayHits(filteredHits, { reset: true });
+  }, [applySearchFilters, progressivelyDisplayHits, resetProgressiveDisplay, searchResults]);
 
   useEffect(() => {
     return () => {
@@ -2060,7 +2237,7 @@ const App: React.FC = () => {
       if (response.ok) {
         const normalizedData = normalizeSearchResponse(data);
         setSearchResults(normalizedData);
-        progressivelyDisplayHits(normalizedData.hits, { reset: true });
+        updateRecentSearches(trimmedQuery);
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors de la recherche');
@@ -2075,6 +2252,19 @@ const App: React.FC = () => {
       abortControllerRef.current = null;
     }
   };
+
+  const handleQuickSearch = useCallback(
+    (value: string) => {
+      const normalized = value.trim();
+      if (!normalized) {
+        return;
+      }
+
+      setSearchQuery(normalized);
+      handleSearch(undefined, normalized);
+    },
+    [handleSearch]
+  );
 
   const loadMoreResults = async () => {
     if (loading) return;
@@ -2130,7 +2320,6 @@ const App: React.FC = () => {
               }
             : normalizedData
         );
-        progressivelyDisplayHits(normalizedData.hits);
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors du chargement des résultats');
@@ -5254,6 +5443,61 @@ useEffect(() => {
                 </form>
               </div>
 
+              {(recentSearches.length > 0 || SUGGESTED_SEARCHES.length > 0) && (
+                <div className="bg-white shadow-xl rounded-2xl p-6">
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-blue-500" />
+                        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                          Recherches récentes
+                        </h3>
+                      </div>
+                      {recentSearches.length === 0 ? (
+                        <p className="text-sm text-gray-500">
+                          Les dernières requêtes apparaîtront ici pour un accès rapide.
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {recentSearches.map((query) => (
+                            <button
+                              key={query}
+                              type="button"
+                              onClick={() => handleQuickSearch(query)}
+                              className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
+                            >
+                              <Search className="h-3.5 w-3.5" />
+                              {query}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                          Suggestions intelligentes
+                        </h3>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {SUGGESTED_SEARCHES.map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            type="button"
+                            onClick={() => handleQuickSearch(suggestion)}
+                            className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700 transition hover:bg-amber-100"
+                          >
+                            <ArrowRight className="h-3.5 w-3.5" />
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Erreur de recherche */}
               {searchError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl">
@@ -5268,6 +5512,112 @@ useEffect(() => {
                 </div>
               )}
               {loading && <LoadingSpinner />}
+
+              {searchResults && searchResults.total > 0 && (
+                <div className="bg-white shadow-xl rounded-2xl p-6 space-y-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        Affiner les résultats
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Sélectionnez des sources ou ajustez le niveau de confiance pour réduire le bruit.
+                      </p>
+                    </div>
+                    {hasActiveFilters && (
+                      <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Réinitialiser
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                        Tables analysées
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {availableTables.length === 0 ? (
+                          <p className="text-sm text-gray-500">Aucune table détectée.</p>
+                        ) : (
+                          availableTables.map((table) => {
+                            const isActive = selectedTables.includes(table);
+                            return (
+                              <button
+                                key={table}
+                                type="button"
+                                onClick={() => toggleTableFilter(table)}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition ${
+                                  isActive
+                                    ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
+                                    : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                                }`}
+                              >
+                                {isActive && <CheckCircle2 className="h-3.5 w-3.5" />}
+                                {table}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                        Bases de données
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {availableDatabases.length === 0 ? (
+                          <p className="text-sm text-gray-500">Aucune base supplémentaire détectée.</p>
+                        ) : (
+                          availableDatabases.map((database) => {
+                            const isActive = selectedDatabases.includes(database);
+                            return (
+                              <button
+                                key={database}
+                                type="button"
+                                onClick={() => toggleDatabaseFilter(database)}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition ${
+                                  isActive
+                                    ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm'
+                                    : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                                }`}
+                              >
+                                {isActive && <CheckCircle2 className="h-3.5 w-3.5" />}
+                                {database}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                      Score de confiance
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {SCORE_FILTER_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setScoreFilter(option.value)}
+                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                            scoreFilter === option.value
+                              ? 'bg-indigo-600 text-white shadow'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Résultats */}
               {searchResults && (
