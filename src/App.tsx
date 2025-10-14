@@ -741,7 +741,8 @@ const App: React.FC = () => {
       setIsProgressiveLoading(true);
 
       let index = 0;
-      const chunkSize = Math.max(1, Math.ceil(hitsToAdd.length / 5));
+      const chunkSize =
+        hitsToAdd.length <= 5 ? hitsToAdd.length : Math.max(1, Math.ceil(hitsToAdd.length / 5));
       let resetPending = shouldReset;
 
       const addChunk = () => {
