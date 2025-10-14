@@ -18,7 +18,16 @@ class DatabaseManager {
 
     return Object.entries(row).reduce((acc, [key, value]) => {
       if (typeof key === 'string') {
-        acc[key.toLowerCase()] = value;
+        // Conserve the original casing so that consumers relying on the
+        // database column names (e.g. Numero_Immatriculation) continue to work
+        // while still exposing a lowercase variant for backwards
+        // compatibility with existing code paths.
+        acc[key] = value;
+
+        const lowerKey = key.toLowerCase();
+        if (lowerKey !== key && !Object.prototype.hasOwnProperty.call(acc, lowerKey)) {
+          acc[lowerKey] = value;
+        }
       } else {
         acc[key] = value;
       }
