@@ -498,14 +498,14 @@ interface SessionLog {
 
 interface OngEntry {
   id: number;
-  OrganizationName: string;
-  Type: string;
-  Name: string;
-  Title: string;
-  EmailAddress: string;
-  Telephone: string;
-  SelectAreaofInterest: string;
-  SelectSectorsofInterest: string;
+  organization_name: string;
+  type: string;
+  name: string;
+  title: string;
+  email_address: string;
+  telephone: string;
+  select_area_of_Interest: string;
+  select_sectors_of_interest: string;
   created_at: string;
 }
 
@@ -5861,14 +5861,14 @@ useEffect(() => {
                       <thead className="bg-slate-100/80 dark:bg-slate-800/80">
                         <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
                           <th className="px-6 py-3">ID</th>
-                          <th className="px-6 py-3">OrganizationName</th>
-                          <th className="px-6 py-3">Type</th>
-                          <th className="px-6 py-3">Name</th>
-                          <th className="px-6 py-3">Title</th>
-                          <th className="px-6 py-3">EmailAddress</th>
-                          <th className="px-6 py-3">Telephone</th>
-                          <th className="px-6 py-3">SelectAreaofInterest</th>
-                          <th className="px-6 py-3">SelectSectorsofInterest</th>
+                          <th className="px-6 py-3">organization_name</th>
+                          <th className="px-6 py-3">type</th>
+                          <th className="px-6 py-3">name</th>
+                          <th className="px-6 py-3">title</th>
+                          <th className="px-6 py-3">email_address</th>
+                          <th className="px-6 py-3">telephone</th>
+                          <th className="px-6 py-3">select_area_of_Interest</th>
+                          <th className="px-6 py-3">select_sectors_of_interest</th>
                           <th className="px-6 py-3">created_at</th>
                         </tr>
                       </thead>
@@ -5876,14 +5876,14 @@ useEffect(() => {
                         {paginatedOng.map(entry => (
                           <tr key={entry.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60">
                             <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.OrganizationName}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.Type}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.Name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.Title}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.EmailAddress}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.SelectAreaofInterest}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.SelectSectorsofInterest}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.organization_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.type}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.title}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.email_address}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.telephone}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.select_area_of_Interest}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.select_sectors_of_interest}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.created_at}</td>
                           </tr>
                         ))}
