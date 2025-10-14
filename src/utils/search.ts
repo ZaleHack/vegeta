@@ -139,19 +139,7 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
     seenKeys.add(dedupeKey);
   };
 
-  const source: Record<string, unknown> = {};
-  if (isRecord(hit.preview)) {
-    Object.assign(source, hit.preview as Record<string, unknown>);
-  } else {
-    Object.entries(hit).forEach(([key, value]) => {
-      if (FALLBACK_EXCLUDED_FIELDS.has(key)) {
-        return;
-      }
-      source[key] = value;
-    });
-  }
-
-  Object.entries(source).forEach(([key, value]) => {
+  const processEntry = (key: string, value: unknown) => {
     if (key === 'data') {
       let parsed: unknown = value;
       if (typeof parsed === 'string') {
@@ -179,6 +167,19 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
     }
 
     pushEntry(key, value);
+  };
+
+  if (isRecord(hit.preview)) {
+    Object.entries(hit.preview).forEach(([key, value]) => {
+      processEntry(key, value);
+    });
+  }
+
+  Object.entries(hit).forEach(([key, value]) => {
+    if (FALLBACK_EXCLUDED_FIELDS.has(key)) {
+      return;
+    }
+    processEntry(key, value);
   });
 
   return entries;
