@@ -775,40 +775,19 @@ const App: React.FC = () => {
 
       const shouldReset = options?.reset ?? false;
 
-      if (shouldReset) {
-        setDisplayedHits([]);
-      }
-
-      if (hitsToAdd.length === 0) {
-        setIsProgressiveLoading(false);
-        return;
-      }
-
-      setIsProgressiveLoading(true);
-
-      let index = 0;
-      const chunkSize = Math.max(1, Math.ceil(hitsToAdd.length / 5));
-      let resetPending = shouldReset;
-
-      const addChunk = () => {
-        setDisplayedHits((prev) => {
-          const base = resetPending ? [] : prev;
-          resetPending = false;
-          const nextChunk = hitsToAdd.slice(index, index + chunkSize);
-          return [...base, ...nextChunk];
-        });
-
-        index += chunkSize;
-
-        if (index < hitsToAdd.length) {
-          progressiveTimerRef.current = setTimeout(addChunk, 200);
-        } else {
-          setIsProgressiveLoading(false);
-          progressiveTimerRef.current = null;
+      setDisplayedHits((prev) => {
+        if (shouldReset) {
+          return [...hitsToAdd];
         }
-      };
 
-      addChunk();
+        if (hitsToAdd.length === 0) {
+          return prev;
+        }
+
+        return [...prev, ...hitsToAdd];
+      });
+
+      setIsProgressiveLoading(false);
     },
     []
   );
