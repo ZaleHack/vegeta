@@ -659,18 +659,19 @@ class SearchService {
       .map(({ column, alias }) => this.buildSelectClause(column, alias))
       .join(', ');
 
-    let searchableMappings = this.mapFields(config.searchable || [], columnInfo);
+    const combinedSearchFields = [
+      ...(Array.isArray(tableColumns) ? tableColumns : []),
+      ...(config.searchable || []),
+      ...(config.preview || []),
+      ...(config.linkedFields || []),
+    ].filter((field) => typeof field === 'string' && field.toLowerCase() !== 'id');
+
+    let searchableMappings = this.mapFields(combinedSearchFields, columnInfo);
 
     if (searchableMappings.length === 0) {
-      const preferredColumns = tableColumns.filter(
-        (column) => typeof column === 'string' && column.toLowerCase() !== 'id'
+      const fallbackColumns = Array.from(fields).filter(
+        (field) => typeof field === 'string' && field.toLowerCase() !== 'id'
       );
-
-      const fallbackColumns = preferredColumns.length > 0
-        ? preferredColumns
-        : Array.from(fields).filter(
-            (field) => typeof field === 'string' && field.toLowerCase() !== 'id'
-          );
 
       searchableMappings = fallbackColumns.map((column) => ({
         column,
