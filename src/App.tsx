@@ -504,7 +504,7 @@ interface OngEntry {
   title: string;
   email_address: string;
   telephone: string;
-  select_area_of_Interest: string;
+  select_area_of_interest: string;
   select_sectors_of_interest: string;
   created_at: string;
 }
@@ -5867,7 +5867,7 @@ useEffect(() => {
                           <th className="px-6 py-3">title</th>
                           <th className="px-6 py-3">email_address</th>
                           <th className="px-6 py-3">telephone</th>
-                          <th className="px-6 py-3">select_area_of_Interest</th>
+                        <th className="px-6 py-3">select_area_of_interest</th>
                           <th className="px-6 py-3">select_sectors_of_interest</th>
                           <th className="px-6 py-3">created_at</th>
                         </tr>
@@ -5882,7 +5882,7 @@ useEffect(() => {
                             <td className="px-6 py-4 whitespace-nowrap">{entry.title}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.email_address}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.telephone}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.select_area_of_Interest}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.select_area_of_interest}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.select_sectors_of_interest}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.created_at}</td>
                           </tr>
