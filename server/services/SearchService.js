@@ -865,7 +865,7 @@ class SearchService {
       } else if (term.type === 'required') {
         // Terme obligatoire (doit être présent)
         for (const field of searchableColumns) {
-          termConditions.push(`${this.quoteIdentifier(field)} LIKE ? ESCAPE '\\'`);
+          termConditions.push(`${this.quoteIdentifier(field)} LIKE ?`);
           params.push(this.buildContainsPattern(term.value));
         }
       } else if (term.type === 'field') {
@@ -877,7 +877,7 @@ class SearchService {
 
         if (matchingFields.length > 0) {
           for (const { column } of matchingFields) {
-            termConditions.push(`${this.quoteIdentifier(column)} LIKE ? ESCAPE '\\'`);
+            termConditions.push(`${this.quoteIdentifier(column)} LIKE ?`);
             params.push(this.buildContainsPattern(term.value));
           }
         } else {
@@ -886,16 +886,14 @@ class SearchService {
             columnInfo
           );
           if (resolvedColumn) {
-            termConditions.push(
-              `${this.quoteIdentifier(resolvedColumn)} LIKE ? ESCAPE '\\'`
-            );
+            termConditions.push(`${this.quoteIdentifier(resolvedColumn)} LIKE ?`);
             params.push(this.buildContainsPattern(term.value));
           }
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
         for (const field of searchableColumns) {
-          termConditions.push(`${this.quoteIdentifier(field)} LIKE ? ESCAPE '\\'`);
+          termConditions.push(`${this.quoteIdentifier(field)} LIKE ?`);
           params.push(this.buildContainsPattern(term.value));
         }
       }
@@ -932,7 +930,7 @@ class SearchService {
     for (const term of excludeTerms) {
       const excludeConditions = [];
       for (const field of searchableColumns) {
-        excludeConditions.push(`${this.quoteIdentifier(field)} NOT LIKE ? ESCAPE '\\'`);
+        excludeConditions.push(`${this.quoteIdentifier(field)} NOT LIKE ?`);
         params.push(this.buildContainsPattern(term.value));
       }
       if (excludeConditions.length > 0) {
