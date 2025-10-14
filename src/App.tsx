@@ -50,13 +50,7 @@ import {
   Scan,
   MapPinOff,
   CheckCircle2,
-  History,
-  Sparkles,
-  Lightbulb,
-  Wand2,
-  Mail,
-  Hash,
-  Fingerprint
+  History
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
@@ -175,16 +169,6 @@ interface SearchHistoryEntry {
   timestamp: number;
 }
 
-type SearchInsightAccent = 'blue' | 'purple' | 'emerald' | 'amber' | 'pink';
-
-interface SearchInsight {
-  id: string;
-  title: string;
-  description: string;
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  accent: SearchInsightAccent;
-}
-
 const extractHitsFromPayload = (hits: RawHitsPayload): RawSearchResult[] => {
   if (Array.isArray(hits)) {
     return hits;
@@ -253,29 +237,6 @@ const loadSearchHistoryFromStorage = (): SearchHistoryEntry[] => {
   } catch (error) {
     console.error('Impossible de lire l\'historique de recherche:', error);
     return [];
-  }
-};
-
-const insightAccentStyles: Record<SearchInsightAccent, { text: string; bg: string }> = {
-  blue: {
-    text: 'text-blue-600 dark:text-blue-200',
-    bg: 'bg-blue-50 dark:bg-blue-500/10'
-  },
-  purple: {
-    text: 'text-purple-600 dark:text-purple-200',
-    bg: 'bg-purple-50 dark:bg-purple-500/10'
-  },
-  emerald: {
-    text: 'text-emerald-600 dark:text-emerald-200',
-    bg: 'bg-emerald-50 dark:bg-emerald-500/10'
-  },
-  amber: {
-    text: 'text-amber-600 dark:text-amber-200',
-    bg: 'bg-amber-50 dark:bg-amber-500/10'
-  },
-  pink: {
-    text: 'text-pink-600 dark:text-pink-200',
-    bg: 'bg-pink-50 dark:bg-pink-500/10'
   }
 };
 
@@ -537,53 +498,53 @@ interface SessionLog {
 
 interface OngEntry {
   id: number;
-  organization_name: string;
-  type: string;
-  name: string;
-  title: string;
-  email_address: string;
-  telephone: string;
-  select_area_of_interest: string;
-  select_sectors_of_interest: string;
+  OrganizationName: string;
+  Type: string;
+  Name: string;
+  Title: string;
+  EmailAddress: string;
+  Telephone: string;
+  SelectAreaofInterest: string;
+  SelectSectorsofInterest: string;
   created_at: string;
 }
 
 interface VehiculeEntry {
   id: number;
-  numero_immatriculation: string;
-  code_type: string;
-  numero_serie: string;
-  date_immatriculation: string;
-  serie_immatriculation: string;
-  categorie: string;
-  marque: string;
-  appelation_com: string;
-  genre: string;
-  carrosserie: string;
-  etat_initial: string;
-  immat_etrangere: string;
-  date_etrangere: string;
-  date_mise_circulation: string;
-  date_premiere_immat: string;
-  energie: string;
-  puissance_adm: string;
-  cylindre: string;
-  places_assises: string;
-  ptr: string;
-  ptac_code: string;
-  poids_vide: string;
-  cu: string;
-  prenoms: string;
-  nom: string;
-  date_naissance: string;
-  exact: string;
-  lieu_naissance: string;
-  adresse_vehicule: string;
-  code_localite: string;
-  tel_fixe: string;
-  tel_portable: string;
-  prec_immat: string;
-  date_precimmat: string;
+  Numero_Immatriculation: string;
+  Code_Type: string;
+  Numero_Serie: string;
+  Date_Immatriculation: string;
+  Serie_Immatriculation: string;
+  Categorie: string;
+  Marque: string;
+  Appelation_Com: string;
+  Genre: string;
+  Carrosserie: string;
+  Etat_Initial: string;
+  Immat_Etrangere: string;
+  Date_Etrangere: string;
+  Date_Mise_Circulation: string;
+  Date_Premiere_Immat: string;
+  Energie: string;
+  Puissance_Adm: string;
+  Cylindre: string;
+  Places_Assises: string;
+  PTR: string;
+  PTAC_Code: string;
+  Poids_Vide: string;
+  CU: string;
+  Prenoms: string;
+  Nom: string;
+  Date_Naissance: string;
+  Exact: string;
+  Lieu_Naissance: string;
+  Adresse_Vehicule: string;
+  Code_Localite: string;
+  Tel_Fixe: string;
+  Tel_Portable: string;
+  PrecImmat: string;
+  Date_PrecImmat: string;
 }
 
 interface CdrContact {
@@ -934,85 +895,6 @@ const App: React.FC = () => {
       return '';
     }
   }, []);
-
-  const searchInsights = useMemo<SearchInsight[]>(() => {
-    const trimmed = searchQuery.trim();
-    const hints: SearchInsight[] = [];
-
-    if (!trimmed) {
-      hints.push({
-        id: 'empty',
-        title: 'Boostez votre recherche',
-        description:
-          'Saisissez un numéro, un nom ou une immatriculation pour explorer intelligemment toutes les bases.',
-        icon: Sparkles,
-        accent: 'purple'
-      });
-      return hints;
-    }
-
-    if (/^\+?\d{6,}$/.test(trimmed)) {
-      hints.push({
-        id: 'phone',
-        title: 'Numéro détecté',
-        description: 'Recherche croisée sur les bases téléphoniques et historiques d\'appels.',
-        icon: Phone,
-        accent: 'blue'
-      });
-    }
-
-    if (trimmed.includes('@')) {
-      hints.push({
-        id: 'email',
-        title: 'Adresse email',
-        description: 'Analyse des correspondances emails et profils associés.',
-        icon: Mail,
-        accent: 'emerald'
-      });
-    }
-
-    if (/\b[A-Z]{1,3}\d{5,}\b/.test(trimmed)) {
-      hints.push({
-        id: 'identifier',
-        title: 'Identifiant structuré',
-        description: 'Détection possible de CNI, plaques ou identifiants de dossiers.',
-        icon: Hash,
-        accent: 'amber'
-      });
-    }
-
-    if (/\b\d{13,}\b/.test(trimmed)) {
-      hints.push({
-        id: 'biometric',
-        title: 'Empreinte ou identifiant biométrique',
-        description: 'Recherche étendue sur les empreintes et identifiants sensibles.',
-        icon: Fingerprint,
-        accent: 'pink'
-      });
-    }
-
-    if (trimmed.split(/\s+/).length >= 3) {
-      hints.push({
-        id: 'advanced',
-        title: 'Expression complexe',
-        description: 'Utilisation des opérateurs intelligents pour affiner la recherche.',
-        icon: Lightbulb,
-        accent: 'emerald'
-      });
-    }
-
-    if (searchResults && searchResults.total === 0) {
-      hints.push({
-        id: 'no-result',
-        title: 'Aucun résultat direct',
-        description: 'Essayez une recherche approximative ou combinez plusieurs critères.',
-        icon: Wand2,
-        accent: 'purple'
-      });
-    }
-
-    return hints.slice(0, 4);
-  }, [searchQuery, searchResults]);
 
   const resetProgressiveDisplay = useCallback(() => {
     if (progressiveTimerRef.current) {
@@ -5626,39 +5508,6 @@ useEffect(() => {
                 </form>
               </div>
 
-              {searchInsights.length > 0 && (
-                <div className="rounded-2xl border border-blue-100/80 bg-gradient-to-br from-blue-50 via-white to-emerald-50/60 p-6 shadow-inner">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-600">
-                    <Sparkles className="h-4 w-4" />
-                    Assistant de recherche intelligent
-                  </div>
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    {searchInsights.map((insight) => {
-                      const Icon = insight.icon;
-                      const accent = insightAccentStyles[insight.accent];
-                      return (
-                        <div
-                          key={insight.id}
-                          className="flex items-start gap-4 rounded-2xl border border-white/60 bg-white/70 p-4 shadow-sm shadow-blue-100/40 backdrop-blur"
-                        >
-                          <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${accent.bg}`}>
-                            <Icon className={`h-5 w-5 ${accent.text}`} />
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                              {insight.title}
-                            </p>
-                            <p className="text-sm text-slate-500 dark:text-slate-300">
-                              {insight.description}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Erreur de recherche */}
               {searchError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl">
@@ -6012,14 +5861,14 @@ useEffect(() => {
                       <thead className="bg-slate-100/80 dark:bg-slate-800/80">
                         <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
                           <th className="px-6 py-3">ID</th>
-                          <th className="px-6 py-3">organization_name</th>
-                          <th className="px-6 py-3">type</th>
-                          <th className="px-6 py-3">name</th>
-                          <th className="px-6 py-3">title</th>
-                          <th className="px-6 py-3">email_address</th>
-                          <th className="px-6 py-3">telephone</th>
-                          <th className="px-6 py-3">select_area_of_interest</th>
-                          <th className="px-6 py-3">select_sectors_of_interest</th>
+                          <th className="px-6 py-3">OrganizationName</th>
+                          <th className="px-6 py-3">Type</th>
+                          <th className="px-6 py-3">Name</th>
+                          <th className="px-6 py-3">Title</th>
+                          <th className="px-6 py-3">EmailAddress</th>
+                          <th className="px-6 py-3">Telephone</th>
+                          <th className="px-6 py-3">SelectAreaofInterest</th>
+                          <th className="px-6 py-3">SelectSectorsofInterest</th>
                           <th className="px-6 py-3">created_at</th>
                         </tr>
                       </thead>
@@ -6027,14 +5876,14 @@ useEffect(() => {
                         {paginatedOng.map(entry => (
                           <tr key={entry.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60">
                             <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.organization_name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.type}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.title}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.email_address}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.telephone}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.select_area_of_interest}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.select_sectors_of_interest}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.OrganizationName}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Type}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Title}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.EmailAddress}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Telephone}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.SelectAreaofInterest}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.SelectSectorsofInterest}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{entry.created_at}</td>
                           </tr>
                         ))}
@@ -6224,80 +6073,80 @@ useEffect(() => {
                       <thead className="bg-slate-100/80 dark:bg-slate-800/80">
                         <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
                           <th className="px-6 py-3 whitespace-nowrap">ID</th>
-                          <th className="px-6 py-3 whitespace-nowrap">numero_immatriculation</th>
-                          <th className="px-6 py-3 whitespace-nowrap">code_type</th>
-                          <th className="px-6 py-3 whitespace-nowrap">numero_serie</th>
-                          <th className="px-6 py-3 whitespace-nowrap">date_immatriculation</th>
-                          <th className="px-6 py-3 whitespace-nowrap">serie_immatriculation</th>
-                          <th className="px-6 py-3 whitespace-nowrap">categorie</th>
-                          <th className="px-6 py-3 whitespace-nowrap">marque</th>
-                          <th className="px-6 py-3 whitespace-nowrap">appelation_com</th>
-                          <th className="px-6 py-3 whitespace-nowrap">genre</th>
-                          <th className="px-6 py-3 whitespace-nowrap">carrosserie</th>
-                          <th className="px-6 py-3 whitespace-nowrap">etat_initial</th>
-                          <th className="px-6 py-3 whitespace-nowrap">immat_etrangere</th>
-                          <th className="px-6 py-3 whitespace-nowrap">date_etrangere</th>
-                          <th className="px-6 py-3 whitespace-nowrap">date_mise_circulation</th>
-                          <th className="px-6 py-3 whitespace-nowrap">date_premiere_immat</th>
-                          <th className="px-6 py-3 whitespace-nowrap">energie</th>
-                          <th className="px-6 py-3 whitespace-nowrap">puissance_adm</th>
-                          <th className="px-6 py-3 whitespace-nowrap">cylindre</th>
-                          <th className="px-6 py-3 whitespace-nowrap">places_assises</th>
-                          <th className="px-6 py-3 whitespace-nowrap">ptr</th>
-                          <th className="px-6 py-3 whitespace-nowrap">ptac_code</th>
-                          <th className="px-6 py-3 whitespace-nowrap">poids_vide</th>
-                          <th className="px-6 py-3 whitespace-nowrap">cu</th>
-                          <th className="px-6 py-3 whitespace-nowrap">prenoms</th>
-                          <th className="px-6 py-3 whitespace-nowrap">nom</th>
-                          <th className="px-6 py-3 whitespace-nowrap">date_naissance</th>
-                          <th className="px-6 py-3 whitespace-nowrap">exact</th>
-                          <th className="px-6 py-3 whitespace-nowrap">lieu_naissance</th>
-                          <th className="px-6 py-3 whitespace-nowrap">adresse_vehicule</th>
-                          <th className="px-6 py-3 whitespace-nowrap">code_localite</th>
-                          <th className="px-6 py-3 whitespace-nowrap">tel_fixe</th>
-                          <th className="px-6 py-3 whitespace-nowrap">tel_portable</th>
-                          <th className="px-6 py-3 whitespace-nowrap">prec_immat</th>
-                          <th className="px-6 py-3 whitespace-nowrap">date_precimmat</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Numero_Immatriculation</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Code_Type</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Numero_Serie</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_Immatriculation</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Serie_Immatriculation</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Categorie</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Marque</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Appelation_Com</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Genre</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Carrosserie</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Etat_Initial</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Immat_Etrangere</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_Etrangere</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_Mise_Circulation</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_Premiere_Immat</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Energie</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Puissance_Adm</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Cylindre</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Places_Assises</th>
+                          <th className="px-6 py-3 whitespace-nowrap">PTR</th>
+                          <th className="px-6 py-3 whitespace-nowrap">PTAC_Code</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Poids_Vide</th>
+                          <th className="px-6 py-3 whitespace-nowrap">CU</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Prenoms</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Nom</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_Naissance</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Exact</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Lieu_Naissance</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Adresse_Vehicule</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Code_Localite</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Tel_Fixe</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Tel_Portable</th>
+                          <th className="px-6 py-3 whitespace-nowrap">PrecImmat</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Date_PrecImmat</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
                         {paginatedVehicules.map((entry) => (
                           <tr key={entry.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/60 dark:even:bg-slate-800/60">
                             <td className="px-6 py-4 whitespace-nowrap">{entry.id}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.numero_immatriculation}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.code_type}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.numero_serie}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.date_immatriculation}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.serie_immatriculation}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.categorie}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.marque}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.appelation_com}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.genre}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.carrosserie}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.etat_initial}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.immat_etrangere}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.date_etrangere}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.date_mise_circulation}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.date_premiere_immat}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.energie}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.puissance_adm}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.cylindre}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.places_assises}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.ptr}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.ptac_code}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.poids_vide}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.cu}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.prenoms}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.nom}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.date_naissance}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.exact}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.lieu_naissance}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.adresse_vehicule}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.code_localite}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.tel_fixe}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.tel_portable}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.prec_immat}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{entry.date_precimmat}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Numero_Immatriculation}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Code_Type}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Numero_Serie}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Immatriculation}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Serie_Immatriculation}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Categorie}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Marque}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Appelation_Com}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Genre}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Carrosserie}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Etat_Initial}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Immat_Etrangere}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Etrangere}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Mise_Circulation}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Premiere_Immat}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Energie}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Puissance_Adm}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Cylindre}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Places_Assises}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.PTR}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.PTAC_Code}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Poids_Vide}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.CU}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Prenoms}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Nom}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_Naissance}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Exact}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Lieu_Naissance}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Adresse_Vehicule}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Code_Localite}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Tel_Fixe}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Tel_Portable}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.PrecImmat}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{entry.Date_PrecImmat}</td>
                           </tr>
                         ))}
                       </tbody>
