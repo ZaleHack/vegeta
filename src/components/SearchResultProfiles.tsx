@@ -1,6 +1,7 @@
 import React from 'react';
 import { User } from 'lucide-react';
 import { SearchHit, NormalizedPreviewEntry } from '../utils/search';
+import StructuredPreviewValue from './StructuredPreviewValue';
 
 interface ProfilesProps {
   hits: SearchHit[];
@@ -66,13 +67,11 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
             </div>
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               {previewEntries.map((entry) => (
-                <div key={entry.key} className="flex flex-col">
-                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                <div key={entry.key} className="flex flex-col gap-2">
+                  <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     {entry.label}
                   </span>
-                  <span className="text-sm text-gray-900 dark:text-gray-100 break-words">
-                    {entry.value}
-                  </span>
+                  <StructuredPreviewValue value={entry.value} />
                 </div>
               ))}
             </div>

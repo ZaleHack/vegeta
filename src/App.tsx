@@ -71,6 +71,7 @@ import PaginationControls from './components/PaginationControls';
 import PageHeader from './components/PageHeader';
 import SearchResultProfiles from './components/SearchResultProfiles';
 import LoadingSpinner from './components/LoadingSpinner';
+import StructuredPreviewValue from './components/StructuredPreviewValue';
 import ProfileList, { ProfileListItem } from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
 import CdrMap from './components/CdrMap';
@@ -198,6 +199,7 @@ const mapPreviewEntries = (hits: RawHitsPayload): SearchResult[] =>
 const EXCLUDED_SEARCH_KEYS = new Set(['id', 'ID']);
 
 const SEARCH_HISTORY_STORAGE_KEY = 'sora-unified-search-history';
+const SEARCH_HISTORY_PREVIEW_LIMIT = 6;
 const SEARCH_HISTORY_LIMIT = 10;
 
 const loadSearchHistoryFromStorage = (): SearchHistoryEntry[] => {
@@ -808,6 +810,16 @@ const App: React.FC = () => {
     totalResultsCount > displayedResultsCount
       ? `${displayedResultsCount} résultat(s) sur ${totalResultsCount}`
       : `${displayedResultsCount} résultat(s)`;
+
+  const visibleHistoryEntries = useMemo(
+    () =>
+      (isHistoryOpen
+        ? searchHistory
+        : searchHistory.slice(0, SEARCH_HISTORY_PREVIEW_LIMIT)),
+    [isHistoryOpen, searchHistory]
+  );
+
+  const hasMoreHistoryEntries = searchHistory.length > SEARCH_HISTORY_PREVIEW_LIMIT;
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -5393,111 +5405,120 @@ useEffect(() => {
               {/* Barre de recherche */}
               <div className="bg-white shadow-xl rounded-2xl p-8">
                 <form onSubmit={handleSearch} className="space-y-6">
-                  <div className="relative" ref={searchHistoryContainerRef}>
-                    <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
-                      className="w-full pl-12 pr-40 py-4 text-lg bg-gray-50 border border-gray-200 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onFocus={() => {
-                        if (searchHistory.length > 0) {
-                          setIsHistoryOpen(true);
-                        }
-                      }}
-                      autoComplete="off"
-                    />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                      {searchHistory.length > 0 && (
-                        <button
-                          type="button"
-                          onMouseDown={(event) => {
-                            event.preventDefault();
-                            setIsHistoryOpen((prev) => !prev);
-                          }}
-                          className={`hidden sm:inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
-                            isHistoryOpen
-                              ? 'border-blue-200 bg-blue-50 text-blue-600'
-                              : 'border-gray-200 bg-white/80 text-gray-500 hover:border-blue-200 hover:text-blue-600'
-                          }`}
-                          aria-expanded={isHistoryOpen}
-                          aria-label="Afficher l'historique des recherches"
-                        >
-                          <History className="h-4 w-4" />
-                          Historique
-                        </button>
-                      )}
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all flex items-center"
-                      >
-                        {loading ? (
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                        ) : (
-                          <>
-                            Rechercher
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {isHistoryOpen && searchHistory.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full z-20 mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white/95 shadow-2xl shadow-blue-100/60 backdrop-blur">
-                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3">
-                          <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                            <History className="h-4 w-4" />
-                            Historique de recherche
-                          </div>
+                  <div ref={searchHistoryContainerRef}>
+                    <div className="relative">
+                      <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
+                        className="w-full pl-12 pr-40 py-4 text-lg bg-gray-50 border border-gray-200 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onFocus={() => {
+                          if (searchHistory.length > 0) {
+                            setIsHistoryOpen(true);
+                          }
+                        }}
+                        autoComplete="off"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                        {searchHistory.length > 0 && (
                           <button
                             type="button"
-                            className="text-xs font-medium text-blue-600 hover:text-blue-700"
                             onMouseDown={(event) => {
                               event.preventDefault();
-                              clearSearchHistory();
-                              setIsHistoryOpen(false);
+                              setIsHistoryOpen((prev) => !prev);
                             }}
+                            className={`hidden sm:inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium transition-all ${
+                              isHistoryOpen
+                                ? 'border-blue-200 bg-blue-50 text-blue-600 shadow-sm'
+                                : 'border-gray-200 bg-white/80 text-gray-500 shadow-sm hover:border-blue-200 hover:text-blue-600'
+                            }`}
+                            aria-expanded={isHistoryOpen}
+                            aria-label="Afficher l'historique des recherches"
                           >
-                            Effacer tout
+                            <History className="h-4 w-4" />
+                            Historique
                           </button>
+                        )}
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all flex items-center"
+                        >
+                          {loading ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          ) : (
+                            <>
+                              Rechercher
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {searchHistory.length > 0 && (
+                      <div className="mt-6 rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-blue-50/40 to-blue-100/20 p-5 shadow-inner dark:border-slate-700/60 dark:from-slate-900/60 dark:via-slate-900/40 dark:to-slate-800/50">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-200">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 shadow-sm dark:bg-blue-500/20 dark:text-blue-200">
+                              <History className="h-4 w-4" />
+                            </span>
+                            Recherches récentes
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {hasMoreHistoryEntries && (
+                              <button
+                                type="button"
+                                onClick={() => setIsHistoryOpen((prev) => !prev)}
+                                className="text-xs font-medium text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200"
+                              >
+                                {isHistoryOpen ? 'Réduire' : 'Tout afficher'}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                clearSearchHistory();
+                                setIsHistoryOpen(false);
+                              }}
+                              className="text-xs font-medium text-slate-400 transition-colors hover:text-red-500 dark:text-slate-500 dark:hover:text-red-300"
+                            >
+                              Effacer tout
+                            </button>
+                          </div>
                         </div>
-                        <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
-                          {searchHistory.map((entry) => (
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          {visibleHistoryEntries.map((entry) => (
                             <div
                               key={`${entry.query}-${entry.timestamp}`}
-                              className="group flex items-center justify-between gap-3 px-5 py-3 text-left hover:bg-blue-50/60"
+                              className="group inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/80 pr-1 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/80 dark:border-slate-700/60 dark:bg-slate-900/50 dark:hover:border-blue-500/40 dark:hover:bg-slate-800/70"
                             >
                               <button
                                 type="button"
-                                onMouseDown={(event) => {
-                                  event.preventDefault();
-                                  handleHistorySelection(entry.query);
-                                }}
-                                className="flex flex-1 items-center gap-3 text-sm"
+                                onClick={() => handleHistorySelection(entry.query)}
+                                className="flex items-center gap-2 rounded-full pl-3 pr-2 py-1.5 text-sm font-medium text-slate-600 transition-colors group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-200"
                               >
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-600 shadow-sm dark:bg-blue-500/20 dark:text-blue-200">
                                   <Search className="h-4 w-4" />
-                                </div>
-                                <div className="flex flex-col text-left">
-                                  <span className="font-medium text-slate-700 group-hover:text-blue-700">
-                                    {entry.query}
-                                  </span>
-                                  <span className="text-xs text-slate-400">
+                                </span>
+                                <span className="flex flex-col text-left">
+                                  <span>{entry.query}</span>
+                                  <span className="text-xs font-normal text-slate-400 dark:text-slate-500">
                                     {getHistoryRelativeLabel(entry.timestamp)}
                                   </span>
-                                </div>
+                                </span>
                               </button>
                               <button
                                 type="button"
-                                onMouseDown={(event) => {
-                                  event.preventDefault();
+                                onClick={(event) => {
+                                  event.stopPropagation();
                                   removeSearchHistoryEntry(entry.query);
                                 }}
-                                className="rounded-full p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                                className="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-slate-500 dark:hover:bg-red-500/10 dark:hover:text-red-300"
                                 aria-label={`Supprimer ${entry.query} de l'historique`}
                               >
-                                <X className="h-4 w-4" />
+                                <X className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           ))}
@@ -5627,13 +5648,11 @@ useEffect(() => {
                                     key={entry.key}
                                     className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
                                   >
-                                    <div className="flex flex-col">
-                                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                    <div className="flex flex-col gap-2">
+                                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                                         {entry.label}
                                       </span>
-                                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
-                                        {entry.value}
-                                      </span>
+                                      <StructuredPreviewValue value={entry.value} />
                                     </div>
                                   </div>
                                 ))}
