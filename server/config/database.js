@@ -11,14 +11,17 @@ class DatabaseManager {
     this.init();
   }
 
-  static #normalizeRow(row) {
+  static #normalizeRow(row, options = {}) {
     if (!row || typeof row !== 'object' || Array.isArray(row)) {
       return row;
     }
 
+    const lowercaseKeys = options.lowercaseKeys !== false;
+
     return Object.entries(row).reduce((acc, [key, value]) => {
       if (typeof key === 'string') {
-        acc[key.toLowerCase()] = value;
+        const normalizedKey = lowercaseKeys ? key.toLowerCase() : key;
+        acc[normalizedKey] = value;
       } else {
         acc[key] = value;
       }
@@ -26,11 +29,11 @@ class DatabaseManager {
     }, {});
   }
 
-  static #normalizeRows(rows) {
+  static #normalizeRows(rows, options = {}) {
     if (!Array.isArray(rows)) {
       return rows;
     }
-    return rows.map((row) => DatabaseManager.#normalizeRow(row));
+    return rows.map((row) => DatabaseManager.#normalizeRow(row, options));
   }
 
   async init() {
@@ -831,7 +834,10 @@ class DatabaseManager {
         await this.ensureInitialized();
       }
       const [rows] = await this.pool.execute(sql, params);
-      return DatabaseManager.#normalizeRows(rows);
+      if (options.normalize === false) {
+        return rows;
+      }
+      return DatabaseManager.#normalizeRows(rows, options);
     } catch (error) {
       console.error('❌ Erreur requête SQL:', error);
       throw error;
@@ -851,7 +857,13 @@ class DatabaseManager {
       }
 
       const [rows] = await this.pool.execute(sql, params);
-      const [row] = DatabaseManager.#normalizeRows(rows);
+
+      if (options.normalize === false) {
+        const [row] = rows;
+        return row || null;
+      }
+
+      const [row] = DatabaseManager.#normalizeRows(rows, options);
       return row || null;
     } catch (error) {
       console.error('❌ Erreur requête SQL:', error);
@@ -870,14 +882,23 @@ class DatabaseManager {
 
     const connection = await this.pool.getConnection();
 
-    const wrapQuery = async (sql, params = []) => {
+    const wrapQuery = async (sql, params = [], options = {}) => {
       const [rows] = await connection.execute(sql, params);
-      return DatabaseManager.#normalizeRows(rows);
+      if (options.normalize === false) {
+        return rows;
+      }
+      return DatabaseManager.#normalizeRows(rows, options);
     };
 
-    const wrapQueryOne = async (sql, params = []) => {
+    const wrapQueryOne = async (sql, params = [], options = {}) => {
       const [rows] = await connection.execute(sql, params);
-      const [row] = DatabaseManager.#normalizeRows(rows);
+
+      if (options.normalize === false) {
+        const [row] = rows;
+        return row || null;
+      }
+
+      const [row] = DatabaseManager.#normalizeRows(rows, options);
       return row || null;
     };
 
