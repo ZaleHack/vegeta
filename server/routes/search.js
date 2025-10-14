@@ -196,9 +196,14 @@ router.post('/', authenticate, async (req, res) => {
       execution_time_ms: results.elapsed_ms,
       ip_address: ipAddress,
       user_agent: userAgent
-    }).catch((err) => {
-      console.error('Erreur journalisation recherche:', err);
-    });
+    })
+      .then(() => {
+        searchService.clearRecentSearchCache(req.user.id);
+      })
+      .catch((err) => {
+        console.error('Erreur journalisation recherche:', err);
+        searchService.clearRecentSearchCache(req.user.id);
+      });
 
     res.json(results);
   } catch (error) {
@@ -236,6 +241,27 @@ router.get('/details/:table/:id', authenticate, async (req, res) => {
     }
 
     res.status(500).json({ error: 'Erreur lors de la récupération des détails' });
+  }
+});
+
+router.get('/recent', authenticate, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const requestedScope = typeof req.query.scope === 'string' ? req.query.scope.toLowerCase() : 'user';
+    const isAdmin = req.user?.admin === 1 || req.user?.admin === '1';
+    const scope = requestedScope === 'global' && isAdmin ? 'global' : 'user';
+
+    const searches = await searchService.getRecentSearches({
+      userId: scope === 'user' ? req.user.id : null,
+      username: req.user?.login || '',
+      limit,
+      scope
+    });
+
+    res.json({ searches });
+  } catch (error) {
+    console.error('Erreur recherches récentes:', error);
+    res.status(500).json({ error: 'Erreur lors du chargement des recherches récentes' });
   }
 });
 
