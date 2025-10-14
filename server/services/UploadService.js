@@ -3,9 +3,20 @@ import csv from 'csv-parser';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import statsCache from './stats-cache.js';
 // Catalogue des tables chargé dynamiquement
 
 class UploadService {
+  invalidateStatisticsCaches() {
+    try {
+      statsCache.clear('dataStats');
+      statsCache.clear('overview:');
+      statsCache.clear('regionDistribution');
+    } catch (error) {
+      console.warn('⚠️ Impossible de vider le cache des statistiques:', error.message);
+    }
+  }
+
   parseTableName(tableName) {
     if (tableName.includes('.')) {
       const [database, table] = tableName.split('.');
@@ -86,6 +97,8 @@ class UploadService {
           ]
         );
       }
+
+      this.invalidateStatisticsCaches();
 
       return {
         success: true,
@@ -184,6 +197,7 @@ class UploadService {
       const sql = fs.readFileSync(filePath, 'utf-8');
       await database.pool.query(sql);
       await this.addTableToCatalog(`${db}.${table}`);
+      this.invalidateStatisticsCaches();
 
       if (userId) {
         await this.logUpload({
@@ -230,6 +244,7 @@ class UploadService {
       };
 
       fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2));
+      this.invalidateStatisticsCaches();
     } catch (error) {
       console.error('Erreur mise à jour catalogue:', error);
     }

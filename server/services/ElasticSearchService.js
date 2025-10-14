@@ -359,11 +359,19 @@ class ElasticSearchService {
   }
 
   collectSearchValues(record, config = {}, primaryKey) {
+    const recordFields = record && typeof record === 'object'
+      ? Object.keys(record).filter(
+          (field) => typeof field === 'string' && field.toLowerCase() !== 'id'
+        )
+      : [];
+
     const fields = new Set([
+      ...recordFields,
       ...(config.searchable || []),
       ...(config.preview || []),
       ...(config.linkedFields || [])
     ]);
+
     if (primaryKey) {
       fields.add(primaryKey);
     }

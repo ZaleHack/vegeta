@@ -17,6 +17,19 @@ class StatsService {
     this.cache = statsCache;
   }
 
+  formatTableName(tableName) {
+    if (typeof tableName !== 'string' || tableName.trim() === '') {
+      return tableName;
+    }
+
+    return tableName
+      .split('.')
+      .map((segment) => segment.trim())
+      .filter((segment) => segment.length > 0)
+      .map((segment) => `\`${segment.replace(/`/g, '``')}\``)
+      .join('.');
+  }
+
   loadCatalog() {
     let catalog = { ...baseCatalog };
     try {
@@ -200,7 +213,8 @@ class StatsService {
     const results = await Promise.all(
       entries.map(async ([tableName, config]) => {
         try {
-          const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${tableName}`);
+          const formattedTable = this.formatTableName(tableName);
+          const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${formattedTable}`);
           return [tableName, {
             total_records: result?.count || 0,
             table_name: config.display,
