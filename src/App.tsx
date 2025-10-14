@@ -118,9 +118,9 @@ type ScoreFilter = 'all' | 'high' | 'medium' | 'low';
 
 const SCORE_FILTER_OPTIONS: { value: ScoreFilter; label: string }[] = [
   { value: 'all', label: 'Tous les scores' },
-  { value: 'high', label: 'Score ≥ 80' },
-  { value: 'medium', label: 'Score 50-79' },
-  { value: 'low', label: 'Score < 50' }
+  { value: 'high', label: 'Score ≥ 0.80' },
+  { value: 'medium', label: 'Score 0.50-0.79' },
+  { value: 'low', label: 'Score < 0.50' }
 ];
 
 const normalizeLabelValue = (value: unknown, fallback: string): string => {
@@ -826,13 +826,14 @@ const App: React.FC = () => {
 
         switch (scoreFilter) {
           case 'high':
-            matchesScore = (numericScore ?? 0) >= 80;
+            matchesScore = numericScore !== undefined && numericScore >= 0.8;
             break;
           case 'medium':
-            matchesScore = (numericScore ?? 0) >= 50 && (numericScore ?? 0) < 80;
+            matchesScore =
+              numericScore !== undefined && numericScore >= 0.5 && numericScore < 0.8;
             break;
           case 'low':
-            matchesScore = numericScore !== undefined && numericScore < 50;
+            matchesScore = numericScore !== undefined && numericScore < 0.5;
             break;
           default:
             matchesScore = true;
