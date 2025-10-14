@@ -65,15 +65,22 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
                 </div>
               </div>
             </div>
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {previewEntries.map((entry) => (
-                <div key={entry.key} className="flex flex-col gap-2">
-                  <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    {entry.label}
-                  </span>
-                  <StructuredPreviewValue value={entry.value} />
-                </div>
-              ))}
+            <div className="p-6">
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {previewEntries.map((entry) => (
+                  <div
+                    key={entry.key}
+                    className="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-4 shadow-sm transition-colors dark:border-slate-700/70 dark:bg-slate-800/60"
+                  >
+                    <dt className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                      {entry.label}
+                    </dt>
+                    <dd className="mt-2 text-sm text-slate-900 dark:text-slate-100">
+                      <StructuredPreviewValue value={entry.value} />
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           </div>
         );

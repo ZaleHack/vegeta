@@ -5642,20 +5642,22 @@ useEffect(() => {
                               </div>
 
                               {/* Contenu des données */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {previewEntries.map((entry) => (
-                                  <div
-                                    key={entry.key}
-                                    className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-3 border border-transparent group-hover:border-blue-200 dark:group-hover:border-blue-500 transition-colors"
-                                  >
-                                    <div className="flex flex-col gap-2">
-                                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                              <div className="space-y-4">
+                                <dl className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  {previewEntries.map((entry) => (
+                                    <div
+                                      key={entry.key}
+                                      className="rounded-2xl border border-slate-200/70 bg-white/70 p-4 shadow-sm transition-colors group-hover:border-blue-200 dark:border-slate-700/70 dark:bg-slate-800/60 dark:group-hover:border-blue-500"
+                                    >
+                                      <dt className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
                                         {entry.label}
-                                      </span>
-                                      <StructuredPreviewValue value={entry.value} />
+                                      </dt>
+                                      <dd className="mt-2 text-sm text-slate-900 dark:text-slate-100">
+                                        <StructuredPreviewValue value={entry.value} />
+                                      </dd>
                                     </div>
-                                  </div>
-                                ))}
+                                  ))}
+                                </dl>
                               </div>
 
                               {/* Footer avec actions */}
