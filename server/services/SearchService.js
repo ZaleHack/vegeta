@@ -4,7 +4,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
-import { UNIQUE_SEARCH_FIELDS } from '../utils/search-constants.js';
 
 const EXCLUDED_SEARCH_TABLES = new Set(
   [
@@ -39,8 +38,32 @@ const EXCLUDED_SEARCH_TABLES = new Set(
   ].map((name) => name.toLowerCase())
 );
 
-const MAX_LINKED_IDENTIFIER_SEARCHES = 5;
-const MAX_EXTRA_IDENTIFIER_SEARCHES = 5;
+const UNIQUE_SEARCH_FIELDS = new Set(
+  [
+    'CNI',
+    'cni',
+    'NIN',
+    'nin',
+    'Phone',
+    'PHONE',
+    'TELEPHONE',
+    'Telephone',
+    'Numero',
+    'NUMERO',
+    'Telephone1',
+    'Telephone2',
+    'TELEPHONE1',
+    'TELEPHONE2',
+    'PassePort',
+    'PASSEPORT',
+    'Passeport',
+    'Email',
+    'EMAIL',
+    'mail',
+    'Mail',
+    'MAIL'
+  ].map((field) => field.toLowerCase())
+);
 
 class SearchService {
   constructor() {
@@ -51,85 +74,8 @@ class SearchService {
     this.catalog = this.loadCatalog();
     this.primaryKeyCache = new Map();
     this.columnCache = new Map();
-    this.tableAvailability = new Map();
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
-    }
-  }
-
-  isMissingTableError(error) {
-    if (!error) {
-      return false;
-    }
-
-    if (error.code === 'ER_NO_SUCH_TABLE' || error.code === 'ER_BAD_TABLE_ERROR') {
-      return true;
-    }
-
-    if (error.errno === 1146) {
-      return true;
-    }
-
-    const message = error.sqlMessage || error.message;
-    if (typeof message === 'string') {
-      return message.toLowerCase().includes("doesn't exist");
-    }
-
-    return false;
-  }
-
-  markTableUnavailable(tableName, error = null) {
-    if (!tableName) {
-      return;
-    }
-
-    const alreadyKnown = this.tableAvailability.get(tableName) === false;
-    this.tableAvailability.set(tableName, false);
-    this.columnCache.set(tableName, null);
-    this.primaryKeyCache.delete(tableName);
-
-    if (!alreadyKnown) {
-      const reason = error?.sqlMessage || error?.message || 'Table inaccessible';
-      console.warn(`⚠️ Table ${tableName} ignorée pour la recherche: ${reason}`);
-    }
-  }
-
-  markTableAvailable(tableName) {
-    if (!tableName) {
-      return;
-    }
-    this.tableAvailability.set(tableName, true);
-  }
-
-  async ensureTableAvailable(tableName) {
-    if (!tableName) {
-      return false;
-    }
-
-    if (this.tableAvailability.has(tableName)) {
-      return this.tableAvailability.get(tableName);
-    }
-
-    const formattedTable = this.formatTableName(tableName);
-
-    try {
-      await database.query(`SELECT 1 FROM ${formattedTable} LIMIT 1`, [], {
-        suppressErrorLog: true
-      });
-      this.markTableAvailable(tableName);
-      return true;
-    } catch (error) {
-      if (this.isMissingTableError(error)) {
-        this.markTableUnavailable(tableName, error);
-        return false;
-      }
-
-      console.warn(
-        `⚠️ Impossible de vérifier la disponibilité de ${tableName}:`,
-        error.message
-      );
-      this.tableAvailability.delete(tableName);
-      return false;
     }
   }
 
@@ -253,18 +199,13 @@ class SearchService {
 
       const info = { columns, lookup };
       this.columnCache.set(tableName, info);
-      this.markTableAvailable(tableName);
       return info;
     } catch (error) {
-      if (this.isMissingTableError(error)) {
-        this.markTableUnavailable(tableName, error);
-      } else {
-        console.warn(
-          `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
-          error.message
-        );
-        this.columnCache.set(tableName, null);
-      }
+      console.warn(
+        `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
+        error.message
+      );
+      this.columnCache.set(tableName, null);
       return null;
     }
   }
@@ -380,65 +321,6 @@ class SearchService {
     return Array.from(identifiers);
   }
 
-  normalizeIdentifierValue(value) {
-    if (value === null || value === undefined) {
-      return '';
-    }
-
-    if (typeof value === 'string') {
-      return value.trim();
-    }
-
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return String(value);
-    }
-
-    if (value instanceof Date) {
-      return value.toISOString();
-    }
-
-    if (Buffer.isBuffer(value)) {
-      return value.toString('utf8').trim();
-    }
-
-    return String(value);
-  }
-
-  extractUniqueIdentifiersFromRow(row) {
-    const identifiers = [];
-    if (!row || typeof row !== 'object') {
-      return identifiers;
-    }
-
-    const seen = new Set();
-
-    for (const [field, value] of Object.entries(row)) {
-      const normalizedField = this.normalizeFieldName(field);
-      if (!normalizedField || !UNIQUE_SEARCH_FIELDS.has(normalizedField)) {
-        continue;
-      }
-
-      const normalizedValue = this.normalizeIdentifierValue(value);
-      if (!normalizedValue) {
-        continue;
-      }
-
-      const dedupeKey = `${normalizedField}:${normalizedValue.toLowerCase()}`;
-      if (seen.has(dedupeKey)) {
-        continue;
-      }
-
-      seen.add(dedupeKey);
-      identifiers.push({
-        field,
-        normalizedField,
-        value: normalizedValue
-      });
-    }
-
-    return identifiers;
-  }
-
   loadCatalog() {
     let catalog = { ...baseCatalog };
     try {
@@ -459,10 +341,6 @@ class SearchService {
 
   refreshCatalog() {
     this.catalog = this.loadCatalog();
-    this.cache.clear();
-    this.primaryKeyCache.clear();
-    this.columnCache.clear();
-    this.tableAvailability.clear();
   }
 
   async getPrimaryKey(tableName, config = {}) {
@@ -486,10 +364,6 @@ class SearchService {
         return pk;
       }
     } catch (error) {
-      if (this.isMissingTableError(error)) {
-        this.markTableUnavailable(tableName, error);
-        return null;
-      }
       console.warn(
         `⚠️ Impossible de déterminer la clé primaire pour ${tableName}:`,
         error.message
@@ -517,12 +391,6 @@ class SearchService {
       this.primaryKeyCache.set(tableName, fallback);
       return fallback;
     } catch (error) {
-      if (this.isMissingTableError(error)) {
-        this.markTableUnavailable(tableName, error);
-        const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
-        this.primaryKeyCache.set(tableName, fallback);
-        return fallback;
-      }
       console.warn(
         `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
         error.message
@@ -602,9 +470,6 @@ class SearchService {
     if (followLinks && depth < maxDepth) {
       const linkedIds = this.extractLinkedIdentifiers(results);
       for (const id of linkedIds) {
-        if (identifiersFollowed.length >= MAX_LINKED_IDENTIFIER_SEARCHES) {
-          break;
-        }
         if (!seen.has(id)) {
           seen.add(id);
           extraSearches++;
@@ -625,18 +490,6 @@ class SearchService {
     if (depth === 0) {
       const extraValues = new Set();
       const queryNormalized = String(query).trim().toLowerCase();
-      const addExtraValue = (rawValue) => {
-        const valueStr = this.normalizeIdentifierValue(rawValue);
-        if (!valueStr) {
-          return;
-        }
-        const normalizedValue = valueStr.toLowerCase();
-        if (normalizedValue === queryNormalized) {
-          return;
-        }
-        extraValues.add(valueStr);
-      };
-
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
@@ -644,32 +497,17 @@ class SearchService {
           if (!UNIQUE_SEARCH_FIELDS.has(normalizedKey)) {
             continue;
           }
-          addExtraValue(value);
-        }
-
-        if (res.primary_keys && typeof res.primary_keys === 'object') {
-          for (const [key, value] of Object.entries(res.primary_keys)) {
-            const normalizedKey = this.normalizeFieldName(key);
-            if (!UNIQUE_SEARCH_FIELDS.has(normalizedKey)) {
-              continue;
-            }
-            addExtraValue(value);
-          }
-        }
-
-        if (Array.isArray(res.unique_identifiers)) {
-          for (const identifier of res.unique_identifiers) {
-            addExtraValue(identifier?.value);
+          const valueStr = String(value).trim();
+          if (
+            valueStr &&
+            valueStr.toLowerCase() !== queryNormalized
+          ) {
+            extraValues.add(valueStr);
           }
         }
       }
 
-      const limitedExtraValues = Array.from(extraValues).slice(
-        0,
-        MAX_EXTRA_IDENTIFIER_SEARCHES
-      );
-
-      for (const val of limitedExtraValues) {
+      for (const val of extraValues) {
         if (val.toLowerCase() === queryNormalized) continue;
         extraSearches++;
         const sub = await this.search(val, {}, 1, 50, null, 'linked', {
@@ -721,14 +559,13 @@ class SearchService {
     // Gestion des guillemets pour les phrases exactes
     const quotedPhrases = [];
     let cleanQuery = query;
-
+    
     // Extraire les phrases entre guillemets
     const quoteMatches = query.match(/"[^"]+"/g);
     if (quoteMatches) {
       quoteMatches.forEach((match, index) => {
         const placeholder = `__QUOTED_${index}__`;
-        const extracted = match.slice(1, -1).trim();
-        quotedPhrases.push(extracted);
+        quotedPhrases.push(match.slice(1, -1)); // Enlever les guillemets
         cleanQuery = cleanQuery.replace(match, placeholder);
       });
     }
@@ -743,37 +580,24 @@ class SearchService {
       // Restaurer les phrases quotées
       if (word.startsWith('__QUOTED_')) {
         const index = parseInt(word.match(/\d+/)[0]);
-        const phrase = quotedPhrases[index];
-        if (phrase) {
-          terms.push({ type: 'exact', value: phrase });
-        }
+        terms.push({ type: 'exact', value: quotedPhrases[index] });
       } else if (word.startsWith('-')) {
         // Exclusion
-        const excludeValue = word.slice(1).trim();
+        const excludeValue = word.slice(1);
         if (excludeValue.startsWith('__QUOTED_')) {
           const index = parseInt(excludeValue.match(/\d+/)[0]);
-          const phrase = quotedPhrases[index];
-          if (phrase) {
-            terms.push({ type: 'exclude', value: phrase });
-          }
+          terms.push({ type: 'exclude', value: quotedPhrases[index] });
         } else {
-          if (excludeValue) {
-            terms.push({ type: 'exclude', value: excludeValue });
-          }
+          terms.push({ type: 'exclude', value: excludeValue });
         }
       } else if (word.startsWith('+')) {
         // Terme obligatoire
-        const requiredValue = word.slice(1).trim();
-        if (requiredValue) {
-          terms.push({ type: 'required', value: requiredValue });
-        }
+        terms.push({ type: 'required', value: word.slice(1) });
       } else if (word.includes(':')) {
         // Recherche par champ
         const [field, ...valueParts] = word.split(':');
-        const value = valueParts.join(':').trim(); // Au cas où il y aurait plusieurs ':'
-        if (field && value) {
-          terms.push({ type: 'field', field: field.toLowerCase(), value: value });
-        }
+        const value = valueParts.join(':'); // Au cas où il y aurait plusieurs ':'
+        terms.push({ type: 'field', field: field.toLowerCase(), value: value });
       } else if (word.toUpperCase() === 'AND' || word.toUpperCase() === 'ET') {
         terms.push({ type: 'operator', value: 'AND' });
       } else if (word.toUpperCase() === 'OR' || word.toUpperCase() === 'OU') {
@@ -789,73 +613,51 @@ class SearchService {
 
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
-    const isAvailable = await this.ensureTableAvailable(tableName);
-    if (!isAvailable) {
+    const primaryKey = await this.getPrimaryKey(tableName, config);
+
+    // Vérifier si la table existe
+    try {
+      const formattedTable = this.formatTableName(tableName);
+      await database.query(`SELECT 1 FROM ${formattedTable} LIMIT 1`);
+    } catch (error) {
+      console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
       return results;
     }
 
-    const primaryKey = (await this.getPrimaryKey(tableName, config)) || 'id';
-
     const columnInfo = await this.getTableColumns(tableName);
     const tableColumns = Array.isArray(columnInfo?.columns)
-      ? columnInfo.columns.filter((column) => typeof column === 'string' && column.length > 0)
+      ? columnInfo.columns.filter(Boolean)
       : [];
-
-    const selectFieldCandidates = new Set(
-      [
-        ...(config.preview || []),
-        ...(config.linkedFields || []),
-        ...(config.searchable || []),
-        primaryKey
-      ].filter(Boolean)
-    );
-
-    for (const column of tableColumns) {
-      if (
-        typeof column === 'string' &&
-        UNIQUE_SEARCH_FIELDS.has(column.toLowerCase())
-      ) {
-        selectFieldCandidates.add(column);
-      }
-    }
-
-    if (selectFieldCandidates.size === 0 && tableColumns.length > 0) {
-      for (const column of tableColumns.slice(0, 10)) {
-        if (column) {
-          selectFieldCandidates.add(column);
-        }
-      }
-    }
 
     const resolvedPrimaryColumn =
       this.resolveColumnFromInfo(primaryKey, columnInfo) ||
       tableColumns[0] ||
       primaryKey;
 
-    const formattedTable = this.formatTableName(tableName);
+    const fields = new Set([
+      ...tableColumns,
+      ...(config.preview || []),
+      ...(config.linkedFields || []),
+      ...(config.searchable || []),
+      primaryKey,
+    ].filter(Boolean));
 
-    const mappedSelectFields = this.mapFields(
-      Array.from(selectFieldCandidates),
-      columnInfo
-    );
+    const mappedSelectFields = this.mapFields(Array.from(fields), columnInfo);
 
     if (
-      resolvedPrimaryColumn &&
-      !mappedSelectFields.some(
-        ({ alias, column }) =>
-          alias === primaryKey || column === resolvedPrimaryColumn
-      )
+      !mappedSelectFields.some((field) => field.alias === primaryKey) &&
+      resolvedPrimaryColumn
     ) {
       mappedSelectFields.push({ column: resolvedPrimaryColumn, alias: primaryKey });
     }
 
-    let selectFields = `${formattedTable}.*`;
-
-    if (mappedSelectFields.length > 0) {
-      selectFields = mappedSelectFields
-        .map(({ column, alias }) => this.buildSelectClause(column, alias))
-        .join(', ');
+    if (mappedSelectFields.length === 0) {
+      return results;
     }
+
+    const selectFields = mappedSelectFields
+      .map(({ column, alias }) => this.buildSelectClause(column, alias))
+      .join(', ');
 
     let searchableMappings = this.mapFields(config.searchable || [], columnInfo);
 
@@ -866,7 +668,7 @@ class SearchService {
 
       const fallbackColumns = preferredColumns.length > 0
         ? preferredColumns
-        : Array.from(selectFieldCandidates).filter(
+        : Array.from(fields).filter(
             (field) => typeof field === 'string' && field.toLowerCase() !== 'id'
           );
 
@@ -883,6 +685,7 @@ class SearchService {
     const searchableColumns = searchableMappings.map(({ column }) => column);
     const searchableAliases = searchableMappings.map(({ alias }) => alias);
 
+    const formattedTable = this.formatTableName(tableName);
     let sql = `SELECT ${selectFields} FROM ${formattedTable} WHERE `;
     const params = [];
     let conditions = [];
@@ -913,7 +716,7 @@ class SearchService {
         // Terme obligatoire (doit être présent)
         for (const field of searchableColumns) {
           termConditions.push(`${this.quoteIdentifier(field)} LIKE ?`);
-          params.push(`%${term.value}%`);
+          params.push(`${term.value}%`);
         }
       } else if (term.type === 'field') {
         // Recherche par champ spécifique
@@ -925,7 +728,7 @@ class SearchService {
         if (matchingFields.length > 0) {
           for (const { column } of matchingFields) {
             termConditions.push(`${this.quoteIdentifier(column)} LIKE ?`);
-            params.push(`%${term.value}%`);
+            params.push(`${term.value}%`);
           }
         } else {
           const resolvedColumn = this.resolveColumnFromInfo(
@@ -936,14 +739,14 @@ class SearchService {
             termConditions.push(
               `${this.quoteIdentifier(resolvedColumn)} LIKE ?`
             );
-            params.push(`%${term.value}%`);
+            params.push(`${term.value}%`);
           }
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
         for (const field of searchableColumns) {
           termConditions.push(`${this.quoteIdentifier(field)} LIKE ?`);
-          params.push(`%${term.value}%`);
+          params.push(`${term.value}%`);
         }
       }
 
@@ -980,7 +783,7 @@ class SearchService {
       const excludeConditions = [];
       for (const field of searchableColumns) {
         excludeConditions.push(`${this.quoteIdentifier(field)} NOT LIKE ?`);
-        params.push(`%${term.value}%`);
+        params.push(`${term.value}%`);
       }
       if (excludeConditions.length > 0) {
         sql += ` AND (${excludeConditions.join(' AND ')})`;
@@ -995,23 +798,17 @@ class SearchService {
       for (const row of rows) {
         const preview = this.buildPreview(row, config);
         const primaryValue = this.getFieldValue(row, primaryKey);
-        const uniqueIdentifiers = this.extractUniqueIdentifiersFromRow(row);
         results.push({
           table: config.display,
           database: config.database,
           preview: preview,
           primary_keys: { [primaryKey]: primaryValue },
           score: this.calculateRelevanceScore(row, searchTerms, searchableAliases),
-          linkedFields: config.linkedFields || [],
-          unique_identifiers: uniqueIdentifiers
+          linkedFields: config.linkedFields || []
         });
       }
     } catch (error) {
-      if (this.isMissingTableError(error)) {
-        this.markTableUnavailable(tableName, error);
-      } else {
-        console.error(`❌ Erreur SQL table ${tableName}:`, error.message);
-      }
+      console.error(`❌ Erreur SQL table ${tableName}:`, error.message);
     }
 
     return results;
@@ -1030,6 +827,9 @@ class SearchService {
       }
 
       const normalizedField = typeof field === 'string' ? field.toLowerCase() : String(field);
+      if (normalizedField === 'id') {
+        return;
+      }
 
       if (value === null || value === undefined || value === '') {
         return;
@@ -1070,51 +870,44 @@ class SearchService {
 
     for (const term of searchTerms) {
       if (term.type === 'exclude' || term.type === 'operator') continue;
-
+      
       if (term.type === 'required') {
         requiredTermsTotal++;
       }
-
+      
       const searchValue = term.value.toLowerCase();
       let termFound = false;
-
+      
       for (const field of searchableFields) {
         const value = this.getFieldValue(record, field);
         if (!value) continue;
 
         const fieldValue = value.toString().toLowerCase();
-        const normalizedField =
-          typeof field === 'string' ? field.toLowerCase() : this.normalizeFieldName(String(field));
-        const isUniqueField = normalizedField && UNIQUE_SEARCH_FIELDS.has(normalizedField);
-
+        
         if (term.type === 'exact' && fieldValue === searchValue) {
-          score += isUniqueField ? 35 : 15; // Bonus supplémentaire sur les identifiants uniques
+          score += 15; // Score plus élevé pour les correspondances exactes
           termFound = true;
         } else if (fieldValue.includes(searchValue)) {
           const position = fieldValue.indexOf(searchValue);
           const lengthRatio = searchValue.length / fieldValue.length;
           let termScore = (10 - position * 0.1) * lengthRatio;
-
+          
           // Bonus pour les correspondances au début du champ
           if (position === 0) {
             termScore *= 1.5;
           }
-
+          
           // Bonus pour les termes obligatoires
           if (term.type === 'required') {
             termScore *= 2;
             termFound = true;
           }
-
+          
           // Bonus pour les recherches par champ spécifique
           if (term.type === 'field') {
             termScore *= 1.3;
           }
-
-          if (isUniqueField) {
-            termScore *= 1.6;
-          }
-
+          
           score += termScore;
         }
       }
