@@ -113,9 +113,13 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
   const entries: NormalizedPreviewEntry[] = [];
   const seenKeys = new Set<string>();
 
-  const pushEntry = (key: string, rawValue: unknown) => {
+  const pushEntry = (
+    key: string,
+    rawValue: unknown,
+    options: { label?: string; dedupeKey?: string } = {}
+  ) => {
     const normalizedKey = typeof key === 'string' ? key.trim() : String(key);
-    const dedupeKey = normalizedKey.toLowerCase();
+    const dedupeKey = (options.dedupeKey ?? normalizedKey).toLowerCase();
 
     if (dedupeKey === 'id') {
       return;
@@ -130,13 +134,65 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
     if (value === '') {
       return;
     }
-    const label = formatLabel(normalizedKey) || normalizedKey;
+    const label = options.label || formatLabel(normalizedKey) || normalizedKey;
     entries.push({
       key: normalizedKey,
       label,
       value
     });
     seenKeys.add(dedupeKey);
+  };
+
+  const handleExtraFields = (rawValue: unknown): boolean => {
+    let value = rawValue;
+    if (typeof value === 'string') {
+      try {
+        value = JSON.parse(value);
+      } catch {
+        // Ignore parse errors and let the default handler stringify the value
+      }
+    }
+
+    if (!Array.isArray(value)) {
+      return false;
+    }
+
+    let handled = false;
+
+    value.forEach((category, categoryIndex) => {
+      if (!category || typeof category !== 'object') {
+        return;
+      }
+
+      const group = category as Record<string, unknown>;
+      const rawTitle = typeof group.title === 'string' ? group.title.trim() : '';
+      const title = rawTitle || `Section ${categoryIndex + 1}`;
+      const fields = Array.isArray(group.fields) ? group.fields : [];
+
+      fields.forEach((field, fieldIndex) => {
+        if (!field || typeof field !== 'object') {
+          return;
+        }
+
+        const fieldRecord = field as Record<string, unknown>;
+        const rawKey = typeof fieldRecord.key === 'string' ? fieldRecord.key.trim() : '';
+        const keyLabel = rawKey || `Champ ${fieldIndex + 1}`;
+        const fieldValue = fieldRecord.value;
+
+        if (isEmptyValue(fieldValue)) {
+          return;
+        }
+
+        const labelParts = title ? [title, keyLabel] : [keyLabel];
+        const label = labelParts.join(' — ');
+        const dedupeKey = `extra_fields:${title}:${keyLabel}`;
+
+        pushEntry(label, fieldValue, { label, dedupeKey });
+        handled = true;
+      });
+    });
+
+    return handled;
   };
 
   const processEntry = (key: string, value: unknown) => {
@@ -152,7 +208,7 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
 
       if (isRecord(parsed)) {
         Object.entries(parsed).forEach(([nestedKey, nestedValue]) => {
-          pushEntry(nestedKey, nestedValue);
+          processEntry(nestedKey, nestedValue);
         });
         return;
       }
@@ -164,6 +220,12 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
 
       pushEntry(key, parsed);
       return;
+    }
+
+    if (key === 'extra_fields') {
+      if (handleExtraFields(value)) {
+        return;
+      }
     }
 
     pushEntry(key, value);
