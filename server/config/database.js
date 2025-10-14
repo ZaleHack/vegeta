@@ -819,47 +819,9 @@ class DatabaseManager {
     }
   }
 
-  #resolveQueryArgs(params, options, hasExplicitOptions) {
-    let resolvedParams = params;
-    let resolvedOptions = options;
-
-    const isParamsArrayLike =
-      Array.isArray(resolvedParams) || resolvedParams instanceof Uint8Array;
-    const isParamsPlainObject =
-      resolvedParams &&
-      typeof resolvedParams === 'object' &&
-      !isParamsArrayLike &&
-      !(resolvedParams instanceof Date);
-
-    if (!hasExplicitOptions && (resolvedOptions === undefined || resolvedOptions === null)) {
-      resolvedOptions = {};
-    }
-
-    if (isParamsPlainObject && !hasExplicitOptions) {
-      resolvedOptions = resolvedParams;
-      resolvedParams = [];
-    }
-
-    if (!isParamsArrayLike && !isParamsPlainObject) {
-      resolvedParams = [];
-    }
-
-    if (!resolvedOptions || typeof resolvedOptions !== 'object') {
-      resolvedOptions = {};
-    }
-
-    return { params: resolvedParams, options: resolvedOptions };
-  }
-
-  async query(sql, params = [], options) {
-    const { params: resolvedParams, options: resolvedOptions } = this.#resolveQueryArgs(
-      params,
-      options,
-      arguments.length >= 3
-    );
-
+  async query(sql, params = [], options = {}) {
     try {
-      const skipInitWait = Boolean(resolvedOptions.skipInitWait);
+      const skipInitWait = Boolean(options.skipInitWait);
 
       if (!this.pool) {
         await this.ensureInitialized();
@@ -868,25 +830,17 @@ class DatabaseManager {
       if (!skipInitWait && !this.isInitialized) {
         await this.ensureInitialized();
       }
-      const [rows] = await this.pool.execute(sql, resolvedParams);
+      const [rows] = await this.pool.execute(sql, params);
       return DatabaseManager.#normalizeRows(rows);
     } catch (error) {
-      if (!resolvedOptions.suppressErrorLog) {
-        console.error('❌ Erreur requête SQL:', error);
-      }
+      console.error('❌ Erreur requête SQL:', error);
       throw error;
     }
   }
 
-  async queryOne(sql, params = [], options) {
-    const { params: resolvedParams, options: resolvedOptions } = this.#resolveQueryArgs(
-      params,
-      options,
-      arguments.length >= 3
-    );
-
+  async queryOne(sql, params = [], options = {}) {
     try {
-      const skipInitWait = Boolean(resolvedOptions.skipInitWait);
+      const skipInitWait = Boolean(options.skipInitWait);
 
       if (!this.pool) {
         await this.ensureInitialized();
@@ -896,13 +850,11 @@ class DatabaseManager {
         await this.ensureInitialized();
       }
 
-      const [rows] = await this.pool.execute(sql, resolvedParams);
+      const [rows] = await this.pool.execute(sql, params);
       const [row] = DatabaseManager.#normalizeRows(rows);
       return row || null;
     } catch (error) {
-      if (!resolvedOptions.suppressErrorLog) {
-        console.error('❌ Erreur requête SQL:', error);
-      }
+      console.error('❌ Erreur requête SQL:', error);
       throw error;
     }
   }

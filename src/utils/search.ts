@@ -1,9 +1,3 @@
-export interface UniqueIdentifierValue {
-  field: string;
-  value: string;
-  normalizedField?: string;
-}
-
 export interface BaseSearchHit {
   table?: string;
   table_name?: string;
@@ -11,7 +5,6 @@ export interface BaseSearchHit {
   preview?: Record<string, unknown> | null;
   primary_keys?: Record<string, unknown> | null;
   score?: number;
-  unique_identifiers?: UniqueIdentifierValue[];
   [key: string]: unknown;
 }
 
@@ -124,6 +117,9 @@ export const normalizePreview = (hit: BaseSearchHit): NormalizedPreviewEntry[] =
     const normalizedKey = typeof key === 'string' ? key.trim() : String(key);
     const dedupeKey = normalizedKey.toLowerCase();
 
+    if (dedupeKey === 'id') {
+      return;
+    }
     if (isEmptyValue(rawValue)) {
       return;
     }
