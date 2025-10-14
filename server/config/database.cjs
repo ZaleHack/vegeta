@@ -285,8 +285,8 @@ class DatabaseManager {
         code_localite TEXT,
         tel_fixe TEXT,
         tel_portable TEXT,
-        prec_immat TEXT,
-        date_precimmat TEXT
+        PrecImmat TEXT,
+        Date_PrecImmat TEXT
       )`,
 
       // Base autres - entreprises

@@ -20,7 +20,7 @@ router.get('/', authenticate, async (req, res) => {
         categorie, marque, appelation_com, genre, carrosserie, etat_initial, immat_etrangere, date_etrangere,
         date_mise_circulation, date_premiere_immat, energie, puissance_adm, cylindre, places_assises,
         ptr, ptac_code, poids_vide, cu, prenoms, nom, date_naissance, exact, lieu_naissance,
-        adresse_vehicule, code_localite, tel_fixe, tel_portable, prec_immat, date_precimmat
+        adresse_vehicule, code_localite, tel_fixe, tel_portable, PrecImmat, Date_PrecImmat
       ) LIKE ?`;
       params.push(`%${search}%`);
     }
@@ -65,8 +65,8 @@ router.get('/', authenticate, async (req, res) => {
         code_localite,
         tel_fixe,
         tel_portable,
-        prec_immat,
-        date_precimmat
+        PrecImmat,
+        Date_PrecImmat
       FROM vehicules ${whereClause} LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
