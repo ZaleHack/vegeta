@@ -15,6 +15,8 @@ class StatsService {
     const __dirname = path.dirname(__filename);
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
     this.cache = statsCache;
+    this.tableResolutionCache = new Map();
+    this.tableExistenceCache = new Map();
   }
 
   formatTableName(tableName) {
@@ -28,6 +30,118 @@ class StatsService {
       .filter((segment) => segment.length > 0)
       .map((segment) => `\`${segment.replace(/`/g, '``')}\``)
       .join('.');
+  }
+
+  sanitizeIdentifier(identifier) {
+    if (typeof identifier !== 'string') {
+      return '';
+    }
+
+    return identifier.replace(/[^A-Za-z0-9_]/g, '');
+  }
+
+  getTableCandidates(tableName) {
+    if (typeof tableName !== 'string') {
+      return [];
+    }
+
+    const trimmed = tableName.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    const segments = trimmed.split('.');
+    const candidates = [];
+
+    if (segments.length >= 2) {
+      const schema = this.sanitizeIdentifier(segments[0]);
+      const table = this.sanitizeIdentifier(segments.slice(1).join('.'));
+      const normalizedTable = this.sanitizeIdentifier(segments.slice(1).join('_'));
+      const schemaPrefixed = schema && normalizedTable ? `${schema}_${normalizedTable}` : null;
+
+      if (schema && table) {
+        candidates.push({ schema, table });
+      }
+      if (schema && normalizedTable && normalizedTable !== table) {
+        candidates.push({ schema, table: normalizedTable });
+      }
+      if (schemaPrefixed) {
+        candidates.push({ schema: null, table: schemaPrefixed });
+      }
+      if (table) {
+        candidates.push({ schema: null, table });
+      }
+      if (normalizedTable && normalizedTable !== table) {
+        candidates.push({ schema: null, table: normalizedTable });
+      }
+    } else {
+      const sanitized = this.sanitizeIdentifier(trimmed);
+      const normalized = this.sanitizeIdentifier(trimmed.replace(/\.+/g, '_'));
+
+      if (sanitized) {
+        candidates.push({ schema: null, table: sanitized });
+      }
+      if (normalized && normalized !== sanitized) {
+        candidates.push({ schema: null, table: normalized });
+      }
+    }
+
+    const seen = new Set();
+    return candidates.filter((candidate) => {
+      const key = `${candidate.schema || 'default'}:${candidate.table}`;
+      if (!candidate.table || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  async checkTableExists(schema, table) {
+    if (!table) {
+      return false;
+    }
+
+    const cacheKey = `${schema || 'default'}:${table}`;
+    if (this.tableExistenceCache.has(cacheKey)) {
+      return this.tableExistenceCache.get(cacheKey);
+    }
+
+    const sql = schema
+      ? `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`
+      : `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`;
+
+    try {
+      const result = await database.queryOne(sql, schema ? [schema, table] : [table]);
+      const exists = Number(result?.count || 0) > 0;
+      this.tableExistenceCache.set(cacheKey, exists);
+      return exists;
+    } catch (error) {
+      console.warn(`Impossible de vérifier l'existence de la table ${schema ? `${schema}.` : ''}${table}:`, error.message);
+      this.tableExistenceCache.set(cacheKey, false);
+      return false;
+    }
+  }
+
+  async resolveTableName(tableName) {
+    if (this.tableResolutionCache.has(tableName)) {
+      return this.tableResolutionCache.get(tableName);
+    }
+
+    const candidates = this.getTableCandidates(tableName);
+    for (const candidate of candidates) {
+      const exists = await this.checkTableExists(candidate.schema, candidate.table);
+      if (exists) {
+        const formatted = candidate.schema
+          ? this.formatTableName(`${candidate.schema}.${candidate.table}`)
+          : this.formatTableName(candidate.table);
+        this.tableResolutionCache.set(tableName, formatted);
+        return formatted;
+      }
+    }
+
+    this.tableResolutionCache.set(tableName, null);
+    return null;
   }
 
   loadCatalog() {
@@ -213,7 +327,16 @@ class StatsService {
     const results = await Promise.all(
       entries.map(async ([tableName, config]) => {
         try {
-          const formattedTable = this.formatTableName(tableName);
+          const formattedTable = await this.resolveTableName(tableName);
+          if (!formattedTable) {
+            return [tableName, {
+              total_records: 0,
+              table_name: config.display,
+              database: config.database,
+              error: 'Table introuvable'
+            }];
+          }
+
           const result = await database.queryOne(`SELECT COUNT(*) as count FROM ${formattedTable}`);
           return [tableName, {
             total_records: result?.count || 0,
