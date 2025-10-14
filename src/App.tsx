@@ -49,7 +49,14 @@ import {
   X,
   Scan,
   MapPinOff,
-  CheckCircle2
+  CheckCircle2,
+  History,
+  Sparkles,
+  Lightbulb,
+  Wand2,
+  Mail,
+  Hash,
+  Fingerprint
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
@@ -163,6 +170,21 @@ type SearchResponseFromApi = Partial<Omit<SearchResponse, 'hits' | 'tables_searc
   error?: string;
 };
 
+interface SearchHistoryEntry {
+  query: string;
+  timestamp: number;
+}
+
+type SearchInsightAccent = 'blue' | 'purple' | 'emerald' | 'amber' | 'pink';
+
+interface SearchInsight {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  accent: SearchInsightAccent;
+}
+
 const extractHitsFromPayload = (hits: RawHitsPayload): RawSearchResult[] => {
   if (Array.isArray(hits)) {
     return hits;
@@ -190,6 +212,72 @@ const mapPreviewEntries = (hits: RawHitsPayload): SearchResult[] =>
   }));
 
 const EXCLUDED_SEARCH_KEYS = new Set(['id', 'ID']);
+
+const SEARCH_HISTORY_STORAGE_KEY = 'sora-unified-search-history';
+const SEARCH_HISTORY_LIMIT = 10;
+
+const loadSearchHistoryFromStorage = (): SearchHistoryEntry[] => {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SEARCH_HISTORY_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    const normalized = parsed
+      .map((entry) => {
+        if (!entry || typeof entry.query !== 'string') {
+          return null;
+        }
+
+        const timestamp = Number(entry.timestamp);
+        if (!Number.isFinite(timestamp)) {
+          return null;
+        }
+
+        return { query: entry.query, timestamp } as SearchHistoryEntry;
+      })
+      .filter((entry): entry is SearchHistoryEntry => Boolean(entry))
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, SEARCH_HISTORY_LIMIT);
+
+    return normalized;
+  } catch (error) {
+    console.error('Impossible de lire l\'historique de recherche:', error);
+    return [];
+  }
+};
+
+const insightAccentStyles: Record<SearchInsightAccent, { text: string; bg: string }> = {
+  blue: {
+    text: 'text-blue-600 dark:text-blue-200',
+    bg: 'bg-blue-50 dark:bg-blue-500/10'
+  },
+  purple: {
+    text: 'text-purple-600 dark:text-purple-200',
+    bg: 'bg-purple-50 dark:bg-purple-500/10'
+  },
+  emerald: {
+    text: 'text-emerald-600 dark:text-emerald-200',
+    bg: 'bg-emerald-50 dark:bg-emerald-500/10'
+  },
+  amber: {
+    text: 'text-amber-600 dark:text-amber-200',
+    bg: 'bg-amber-50 dark:bg-amber-500/10'
+  },
+  pink: {
+    text: 'text-pink-600 dark:text-pink-200',
+    bg: 'bg-pink-50 dark:bg-pink-500/10'
+  }
+};
 
 const getSearchableValues = (value: unknown, key?: string): string[] => {
   if (key && EXCLUDED_SEARCH_KEYS.has(key)) {
@@ -720,9 +808,12 @@ const App: React.FC = () => {
   const [displayedHits, setDisplayedHits] = useState<SearchResult[]>([]);
   const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>(() => loadSearchHistoryFromStorage());
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const progressiveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastQueryRef = useRef<{ query: string; page: number; limit: number } | null>(null);
+  const searchHistoryContainerRef = useRef<HTMLDivElement | null>(null);
   const initialRoute = useMemo<InitialRoute>(() => {
     if (typeof window === 'undefined') {
       return {};
@@ -756,6 +847,172 @@ const App: React.FC = () => {
     totalResultsCount > displayedResultsCount
       ? `${displayedResultsCount} résultat(s) sur ${totalResultsCount}`
       : `${displayedResultsCount} résultat(s)`;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        SEARCH_HISTORY_STORAGE_KEY,
+        JSON.stringify(searchHistory.slice(0, SEARCH_HISTORY_LIMIT))
+      );
+    } catch (error) {
+      console.error("Impossible d'enregistrer l'historique de recherche:", error);
+    }
+  }, [searchHistory]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!searchHistoryContainerRef.current) {
+        return;
+      }
+
+      if (!searchHistoryContainerRef.current.contains(event.target as Node)) {
+        setIsHistoryOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsHistoryOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const addToSearchHistory = useCallback((query: string) => {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) {
+      return;
+    }
+
+    setSearchHistory((prev) => {
+      const filtered = prev.filter(
+        (entry) => entry.query.toLowerCase() !== normalizedQuery.toLowerCase()
+      );
+      const updated: SearchHistoryEntry[] = [
+        { query: normalizedQuery, timestamp: Date.now() },
+        ...filtered
+      ];
+
+      return updated.slice(0, SEARCH_HISTORY_LIMIT);
+    });
+  }, []);
+
+  const clearSearchHistory = useCallback(() => {
+    setSearchHistory([]);
+  }, []);
+
+  const removeSearchHistoryEntry = useCallback((query: string) => {
+    setSearchHistory((prev) => prev.filter((entry) => entry.query !== query));
+  }, []);
+
+  const handleHistorySelection = (query: string) => {
+    setSearchQuery(query);
+    setIsHistoryOpen(false);
+    void handleSearch(undefined, query);
+  };
+
+  const getHistoryRelativeLabel = useCallback((timestamp: number) => {
+    try {
+      return formatDistanceToNow(timestamp, { locale: fr, addSuffix: true });
+    } catch (error) {
+      console.error('Erreur formatage date historique:', error);
+      return '';
+    }
+  }, []);
+
+  const searchInsights = useMemo<SearchInsight[]>(() => {
+    const trimmed = searchQuery.trim();
+    const hints: SearchInsight[] = [];
+
+    if (!trimmed) {
+      hints.push({
+        id: 'empty',
+        title: 'Boostez votre recherche',
+        description:
+          'Saisissez un numéro, un nom ou une immatriculation pour explorer intelligemment toutes les bases.',
+        icon: Sparkles,
+        accent: 'purple'
+      });
+      return hints;
+    }
+
+    if (/^\+?\d{6,}$/.test(trimmed)) {
+      hints.push({
+        id: 'phone',
+        title: 'Numéro détecté',
+        description: 'Recherche croisée sur les bases téléphoniques et historiques d\'appels.',
+        icon: Phone,
+        accent: 'blue'
+      });
+    }
+
+    if (trimmed.includes('@')) {
+      hints.push({
+        id: 'email',
+        title: 'Adresse email',
+        description: 'Analyse des correspondances emails et profils associés.',
+        icon: Mail,
+        accent: 'emerald'
+      });
+    }
+
+    if (/\b[A-Z]{1,3}\d{5,}\b/.test(trimmed)) {
+      hints.push({
+        id: 'identifier',
+        title: 'Identifiant structuré',
+        description: 'Détection possible de CNI, plaques ou identifiants de dossiers.',
+        icon: Hash,
+        accent: 'amber'
+      });
+    }
+
+    if (/\b\d{13,}\b/.test(trimmed)) {
+      hints.push({
+        id: 'biometric',
+        title: 'Empreinte ou identifiant biométrique',
+        description: 'Recherche étendue sur les empreintes et identifiants sensibles.',
+        icon: Fingerprint,
+        accent: 'pink'
+      });
+    }
+
+    if (trimmed.split(/\s+/).length >= 3) {
+      hints.push({
+        id: 'advanced',
+        title: 'Expression complexe',
+        description: 'Utilisation des opérateurs intelligents pour affiner la recherche.',
+        icon: Lightbulb,
+        accent: 'emerald'
+      });
+    }
+
+    if (searchResults && searchResults.total === 0) {
+      hints.push({
+        id: 'no-result',
+        title: 'Aucun résultat direct',
+        description: 'Essayez une recherche approximative ou combinez plusieurs critères.',
+        icon: Wand2,
+        accent: 'purple'
+      });
+    }
+
+    return hints.slice(0, 4);
+  }, [searchQuery, searchResults]);
 
   const resetProgressiveDisplay = useCallback(() => {
     if (progressiveTimerRef.current) {
@@ -2086,6 +2343,7 @@ const App: React.FC = () => {
         const normalizedData = normalizeSearchResponse(data);
         setSearchResults(normalizedData);
         progressivelyDisplayHits(normalizedData.hits, { reset: true });
+        addToSearchHistory(trimmedQuery);
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors de la recherche');
@@ -5253,7 +5511,7 @@ useEffect(() => {
               {/* Barre de recherche */}
               <div className="bg-white shadow-xl rounded-2xl p-8">
                 <form onSubmit={handleSearch} className="space-y-6">
-                  <div className="relative">
+                  <div className="relative" ref={searchHistoryContainerRef}>
                     <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
@@ -5261,11 +5519,37 @@ useEffect(() => {
                       className="w-full pl-12 pr-40 py-4 text-lg bg-gray-50 border border-gray-200 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      onFocus={() => {
+                        if (searchHistory.length > 0) {
+                          setIsHistoryOpen(true);
+                        }
+                      }}
+                      autoComplete="off"
                     />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                      {searchHistory.length > 0 && (
+                        <button
+                          type="button"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            setIsHistoryOpen((prev) => !prev);
+                          }}
+                          className={`hidden sm:inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                            isHistoryOpen
+                              ? 'border-blue-200 bg-blue-50 text-blue-600'
+                              : 'border-gray-200 bg-white/80 text-gray-500 hover:border-blue-200 hover:text-blue-600'
+                          }`}
+                          aria-expanded={isHistoryOpen}
+                          aria-label="Afficher l'historique des recherches"
+                        >
+                          <History className="h-4 w-4" />
+                          Historique
+                        </button>
+                      )}
                       <button
                         type="submit"
                         disabled={loading}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all flex items-center"
+                        className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all flex items-center"
                       >
                         {loading ? (
                           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
@@ -5275,9 +5559,105 @@ useEffect(() => {
                           </>
                         )}
                       </button>
+                    </div>
+
+                    {isHistoryOpen && searchHistory.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-20 mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white/95 shadow-2xl shadow-blue-100/60 backdrop-blur">
+                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                            <History className="h-4 w-4" />
+                            Historique de recherche
+                          </div>
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              clearSearchHistory();
+                              setIsHistoryOpen(false);
+                            }}
+                          >
+                            Effacer tout
+                          </button>
+                        </div>
+                        <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                          {searchHistory.map((entry) => (
+                            <div
+                              key={`${entry.query}-${entry.timestamp}`}
+                              className="group flex items-center justify-between gap-3 px-5 py-3 text-left hover:bg-blue-50/60"
+                            >
+                              <button
+                                type="button"
+                                onMouseDown={(event) => {
+                                  event.preventDefault();
+                                  handleHistorySelection(entry.query);
+                                }}
+                                className="flex flex-1 items-center gap-3 text-sm"
+                              >
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                                  <Search className="h-4 w-4" />
+                                </div>
+                                <div className="flex flex-col text-left">
+                                  <span className="font-medium text-slate-700 group-hover:text-blue-700">
+                                    {entry.query}
+                                  </span>
+                                  <span className="text-xs text-slate-400">
+                                    {getHistoryRelativeLabel(entry.timestamp)}
+                                  </span>
+                                </div>
+                              </button>
+                              <button
+                                type="button"
+                                onMouseDown={(event) => {
+                                  event.preventDefault();
+                                  removeSearchHistoryEntry(entry.query);
+                                }}
+                                className="rounded-full p-1 text-slate-300 hover:bg-red-50 hover:text-red-500"
+                                aria-label={`Supprimer ${entry.query} de l'historique`}
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </form>
               </div>
+
+              {searchInsights.length > 0 && (
+                <div className="rounded-2xl border border-blue-100/80 bg-gradient-to-br from-blue-50 via-white to-emerald-50/60 p-6 shadow-inner">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-600">
+                    <Sparkles className="h-4 w-4" />
+                    Assistant de recherche intelligent
+                  </div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    {searchInsights.map((insight) => {
+                      const Icon = insight.icon;
+                      const accent = insightAccentStyles[insight.accent];
+                      return (
+                        <div
+                          key={insight.id}
+                          className="flex items-start gap-4 rounded-2xl border border-white/60 bg-white/70 p-4 shadow-sm shadow-blue-100/40 backdrop-blur"
+                        >
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${accent.bg}`}>
+                            <Icon className={`h-5 w-5 ${accent.text}`} />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                              {insight.title}
+                            </p>
+                            <p className="text-sm text-slate-500 dark:text-slate-300">
+                              {insight.description}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Erreur de recherche */}
               {searchError && (
