@@ -217,18 +217,30 @@ const getSearchableValues = (value: unknown, key?: string): string[] => {
   return [];
 };
 
-const normalizeSearchResponse = (data: SearchResponseFromApi): SearchResponse => {
+const normalizeSearchResponse = (
+  data: SearchResponseFromApi,
+  options: { fallback?: SearchResponse; expectedPage?: number; expectedLimit?: number } = {}
+): SearchResponse => {
+  const { fallback, expectedPage, expectedLimit } = options;
   const { hits, tables_searched, total, page, limit, pages, elapsed_ms } = data;
 
+  const isFiniteNumber = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isFinite(value);
+
   return {
-    total: typeof total === 'number' && Number.isFinite(total) ? total : 0,
-    page: typeof page === 'number' && Number.isFinite(page) ? page : 1,
-    limit: typeof limit === 'number' && Number.isFinite(limit) ? limit : 0,
-    pages: typeof pages === 'number' && Number.isFinite(pages) ? pages : 0,
-    elapsed_ms:
-      typeof elapsed_ms === 'number' && Number.isFinite(elapsed_ms) ? elapsed_ms : 0,
+    total: isFiniteNumber(total) ? total : fallback?.total ?? 0,
+    page: isFiniteNumber(page)
+      ? page
+      : expectedPage ?? fallback?.page ?? 1,
+    limit: isFiniteNumber(limit)
+      ? limit
+      : expectedLimit ?? fallback?.limit ?? 0,
+    pages: isFiniteNumber(pages) ? pages : fallback?.pages ?? 0,
+    elapsed_ms: isFiniteNumber(elapsed_ms) ? elapsed_ms : fallback?.elapsed_ms ?? 0,
     hits: mapPreviewEntries(hits),
-    tables_searched: Array.isArray(tables_searched) ? tables_searched : []
+    tables_searched: Array.isArray(tables_searched)
+      ? tables_searched
+      : fallback?.tables_searched ?? []
   };
 };
 
@@ -2104,7 +2116,10 @@ const App: React.FC = () => {
 
       const data: SearchResponseFromApi = await response.json();
       if (response.ok) {
-        const normalizedData = normalizeSearchResponse(data);
+        const normalizedData = normalizeSearchResponse(data, {
+          expectedPage: requestedPage,
+          expectedLimit: requestedLimit
+        });
         setSearchResults(normalizedData);
         progressivelyDisplayHits(normalizedData.hits, { reset: true });
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
@@ -2163,20 +2178,28 @@ const App: React.FC = () => {
       const data: SearchResponseFromApi = await response.json();
 
       if (response.ok) {
-        const normalizedData = normalizeSearchResponse(data);
-        setSearchResults((prev) =>
-          prev
+        let normalizedData: SearchResponse | null = null;
+        setSearchResults((prev) => {
+          const mergedData = normalizeSearchResponse(data, {
+            fallback: prev ?? undefined,
+            expectedPage: requestedPage,
+            expectedLimit: requestedLimit
+          });
+          normalizedData = mergedData;
+          return prev
             ? {
                 ...prev,
-                ...normalizedData,
-                hits: [...prev.hits, ...normalizedData.hits],
+                ...mergedData,
+                hits: [...prev.hits, ...mergedData.hits],
                 tables_searched: Array.from(
-                  new Set([...(prev.tables_searched || []), ...(normalizedData.tables_searched || [])])
+                  new Set([...(prev.tables_searched || []), ...(mergedData.tables_searched || [])])
                 )
               }
-            : normalizedData
-        );
-        progressivelyDisplayHits(normalizedData.hits);
+            : mergedData;
+        });
+        if (normalizedData) {
+          progressivelyDisplayHits(normalizedData.hits);
+        }
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors du chargement des résultats');
