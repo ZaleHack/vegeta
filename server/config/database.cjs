@@ -113,6 +113,9 @@ class DatabaseManager {
       });
     });
 
+    // Appliquer les migrations nécessaires sur les tables existantes
+    this.migrateLegacyTables();
+
     // Créer les index après un délai
     setTimeout(() => {
       this.createIndexes();
@@ -412,6 +415,68 @@ class DatabaseManager {
         cni TEXT
       )`
     ];
+  }
+
+  migrateLegacyTables() {
+    this.migrateDemdikkTable();
+  }
+
+  migrateDemdikkTable() {
+    const tableName = 'autres_demdikk';
+
+    this.db.all("PRAGMA table_info('autres_demdikk')", (err, columns) => {
+      if (err) {
+        console.error(`Erreur lors de la lecture du schéma de ${tableName}:`, err);
+        return;
+      }
+
+      if (!Array.isArray(columns) || columns.length === 0) {
+        return;
+      }
+
+      const hasTelephone = columns.some((column) => column.name === 'telephone');
+      const hasNumero = columns.some((column) => column.name === 'numero');
+      const hasCni = columns.some((column) => column.name === 'cni');
+      const hasPasseport = columns.some((column) => column.name === 'passeport');
+
+      const migrations = [];
+
+      if (!hasTelephone && hasNumero) {
+        migrations.push('ALTER TABLE autres_demdikk RENAME COLUMN numero TO telephone');
+      } else if (!hasTelephone) {
+        migrations.push('ALTER TABLE autres_demdikk ADD COLUMN telephone TEXT');
+      }
+
+      if (!hasCni && hasPasseport) {
+        migrations.push('ALTER TABLE autres_demdikk RENAME COLUMN passeport TO cni');
+      } else if (!hasCni) {
+        migrations.push('ALTER TABLE autres_demdikk ADD COLUMN cni TEXT');
+      }
+
+      if (migrations.length === 0) {
+        return;
+      }
+
+      const runNextMigration = () => {
+        const sql = migrations.shift();
+
+        if (!sql) {
+          console.log(`✅ Migration de ${tableName} terminée`);
+          return;
+        }
+
+        this.db.run(sql, (migrationError) => {
+          if (migrationError) {
+            console.error(`Erreur lors de l'exécution de la migration (${sql}):`, migrationError);
+            return;
+          }
+
+          runNextMigration();
+        });
+      };
+
+      runNextMigration();
+    });
   }
 
   async createIndexes() {
