@@ -408,8 +408,8 @@ class DatabaseManager {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         prenom TEXT,
         nom TEXT,
-        numero TEXT,
-        passeport TEXT
+        telephone TEXT,
+        cni TEXT
       )`
     ];
   }
