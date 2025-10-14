@@ -162,6 +162,134 @@ const mapPreviewEntries = (hits: RawSearchResult[] | undefined): SearchResult[] 
 
 const EXCLUDED_SEARCH_KEYS = new Set(['id', 'ID']);
 
+interface RecentSearchFromApi {
+  term: string;
+  frequency: number;
+  last_used: string;
+  success_rate: number;
+  average_results: number;
+  last_results_count: number;
+  smart_score?: number;
+}
+
+interface RecentSearchSuggestion {
+  term: string;
+  frequency: number;
+  lastUsed: string;
+  successRate: number;
+  averageResults: number;
+  lastResultsCount: number;
+  smartScore: number;
+}
+
+const RECENT_SEARCH_HISTORY_LIMIT = 12;
+
+const computeSmartScore = (entry: {
+  frequency: number;
+  successRate: number;
+  averageResults: number;
+  lastUsed: string;
+  smartScore?: number;
+}): number => {
+  if (typeof entry.smartScore === 'number' && !Number.isNaN(entry.smartScore)) {
+    return entry.smartScore;
+  }
+
+  const now = Date.now();
+  const lastUsedTime = Date.parse(entry.lastUsed);
+  const hoursSinceLastUse = Number.isFinite(lastUsedTime)
+    ? (now - lastUsedTime) / (1000 * 60 * 60)
+    : Number.POSITIVE_INFINITY;
+  const recencyBoost = Number.isFinite(hoursSinceLastUse)
+    ? Math.max(0, 1 - Math.min(hoursSinceLastUse / 72, 1))
+    : 0;
+  const qualityBoost = entry.averageResults > 0
+    ? Math.min(entry.averageResults / 50, 1)
+    : 0;
+  const momentumBoost = entry.frequency > 0 ? Math.min(entry.frequency / 30, 1) : 0;
+
+  return Number(
+    (
+      entry.frequency * 0.4 +
+      entry.successRate * 3 +
+      recencyBoost * 2 +
+      qualityBoost +
+      momentumBoost * 0.5
+    ).toFixed(3)
+  );
+};
+
+const normalizeRecentSearch = (entry: RecentSearchFromApi): RecentSearchSuggestion | null => {
+  if (!entry || typeof entry.term !== 'string') {
+    return null;
+  }
+
+  const trimmedTerm = entry.term.trim();
+  if (!trimmedTerm) {
+    return null;
+  }
+
+  const lastUsedIso = entry.last_used ? new Date(entry.last_used).toISOString() : new Date().toISOString();
+  const frequency = Math.max(0, Number(entry.frequency) || 0);
+  if (frequency === 0) {
+    return null;
+  }
+
+  const successRateRaw = Number(entry.success_rate);
+  const successRate = Number.isFinite(successRateRaw)
+    ? Math.min(Math.max(successRateRaw, 0), 1)
+    : 0;
+  const averageResultsRaw = Number(entry.average_results);
+  const averageResults = Number.isFinite(averageResultsRaw) ? Math.max(0, averageResultsRaw) : 0;
+  const lastResultsCount = Math.max(0, Number(entry.last_results_count) || 0);
+
+  return {
+    term: trimmedTerm,
+    frequency,
+    lastUsed: lastUsedIso,
+    successRate,
+    averageResults,
+    lastResultsCount,
+    smartScore: computeSmartScore({
+      frequency,
+      successRate,
+      averageResults,
+      lastUsed: lastUsedIso,
+      smartScore: entry.smart_score
+    })
+  };
+};
+
+const formatRecentSearchDate = (isoString: string): string => {
+  if (!isoString) {
+    return '';
+  }
+
+  try {
+    const date = parseISO(isoString);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    const diffMinutes = Math.abs((Date.now() - date.getTime()) / (1000 * 60));
+    if (diffMinutes < 1) {
+      return "À l'instant";
+    }
+    if (diffMinutes < 60) {
+      return `Il y a ${Math.round(diffMinutes)} min`;
+    }
+    if (diffMinutes < 60 * 24) {
+      return formatDistanceToNow(date, { addSuffix: true, locale: fr });
+    }
+    if (diffMinutes < 60 * 24 * 7) {
+      return formatDistanceToNow(date, { addSuffix: true, locale: fr });
+    }
+    return format(date, "dd MMM yyyy 'à' HH:mm", { locale: fr });
+  } catch (error) {
+    return '';
+  }
+};
+
 const getSearchableValues = (value: unknown, key?: string): string[] => {
   if (key && EXCLUDED_SEARCH_KEYS.has(key)) {
     return [];
@@ -679,11 +807,25 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [displayedHits, setDisplayedHits] = useState<SearchResult[]>([]);
+  const [recentSearches, setRecentSearches] = useState<RecentSearchSuggestion[]>([]);
+  const [showRecentSearches, setShowRecentSearches] = useState(false);
   const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
   const progressiveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastQueryRef = useRef<{ query: string; page: number; limit: number } | null>(null);
+  const recentSearchesLoadedRef = useRef(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const filteredRecentSearches = useMemo(() => {
+    const normalized = searchQuery.trim().toLowerCase();
+    if (!normalized) {
+      return recentSearches.slice(0, RECENT_SEARCH_HISTORY_LIMIT);
+    }
+
+    return recentSearches
+      .filter((entry) => entry.term.toLowerCase().includes(normalized))
+      .slice(0, RECENT_SEARCH_HISTORY_LIMIT);
+  }, [recentSearches, searchQuery]);
   const initialRoute = useMemo<InitialRoute>(() => {
     if (typeof window === 'undefined') {
       return {};
@@ -796,6 +938,119 @@ const App: React.FC = () => {
 
     return sanitized;
   };
+
+  const fetchRecentSearches = useCallback(
+    async (options?: { force?: boolean }) => {
+      const force = options?.force ?? false;
+      if (!force && recentSearchesLoadedRef.current) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/search/recent?limit=${RECENT_SEARCH_HISTORY_LIMIT}`, {
+          headers: createAuthHeaders()
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (Array.isArray(data?.searches)) {
+          const normalized = data.searches
+            .map((entry: RecentSearchFromApi) => normalizeRecentSearch(entry))
+            .filter((entry): entry is RecentSearchSuggestion => Boolean(entry))
+            .sort((a, b) => b.smartScore - a.smartScore)
+            .slice(0, RECENT_SEARCH_HISTORY_LIMIT);
+          setRecentSearches(normalized);
+          recentSearchesLoadedRef.current = true;
+        }
+      } catch (error) {
+        if (force) {
+          recentSearchesLoadedRef.current = false;
+        }
+        console.error('Erreur chargement recherches récentes:', error);
+      }
+    },
+    [createAuthHeaders]
+  );
+
+  const upsertRecentSearch = useCallback((term: string, resultsCount: number) => {
+    const trimmed = term.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const normalizedTerm = trimmed.toLowerCase();
+    const nowIso = new Date().toISOString();
+    const safeResults = Number.isFinite(resultsCount) ? Math.max(0, Math.round(resultsCount)) : 0;
+    const successIncrement = safeResults > 0 ? 1 : 0;
+
+    setRecentSearches((prev) => {
+      const existingIndex = prev.findIndex((item) => item.term.toLowerCase() === normalizedTerm);
+
+      if (existingIndex >= 0) {
+        const existing = prev[existingIndex];
+        const newFrequency = existing.frequency + 1;
+        const previousSuccessTotal = Math.round(existing.successRate * existing.frequency);
+        const nextSuccessTotal = previousSuccessTotal + successIncrement;
+        const nextSuccessRate = newFrequency > 0 ? nextSuccessTotal / newFrequency : 0;
+        const nextAverageResults = newFrequency > 0
+          ? (existing.averageResults * existing.frequency + safeResults) / newFrequency
+          : existing.averageResults;
+        const sanitizedAverage = Number(Math.max(0, nextAverageResults).toFixed(1));
+        const sanitizedSuccessRate = Math.min(Math.max(nextSuccessRate, 0), 1);
+        const updated: RecentSearchSuggestion = {
+          term: existing.term,
+          frequency: newFrequency,
+          lastUsed: nowIso,
+          successRate: sanitizedSuccessRate,
+          averageResults: sanitizedAverage,
+          lastResultsCount: safeResults,
+          smartScore: computeSmartScore({
+            frequency: newFrequency,
+            successRate: sanitizedSuccessRate,
+            averageResults: sanitizedAverage,
+            lastUsed: nowIso
+          })
+        };
+
+        const remaining = prev.filter((_, index) => index !== existingIndex);
+        return [updated, ...remaining].slice(0, RECENT_SEARCH_HISTORY_LIMIT);
+      }
+
+      const initialAverage = Number(Math.max(0, safeResults).toFixed(1));
+      const initialSuccessRate = successIncrement;
+      const inserted: RecentSearchSuggestion = {
+        term: trimmed,
+        frequency: 1,
+        lastUsed: nowIso,
+        successRate: initialSuccessRate,
+        averageResults: initialAverage,
+        lastResultsCount: safeResults,
+        smartScore: computeSmartScore({
+          frequency: 1,
+          successRate: initialSuccessRate,
+          averageResults: initialAverage,
+          lastUsed: nowIso
+        })
+      };
+
+      return [inserted, ...prev].slice(0, RECENT_SEARCH_HISTORY_LIMIT);
+    });
+
+    recentSearchesLoadedRef.current = true;
+  }, []);
+
+  const handleSearchInputFocus = useCallback(() => {
+    setShowRecentSearches(true);
+    fetchRecentSearches();
+  }, [fetchRecentSearches]);
+
+  const handleSearchInputBlur = useCallback(() => {
+    setTimeout(() => {
+      setShowRecentSearches(false);
+    }, 150);
+  }, []);
   const criticalAlertCount = useMemo(() => {
     return logsData.reduce((count: number, log: any) => {
       if (!log) return count;
@@ -2026,6 +2281,8 @@ const App: React.FC = () => {
     const trimmedQuery = (forcedQuery ?? searchQuery).trim();
     if (!trimmedQuery) return;
 
+    setShowRecentSearches(false);
+
     const requestedPage = 1;
     const requestedLimit = 20;
 
@@ -2061,6 +2318,8 @@ const App: React.FC = () => {
         const normalizedData = normalizeSearchResponse(data);
         setSearchResults(normalizedData);
         progressivelyDisplayHits(normalizedData.hits, { reset: true });
+        upsertRecentSearch(trimmedQuery, normalizedData.total);
+        fetchRecentSearches({ force: true });
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors de la recherche');
@@ -2074,6 +2333,17 @@ const App: React.FC = () => {
       setLoading(false);
       abortControllerRef.current = null;
     }
+  };
+
+  const handleRecentSearchSelection = (term: string) => {
+    const sanitized = term.trim();
+    if (!sanitized) {
+      return;
+    }
+
+    setSearchQuery(sanitized);
+    setShowRecentSearches(false);
+    handleSearch(undefined, sanitized);
   };
 
   const loadMoreResults = async () => {
@@ -2172,6 +2442,19 @@ const App: React.FC = () => {
 
     setHasAppliedInitialRoute(true);
   }, [isAuthenticated, hasAppliedInitialRoute, initialRoute, handleSearch]);
+
+  useEffect(() => {
+    if (currentPage === 'search' && isAuthenticated) {
+      fetchRecentSearches();
+    }
+  }, [currentPage, isAuthenticated, fetchRecentSearches]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setRecentSearches([]);
+      recentSearchesLoadedRef.current = false;
+    }
+  }, [isAuthenticated]);
 
   const handleRequestIdentification = async () => {
     try {
@@ -5231,11 +5514,15 @@ useEffect(() => {
                   <div className="relative">
                     <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
+                      ref={searchInputRef}
                       type="text"
                       placeholder="Entrez votre recherche (CNI, nom, téléphone, immatriculation...)"
                       className="w-full pl-12 pr-40 py-4 text-lg bg-gray-50 border border-gray-200 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      onFocus={handleSearchInputFocus}
+                      onBlur={handleSearchInputBlur}
+                      autoComplete="off"
                     />
                       <button
                         type="submit"
@@ -5250,6 +5537,53 @@ useEffect(() => {
                           </>
                         )}
                       </button>
+                    {showRecentSearches && (
+                      <div className="absolute left-0 right-0 top-full z-20 mt-3 rounded-3xl border border-gray-200 bg-white shadow-2xl shadow-blue-100/50">
+                        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          <span>Recherches récentes</span>
+                          {filteredRecentSearches.length > 0 && (
+                            <span className="text-blue-600">Suggestions intelligentes</span>
+                          )}
+                        </div>
+                        {filteredRecentSearches.length === 0 ? (
+                          <div className="px-5 py-6 text-sm text-gray-500">Aucune recherche récente disponible.</div>
+                        ) : (
+                          <ul className="max-h-80 overflow-auto divide-y divide-gray-100">
+                            {filteredRecentSearches.map((entry) => (
+                              <li key={`${entry.term}-${entry.lastUsed}`}>
+                                <button
+                                  type="button"
+                                  className="w-full px-5 py-3 text-left hover:bg-blue-50 focus:bg-blue-100 focus:outline-none"
+                                  onMouseDown={(event) => {
+                                    event.preventDefault();
+                                    handleRecentSearchSelection(entry.term);
+                                  }}
+                                >
+                                  <div className="flex items-center justify-between text-sm font-medium text-gray-900">
+                                    <span className="truncate pr-4">{entry.term}</span>
+                                    <span className="text-xs font-semibold text-blue-600">
+                                      {(entry.successRate * 100).toFixed(0)}% réussite
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
+                                    <span>{formatRecentSearchDate(entry.lastUsed) || 'Jamais'}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span>
+                                        {entry.frequency} recherche{entry.frequency > 1 ? 's' : ''}
+                                      </span>
+                                      <span className="hidden sm:inline-flex items-center gap-1">
+                                        <span className="h-1 w-1 rounded-full bg-gray-300" />
+                                        <span>≈ {Math.round(entry.averageResults)} résultats</span>
+                                      </span>
+                                    </div>
+                                  </div>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </form>
               </div>
