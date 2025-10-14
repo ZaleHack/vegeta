@@ -127,22 +127,6 @@ class SearchService {
     return `\`${name.replace(/`/g, '``')}\``;
   }
 
-  escapeLikePattern(value) {
-    if (value === null || value === undefined) {
-      return '';
-    }
-
-    return String(value)
-      .replace(/\\/g, '\\\\')
-      .replace(/%/g, '\\%')
-      .replace(/_/g, '\\_');
-  }
-
-  buildContainsPattern(value) {
-    const escaped = this.escapeLikePattern(value);
-    return `%${escaped}%`;
-  }
-
   buildSelectClause(column, alias) {
     const quotedColumn = this.quoteIdentifier(column);
     if (!alias || alias === column) {
@@ -569,143 +553,9 @@ class SearchService {
     return response;
   }
 
-  async getRecentSearches({
-    userId = null,
-    username = '',
-    limit = 10,
-    scope = 'user'
-  } = {}) {
-    const parsedLimit = parseInt(limit);
-    const sanitizedLimit = Number.isFinite(parsedLimit)
-      ? Math.min(Math.max(parsedLimit, 1), 50)
-      : 10;
-    const fetchLimit = Math.min(sanitizedLimit * 3, 100);
-
-    const cacheKey = `recent:${scope}:${userId ?? 'all'}:${username ?? ''}:${sanitizedLimit}`;
-    const cached = this.cache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const conditions = [
-      'search_term IS NOT NULL',
-      "TRIM(search_term) <> ''"
-    ];
-    const params = [];
-
-    if (scope !== 'global') {
-      if (userId) {
-        conditions.push('(user_id = ? OR (user_id IS NULL AND username = ?))');
-        params.push(userId, username || '');
-      } else if (username) {
-        conditions.push('username = ?');
-        params.push(username);
-      }
-    }
-
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    let rows = [];
-    try {
-      rows = await database.query(
-        `
-          SELECT
-            TRIM(search_term) AS term,
-            COUNT(*) AS frequency,
-            MAX(search_date) AS last_used,
-            AVG(results_count) AS average_results,
-            SUM(CASE WHEN results_count > 0 THEN 1 ELSE 0 END) AS success_count,
-            MAX(results_count) AS last_results_count
-          FROM autres.search_logs
-          ${whereClause}
-          GROUP BY TRIM(search_term)
-          HAVING term IS NOT NULL
-          ORDER BY last_used DESC
-          LIMIT ?
-        `,
-        [...params, fetchLimit]
-      );
-    } catch (error) {
-      console.error('Erreur recherches récentes SQL:', error);
-      return [];
-    }
-
-    const now = Date.now();
-    const enriched = rows
-      .map((row) => {
-        const term = row?.term ? String(row.term).trim() : '';
-        const frequency = Number(row?.frequency) || 0;
-        if (!term || frequency === 0) {
-          return null;
-        }
-
-        const lastUsedIso = row?.last_used
-          ? new Date(row.last_used).toISOString()
-          : new Date().toISOString();
-        const averageResultsRaw = Number(row?.average_results) || 0;
-        const successCount = Number(row?.success_count) || 0;
-        const successRate = frequency > 0 ? successCount / frequency : 0;
-        const lastResultsCount = Number(row?.last_results_count) || 0;
-
-        const lastUsedTime = new Date(lastUsedIso).getTime();
-        const hoursSinceLastUse = Number.isFinite(lastUsedTime)
-          ? (now - lastUsedTime) / (1000 * 60 * 60)
-          : Number.POSITIVE_INFINITY;
-        const recencyBoost = Number.isFinite(hoursSinceLastUse)
-          ? Math.max(0, 1 - Math.min(hoursSinceLastUse / 72, 1))
-          : 0;
-        const qualityBoost = averageResultsRaw > 0
-          ? Math.min(averageResultsRaw / 50, 1)
-          : 0;
-        const momentumBoost = Math.min(frequency / fetchLimit, 1);
-        const smartScore = Number(
-          (
-            frequency * 0.4 +
-            successRate * 3 +
-            recencyBoost * 2 +
-            qualityBoost +
-            momentumBoost * 0.5
-          ).toFixed(3)
-        );
-
-        return {
-          term,
-          frequency,
-          last_used: lastUsedIso,
-          success_rate: Number(Math.min(Math.max(successRate, 0), 1).toFixed(2)),
-          average_results: Number(averageResultsRaw.toFixed(1)),
-          last_results_count: lastResultsCount,
-          smart_score: smartScore
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => {
-        if (b.smart_score !== a.smart_score) {
-          return b.smart_score - a.smart_score;
-        }
-        return new Date(b.last_used).getTime() - new Date(a.last_used).getTime();
-      })
-      .slice(0, sanitizedLimit);
-
-    this.cache.set(cacheKey, enriched);
-    return enriched;
-  }
-
-  clearRecentSearchCache(userId = null) {
-    if (!this.cache) {
-      return;
-    }
-
-    if (userId !== null && userId !== undefined) {
-      this.cache.clear(`recent:user:${userId}`);
-    }
-    this.cache.clear('recent:global');
-    this.cache.clear('recent:');
-  }
-
   parseSearchQuery(query) {
     const terms = [];
-
+    
     // Gestion des guillemets pour les phrases exactes
     const quotedPhrases = [];
     let cleanQuery = query;
@@ -866,7 +716,7 @@ class SearchService {
         // Terme obligatoire (doit être présent)
         for (const field of searchableColumns) {
           termConditions.push(`${this.quoteIdentifier(field)} LIKE ?`);
-          params.push(this.buildContainsPattern(term.value));
+          params.push(`${term.value}%`);
         }
       } else if (term.type === 'field') {
         // Recherche par champ spécifique
@@ -878,7 +728,7 @@ class SearchService {
         if (matchingFields.length > 0) {
           for (const { column } of matchingFields) {
             termConditions.push(`${this.quoteIdentifier(column)} LIKE ?`);
-            params.push(this.buildContainsPattern(term.value));
+            params.push(`${term.value}%`);
           }
         } else {
           const resolvedColumn = this.resolveColumnFromInfo(
@@ -886,15 +736,17 @@ class SearchService {
             columnInfo
           );
           if (resolvedColumn) {
-            termConditions.push(`${this.quoteIdentifier(resolvedColumn)} LIKE ?`);
-            params.push(this.buildContainsPattern(term.value));
+            termConditions.push(
+              `${this.quoteIdentifier(resolvedColumn)} LIKE ?`
+            );
+            params.push(`${term.value}%`);
           }
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
         for (const field of searchableColumns) {
           termConditions.push(`${this.quoteIdentifier(field)} LIKE ?`);
-          params.push(this.buildContainsPattern(term.value));
+          params.push(`${term.value}%`);
         }
       }
 
@@ -931,7 +783,7 @@ class SearchService {
       const excludeConditions = [];
       for (const field of searchableColumns) {
         excludeConditions.push(`${this.quoteIdentifier(field)} NOT LIKE ?`);
-        params.push(this.buildContainsPattern(term.value));
+        params.push(`${term.value}%`);
       }
       if (excludeConditions.length > 0) {
         sql += ` AND (${excludeConditions.join(' AND ')})`;
