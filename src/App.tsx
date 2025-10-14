@@ -133,6 +133,16 @@ interface User {
 
 type RawSearchResult = BaseSearchHit;
 
+type RawHitsPayload =
+  | RawSearchResult[]
+  | {
+      hits?: RawSearchResult[] | null;
+      data?: RawSearchResult[] | null;
+      results?: RawSearchResult[] | null;
+    }
+  | null
+  | undefined;
+
 interface SearchResult extends RawSearchResult {
   previewEntries: NormalizedPreviewEntry[];
 }
@@ -147,18 +157,37 @@ interface SearchResponse {
   tables_searched: string[];
 }
 
-type SearchResponseFromApi = Omit<SearchResponse, 'hits'> & {
-  hits: RawSearchResult[];
+type SearchResponseFromApi = Partial<Omit<SearchResponse, 'hits' | 'tables_searched'>> & {
+  hits: RawHitsPayload;
+  tables_searched?: string[] | null;
   error?: string;
 };
 
-const mapPreviewEntries = (hits: RawSearchResult[] | undefined): SearchResult[] =>
-  Array.isArray(hits)
-    ? hits.map((hit) => ({
-        ...hit,
-        previewEntries: normalizePreview(hit)
-      }))
-    : [];
+const extractHitsFromPayload = (hits: RawHitsPayload): RawSearchResult[] => {
+  if (Array.isArray(hits)) {
+    return hits;
+  }
+
+  if (hits && typeof hits === 'object') {
+    if (Array.isArray(hits.hits)) {
+      return hits.hits;
+    }
+    if (Array.isArray(hits.data)) {
+      return hits.data;
+    }
+    if (Array.isArray(hits.results)) {
+      return hits.results;
+    }
+  }
+
+  return [];
+};
+
+const mapPreviewEntries = (hits: RawHitsPayload): SearchResult[] =>
+  extractHitsFromPayload(hits).map((hit) => ({
+    ...hit,
+    previewEntries: normalizePreview(hit)
+  }));
 
 const EXCLUDED_SEARCH_KEYS = new Set(['id', 'ID']);
 
@@ -188,10 +217,20 @@ const getSearchableValues = (value: unknown, key?: string): string[] => {
   return [];
 };
 
-const normalizeSearchResponse = (data: SearchResponseFromApi): SearchResponse => ({
-  ...data,
-  hits: mapPreviewEntries(data.hits)
-});
+const normalizeSearchResponse = (data: SearchResponseFromApi): SearchResponse => {
+  const { hits, tables_searched, total, page, limit, pages, elapsed_ms } = data;
+
+  return {
+    total: typeof total === 'number' && Number.isFinite(total) ? total : 0,
+    page: typeof page === 'number' && Number.isFinite(page) ? page : 1,
+    limit: typeof limit === 'number' && Number.isFinite(limit) ? limit : 0,
+    pages: typeof pages === 'number' && Number.isFinite(pages) ? pages : 0,
+    elapsed_ms:
+      typeof elapsed_ms === 'number' && Number.isFinite(elapsed_ms) ? elapsed_ms : 0,
+    hits: mapPreviewEntries(hits),
+    tables_searched: Array.isArray(tables_searched) ? tables_searched : []
+  };
+};
 
 const formatScore = (score?: number) => {
   if (typeof score !== 'number' || Number.isNaN(score)) {
