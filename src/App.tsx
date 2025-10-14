@@ -711,6 +711,13 @@ const App: React.FC = () => {
   const [sessionPage, setSessionPage] = useState(1);
   const [sessionLoading, setSessionLoading] = useState(false);
 
+  const displayedResultsCount = displayedHits.length;
+  const totalResultsCount = searchResults?.total ?? searchResults?.hits?.length ?? 0;
+  const resultsCountLabel =
+    totalResultsCount > displayedResultsCount
+      ? `${displayedResultsCount} résultat(s) sur ${totalResultsCount}`
+      : `${displayedResultsCount} résultat(s)`;
+
   const resetProgressiveDisplay = useCallback(() => {
     if (progressiveTimerRef.current) {
       clearTimeout(progressiveTimerRef.current);
@@ -5279,7 +5286,7 @@ useEffect(() => {
                         <div className="flex items-center mt-2 space-x-4">
                           <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white/20">
                             <Activity className="w-4 h-4 mr-1" />
-                            {searchResults.total} résultat(s)
+                            {resultsCountLabel}
                           </span>
                           <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white/20">
                             <Clock className="w-4 h-4 mr-1" />
