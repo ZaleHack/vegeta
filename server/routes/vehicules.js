@@ -68,7 +68,8 @@ router.get('/', authenticate, async (req, res) => {
         PrecImmat,
         Date_PrecImmat
       FROM vehicules ${whereClause} LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+      [...params, limit, offset],
+      { lowercaseKeys: false }
     );
 
     res.json({ entries: rows, total: totalResult.count });
