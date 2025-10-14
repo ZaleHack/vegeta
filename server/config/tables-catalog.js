@@ -710,10 +710,10 @@ export default {
   'autres.demdikk': {
     display: 'demdikk',
     database: 'autres',
-    searchable: ['prenom', 'nom', 'numero', 'cni'],
-    preview: ['prenom', 'nom', 'numero', 'cni'],
+    searchable: ['prenom', 'nom', 'telephone', 'cni'],
+    preview: ['prenom', 'nom', 'telephone', 'cni'],
     filters: {
-      numero: 'string',
+      telephone: 'string',
       cni: 'string'
     },
     theme: 'identite'
