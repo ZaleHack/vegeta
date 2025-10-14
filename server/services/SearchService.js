@@ -127,6 +127,25 @@ class SearchService {
     return `\`${name.replace(/`/g, '``')}\``;
   }
 
+  buildLikePattern(value, mode = 'any') {
+    if (value === undefined || value === null) {
+      return '%';
+    }
+
+    const trimmed = String(value).trim();
+    const escaped = trimmed.replace(/[%_]/g, '\\$&');
+
+    switch (mode) {
+      case 'prefix':
+        return `${escaped}%`;
+      case 'suffix':
+        return `%${escaped}`;
+      case 'any':
+      default:
+        return `%${escaped}%`;
+    }
+  }
+
   buildSelectClause(column, alias) {
     const quotedColumn = this.quoteIdentifier(column);
     if (!alias || alias === column) {
@@ -716,7 +735,7 @@ class SearchService {
         // Terme obligatoire (doit être présent)
         for (const field of searchableColumns) {
           termConditions.push(`${this.quoteIdentifier(field)} LIKE ?`);
-          params.push(`${term.value}%`);
+          params.push(this.buildLikePattern(term.value));
         }
       } else if (term.type === 'field') {
         // Recherche par champ spécifique
@@ -728,7 +747,7 @@ class SearchService {
         if (matchingFields.length > 0) {
           for (const { column } of matchingFields) {
             termConditions.push(`${this.quoteIdentifier(column)} LIKE ?`);
-            params.push(`${term.value}%`);
+            params.push(this.buildLikePattern(term.value));
           }
         } else {
           const resolvedColumn = this.resolveColumnFromInfo(
@@ -739,14 +758,14 @@ class SearchService {
             termConditions.push(
               `${this.quoteIdentifier(resolvedColumn)} LIKE ?`
             );
-            params.push(`${term.value}%`);
+            params.push(this.buildLikePattern(term.value));
           }
         }
       } else if (term.type === 'normal') {
         // Recherche normale dans tous les champs
         for (const field of searchableColumns) {
           termConditions.push(`${this.quoteIdentifier(field)} LIKE ?`);
-          params.push(`${term.value}%`);
+          params.push(this.buildLikePattern(term.value));
         }
       }
 
@@ -783,7 +802,7 @@ class SearchService {
       const excludeConditions = [];
       for (const field of searchableColumns) {
         excludeConditions.push(`${this.quoteIdentifier(field)} NOT LIKE ?`);
-        params.push(`${term.value}%`);
+        params.push(this.buildLikePattern(term.value));
       }
       if (excludeConditions.length > 0) {
         sql += ` AND (${excludeConditions.join(' AND ')})`;
