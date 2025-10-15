@@ -387,7 +387,8 @@ class CaseService {
     }
 
     const { default: PDFDocument } = await import('pdfkit');
-    const doc = new PDFDocument({ margin: 50 });
+    // Compression triggers a stack overflow with pdfkit on Node 22, so we disable it.
+    const doc = new PDFDocument({ margin: 50, compress: false });
     const stream = new PassThrough();
     const chunks = [];
 
