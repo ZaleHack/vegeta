@@ -533,6 +533,7 @@ class SearchService {
     const sortedResults = this.sortResults(uniqueResults);
     const totalResults = sortedResults.length;
     const paginatedResults = sortedResults.slice(offset, offset + limit);
+    const sanitizedHits = paginatedResults.map(({ linkedFields, ...rest }) => rest);
 
     const executionTime = Date.now() - startTime;
 
@@ -542,7 +543,7 @@ class SearchService {
       limit: limit,
       pages: Math.ceil(totalResults / limit),
       elapsed_ms: executionTime,
-      hits: paginatedResults,
+      hits: sanitizedHits,
       tables_searched: [...new Set(tablesSearched)]
     };
 
