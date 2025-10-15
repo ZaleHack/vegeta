@@ -1,11 +1,11 @@
 import express from 'express';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requirePermission } from '../middleware/auth.js';
 import IdentifiedNumber from '../models/IdentifiedNumber.js';
 
 const router = express.Router();
 
 router.use(authenticate);
-router.use(requireAdmin);
+router.use(requirePermission('identified_numbers:manage'));
 
 router.get('/:phone', async (req, res) => {
   try {

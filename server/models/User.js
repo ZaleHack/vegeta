@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { generateSecret as generateTotpSecret } from '../utils/totp.js';
 import database from '../config/database.js';
 import { getJwtSecret } from '../config/environment.js';
+import accessControlService from '../services/AccessControlService.js';
 const USERS_TABLE = 'autres.users';
 
 class User {
@@ -17,6 +18,18 @@ class User {
       [login, hashedPassword, admin, active, normalizedDivisionId]
     );
 
+    const defaultRoles = Array.isArray(userData.roles)
+      ? userData.roles
+      : admin === 1 || admin === '1'
+        ? ['administrator']
+        : ['observer'];
+
+    try {
+      await accessControlService.assignRolesToUser(result.insertId, defaultRoles);
+    } catch (error) {
+      console.error('❌ Impossible d\'assigner les rôles par défaut:', error);
+    }
+
     return {
       id: result.insertId,
       login,
@@ -24,7 +37,8 @@ class User {
       admin,
       active,
       division_id: normalizedDivisionId,
-      otp_enabled: 0
+      otp_enabled: 0,
+      roles: defaultRoles
     };
   }
 
@@ -78,6 +92,12 @@ class User {
   static sanitize(user) {
     if (!user) return null;
     const { mdp, otp_secret, ...safeUser } = user;
+    if (user.roles) {
+      safeUser.roles = user.roles;
+    }
+    if (user.permissions) {
+      safeUser.permissions = user.permissions;
+    }
     return safeUser;
   }
 
@@ -114,6 +134,9 @@ class User {
 
     Object.keys(userData).forEach(key => {
       if (key !== 'id' && userData[key] !== undefined) {
+        if (key === 'roles') {
+          return;
+        }
         if (key === 'mdp') {
           fields.push('mdp = ?');
           values.push(bcrypt.hashSync(userData[key], 12));
@@ -130,14 +153,18 @@ class User {
       }
     });
     
-    if (fields.length === 0) return null;
-    
-    values.push(id);
-    
-    await database.query(
-      `UPDATE autres.users SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    if (fields.length > 0) {
+      values.push(id);
+
+      await database.query(
+        `UPDATE autres.users SET ${fields.join(', ')} WHERE id = ?`,
+        values
+      );
+    }
+
+    if (Array.isArray(userData.roles)) {
+      await accessControlService.assignRolesToUser(id, userData.roles);
+    }
 
     return await this.findById(id);
   }
