@@ -398,10 +398,37 @@ class ProfileService {
 
         const accentColor = '#1D4ED8';
         const accentDark = '#1E3A8A';
-        const accentSoft = '#DBEAFE';
-        const borderColor = '#BFDBFE';
+        const accentSoft = '#E2E8FF';
+        const borderColor = '#C7D2FE';
+        const backgroundTint = '#F8FAFF';
         const textPrimary = '#0F172A';
         const textSecondary = '#1F2937';
+        const sectionPadding = 22;
+
+        const loadPhotoBuffer = async () => {
+          if (!profile.photo_path) return null;
+          try {
+            if (/^https?:\/\//.test(profile.photo_path)) {
+              const res = await fetch(profile.photo_path);
+              const arr = await res.arrayBuffer();
+              return Buffer.from(arr);
+            }
+
+            const normalizedPath = profile.photo_path
+              .split(/[\/\\]+/)
+              .join(path.sep)
+              .replace(/^[/\\]+/, '');
+            const imgPath = path.resolve(__dirname, '../../', normalizedPath);
+            if (fs.existsSync(imgPath)) {
+              return fs.readFileSync(imgPath);
+            }
+          } catch (_) {
+            // ignore image errors
+          }
+          return null;
+        };
+
+        const photoBuffer = await loadPhotoBuffer();
 
         const addSignature = () => {
           doc.save();
@@ -431,117 +458,42 @@ class ProfileService {
         doc.on('pageAdded', addSignature);
         doc.addPage();
 
-        // Header block
         const pageWidth = doc.page.width;
-        const headerHeight = 80;
         const margin = doc.page.margins.left;
         const innerWidth = pageWidth - margin * 2;
+        const headerHeight = 110;
 
         doc.rect(0, 0, pageWidth, headerHeight).fill(accentColor);
         doc
-          .fillColor('white')
-          .fontSize(26)
+          .font('Helvetica')
+          .fontSize(11)
+          .fillColor('#CFE1FF')
+          .text('Synthèse du profil', margin, 32, { width: innerWidth });
+        doc
           .font('Helvetica-Bold')
-          .text('FICHE PROFIL', 0, headerHeight / 2 - 16, {
-            width: pageWidth,
-            align: 'center'
-          });
+          .fontSize(28)
+          .fillColor('white')
+          .text('FICHE PROFIL', margin, 54, { width: innerWidth });
         doc
           .font('Helvetica')
           .fontSize(11)
-          .fillColor('#E0ECFF')
-          .text(`Exporté le ${exportDateLabel}`, 0, headerHeight / 2 + 10, {
-            width: pageWidth,
-            align: 'center'
-          });
+          .fillColor('#E3ECFF')
+          .text(`Exporté le ${exportDateLabel}`, margin, 84, { width: innerWidth, align: 'right' });
+
         doc.fillColor(textPrimary);
 
-        // Body positioning
-        let y = headerHeight + 30;
-        const photoSize = 140;
+        let y = headerHeight + 32;
+        const cardPadding = 24;
+        const photoSize = photoBuffer ? 116 : 0;
+        const cardHeight = photoBuffer ? Math.max(photoSize + cardPadding * 2, 188) : 156;
+        const cardX = margin;
+        const cardWidth = innerWidth;
 
-        // Add photo centered below the header
-        if (profile.photo_path) {
-          try {
-            let imageBuffer;
-            if (/^https?:\/\//.test(profile.photo_path)) {
-              const res = await fetch(profile.photo_path);
-              const arr = await res.arrayBuffer();
-              imageBuffer = Buffer.from(arr);
-            } else {
-              // Always resolve the photo path relative to the project root
-              const normalizedPath = profile.photo_path
-                .split(/[/\\]+/)
-                .join(path.sep)
-                .replace(/^[/\\]+/, '');
-              const imgPath = path.resolve(__dirname, '../../', normalizedPath);
-              if (fs.existsSync(imgPath)) {
-                imageBuffer = fs.readFileSync(imgPath);
-              }
-            }
-            if (imageBuffer) {
-              const photoX = (pageWidth - photoSize) / 2;
-              doc.image(imageBuffer, photoX, y, {
-                fit: [photoSize, photoSize],
-                align: 'center',
-                valign: 'center'
-              });
-              doc
-                .lineWidth(1.5)
-                .roundedRect(photoX - 4, y - 4, photoSize + 8, photoSize + 8, 12)
-                .stroke(borderColor);
-              y += photoSize + 30;
-            }
-          } catch (_) {
-            // ignore image errors
-          }
-        }
-
-        // Separator line for a cleaner layout
-        doc
-          .moveTo(margin, y)
-          .lineTo(pageWidth - margin, y)
-          .lineWidth(1)
-          .stroke(borderColor);
-        y += 24;
-
-        const sectionPadding = 18;
-        let textX = margin + sectionPadding;
-        let textWidth = innerWidth - sectionPadding * 2;
-
-        const drawSectionHeader = (title) => {
-          const headerTitle = title ? String(title) : 'Informations';
-          doc.save();
-          doc.lineWidth(1);
-          doc.fillColor(accentSoft);
-          doc.strokeColor(borderColor);
-          const headerHeightBox = 32;
-          doc.roundedRect(margin, y, innerWidth, headerHeightBox, 12).fillAndStroke();
-          doc
-            .fillColor(accentDark)
-            .font('Helvetica-Bold')
-            .fontSize(12)
-            .text(headerTitle.toUpperCase(), margin + 16, y + 10);
-          doc.restore();
-          y += headerHeightBox + 14;
-        };
-
-        const addField = (label, value) => {
-          if (!value && value !== 0) return;
-          const safeLabel = label ? String(label) : '';
-          doc
-            .fillColor(accentDark)
-            .font('Helvetica-Bold')
-            .fontSize(9)
-            .text(safeLabel.toUpperCase(), textX, y);
-          y = doc.y + 3;
-          doc
-            .fillColor(textSecondary)
-            .font('Helvetica')
-            .fontSize(12)
-            .text(String(value), textX, y, { width: textWidth });
-          y = doc.y + 12;
-        };
+        doc.save();
+        doc.fillColor('white');
+        doc.roundedRect(cardX, y, cardWidth, cardHeight, 20).fill();
+        doc.lineWidth(1.2).strokeColor(borderColor).roundedRect(cardX, y, cardWidth, cardHeight, 20).stroke();
+        doc.restore();
 
         const displayName = [profile.first_name, profile.last_name]
           .filter(Boolean)
@@ -550,10 +502,176 @@ class ProfileService {
         const fallbackName =
           displayName || profile.email || profile.phone || (profile.id ? `Profil #${profile.id}` : 'Profil');
 
-        drawSectionHeader('Informations principales');
-        addField('Nom complet', displayName || fallbackName);
-        addField('Email', profile.email);
-        addField('Téléphone', profile.phone);
+        const textAreaWidth = cardWidth - cardPadding * 2 - (photoBuffer ? photoSize + 28 : 0);
+        const contentX = cardX + cardPadding;
+        let contentY = y + cardPadding;
+
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(22)
+          .fillColor(textPrimary)
+          .text(fallbackName, contentX, contentY, { width: textAreaWidth });
+        contentY = doc.y + 10;
+
+        const addSummaryRow = (label, value) => {
+          if (!value && value !== 0) return;
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(10)
+            .fillColor(accentDark)
+            .text(String(label).toUpperCase(), contentX, contentY, { width: textAreaWidth });
+          contentY = doc.y + 4;
+          doc
+            .font('Helvetica')
+            .fontSize(12)
+            .fillColor(textSecondary)
+            .text(String(value), contentX, contentY, { width: textAreaWidth });
+          contentY = doc.y + 10;
+        };
+
+        const contactParts = [];
+        if (profile.email) {
+          contactParts.push(String(profile.email));
+        }
+        if (profile.phone) {
+          contactParts.push(String(profile.phone));
+        }
+
+        addSummaryRow('Coordonnées', contactParts.length ? contactParts.join(' • ') : 'Non communiquées');
+        addSummaryRow('Exporté le', exportDateLabel);
+        if (profile.id) {
+          addSummaryRow('Identifiant', `#${profile.id}`);
+        }
+
+        if (photoBuffer) {
+          const photoX = cardX + cardWidth - cardPadding - photoSize;
+          const photoY = y + cardPadding;
+
+          doc.save();
+          doc.fillColor(backgroundTint);
+          doc.roundedRect(photoX - 8, photoY - 8, photoSize + 16, photoSize + 16, 18).fill();
+          doc.restore();
+
+          doc.image(photoBuffer, photoX, photoY, {
+            fit: [photoSize, photoSize],
+            align: 'center',
+            valign: 'center'
+          });
+          doc
+            .lineWidth(1.5)
+            .strokeColor(borderColor)
+            .roundedRect(photoX - 8, photoY - 8, photoSize + 16, photoSize + 16, 18)
+            .stroke();
+        }
+
+        y += cardHeight + 36;
+        doc.y = y;
+
+        const drawSection = (title, renderContent) => {
+          if (!renderContent) {
+            return;
+          }
+
+          const safeTitle = title ? String(title) : 'Informations';
+
+          doc.save();
+          doc.fillColor(accentColor);
+          doc.rect(margin, y, 4, 22).fill();
+          doc.restore();
+
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(13)
+            .fillColor(accentDark)
+            .text(safeTitle.toUpperCase(), margin + 12, y);
+
+          const headerBottom = doc.y + 4;
+          doc
+            .strokeColor(borderColor)
+            .lineWidth(1)
+            .moveTo(margin, headerBottom)
+            .lineTo(margin + innerWidth, headerBottom)
+            .stroke();
+
+          y = headerBottom + 16;
+          doc.y = y;
+
+          renderContent();
+
+          y += 20;
+          doc.y = y;
+        };
+
+        const renderGrid = (fields) => {
+          const validFields = (fields || [])
+            .filter(field => field && (field.value || field.value === 0))
+            .map(field => ({
+              label: String(field.label || ''),
+              value: String(field.value)
+            }));
+
+          if (validFields.length === 0) {
+            return;
+          }
+
+          const columnCount = validFields.length > 2 ? 2 : 1;
+          const columnGap = columnCount > 1 ? 28 : 0;
+          const columnWidth = (
+            innerWidth - sectionPadding * 2 - columnGap * (columnCount - 1)
+          ) / columnCount;
+          const baseX = margin + sectionPadding;
+          const columnHeights = Array(columnCount).fill(y);
+
+          validFields.forEach((field, index) => {
+            const column = columnCount === 1 ? 0 : index % columnCount;
+            const fieldX = baseX + column * (columnWidth + columnGap);
+            const fieldY = columnHeights[column];
+
+            doc
+              .font('Helvetica-Bold')
+              .fontSize(9)
+              .fillColor(accentDark)
+              .text(field.label.toUpperCase(), fieldX, fieldY);
+            const nextY = doc.y + 3;
+            doc
+              .font('Helvetica')
+              .fontSize(12)
+              .fillColor(textSecondary)
+              .text(field.value, fieldX, nextY, { width: columnWidth });
+            columnHeights[column] = doc.y + 14;
+          });
+
+          y = Math.max(...columnHeights);
+          doc.y = y;
+        };
+
+        const renderParagraph = (text) => {
+          if (!text) {
+            return;
+          }
+
+          const paragraphX = margin + sectionPadding;
+          const paragraphWidth = innerWidth - sectionPadding * 2;
+
+          doc
+            .font('Helvetica')
+            .fontSize(12)
+            .fillColor(textSecondary)
+            .text(String(text), paragraphX, y, { width: paragraphWidth });
+
+          y = doc.y;
+          doc.y = y;
+        };
+
+        const mainInformation = [
+          { label: 'Nom complet', value: displayName || fallbackName },
+          { label: 'Adresse e-mail', value: profile.email },
+          { label: 'Numéro de téléphone', value: profile.phone }
+        ];
+
+        if (mainInformation.some(field => field.value)) {
+          drawSection('Informations principales', () => renderGrid(mainInformation));
+        }
 
         const parseExtraFields = () => {
           if (!profile.extra_fields) {
@@ -593,18 +711,20 @@ class ProfileService {
         const extraCategories = parseExtraFields();
 
         extraCategories.forEach(category => {
-          drawSectionHeader(category.title);
-          category.fields.forEach(field => addField(field.key, field.value));
+          drawSection(category.title, () =>
+            renderGrid(
+              category.fields.map(field => ({
+                label: field.key,
+                value: field.value
+              }))
+            )
+          );
         });
 
         if (profile.comment && String(profile.comment).trim()) {
-          drawSectionHeader('Commentaire');
-          doc
-            .fillColor(textSecondary)
-            .font('Helvetica')
-            .fontSize(12)
-            .text(String(profile.comment), textX, y, { width: textWidth });
-          y = doc.y + 12;
+          drawSection('Commentaire', () =>
+            renderParagraph(String(profile.comment).trim())
+          );
         }
 
         doc.end();
