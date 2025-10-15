@@ -170,6 +170,86 @@ type SearchResponseFromApi = Partial<Omit<SearchResponse, 'hits' | 'tables_searc
   error?: string;
 };
 
+interface UploadSourcePrivacy {
+  level: string;
+  rules: string;
+}
+
+interface UploadSourceFromApi {
+  id: string;
+  name: string;
+  description?: string;
+  owner?: string | null;
+  enabled?: boolean;
+  tags?: string[] | null;
+  privacy?: Partial<UploadSourcePrivacy> | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+type UploadSourceRecord = {
+  id: string;
+  name: string;
+  description: string;
+  owner: string | null;
+  enabled: boolean;
+  tags: string[];
+  privacy: UploadSourcePrivacy;
+  updatedAt: string | null;
+  updatedBy: string | null;
+};
+
+type UploadSourceWithDrafts = UploadSourceRecord & {
+  draftDescription: string;
+  draftOwner: string;
+  draftPrivacyLevel: string;
+  draftPrivacyRules: string;
+  dirty: boolean;
+};
+
+const toUploadSourceWithDrafts = (source: UploadSourceFromApi): UploadSourceWithDrafts => {
+  const sanitizedTags = Array.isArray(source.tags)
+    ? source.tags
+        .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+        .map((tag) => tag.trim())
+    : [];
+
+  const description = typeof source.description === 'string' ? source.description : '';
+  const owner = typeof source.owner === 'string' ? source.owner : null;
+  const privacyLevel = typeof source.privacy?.level === 'string' ? source.privacy.level : '';
+  const privacyRules = typeof source.privacy?.rules === 'string' ? source.privacy.rules : '';
+
+  return {
+    id: source.id,
+    name: typeof source.name === 'string' ? source.name : source.id,
+    description,
+    owner: owner && owner.trim().length > 0 ? owner.trim() : null,
+    enabled: source.enabled !== false,
+    tags: sanitizedTags,
+    privacy: {
+      level: privacyLevel,
+      rules: privacyRules
+    },
+    updatedAt: source.updatedAt ?? null,
+    updatedBy: source.updatedBy ?? null,
+    draftDescription: description,
+    draftOwner: owner?.trim() ?? '',
+    draftPrivacyLevel: privacyLevel,
+    draftPrivacyRules: privacyRules,
+    dirty: false
+  };
+};
+
+const computeUploadSourceDirty = (source: UploadSourceWithDrafts): boolean => {
+  const ownerReference = source.owner ?? '';
+  return (
+    source.draftDescription !== source.description ||
+    source.draftOwner !== ownerReference ||
+    source.draftPrivacyLevel !== source.privacy.level ||
+    source.draftPrivacyRules !== source.privacy.rules
+  );
+};
+
 const extractHitsFromPayload = (hits: RawHitsPayload): RawSearchResult[] => {
   if (Array.isArray(hits)) {
     return hits;
@@ -1246,6 +1326,10 @@ const App: React.FC = () => {
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [uploadTable, setUploadTable] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadSources, setUploadSources] = useState<UploadSourceWithDrafts[]>([]);
+  const [uploadSourcesLoading, setUploadSourcesLoading] = useState(false);
+  const [uploadSourcesError, setUploadSourcesError] = useState('');
+  const [uploadSourcesSaving, setUploadSourcesSaving] = useState<Record<string, boolean>>({});
 
   const openCreateProfile = (data: {
     email?: string;
@@ -3120,6 +3204,166 @@ useEffect(() => {
     }
   };
 
+  const fetchUploadSources = async () => {
+    if (!isAdmin) {
+      setUploadSources([]);
+      setUploadSourcesError('');
+      return;
+    }
+
+    setUploadSourcesLoading(true);
+    setUploadSourcesError('');
+    try {
+      const response = await fetch('/api/upload/databases?scope=all', {
+        headers: createAuthHeaders()
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erreur lors du chargement du catalogue');
+      }
+      const rawSources = Array.isArray(data.databases)
+        ? (data.databases as UploadSourceFromApi[])
+        : [];
+      const normalized = rawSources
+        .filter((item) => item && typeof item.id === 'string')
+        .map((item) => toUploadSourceWithDrafts(item));
+      normalized.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+      setUploadSources(normalized);
+    } catch (error) {
+      console.error('Erreur chargement catalogue upload:', error);
+      setUploadSourcesError('Impossible de charger le catalogue des bases');
+    } finally {
+      setUploadSourcesLoading(false);
+    }
+  };
+
+  const updateUploadSourceDraft = (id: string, updates: Partial<UploadSourceWithDrafts>) => {
+    setUploadSources((prev) =>
+      prev.map((source) => {
+        if (source.id !== id) {
+          return source;
+        }
+        const next = { ...source, ...updates };
+        return { ...next, dirty: computeUploadSourceDirty(next) };
+      })
+    );
+  };
+
+  const handleToggleUploadSource = async (id: string, enabled: boolean) => {
+    const previous = uploadSources.find((source) => source.id === id)?.enabled;
+    setUploadSources((prev) =>
+      prev.map((source) => (source.id === id ? { ...source, enabled } : source))
+    );
+
+    try {
+      const response = await fetch(`/api/upload/databases/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ enabled })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erreur lors de la mise à jour');
+      }
+
+      if (data?.database) {
+        const normalized = toUploadSourceWithDrafts(data.database as UploadSourceFromApi);
+        setUploadSources((prev) =>
+          prev.map((source) => (source.id === id ? normalized : source))
+        );
+      }
+      notifySuccess(enabled ? 'Source activée' : 'Source désactivée');
+    } catch (error) {
+      console.error('Erreur mise à jour source upload:', error);
+      if (typeof previous === 'boolean') {
+        setUploadSources((prev) =>
+          prev.map((source) => (source.id === id ? { ...source, enabled: previous } : source))
+        );
+      }
+      notifyError("Impossible de mettre à jour la source");
+    }
+  };
+
+  const handleSaveUploadSource = async (source: UploadSourceWithDrafts) => {
+    setUploadSourcesSaving((prev) => ({ ...prev, [source.id]: true }));
+    try {
+      const payload = {
+        description: source.draftDescription,
+        owner: source.draftOwner.trim().length > 0 ? source.draftOwner.trim() : null,
+        privacy: {
+          level: source.draftPrivacyLevel,
+          rules: source.draftPrivacyRules
+        }
+      };
+
+      const response = await fetch(`/api/upload/databases/${encodeURIComponent(source.id)}`, {
+        method: 'PATCH',
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erreur lors de la mise à jour');
+      }
+
+      const updatedRecord = data?.database
+        ? toUploadSourceWithDrafts(data.database as UploadSourceFromApi)
+        : {
+            ...source,
+            description: payload.description,
+            owner: payload.owner,
+            privacy: {
+              level: payload.privacy.level,
+              rules: payload.privacy.rules
+            },
+            updatedAt: new Date().toISOString()
+          };
+
+      setUploadSources((prev) =>
+        prev.map((item) =>
+          item.id === source.id
+            ? {
+                ...updatedRecord,
+                draftDescription: updatedRecord.description,
+                draftOwner: updatedRecord.owner ?? '',
+                draftPrivacyLevel: updatedRecord.privacy.level,
+                draftPrivacyRules: updatedRecord.privacy.rules,
+                dirty: false
+              }
+            : item
+        )
+      );
+      notifySuccess('Catalogue mis à jour');
+    } catch (error) {
+      console.error('Erreur sauvegarde source upload:', error);
+      notifyError('Impossible de sauvegarder les modifications');
+    } finally {
+      setUploadSourcesSaving((prev) => {
+        const next = { ...prev };
+        delete next[source.id];
+        return next;
+      });
+    }
+  };
+
+  const handleResetUploadSource = (id: string) => {
+    setUploadSources((prev) =>
+      prev.map((source) => {
+        if (source.id !== id) {
+          return source;
+        }
+        const next: UploadSourceWithDrafts = {
+          ...source,
+          draftDescription: source.description,
+          draftOwner: source.owner ?? '',
+          draftPrivacyLevel: source.privacy.level,
+          draftPrivacyRules: source.privacy.rules
+        };
+        return { ...next, dirty: false };
+      })
+    );
+  };
+
   const fetchUploadHistory = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -4069,6 +4313,7 @@ useEffect(() => {
     }
     if (currentPage === 'upload' && isAdmin) {
       fetchUploadHistory();
+      fetchUploadSources();
     }
     if (currentPage === 'annuaire' && currentUser) {
       fetchAnnuaire();
@@ -9068,6 +9313,231 @@ useEffect(() => {
           )}
         </div>
       </div>
+
+      {currentPage === 'upload' && isAdmin && (
+        <div className="relative mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="relative mt-12 rounded-3xl border border-white/70 bg-white/85 p-6 shadow-2xl ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:ring-white/10">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 pb-4 dark:border-slate-700/60">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Catalogue des sources disponibles</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Activez ou désactivez les bases de données autorisées et documentez leurs règles de confidentialité.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {uploadSourcesError && (
+                  <span className="rounded-full border border-rose-300/70 bg-rose-50/70 px-3 py-1 text-xs font-semibold text-rose-600 dark:border-rose-400/50 dark:bg-rose-500/10 dark:text-rose-200">
+                    {uploadSourcesError}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fetchUploadSources()}
+                  disabled={uploadSourcesLoading}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-blue-400 hover:text-blue-600 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700/60 dark:text-slate-300 dark:hover:border-blue-400 dark:hover:text-blue-200"
+                >
+                  <RefreshCw className={`h-4 w-4 ${uploadSourcesLoading ? 'animate-spin text-blue-500 dark:text-blue-300' : ''}`} />
+                  Rafraîchir
+                </button>
+              </div>
+            </div>
+            {uploadSourcesLoading && uploadSources.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                <Loader2 className="mb-3 h-6 w-6 animate-spin text-blue-500 dark:text-blue-300" />
+                Chargement du catalogue…
+              </div>
+            ) : uploadSources.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                <Database className="mb-3 h-8 w-8 text-slate-300 dark:text-slate-600" />
+                Aucune source configurée pour le moment.
+              </div>
+            ) : (
+              <div className="mt-6 space-y-5">
+                {uploadSources.map((source) => {
+                  const isSaving = Boolean(uploadSourcesSaving[source.id]);
+                  let updatedLabel: string | null = null;
+                  let updatedRelative: string | null = null;
+                  if (source.updatedAt) {
+                    try {
+                      const parsed = parseISO(source.updatedAt);
+                      updatedLabel = format(parsed, 'dd/MM/yyyy HH:mm', { locale: fr });
+                      updatedRelative = formatDistanceToNow(parsed, { addSuffix: true, locale: fr });
+                    } catch {
+                      updatedLabel = null;
+                      updatedRelative = null;
+                    }
+                  }
+
+                  return (
+                    <div
+                      key={source.id}
+                      className="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white/85 to-white/60 p-6 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-700/60 dark:from-slate-900/60 dark:to-slate-900/40"
+                    >
+                      <div className="absolute -right-24 -top-16 h-36 w-36 rounded-full bg-indigo-200/40 blur-3xl transition-opacity duration-300 group-hover:opacity-80 dark:bg-indigo-500/20" />
+                      <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+                        <div className="flex-1 space-y-5">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-3">
+                                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                                  {source.name}
+                                </h3>
+                                <span
+                                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                                    source.enabled
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200'
+                                      : 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-200'
+                                  }`}
+                                >
+                                  {source.enabled ? 'Active' : 'Désactivée'}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{source.id}</p>
+                            </div>
+                            <ToggleSwitch
+                              label={
+                                <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                                  Source active
+                                </span>
+                              }
+                              checked={source.enabled}
+                              onChange={(checked) => {
+                                if (uploadSourcesLoading || uploadSourcesSaving[source.id]) return;
+                                handleToggleUploadSource(source.id, checked);
+                              }}
+                              activeColor="peer-checked:bg-emerald-500 dark:peer-checked:bg-emerald-400"
+                            />
+                          </div>
+
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div>
+                              <label className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-400 dark:text-slate-500">
+                                Description
+                              </label>
+                              <textarea
+                                value={source.draftDescription}
+                                onChange={(e) =>
+                                  updateUploadSourceDraft(source.id, { draftDescription: e.target.value })
+                                }
+                                rows={4}
+                                className="mt-2 w-full rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200"
+                                placeholder="Décrivez rapidement le contenu de la base"
+                              />
+                            </div>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-400 dark:text-slate-500">
+                                  Responsable
+                                </label>
+                                <input
+                                  type="text"
+                                  value={source.draftOwner}
+                                  onChange={(e) =>
+                                    updateUploadSourceDraft(source.id, { draftOwner: e.target.value })
+                                  }
+                                  className="mt-2 w-full rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200"
+                                  placeholder="ex : Direction du renseignement"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-400 dark:text-slate-500">
+                                  Niveau de confidentialité
+                                </label>
+                                <input
+                                  type="text"
+                                  value={source.draftPrivacyLevel}
+                                  onChange={(e) =>
+                                    updateUploadSourceDraft(source.id, { draftPrivacyLevel: e.target.value })
+                                  }
+                                  className="mt-2 w-full rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200"
+                                  placeholder="ex : Diffusion restreinte"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-400 dark:text-slate-500">
+                              Règles de confidentialité
+                            </label>
+                            <textarea
+                              value={source.draftPrivacyRules}
+                              onChange={(e) =>
+                                updateUploadSourceDraft(source.id, { draftPrivacyRules: e.target.value })
+                              }
+                              rows={4}
+                              className="mt-2 w-full rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-3 text-sm text-slate-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200"
+                              placeholder="Précisez les conditions d'accès, les habilitations requises ou les limitations d'usage"
+                            />
+                          </div>
+
+                          {source.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {source.tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="inline-flex items-center rounded-full bg-slate-100/80 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-300"
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col gap-4 md:w-60">
+                          <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-xs text-slate-500 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                            {updatedLabel && (
+                              <p className="font-semibold text-slate-600 dark:text-slate-200">
+                                Mis à jour le {updatedLabel}
+                              </p>
+                            )}
+                            {updatedRelative && (
+                              <p>{updatedRelative}</p>
+                            )}
+                            {source.updatedBy && (
+                              <p>Par {source.updatedBy}</p>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleSaveUploadSource(source)}
+                              disabled={!source.dirty || isSaving}
+                              className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isSaving ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Sauvegarde…
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4" />
+                                  Enregistrer
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleResetUploadSource(source.id)}
+                              disabled={!source.dirty || isSaving}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-rose-400 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700/60 dark:text-slate-300 dark:hover:border-rose-400 dark:hover:text-rose-200"
+                            >
+                              <X className="h-4 w-4" />
+                              Réinitialiser
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {showScrollTop && !showUserModal && !showPasswordModal && (
         <button
