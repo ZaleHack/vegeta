@@ -1,19 +1,27 @@
 import express from 'express';
 import User from '../models/User.js';
 import Division from '../models/Division.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requirePermission } from '../middleware/auth.js';
+import accessControlService from '../services/AccessControlService.js';
 
 const router = express.Router();
 
 // Lister tous les utilisateurs (ADMIN seulement)
-router.get('/', authenticate, requireAdmin, async (req, res) => {
+router.get('/', authenticate, requirePermission('admin:manage_users'), async (req, res) => {
   try {
     const users = await User.findAll();
-    const usersWithRoles = users.map(user => ({
-      ...user,
-      role: user.admin === 1 ? 'ADMIN' : 'USER'
-    }));
-    res.json({ users: usersWithRoles });
+    const enrichedUsers = await Promise.all(
+      users.map(async (user) => {
+        const context = await accessControlService.getUserContext(user.id);
+        const { mdp, otp_secret, ...safeUser } = user;
+        return {
+          ...safeUser,
+          roles: context.roles.map((role) => role.name),
+          permissions: context.permissions
+        };
+      })
+    );
+    res.json({ users: enrichedUsers });
   } catch (error) {
     console.error('Erreur liste utilisateurs:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs' });
@@ -21,7 +29,7 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
 });
 
 // Obtenir un utilisateur spécifique (ADMIN seulement)
-router.get('/:id', authenticate, requireAdmin, async (req, res) => {
+router.get('/:id', authenticate, requirePermission('admin:manage_users'), async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
 
@@ -34,8 +42,15 @@ router.get('/:id', authenticate, requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
     }
 
-    const { mdp, ...userResponse } = user;
-    res.json({ user: userResponse });
+    const context = await accessControlService.getUserContext(userId);
+    const { mdp, otp_secret, ...userResponse } = user;
+    res.json({
+      user: {
+        ...userResponse,
+        roles: context.roles.map((role) => role.name),
+        permissions: context.permissions
+      }
+    });
   } catch (error) {
     console.error('Erreur détails utilisateur:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération de l\'utilisateur' });
@@ -43,9 +58,9 @@ router.get('/:id', authenticate, requireAdmin, async (req, res) => {
 });
 
 // Créer un nouvel utilisateur (ADMIN seulement)
-router.post('/', authenticate, requireAdmin, async (req, res) => {
+router.post('/', authenticate, requirePermission('admin:manage_users'), async (req, res) => {
   try {
-    const { login, password, role = 'USER', active = true, divisionId } = req.body;
+    const { login, password, role = 'USER', roles: incomingRoles, active = true, divisionId } = req.body;
 
     if (!login || !password) {
       return res.status(400).json({ error: 'Login et mot de passe requis' });
@@ -55,12 +70,13 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
     }
 
-    const allowedRoles = ['ADMIN', 'USER'];
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ error: 'Rôle invalide' });
-    }
+    const normalizedRoles = Array.isArray(incomingRoles) && incomingRoles.length
+      ? incomingRoles.map((name) => String(name))
+      : role === 'ADMIN'
+        ? ['administrator']
+        : ['observer'];
 
-    const isAdminRole = role === 'ADMIN';
+    const isAdminRole = normalizedRoles.includes('administrator');
     let division_id = null;
     let divisionName = null;
     if (!isAdminRole) {
@@ -86,15 +102,24 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 
     // Créer l'utilisateur
     const admin = isAdminRole ? 1 : 0;
-    const newUser = await User.create({ login, mdp: password, admin, active: active ? 1 : 0, division_id });
+    const newUser = await User.create({
+      login,
+      mdp: password,
+      admin,
+      active: active ? 1 : 0,
+      division_id,
+      roles: normalizedRoles
+    });
 
-    const { mdp, ...userResponse } = newUser;
+    const context = await accessControlService.getUserContext(newUser.id);
+    const { mdp, otp_secret, ...userResponse } = newUser;
     res.status(201).json({
       message: 'Utilisateur créé avec succès',
       user: {
         ...userResponse,
         division_name: divisionName,
-        role: admin === 1 ? 'ADMIN' : 'USER'
+        roles: context.roles.map((r) => r.name),
+        permissions: context.permissions
       }
     });
   } catch (error) {
@@ -104,10 +129,10 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 });
 
 // Modifier un utilisateur (ADMIN seulement)
-router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
+router.patch('/:id', authenticate, requirePermission('admin:manage_users'), async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const { login, admin, password, active, divisionId } = req.body;
+    const { login, admin, password, active, divisionId, roles: incomingRoles, role } = req.body;
 
     if (isNaN(userId)) {
       return res.status(400).json({ error: 'ID utilisateur invalide' });
@@ -122,6 +147,17 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
         return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
       }
       updates.mdp = password;
+    }
+
+    let rolesToAssign = null;
+    if (Array.isArray(incomingRoles)) {
+      rolesToAssign = incomingRoles.map((name) => String(name));
+    } else if (typeof role === 'string') {
+      rolesToAssign = role === 'ADMIN' ? ['administrator'] : ['observer'];
+    }
+
+    if (rolesToAssign) {
+      updates.admin = rolesToAssign.includes('administrator') ? 1 : 0;
     }
 
     if (divisionId !== undefined) {
@@ -140,7 +176,7 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
       }
     }
 
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys(updates).length === 0 && !rolesToAssign) {
       return res.status(400).json({ error: 'Aucune mise à jour fournie' });
     }
 
@@ -158,15 +194,23 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
       }
     }
 
-    const updatedUser = await User.update(userId, updates);
+    const updatedUser = await User.update(userId, {
+      ...updates,
+      ...(rolesToAssign ? { roles: rolesToAssign } : {})
+    });
     if (!updatedUser) {
       return res.status(400).json({ error: 'Mise à jour impossible' });
     }
 
-    const { mdp, ...userResponse } = updatedUser;
+    const context = await accessControlService.getUserContext(userId);
+    const { mdp, otp_secret, ...userResponse } = updatedUser;
     res.json({
       message: 'Utilisateur mis à jour avec succès',
-      user: userResponse
+      user: {
+        ...userResponse,
+        roles: context.roles.map((r) => r.name),
+        permissions: context.permissions
+      }
     });
   } catch (error) {
     console.error('Erreur mise à jour utilisateur:', error);
@@ -185,8 +229,10 @@ router.post('/:id/change-password', authenticate, async (req, res) => {
     }
 
     // Vérifier les permissions (admin ou propriétaire du compte)
-    const isAdmin = req.user.admin === 1 || req.user.admin === '1' || req.user.admin === true;
-    if (!isAdmin && req.user.id !== userId) {
+    const canManageUsers = Array.isArray(req.user.permissions)
+      ? req.user.permissions.includes('admin:manage_users')
+      : req.user.admin === 1 || req.user.admin === '1' || req.user.admin === true;
+    if (!canManageUsers && req.user.id !== userId) {
       return res.status(403).json({ error: 'Permissions insuffisantes' });
     }
 
@@ -200,7 +246,7 @@ router.post('/:id/change-password', authenticate, async (req, res) => {
     }
 
     // Si ce n'est pas un admin, vérifier le mot de passe actuel
-    if (!isAdmin) {
+    if (!canManageUsers) {
       if (!currentPassword) {
         return res.status(400).json({ error: 'Mot de passe actuel requis' });
       }
@@ -222,7 +268,7 @@ router.post('/:id/change-password', authenticate, async (req, res) => {
 });
 
 // Supprimer un utilisateur (ADMIN seulement)
-router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+router.delete('/:id', authenticate, requirePermission('admin:manage_users'), async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
 

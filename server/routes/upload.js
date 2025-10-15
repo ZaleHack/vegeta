@@ -2,9 +2,12 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import fsp from 'fs/promises';
 import { fileURLToPath } from 'url';
 import UploadService from '../services/UploadService.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import catalogService from '../services/CatalogService.js';
+import ingestionQueue from '../services/IngestionQueue.js';
+import { authenticate, requirePermission, requireAnyPermission } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,7 +15,6 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 const uploadService = new UploadService();
 
-// Configuration multer pour l'upload de fichiers
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, '../../uploads');
@@ -22,15 +24,15 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
   }
 });
 
 const upload = multer({
-  storage: storage,
+  storage,
   limits: {
-    fileSize: 200 * 1024 * 1024 // 200MB
+    fileSize: 200 * 1024 * 1024
   },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -42,8 +44,11 @@ const upload = multer({
   }
 });
 
-// Upload d'un fichier CSV
-router.post('/csv', authenticate, requireAdmin, upload.single('csvFile'), async (req, res) => {
+const requireUploadsManage = requirePermission('uploads:manage');
+const requireUploadsView = requireAnyPermission(['uploads:view', 'uploads:manage']);
+const requireCatalogManage = requirePermission('catalog:manage');
+
+router.post('/csv', authenticate, requireUploadsManage, upload.single('csvFile'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Aucun fichier fourni' });
@@ -52,43 +57,35 @@ router.post('/csv', authenticate, requireAdmin, upload.single('csvFile'), async 
     const { targetTable, uploadMode = 'existing' } = req.body;
 
     if (!targetTable) {
+      await fsp.unlink(req.file.path).catch(() => {});
       return res.status(400).json({ error: 'Table cible requise' });
     }
 
-    const filePath = req.file.path;
-    
     try {
-      const result = await uploadService.uploadCSV(
-        filePath,
+      const job = uploadService.queueCsvUpload({
+        filePath: req.file.path,
         targetTable,
         uploadMode,
-        req.user.id
-      );
+        user: req.user
+      });
 
-      // Supprimer le fichier temporaire
-      fs.unlinkSync(filePath);
-
-      res.json({
-        message: 'Upload terminé avec succès',
-        ...result
+      res.status(202).json({
+        message: 'Traitement asynchrone planifié',
+        job
       });
     } catch (uploadError) {
-      // Supprimer le fichier en cas d'erreur
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+      await fsp.unlink(req.file.path).catch(() => {});
       throw uploadError;
     }
   } catch (error) {
     console.error('Erreur upload CSV:', error);
-    res.status(500).json({ 
-      error: error.message || 'Erreur lors de l\'upload du fichier'
+    res.status(500).json({
+      error: error.message || "Erreur lors de l'upload du fichier"
     });
   }
 });
 
-// Upload d'un fichier CSV vers une nouvelle table
-router.post('/file', authenticate, requireAdmin, upload.single('dataFile'), async (req, res) => {
+router.post('/file', authenticate, requireUploadsManage, upload.single('dataFile'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Aucun fichier fourni' });
@@ -96,39 +93,49 @@ router.post('/file', authenticate, requireAdmin, upload.single('dataFile'), asyn
 
     const { tableName } = req.body;
     if (!tableName) {
+      await fsp.unlink(req.file.path).catch(() => {});
       return res.status(400).json({ error: 'Nom de table requis' });
     }
 
-    const filePath = req.file.path;
-    const result = await uploadService.uploadCSV(filePath, tableName, 'new_table', req.user.id);
+    try {
+      const job = uploadService.queueCsvUpload({
+        filePath: req.file.path,
+        targetTable: tableName,
+        uploadMode: 'new_table',
+        user: req.user
+      });
 
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+      res.status(202).json({
+        message: 'Création de table planifiée',
+        job
+      });
+    } catch (error) {
+      await fsp.unlink(req.file.path).catch(() => {});
+      throw error;
     }
-
-    res.json({ message: 'Données chargées avec succès', ...result });
   } catch (error) {
     console.error('Erreur upload fichier:', error);
     res.status(500).json({ error: error.message || 'Erreur lors du chargement du fichier' });
   }
 });
 
-// Obtenir l'historique des uploads
-router.get('/history', authenticate, async (req, res) => {
+router.get('/history', authenticate, requireUploadsView, async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 20;
-    const userId = req.user.admin === 1 ? null : req.user.id; // Admin voit tout, user voit ses uploads
-    
+    const limit = parseInt(req.query.limit, 10) || 20;
+    const canSeeAll = Array.isArray(req.user.permissions)
+      ? req.user.permissions.includes('uploads:manage')
+      : req.user.admin === 1 || req.user.admin === '1';
+
+    const userId = canSeeAll ? null : req.user.id;
     const history = await uploadService.getUploadHistory(userId, limit);
     res.json({ history });
   } catch (error) {
     console.error('Erreur historique upload:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération de l\'historique' });
+    res.status(500).json({ error: "Erreur lors de la récupération de l'historique" });
   }
 });
 
-// Supprimer les données d'un upload
-router.delete('/history/:id', authenticate, requireAdmin, async (req, res) => {
+router.delete('/history/:id', authenticate, requireUploadsManage, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (!Number.isInteger(id)) {
@@ -142,21 +149,86 @@ router.delete('/history/:id', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-// Obtenir la liste des bases disponibles
-router.get('/databases', authenticate, (req, res) => {
-  const databases = [
-    { id: 'esolde.mytable', name: 'esolde - mytable', description: 'Données employés esolde' },
-    { id: 'rhpolice.personne_concours', name: 'rhpolice - personne_concours', description: 'Personnels police nationale' },
-    { id: 'renseignement.agentfinance', name: 'renseignement - agentfinance', description: 'Agents finances publiques' },
-    { id: 'rhgendarmerie.personne', name: 'rhgendarmerie - personne', description: 'Personnel gendarmerie' },
-    { id: 'permis.tables', name: 'permis - tables', description: 'Permis de conduire' },
-    { id: 'expresso.expresso', name: 'expresso - expresso', description: 'Données Expresso Money' },
-    { id: 'elections.dakar', name: 'elections - dakar', description: 'Électeurs région Dakar' },
-    { id: 'autres.vehicules', name: 'autres - vehicules', description: 'Immatriculations véhicules' },
-    { id: 'autres.entreprises', name: 'autres - entreprises', description: 'Registre des entreprises' }
-  ];
+router.get('/jobs/:id', authenticate, requireUploadsView, (req, res) => {
+  const job = ingestionQueue.getJob(req.params.id);
+  if (!job) {
+    return res.status(404).json({ error: 'Job introuvable' });
+  }
 
-  res.json({ databases });
+  const canInspectAll = Array.isArray(req.user.permissions)
+    ? req.user.permissions.includes('uploads:manage')
+    : req.user.admin === 1 || req.user.admin === '1';
+
+  if (!canInspectAll && job.meta?.userId && job.meta.userId !== req.user.id) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+
+  res.json({ job });
+});
+
+router.get('/jobs', authenticate, requireUploadsManage, (req, res) => {
+  const limit = parseInt(req.query.limit, 10) || 20;
+  const jobs = ingestionQueue.listJobs({ limit });
+  res.json({ jobs });
+});
+
+router.get('/databases', authenticate, requireUploadsView, async (req, res) => {
+  try {
+    const canSeeInactive = Array.isArray(req.user.permissions)
+      ? req.user.permissions.includes('catalog:manage')
+      : false;
+    const databases = await catalogService.listSources({ includeInactive: canSeeInactive });
+    res.json({ databases });
+  } catch (error) {
+    console.error('Erreur catalogue bases:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération du catalogue' });
+  }
+});
+
+router.post('/databases', authenticate, requireCatalogManage, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (!payload.id) {
+      return res.status(400).json({ error: 'Identifiant de source requis' });
+    }
+    const database = await catalogService.upsertSource(payload);
+    res.status(201).json({ database });
+  } catch (error) {
+    console.error('Erreur ajout source:', error);
+    res.status(500).json({ error: error.message || 'Erreur lors de la mise à jour du catalogue' });
+  }
+});
+
+router.patch('/databases/:id', authenticate, requireCatalogManage, async (req, res) => {
+  try {
+    const update = { ...req.body, id: req.params.id };
+    const database = await catalogService.upsertSource(update);
+    res.json({ database });
+  } catch (error) {
+    console.error('Erreur mise à jour source:', error);
+    res.status(500).json({ error: error.message || 'Erreur lors de la mise à jour du catalogue' });
+  }
+});
+
+router.post('/databases/:id/toggle', authenticate, requireCatalogManage, async (req, res) => {
+  try {
+    const { active } = req.body;
+    const database = await catalogService.setSourceActive(req.params.id, Boolean(active));
+    res.json({ database });
+  } catch (error) {
+    console.error('Erreur activation source:', error);
+    res.status(500).json({ error: error.message || "Erreur lors de l'activation de la source" });
+  }
+});
+
+router.delete('/databases/:id', authenticate, requireCatalogManage, async (req, res) => {
+  try {
+    await catalogService.removeSource(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur suppression source:', error);
+    res.status(500).json({ error: error.message || 'Erreur lors de la suppression de la source' });
+  }
 });
 
 export default router;

@@ -1,0 +1,94 @@
+{
+  "sources": [
+    {
+      "id": "esolde.mytable",
+      "name": "esolde - mytable",
+      "description": "Données employés esolde",
+      "confidentiality": "interne",
+      "tags": ["ressources-humaines"],
+      "active": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "rhpolice.personne_concours",
+      "name": "rhpolice - personne_concours",
+      "description": "Personnels police nationale",
+      "confidentiality": "confidentiel",
+      "tags": ["forces-de-l'ordre"],
+      "active": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "renseignement.agentfinance",
+      "name": "renseignement - agentfinance",
+      "description": "Agents finances publiques",
+      "confidentiality": "restreint",
+      "tags": ["fiscalite"],
+      "active": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "rhgendarmerie.personne",
+      "name": "rhgendarmerie - personne",
+      "description": "Personnel gendarmerie",
+      "confidentiality": "confidentiel",
+      "tags": ["forces-de-l'ordre"],
+      "active": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "permis.tables",
+      "name": "permis - tables",
+      "description": "Permis de conduire",
+      "confidentiality": "public",
+      "tags": ["transport"],
+      "active": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "expresso.expresso",
+      "name": "expresso - expresso",
+      "description": "Données Expresso Money",
+      "confidentiality": "sensibles",
+      "tags": ["telecom"],
+      "active": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "elections.dakar",
+      "name": "elections - dakar",
+      "description": "Électeurs région Dakar",
+      "confidentiality": "public",
+      "tags": ["elections"],
+      "active": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "autres.vehicules",
+      "name": "autres - vehicules",
+      "description": "Immatriculations véhicules",
+      "confidentiality": "interne",
+      "tags": ["transport"],
+      "active": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "autres.entreprises",
+      "name": "autres - entreprises",
+      "description": "Registre des entreprises",
+      "confidentiality": "public",
+      "tags": ["entreprises"],
+      "active": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}

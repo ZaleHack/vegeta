@@ -3,7 +3,8 @@ import database from '../config/database.js';
 
 async function run() {
   const service = new SyncService();
-  await service.syncAllTables();
+  const summary = await service.syncAllTables();
+  console.table(summary.tables.map(({ table, status, fetched, indexed }) => ({ table, status, fetched, indexed })));
 }
 
 run()
