@@ -10,6 +10,7 @@ import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 import ElasticSearchService from './ElasticSearchService.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
+import statsCache from './stats-cache.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -128,6 +129,7 @@ class ProfileService {
     }
     const fresh = await Profile.findById(created.id);
     await this.syncProfileToSearch(fresh);
+    statsCache.clear('overview:');
     return this.withAttachments(fresh);
   }
 
@@ -220,6 +222,7 @@ class ProfileService {
     attachments.forEach(att => this.removeStoredFile(att.file_path));
     await Profile.delete(id);
     await this.removeProfileFromSearch(id);
+    statsCache.clear('overview:');
     return true;
   }
 
