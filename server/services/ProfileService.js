@@ -380,13 +380,6 @@ class ProfileService {
       const { default: PDFDocument } = await import('pdfkit');
       // Compression triggers a stack overflow with pdfkit on Node 22, so we disable it.
       const doc = new PDFDocument({ margin: 50, compress: false, autoFirstPage: false });
-      const exportDateLabel = new Intl.DateTimeFormat('fr-FR', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }).format(new Date());
       const stream = new PassThrough();
       const chunks = [];
       doc.pipe(stream);
@@ -403,7 +396,7 @@ class ProfileService {
         const backgroundTint = '#F8FAFF';
         const textPrimary = '#0F172A';
         const textSecondary = '#1F2937';
-        const sectionPadding = 22;
+        const sectionPadding = 18;
 
         const loadPhotoBuffer = async () => {
           if (!profile.photo_path) return null;
@@ -455,45 +448,47 @@ class ProfileService {
           doc.restore();
         };
 
-        doc.on('pageAdded', addSignature);
+        const addPageDecorations = () => {
+          const pageWidth = doc.page.width;
+          const margin = doc.page.margins.left;
+          const innerWidth = pageWidth - margin * 2;
+          const headerHeight = 104;
+
+          doc.save();
+          doc.rect(0, 0, pageWidth, headerHeight).fill(accentColor);
+          doc.restore();
+
+          doc
+            .font('Helvetica')
+            .fontSize(11)
+            .fillColor('#CFE1FF')
+            .text('Synthèse du profil', margin, 30, { width: innerWidth });
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(26)
+            .fillColor('white')
+            .text('FICHE PROFIL', margin, 50, { width: innerWidth });
+
+          doc.y = headerHeight + 18;
+          doc.fillColor(textPrimary);
+        };
+
+        doc.on('pageAdded', () => {
+          addPageDecorations();
+          addSignature();
+        });
+
         doc.addPage();
 
-        const pageWidth = doc.page.width;
         const margin = doc.page.margins.left;
-        const innerWidth = pageWidth - margin * 2;
-        const headerHeight = 110;
+        const innerWidth = doc.page.width - margin * 2;
 
-        doc.rect(0, 0, pageWidth, headerHeight).fill(accentColor);
-        doc
-          .font('Helvetica')
-          .fontSize(11)
-          .fillColor('#CFE1FF')
-          .text('Synthèse du profil', margin, 32, { width: innerWidth });
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(28)
-          .fillColor('white')
-          .text('FICHE PROFIL', margin, 54, { width: innerWidth });
-        doc
-          .font('Helvetica')
-          .fontSize(11)
-          .fillColor('#E3ECFF')
-          .text(`Exporté le ${exportDateLabel}`, margin, 84, { width: innerWidth, align: 'right' });
-
-        doc.fillColor(textPrimary);
-
-        let y = headerHeight + 32;
-        const cardPadding = 24;
-        const photoSize = photoBuffer ? 116 : 0;
-        const cardHeight = photoBuffer ? Math.max(photoSize + cardPadding * 2, 188) : 156;
-        const cardX = margin;
-        const cardWidth = innerWidth;
-
-        doc.save();
-        doc.fillColor('white');
-        doc.roundedRect(cardX, y, cardWidth, cardHeight, 20).fill();
-        doc.lineWidth(1.2).strokeColor(borderColor).roundedRect(cardX, y, cardWidth, cardHeight, 20).stroke();
-        doc.restore();
+        const ensureSpace = (needed = 0) => {
+          const bottom = doc.page.height - doc.page.margins.bottom;
+          if (doc.y + needed > bottom) {
+            doc.addPage();
+          }
+        };
 
         const displayName = [profile.first_name, profile.last_name]
           .filter(Boolean)
@@ -502,153 +497,134 @@ class ProfileService {
         const fallbackName =
           displayName || profile.email || profile.phone || (profile.id ? `Profil #${profile.id}` : 'Profil');
 
-        const textAreaWidth = cardWidth - cardPadding * 2 - (photoBuffer ? photoSize + 28 : 0);
-        const contentX = cardX + cardPadding;
-        let contentY = y + cardPadding;
+        const renderOverview = () => {
+          const photoSize = photoBuffer ? 118 : 0;
+          const photoGap = photoBuffer ? 24 : 0;
+          const textWidth = innerWidth - (photoSize + photoGap);
+          const textX = margin;
 
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(22)
-          .fillColor(textPrimary)
-          .text(fallbackName, contentX, contentY, { width: textAreaWidth });
-        contentY = doc.y + 10;
+          ensureSpace(photoBuffer ? photoSize + 40 : 60);
 
-        const addSummaryRow = (label, value) => {
-          if (!value && value !== 0) return;
+          const startY = doc.y;
+
           doc
             .font('Helvetica-Bold')
-            .fontSize(10)
-            .fillColor(accentDark)
-            .text(String(label).toUpperCase(), contentX, contentY, { width: textAreaWidth });
-          contentY = doc.y + 4;
-          doc
-            .font('Helvetica')
-            .fontSize(12)
-            .fillColor(textSecondary)
-            .text(String(value), contentX, contentY, { width: textAreaWidth });
-          contentY = doc.y + 10;
-        };
+            .fontSize(20)
+            .fillColor(textPrimary)
+            .text(fallbackName, textX, doc.y, { width: textWidth });
 
-        const contactParts = [];
-        if (profile.email) {
-          contactParts.push(String(profile.email));
-        }
-        if (profile.phone) {
-          contactParts.push(String(profile.phone));
-        }
+          const contactParts = [];
+          if (profile.email) contactParts.push(String(profile.email));
+          if (profile.phone) contactParts.push(String(profile.phone));
 
-        addSummaryRow('Coordonnées', contactParts.length ? contactParts.join(' • ') : 'Non communiquées');
-        addSummaryRow('Exporté le', exportDateLabel);
-        if (profile.id) {
-          addSummaryRow('Identifiant', `#${profile.id}`);
-        }
-
-        if (photoBuffer) {
-          const photoX = cardX + cardWidth - cardPadding - photoSize;
-          const photoY = y + cardPadding;
-
-          doc.save();
-          doc.fillColor(backgroundTint);
-          doc.roundedRect(photoX - 8, photoY - 8, photoSize + 16, photoSize + 16, 18).fill();
-          doc.restore();
-
-          doc.image(photoBuffer, photoX, photoY, {
-            fit: [photoSize, photoSize],
-            align: 'center',
-            valign: 'center'
-          });
-          doc
-            .lineWidth(1.5)
-            .strokeColor(borderColor)
-            .roundedRect(photoX - 8, photoY - 8, photoSize + 16, photoSize + 16, 18)
-            .stroke();
-        }
-
-        y += cardHeight + 36;
-        doc.y = y;
-
-        const drawSection = (title, renderContent) => {
-          if (!renderContent) {
-            return;
+          if (contactParts.length) {
+            doc
+              .font('Helvetica')
+              .fontSize(12)
+              .fillColor(textSecondary)
+              .text(contactParts.join(' • '), textX, doc.y + 6, { width: textWidth });
           }
 
-          const safeTitle = title ? String(title) : 'Informations';
+          if (photoBuffer) {
+            const photoX = margin + innerWidth - photoSize;
+            const photoY = startY;
+
+            doc.save();
+            doc.fillColor(backgroundTint);
+            doc.roundedRect(photoX - 6, photoY - 6, photoSize + 12, photoSize + 12, 14).fill();
+            doc.restore();
+
+            doc.image(photoBuffer, photoX, photoY, {
+              fit: [photoSize, photoSize],
+              align: 'center',
+              valign: 'center'
+            });
+
+            doc
+              .lineWidth(1.2)
+              .strokeColor(borderColor)
+              .roundedRect(photoX - 6, photoY - 6, photoSize + 12, photoSize + 12, 14)
+              .stroke();
+
+            doc.y = Math.max(doc.y + photoSize + 14, photoY + photoSize + 12);
+          } else {
+            doc.y += 32;
+          }
+
+          doc.moveDown(0.5);
+        };
+
+        const drawSection = (title, renderContent) => {
+          if (!renderContent) return;
+
+          const safeTitle = title ? String(title).trim() : '';
+
+          ensureSpace(60);
 
           doc.save();
           doc.fillColor(accentColor);
-          doc.rect(margin, y, 4, 22).fill();
+          doc.rect(margin, doc.y - 2, 4, 18).fill();
           doc.restore();
 
           doc
             .font('Helvetica-Bold')
             .fontSize(13)
             .fillColor(accentDark)
-            .text(safeTitle.toUpperCase(), margin + 12, y);
+            .text(safeTitle.toUpperCase(), margin + 10, doc.y - 2, { width: innerWidth - 10 });
 
-          const headerBottom = doc.y + 4;
+          const dividerY = doc.y + 4;
           doc
             .strokeColor(borderColor)
             .lineWidth(1)
-            .moveTo(margin, headerBottom)
-            .lineTo(margin + innerWidth, headerBottom)
+            .moveTo(margin, dividerY)
+            .lineTo(margin + innerWidth, dividerY)
             .stroke();
 
-          y = headerBottom + 16;
-          doc.y = y;
+          doc.moveDown(0.8);
 
           renderContent();
 
-          y += 20;
-          doc.y = y;
+          doc.moveDown(1);
         };
 
-        const renderGrid = (fields) => {
+        const renderFields = (fields) => {
           const validFields = (fields || [])
             .filter(field => field && (field.value || field.value === 0))
             .map(field => ({
-              label: String(field.label || ''),
+              label: String(field.label || field.key || ''),
               value: String(field.value)
             }));
 
-          if (validFields.length === 0) {
-            return;
-          }
+          if (!validFields.length) return;
 
-          const columnCount = validFields.length > 2 ? 2 : 1;
-          const columnGap = columnCount > 1 ? 28 : 0;
-          const columnWidth = (
-            innerWidth - sectionPadding * 2 - columnGap * (columnCount - 1)
-          ) / columnCount;
+          const contentWidth = innerWidth - sectionPadding * 2;
           const baseX = margin + sectionPadding;
-          const columnHeights = Array(columnCount).fill(y);
 
-          validFields.forEach((field, index) => {
-            const column = columnCount === 1 ? 0 : index % columnCount;
-            const fieldX = baseX + column * (columnWidth + columnGap);
-            const fieldY = columnHeights[column];
-
+          validFields.forEach(field => {
+            ensureSpace(40);
             doc
               .font('Helvetica-Bold')
-              .fontSize(9)
+              .fontSize(10)
               .fillColor(accentDark)
-              .text(field.label.toUpperCase(), fieldX, fieldY);
-            const nextY = doc.y + 3;
+              .text(field.label.toUpperCase(), baseX, doc.y, { width: contentWidth });
+
             doc
               .font('Helvetica')
               .fontSize(12)
               .fillColor(textSecondary)
-              .text(field.value, fieldX, nextY, { width: columnWidth });
-            columnHeights[column] = doc.y + 14;
-          });
+              .text(field.value, baseX, doc.y + 4, { width: contentWidth });
 
-          y = Math.max(...columnHeights);
-          doc.y = y;
+            doc.moveDown(1.1);
+          });
         };
 
         const renderParagraph = (text) => {
-          if (!text) {
-            return;
-          }
+          if (!text) return;
+
+          const paragraph = String(text).trim();
+          if (!paragraph) return;
+
+          ensureSpace(80);
 
           const paragraphX = margin + sectionPadding;
           const paragraphWidth = innerWidth - sectionPadding * 2;
@@ -657,11 +633,10 @@ class ProfileService {
             .font('Helvetica')
             .fontSize(12)
             .fillColor(textSecondary)
-            .text(String(text), paragraphX, y, { width: paragraphWidth });
-
-          y = doc.y;
-          doc.y = y;
+            .text(paragraph, paragraphX, doc.y, { width: paragraphWidth });
         };
+
+        renderOverview();
 
         const mainInformation = [
           { label: 'Nom complet', value: displayName || fallbackName },
@@ -670,7 +645,7 @@ class ProfileService {
         ];
 
         if (mainInformation.some(field => field.value)) {
-          drawSection('Informations principales', () => renderGrid(mainInformation));
+          drawSection('Informations principales', () => renderFields(mainInformation));
         }
 
         const parseExtraFields = () => {
@@ -693,9 +668,10 @@ class ProfileService {
                   return null;
                 }
 
-                const title = cat && typeof cat.title === 'string' && cat.title.trim()
-                  ? cat.title.trim()
-                  : 'Informations supplémentaires';
+                const title =
+                  cat && typeof cat.title === 'string' && cat.title.trim()
+                    ? cat.title.trim()
+                    : 'Informations supplémentaires';
 
                 return {
                   title,
@@ -712,9 +688,9 @@ class ProfileService {
 
         extraCategories.forEach(category => {
           drawSection(category.title, () =>
-            renderGrid(
+            renderFields(
               category.fields.map(field => ({
-                label: field.key,
+                label: field.label || field.key,
                 value: field.value
               }))
             )
