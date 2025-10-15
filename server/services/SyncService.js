@@ -2,7 +2,6 @@ import database from '../config/database.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { EventEmitter } from 'events';
 import baseCatalog from '../config/tables-catalog.js';
 import ElasticSearchService from './ElasticSearchService.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
@@ -13,9 +12,8 @@ const DEFAULT_BATCH_SIZE = 500;
  * Service utilitaire pour synchroniser les tables configurées.
  * TODO: implémenter la logique de synchronisation spécifique aux besoins.
  */
-class SyncService extends EventEmitter {
+class SyncService {
   constructor() {
-    super();
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     this.catalogPath = path.join(__dirname, '../config/tables-catalog.json');
@@ -27,15 +25,6 @@ class SyncService extends EventEmitter {
     this.primaryKeyCache = new Map();
     this.tableColumnsCache = new Map();
     this.qualifiedTableNameCache = new Map();
-    this.summary = [];
-  }
-
-  resetSummary() {
-    this.summary = [];
-  }
-
-  getSummary() {
-    return { tables: this.summary.map((entry) => ({ ...entry })) };
   }
 
   formatTableName(tableName) {
@@ -193,18 +182,6 @@ class SyncService extends EventEmitter {
       return;
     }
 
-    const report = {
-      table: tableName,
-      status: 'running',
-      fetched: 0,
-      indexed: 0,
-      startedAt: new Date().toISOString(),
-      completedAt: null,
-      error: null
-    };
-    this.summary.push(report);
-    this.emit('sync:table:start', { ...report });
-
     const syncConfig = {
       ...baseSyncConfig,
       type:
@@ -264,8 +241,6 @@ class SyncService extends EventEmitter {
         }
 
         totalFetched += rows.length;
-        report.fetched = totalFetched;
-        this.emit('sync:table:batch', { ...report });
 
         if (shouldSyncToElastic) {
           try {
@@ -278,7 +253,6 @@ class SyncService extends EventEmitter {
               primaryKey
             });
             totalIndexed += indexed;
-            report.indexed = totalIndexed;
             if (errors.length > 0) {
               for (const { id, error } of errors) {
                 console.error(
@@ -302,25 +276,16 @@ class SyncService extends EventEmitter {
       }
 
       console.log(`✅ Table ${tableName} synchronisée (${syncSummary.join(', ')})`);
-      report.status = 'completed';
-      report.completedAt = new Date().toISOString();
-      this.emit('sync:table:completed', { ...report });
     } catch (error) {
       console.error(`❌ Synchronisation échouée pour ${tableName}:`, error.message);
-      report.status = 'failed';
-      report.error = error.message;
-      report.completedAt = new Date().toISOString();
-      this.emit('sync:table:error', { ...report });
     }
   }
 
   async syncAllTables() {
     this.catalog = this.loadCatalog();
-    this.resetSummary();
     for (const [tableName, config] of Object.entries(this.catalog)) {
       await this.syncTable(tableName, config);
     }
-    return this.getSummary();
   }
 }
 
