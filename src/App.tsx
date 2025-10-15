@@ -239,16 +239,6 @@ const normalizeSearchResponse = (data: SearchResponseFromApi): SearchResponse =>
   };
 };
 
-const formatScore = (score?: number) => {
-  if (typeof score !== 'number' || Number.isNaN(score)) {
-    return null;
-  }
-  if (Math.abs(score) >= 10) {
-    return score.toFixed(1);
-  }
-  return score.toFixed(3);
-};
-
 interface SearchTermStat {
   search_term: string;
   search_count: number;
@@ -5528,9 +5518,6 @@ useEffect(() => {
                         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
                           {displayedHits.map((result, index) => {
                             const previewEntries = result.previewEntries;
-                            const formattedScore = formatScore(result.score);
-                            const tableLabel = result.table_name || result.table;
-                            const databaseLabel = result.database || 'Elasticsearch';
 
                             return (
                               <div
@@ -5545,23 +5532,6 @@ useEffect(() => {
                                   </div>
                                   <div>
                                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Résultat {index + 1}</h3>
-                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                      {tableLabel && (
-                                        <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-600 dark:bg-blue-900/60 dark:text-blue-200">
-                                          {tableLabel}
-                                        </span>
-                                      )}
-                                      {databaseLabel && (
-                                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-600 dark:bg-gray-700/70 dark:text-gray-300">
-                                          {databaseLabel}
-                                        </span>
-                                      )}
-                                      {formattedScore && (
-                                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-200">
-                                          Score {formattedScore}
-                                        </span>
-                                      )}
-                                    </div>
                                   </div>
                                 </div>
                               </div>
