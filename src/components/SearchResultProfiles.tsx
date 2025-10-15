@@ -13,16 +13,6 @@ interface ProfilesProps {
   }) => void;
 }
 
-const formatScore = (score?: number) => {
-  if (typeof score !== 'number' || Number.isNaN(score)) {
-    return null;
-  }
-  if (Math.abs(score) >= 10) {
-    return score.toFixed(1);
-  }
-  return score.toFixed(3);
-};
-
 const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreateProfile }) => {
   if (hits.length === 0) {
     return (
@@ -33,10 +23,11 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
   return (
     <div className="space-y-8">
       {hits.map((hit, idx) => {
-        const previewEntries = hit.previewEntries;
-        const tableLabel = hit.table_name || hit.table;
+        const previewEntries = hit.previewEntries.filter((entry) => {
+          const comparableLabel = (entry.label || entry.key || '').toLowerCase();
+          return comparableLabel !== 'upload id' && comparableLabel !== 'created at';
+        });
         const databaseLabel = hit.database || 'Elasticsearch';
-        const formattedScore = formatScore(hit.score);
 
         return (
           <div key={idx} className="bg-white shadow-lg rounded-2xl overflow-hidden">
@@ -46,19 +37,9 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
                 <div>
                   <h3 className="text-xl font-semibold text-white">Résultat {idx + 1}</h3>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-blue-100">
-                    {tableLabel && (
-                      <span className="inline-flex items-center rounded-full bg-white/20 px-2 py-0.5 font-medium text-white">
-                        {tableLabel}
-                      </span>
-                    )}
                     {databaseLabel && (
                       <span className="inline-flex items-center rounded-full bg-blue-900/40 px-2 py-0.5 font-medium text-blue-50">
                         {databaseLabel}
-                      </span>
-                    )}
-                    {formattedScore && (
-                      <span className="inline-flex items-center rounded-full bg-emerald-500/30 px-2 py-0.5 font-semibold text-white">
-                        Score {formattedScore}
                       </span>
                     )}
                   </div>
