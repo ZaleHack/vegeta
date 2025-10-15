@@ -65,6 +65,10 @@ class UserLog {
       [user_id, action]
     );
   }
+
+  static async clearAll() {
+    await database.query(`DELETE FROM autres.user_logs`);
+  }
 }
 
 export default UserLog;
