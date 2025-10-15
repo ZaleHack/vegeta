@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import CaseShare from '../models/CaseShare.js';
 import Division from '../models/Division.js';
 import Notification from '../models/Notification.js';
+import statsCache from './stats-cache.js';
 
 const ALLOWED_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 
@@ -42,7 +43,9 @@ class CaseService {
     if (!user) {
       throw new Error('User not found');
     }
-    return await Case.create(name, userId);
+    const created = await Case.create(name, userId);
+    statsCache.clear('overview:');
+    return created;
   }
 
   async renameCase(caseId, newName, user) {
@@ -324,6 +327,7 @@ class CaseService {
     }
     // Delete the case first to avoid dropping the CDR table if the delete fails
     await Case.delete(id);
+    statsCache.clear('overview:');
     try {
       await this.cdrService.deleteCaseData(existingCase.id);
     } catch (err) {

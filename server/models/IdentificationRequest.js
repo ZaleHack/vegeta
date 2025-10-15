@@ -3,6 +3,7 @@ import IdentifiedNumber from './IdentifiedNumber.js';
 import Profile from './Profile.js';
 import { normalizeExtraFields } from '../utils/profile-normalizer.js';
 import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
+import statsCache from '../services/stats-cache.js';
 
 class IdentificationRequest {
   static async create(data) {
@@ -17,6 +18,7 @@ class IdentificationRequest {
         `INSERT INTO autres.identification_requests (user_id, phone, status) VALUES (?, ?, 'pending')`,
         [safeUserId, phone]
       );
+      statsCache.clear('overview:');
       return { id: result.insertId, user_id: safeUserId, phone, status: 'pending' };
     } catch (error) {
       const handled = await handleMissingUserForeignKey(error);
@@ -115,6 +117,7 @@ class IdentificationRequest {
       `DELETE FROM autres.identification_requests WHERE id = ?`,
       [id]
     );
+    statsCache.clear('overview:');
   }
 
   static async updateStatus(id, status, profile_id = null) {
@@ -122,6 +125,7 @@ class IdentificationRequest {
       `UPDATE autres.identification_requests SET status = ?, profile_id = ? WHERE id = ?`,
       [status, profile_id, id]
     );
+    statsCache.clear('overview:');
     const updated = await database.queryOne(
       `SELECT * FROM autres.identification_requests WHERE id = ?`,
       [id]
