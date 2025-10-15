@@ -22,20 +22,20 @@ export type AppPage =
 export const pageToPath: Record<AppPage, string> = {
   login: '/login',
   dashboard: '/',
-  search: '/search',
-  annuaire: '/directory',
-  ong: '/ngo',
-  entreprises: '/businesses',
-  vehicules: '/vehicles',
+  search: '/recherche',
+  annuaire: '/annuaire',
+  ong: '/ong',
+  entreprises: '/entreprises',
+  vehicules: '/vehicules',
   cdr: '/cdr',
-  'cdr-case': '/cdr/case',
-  'fraud-detection': '/fraud-detection',
-  requests: '/requests',
-  profiles: '/profiles',
-  blacklist: '/blacklist',
-  logs: '/logs',
-  users: '/users',
-  upload: '/upload'
+  'cdr-case': '/cdr/dossier',
+  'fraud-detection': '/fraude',
+  requests: '/demandes',
+  profiles: '/fiches-profil',
+  blacklist: '/liste-blanche',
+  logs: '/journaux',
+  users: '/utilisateurs',
+  upload: '/import'
 };
 
 const normalizePathname = (pathname: string) => {
