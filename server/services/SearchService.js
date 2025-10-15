@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
 
+const MISSING_TABLE_ERROR_CODES = ['ER_NO_SUCH_TABLE', 'ER_BAD_TABLE_ERROR'];
+
 const EXCLUDED_SEARCH_TABLES = new Set(
   [
     'autres.blacklist',
@@ -185,7 +187,14 @@ class SearchService {
 
     try {
       const formattedTable = this.formatTableName(tableName);
-      const rows = await database.query(`SHOW COLUMNS FROM ${formattedTable}`);
+      const rows = await database.query(
+        `SHOW COLUMNS FROM ${formattedTable}`,
+        [],
+        {
+          suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
+          suppressErrorLog: true,
+        }
+      );
       const columns = rows
         .map((row) => this.getColumnNameFromRow(row))
         .filter((name) => typeof name === 'string');
@@ -355,7 +364,12 @@ class SearchService {
     try {
       const formattedTable = this.formatTableName(tableName);
       const rows = await database.query(
-        `SHOW KEYS FROM ${formattedTable} WHERE Key_name = 'PRIMARY'`
+        `SHOW KEYS FROM ${formattedTable} WHERE Key_name = 'PRIMARY'`,
+        [],
+        {
+          suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
+          suppressErrorLog: true,
+        }
       );
       if (rows.length > 0) {
         const primaryRow = rows.find((row) => this.getColumnNameFromRow(row));
@@ -373,7 +387,12 @@ class SearchService {
     try {
       const formattedTable = this.formatTableName(tableName);
       const columns = await database.query(
-        `SHOW COLUMNS FROM ${formattedTable}`
+        `SHOW COLUMNS FROM ${formattedTable}`,
+        [],
+        {
+          suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
+          suppressErrorLog: true,
+        }
       );
       const columnDetails = columns
         .map((col) => ({
@@ -619,7 +638,14 @@ class SearchService {
     // Vérifier si la table existe
     try {
       const formattedTable = this.formatTableName(tableName);
-      await database.query(`SELECT 1 FROM ${formattedTable} LIMIT 1`);
+      await database.query(
+        `SELECT 1 FROM ${formattedTable} LIMIT 1`,
+        [],
+        {
+          suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
+          suppressErrorLog: true,
+        }
+      );
     } catch (error) {
       console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
       return results;

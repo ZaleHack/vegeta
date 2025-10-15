@@ -842,7 +842,17 @@ class DatabaseManager {
       const [rows] = await this.pool.execute(sql, params);
       return DatabaseManager.#normalizeRows(rows);
     } catch (error) {
-      console.error('❌ Erreur requête SQL:', error);
+      const suppressErrorCodes = options.suppressErrorCodes || [];
+      const suppressErrorLog = Boolean(options.suppressErrorLog);
+      const codes = Array.isArray(suppressErrorCodes)
+        ? new Set(suppressErrorCodes)
+        : new Set([suppressErrorCodes].filter(Boolean));
+      const shouldSuppressLog = suppressErrorLog || (codes.size > 0 && codes.has(error.code));
+
+      if (!shouldSuppressLog) {
+        console.error('❌ Erreur requête SQL:', error);
+      }
+
       throw error;
     }
   }
@@ -863,7 +873,17 @@ class DatabaseManager {
       const [row] = DatabaseManager.#normalizeRows(rows);
       return row || null;
     } catch (error) {
-      console.error('❌ Erreur requête SQL:', error);
+      const suppressErrorCodes = options.suppressErrorCodes || [];
+      const suppressErrorLog = Boolean(options.suppressErrorLog);
+      const codes = Array.isArray(suppressErrorCodes)
+        ? new Set(suppressErrorCodes)
+        : new Set([suppressErrorCodes].filter(Boolean));
+      const shouldSuppressLog = suppressErrorLog || (codes.size > 0 && codes.has(error.code));
+
+      if (!shouldSuppressLog) {
+        console.error('❌ Erreur requête SQL:', error);
+      }
+
       throw error;
     }
   }
