@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Search,
   ArrowUp,
@@ -98,6 +99,9 @@ const HiddenIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler);
 
+import { AppPage, pageToPath, usePageNavigation } from './features/navigation/usePageNavigation';
+import { useSearchHistory } from './features/search/useSearchHistory';
+
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 const CASE_PAGE_SIZE_OPTIONS = [6, 12, 24];
@@ -107,6 +111,7 @@ const FRAUD_ROLE_LABELS: Record<string, string> = {
   callee: 'Appelé',
   target: 'Cible'
 };
+
 
 const getUploadModeLabel = (mode?: string | null) => {
   switch (mode) {
@@ -165,11 +170,6 @@ type SearchResponseFromApi = Partial<Omit<SearchResponse, 'hits' | 'tables_searc
   error?: string;
 };
 
-interface SearchHistoryEntry {
-  query: string;
-  timestamp: number;
-}
-
 const extractHitsFromPayload = (hits: RawHitsPayload): RawSearchResult[] => {
   if (Array.isArray(hits)) {
     return hits;
@@ -197,50 +197,6 @@ const mapPreviewEntries = (hits: RawHitsPayload): SearchResult[] =>
   }));
 
 const EXCLUDED_SEARCH_KEYS = new Set(['id', 'ID']);
-
-const SEARCH_HISTORY_STORAGE_KEY = 'sora-unified-search-history';
-const SEARCH_HISTORY_PREVIEW_LIMIT = 6;
-const SEARCH_HISTORY_LIMIT = 10;
-
-const loadSearchHistoryFromStorage = (): SearchHistoryEntry[] => {
-  if (typeof window === 'undefined') {
-    return [];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(SEARCH_HISTORY_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    const normalized = parsed
-      .map((entry) => {
-        if (!entry || typeof entry.query !== 'string') {
-          return null;
-        }
-
-        const timestamp = Number(entry.timestamp);
-        if (!Number.isFinite(timestamp)) {
-          return null;
-        }
-
-        return { query: entry.query, timestamp } as SearchHistoryEntry;
-      })
-      .filter((entry): entry is SearchHistoryEntry => Boolean(entry))
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, SEARCH_HISTORY_LIMIT);
-
-    return normalized;
-  } catch (error) {
-    console.error('Impossible de lire l\'historique de recherche:', error);
-    return [];
-  }
-};
 
 const getSearchableValues = (value: unknown, key?: string): string[] => {
   if (key && EXCLUDED_SEARCH_KEYS.has(key)) {
@@ -357,10 +313,6 @@ type RequestMetric = {
   progress?: number;
 };
 
-type InitialRoute = {
-  page?: string;
-  query?: string;
-};
 
 const DASHBOARD_CARD_STORAGE_KEY = 'sora.dashboard.cardOrder';
 const DEFAULT_CARD_ORDER = ['total-searches', 'data', 'profiles', 'requests', 'operations'];
@@ -714,10 +666,11 @@ interface BlacklistEntry {
 
 const App: React.FC = () => {
   const { notifySuccess, notifyError, notifyWarning } = useNotifications();
+  const { currentPage, navigateToPage } = usePageNavigation();
+  const [searchParams, setSearchParams] = useSearchParams();
   // États principaux
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentPage, setCurrentPage] = useState('login');
   const [logoutReason, setLogoutReason] = useState<'inactivity' | null>(null);
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -732,6 +685,12 @@ const App: React.FC = () => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!isAuthenticated && currentPage !== 'login') {
+      navigateToPage('login', { replace: true });
+    }
+  }, [isAuthenticated, currentPage, navigateToPage]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -771,21 +730,23 @@ const App: React.FC = () => {
   const [displayedHits, setDisplayedHits] = useState<SearchResult[]>([]);
   const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
-  const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>(() => loadSearchHistoryFromStorage());
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const progressiveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastQueryRef = useRef<{ query: string; page: number; limit: number } | null>(null);
-  const searchHistoryContainerRef = useRef<HTMLDivElement | null>(null);
-  const initialRoute = useMemo<InitialRoute>(() => {
-    if (typeof window === 'undefined') {
-      return {};
-    }
-    const params = new URLSearchParams(window.location.search);
-    const page = params.get('page') || undefined;
-    const query = params.get('query') || undefined;
-    return { page, query };
-  }, []);
+  const historySearchRef = useRef<(query: string) => void>(() => {});
+  const {
+    searchHistory,
+    isHistoryOpen,
+    setIsHistoryOpen,
+    containerRef: searchHistoryContainerRef,
+    visibleHistoryEntries,
+    hasMoreHistoryEntries,
+    addToSearchHistory,
+    clearSearchHistory,
+    removeSearchHistoryEntry,
+    handleHistorySelection,
+    getHistoryRelativeLabel
+  } = useSearchHistory({ onSelect: (query) => historySearchRef.current(query) });
   const [hasAppliedInitialRoute, setHasAppliedInitialRoute] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'profile'>('list');
   const [showProfileForm, setShowProfileForm] = useState(false);
@@ -810,103 +771,6 @@ const App: React.FC = () => {
     totalResultsCount > displayedResultsCount
       ? `${displayedResultsCount} résultat(s) sur ${totalResultsCount}`
       : `${displayedResultsCount} résultat(s)`;
-
-  const visibleHistoryEntries = useMemo(
-    () =>
-      (isHistoryOpen
-        ? searchHistory
-        : searchHistory.slice(0, SEARCH_HISTORY_PREVIEW_LIMIT)),
-    [isHistoryOpen, searchHistory]
-  );
-
-  const hasMoreHistoryEntries = searchHistory.length > SEARCH_HISTORY_PREVIEW_LIMIT;
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(
-        SEARCH_HISTORY_STORAGE_KEY,
-        JSON.stringify(searchHistory.slice(0, SEARCH_HISTORY_LIMIT))
-      );
-    } catch (error) {
-      console.error("Impossible d'enregistrer l'historique de recherche:", error);
-    }
-  }, [searchHistory]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!searchHistoryContainerRef.current) {
-        return;
-      }
-
-      if (!searchHistoryContainerRef.current.contains(event.target as Node)) {
-        setIsHistoryOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsHistoryOpen(false);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
-
-  const addToSearchHistory = useCallback((query: string) => {
-    const normalizedQuery = query.trim();
-    if (!normalizedQuery) {
-      return;
-    }
-
-    setSearchHistory((prev) => {
-      const filtered = prev.filter(
-        (entry) => entry.query.toLowerCase() !== normalizedQuery.toLowerCase()
-      );
-      const updated: SearchHistoryEntry[] = [
-        { query: normalizedQuery, timestamp: Date.now() },
-        ...filtered
-      ];
-
-      return updated.slice(0, SEARCH_HISTORY_LIMIT);
-    });
-  }, []);
-
-  const clearSearchHistory = useCallback(() => {
-    setSearchHistory([]);
-  }, []);
-
-  const removeSearchHistoryEntry = useCallback((query: string) => {
-    setSearchHistory((prev) => prev.filter((entry) => entry.query !== query));
-  }, []);
-
-  const handleHistorySelection = (query: string) => {
-    setSearchQuery(query);
-    setIsHistoryOpen(false);
-    void handleSearch(undefined, query);
-  };
-
-  const getHistoryRelativeLabel = useCallback((timestamp: number) => {
-    try {
-      return formatDistanceToNow(timestamp, { locale: fr, addSuffix: true });
-    } catch (error) {
-      console.error('Erreur formatage date historique:', error);
-      return '';
-    }
-  }, []);
 
   const resetProgressiveDisplay = useCallback(() => {
     if (progressiveTimerRef.current) {
@@ -1402,7 +1266,7 @@ const App: React.FC = () => {
     });
     setEditingProfileId(null);
     setShowProfileForm(true);
-    setCurrentPage('profiles');
+    navigateToPage('profiles');
   };
 
   const openEditProfile = async (id: number) => {
@@ -1442,7 +1306,7 @@ const App: React.FC = () => {
       });
       setEditingProfileId(id);
       setShowProfileForm(true);
-      setCurrentPage('profiles');
+      navigateToPage('profiles');
       logPageVisit('profile', { profile_id: id });
     }
   };
@@ -1859,7 +1723,7 @@ const App: React.FC = () => {
         console.log('🔍 Admin status:', data.user.admin, 'Type:', typeof data.user.admin);
         setCurrentUser(data.user);
         setIsAuthenticated(true);
-        setCurrentPage('dashboard');
+        navigateToPage('dashboard', { replace: true });
         setLogoutReason(null);
       } else {
         localStorage.removeItem('token');
@@ -1896,7 +1760,7 @@ const App: React.FC = () => {
         console.log('🔍 Admin status:', data.user.admin, 'Type:', typeof data.user.admin);
         setCurrentUser(data.user);
         setIsAuthenticated(true);
-        setCurrentPage('dashboard');
+        navigateToPage('dashboard', { replace: true });
         setLogoutReason(null);
         setLoginData({ login: '', password: '' });
         setLoginInfo('');
@@ -1927,7 +1791,7 @@ const App: React.FC = () => {
     localStorage.removeItem('token');
     setCurrentUser(null);
     setIsAuthenticated(false);
-    setCurrentPage('login');
+    navigateToPage('login', { replace: true });
     setSearchResults(null);
     setShowNotifications(false);
     setReadNotifications([]);
@@ -2202,6 +2066,10 @@ const App: React.FC = () => {
     const trimmedQuery = (forcedQuery ?? searchQuery).trim();
     if (!trimmedQuery) return;
 
+    if (currentPage !== 'search') {
+      navigateToPage('search');
+    }
+
     const requestedPage = 1;
     const requestedLimit = 20;
 
@@ -2238,6 +2106,10 @@ const App: React.FC = () => {
         setSearchResults(normalizedData);
         progressivelyDisplayHits(normalizedData.hits, { reset: true });
         addToSearchHistory(trimmedQuery);
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('page');
+        nextParams.set('query', trimmedQuery);
+        setSearchParams(nextParams);
         lastQueryRef.current = { query: trimmedQuery, page: requestedPage, limit: requestedLimit };
       } else {
         setSearchError(data.error || 'Erreur lors de la recherche');
@@ -2251,6 +2123,11 @@ const App: React.FC = () => {
       setLoading(false);
       abortControllerRef.current = null;
     }
+  };
+
+  historySearchRef.current = (query: string) => {
+    setSearchQuery(query);
+    void handleSearch(undefined, query);
   };
 
   const loadMoreResults = async () => {
@@ -2326,29 +2203,37 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated || hasAppliedInitialRoute) return;
 
-    const { page, query } = initialRoute;
-    const hasParams = Boolean(page || query);
+    const pageParam = searchParams.get('page') as AppPage | null;
+    const queryParam = searchParams.get('query') || undefined;
+    const hasPageParam = Boolean(pageParam && pageToPath[pageParam]);
 
-    if (page) {
-      setCurrentPage(page);
-    } else if (query) {
-      setCurrentPage('search');
+    if (hasPageParam) {
+      navigateToPage(pageParam as AppPage, { replace: true });
+    } else if (queryParam) {
+      navigateToPage('search');
     }
 
-    if (query) {
-      setSearchQuery(query);
-      handleSearch(undefined, query);
+    if (queryParam) {
+      setSearchQuery(queryParam);
+      handleSearch(undefined, queryParam);
     }
 
-    if (hasParams && typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('page');
-      url.searchParams.delete('query');
-      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    if (hasPageParam || queryParam) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('page');
+      nextParams.delete('query');
+      setSearchParams(nextParams, { replace: true });
     }
 
     setHasAppliedInitialRoute(true);
-  }, [isAuthenticated, hasAppliedInitialRoute, initialRoute, handleSearch]);
+  }, [
+    isAuthenticated,
+    hasAppliedInitialRoute,
+    searchParams,
+    navigateToPage,
+    handleSearch,
+    setSearchParams
+  ]);
 
   const handleRequestIdentification = async () => {
     try {
@@ -3723,7 +3608,7 @@ useEffect(() => {
           const target = normalized.find((item) => item.id === pendingShareCaseId);
           if (target) {
             setSelectedCase(target);
-            setCurrentPage('cdr-case');
+            navigateToPage('cdr-case');
           }
           setPendingShareCaseId(null);
         }
@@ -4357,14 +4242,14 @@ useEffect(() => {
         const match = cases.find((c) => c.id === notification.caseId);
         if (match) {
           setSelectedCase(match);
-          setCurrentPage('cdr-case');
+          navigateToPage('cdr-case');
         } else {
           setPendingShareCaseId(notification.caseId);
           fetchCases();
-          setCurrentPage('cdr');
+          navigateToPage('cdr');
         }
       } else {
-        setCurrentPage('cdr');
+        navigateToPage('cdr');
       }
       return;
     } else if (notification.type === 'profile_shared') {
@@ -4376,11 +4261,11 @@ useEffect(() => {
         setHighlightedProfileId(notification.profileId);
         setProfileListRefreshKey((prev) => prev + 1);
       }
-      setCurrentPage('profiles');
+      navigateToPage('profiles');
       return;
     }
     setShowNotifications(false);
-    setCurrentPage('requests');
+    navigateToPage('requests');
     setHighlightedRequestId(notification.requestId);
   };
 
@@ -5057,7 +4942,7 @@ useEffect(() => {
         <nav className="relative flex-1 overflow-y-auto p-4 pb-48">
           <div className="space-y-2">
             <button
-              onClick={() => setCurrentPage('dashboard')}
+              onClick={() => navigateToPage('dashboard')}
               title="Dashboard"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'dashboard'
@@ -5070,7 +4955,7 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => setCurrentPage('search')}
+              onClick={() => navigateToPage('search')}
               title="Recherche"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'search'
@@ -5083,7 +4968,7 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => setCurrentPage('annuaire')}
+              onClick={() => navigateToPage('annuaire')}
               title="Annuaire Gendarmerie"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'annuaire'
@@ -5096,7 +4981,7 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => setCurrentPage('ong')}
+              onClick={() => navigateToPage('ong')}
               title="ONG"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'ong'
@@ -5109,7 +4994,7 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => setCurrentPage('entreprises')}
+              onClick={() => navigateToPage('entreprises')}
               title="Entreprises"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'entreprises'
@@ -5122,7 +5007,7 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => setCurrentPage('vehicules')}
+              onClick={() => navigateToPage('vehicules')}
               title="Véhicules"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'vehicules'
@@ -5135,7 +5020,7 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => setCurrentPage('cdr')}
+              onClick={() => navigateToPage('cdr')}
               title="CDR"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr'
@@ -5148,7 +5033,7 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => setCurrentPage('fraud-detection')}
+              onClick={() => navigateToPage('fraud-detection')}
               title="Détection de Fraude"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'fraud-detection'
@@ -5161,7 +5046,7 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => setCurrentPage('requests')}
+              onClick={() => navigateToPage('requests')}
               title="Demandes"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'requests'
@@ -5175,7 +5060,7 @@ useEffect(() => {
 
             <button
               onClick={() => {
-                setCurrentPage('profiles');
+                navigateToPage('profiles');
                 setShowProfileForm(false);
               }}
               title="Fiches de profil"
@@ -5191,7 +5076,7 @@ useEffect(() => {
 
             {isAdmin && (
               <button
-                onClick={() => setCurrentPage('blacklist')}
+                onClick={() => navigateToPage('blacklist')}
                 title="White List"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'blacklist'
@@ -5206,7 +5091,7 @@ useEffect(() => {
 
             {isAdmin && (
               <button
-                onClick={() => setCurrentPage('logs')}
+                onClick={() => navigateToPage('logs')}
                 title="Logs"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'logs'
@@ -5221,7 +5106,7 @@ useEffect(() => {
 
             {isAdmin && (
               <button
-                onClick={() => setCurrentPage('users')}
+                onClick={() => navigateToPage('users')}
                 title="Utilisateurs"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'users'
@@ -5236,7 +5121,7 @@ useEffect(() => {
 
             {isAdmin && (
               <button
-                onClick={() => setCurrentPage('upload')}
+                onClick={() => navigateToPage('upload')}
                 title="Charger des données"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'upload'
@@ -6379,7 +6264,7 @@ useEffect(() => {
                                     setShowCdrMap(false);
                                     setCdrUploadMessage('');
                                     setCdrUploadError('');
-                                    setCurrentPage('cdr-case');
+                                    navigateToPage('cdr-case');
                                   }}
                                 >
                                   <ArrowRight className="h-4 w-4" />
@@ -6828,7 +6713,7 @@ useEffect(() => {
               <button
                 onClick={() => {
                   cancelRenameCase();
-                  setCurrentPage('cdr');
+                  navigateToPage('cdr');
                   setSelectedCase(null);
                 }}
                 className="text-blue-600"
