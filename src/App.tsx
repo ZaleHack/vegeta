@@ -2042,6 +2042,34 @@ const App: React.FC = () => {
     }
   };
 
+  const clearLogs = useCallback(async () => {
+    const confirmClear = window.confirm('Êtes-vous sûr de vouloir vider tous les logs ? Cette action est irréversible.');
+    if (!confirmClear) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/logs/clear', {
+        method: 'DELETE',
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+
+      if (!res.ok) {
+        throw new Error('Erreur lors de la suppression des logs');
+      }
+
+      setLogsData([]);
+      setLogTotal(0);
+      setLogPage(1);
+      await fetchLogs(1);
+      alert('Tous les logs ont été supprimés avec succès.');
+    } catch (err) {
+      console.error('Erreur lors du vidage des logs:', err);
+      alert("Une erreur est survenue lors de la suppression des logs. Veuillez réessayer.");
+    }
+  }, [fetchLogs]);
+
   const logPageVisit = useCallback(async (page: string, extra: Record<string, any> = {}) => {
     try {
       await fetch('/api/logs', {
@@ -7690,6 +7718,14 @@ useEffect(() => {
                       className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-400/40 transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                     >
                       Exporter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearLogs}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-500/60 bg-rose-500/10 px-5 py-3 text-sm font-semibold text-rose-600 shadow-sm shadow-rose-500/20 transition-transform hover:-translate-y-0.5 hover:bg-rose-500/20 focus:outline-none focus:ring-2 focus:ring-rose-500/40 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Vider log
                     </button>
                   </div>
                 </div>

@@ -49,6 +49,19 @@ router.get('/export', authenticate, async (req, res) => {
   res.send(csv);
 });
 
+router.delete('/clear', authenticate, async (req, res) => {
+  const isAdmin = req.user?.admin === 1 || req.user?.admin === '1' || req.user?.admin === true;
+  if (!isAdmin) return res.status(403).json({ error: 'Accès refusé' });
+
+  try {
+    await UserLog.clearAll();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur suppression logs:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression des logs' });
+  }
+});
+
 router.get('/sessions', authenticate, async (req, res) => {
   const isAdmin = req.user?.admin === 1 || req.user?.admin === '1' || req.user?.admin === true;
   if (!isAdmin) return res.status(403).json({ error: 'Accès refusé' });
