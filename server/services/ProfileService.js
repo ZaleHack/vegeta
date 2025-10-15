@@ -393,37 +393,33 @@ class ProfileService {
         stream.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
+        // Header block
+        const pageWidth = doc.page.width;
+        const headerHeight = 80;
+        const margin = doc.page.margins.left;
+        const innerWidth = pageWidth - margin * 2;
+
         const accentColor = '#1D4ED8';
         const accentDark = '#1E3A8A';
         const accentSoft = '#DBEAFE';
         const borderColor = '#BFDBFE';
         const textPrimary = '#0F172A';
         const textSecondary = '#1F2937';
-        const mutedText = '#4B5563';
 
-        const headerHeight = 90;
-        const footerReserve = 80;
-        const sectionPadding = 18;
-        const photoSize = 140;
+        const addSignature = () => {
+          const { x, y } = doc;
+          const size = doc._fontSize;
+          const color = doc._fillColor;
 
-        let margin = doc.page.margins.left;
-        let innerWidth = doc.page.width - margin * 2;
-        let textX = margin + sectionPadding;
-        let textWidth = innerWidth - sectionPadding * 2;
-        let y = headerHeight + 24;
-
-        const drawSignature = () => {
-          doc.save();
           const signatureWidth = 120;
-          const signatureX = doc.page.width - doc.page.margins.right - signatureWidth;
-          const signatureY = doc.page.height - doc.page.margins.bottom - 42;
+          const signatureX = pageWidth - margin - signatureWidth;
+          const signatureY = doc.page.height - doc.page.margins.bottom - 18;
 
           doc
             .moveTo(signatureX, signatureY)
-            .lineTo(signatureX + signatureWidth, signatureY)
+            .lineTo(pageWidth - margin, signatureY)
             .lineWidth(1)
-            .strokeColor(borderColor)
-            .stroke();
+            .stroke(borderColor);
 
           doc
             .font('Helvetica-Bold')
@@ -431,54 +427,90 @@ class ProfileService {
             .fillColor(accentDark)
             .text('SORA', signatureX, signatureY + 6, {
               width: signatureWidth,
-              align: 'right'
+              align: 'right',
+              lineBreak: false
             });
 
-          doc.restore();
-        };
-
-        const applyPageChrome = () => {
-          margin = doc.page.margins.left;
-          innerWidth = doc.page.width - margin * 2;
-          textX = margin + sectionPadding;
-          textWidth = innerWidth - sectionPadding * 2;
-
-          doc.save();
-          doc.rect(0, 0, doc.page.width, headerHeight).fill(accentColor);
-          doc
-            .fillColor('white')
-            .fontSize(26)
-            .font('Helvetica-Bold')
-            .text('FICHE PROFIL', 0, headerHeight / 2 - 18, {
-              width: doc.page.width,
-              align: 'center'
-            });
-          doc
-            .font('Helvetica')
-            .fontSize(11)
-            .fillColor('#E0ECFF')
-            .text(`Exporté le ${exportDateLabel}`, 0, headerHeight / 2 + 12, {
-              width: doc.page.width,
-              align: 'center'
-            });
-          doc.restore();
-
-          y = headerHeight + 24;
-          doc.x = margin;
+          doc.fontSize(size).fillColor(color);
+          doc.x = x;
           doc.y = y;
-
-          drawSignature();
         };
+        addSignature();
+        doc.on('pageAdded', addSignature);
 
-        const ensureSpace = (height = 60) => {
-          const bottomLimit = doc.page.height - doc.page.margins.bottom - footerReserve;
-          if (y + height > bottomLimit) {
-            doc.addPage();
+        doc.rect(0, 0, pageWidth, headerHeight).fill(accentColor);
+        doc
+          .fillColor('white')
+          .fontSize(26)
+          .font('Helvetica-Bold')
+          .text('FICHE PROFIL', 0, headerHeight / 2 - 16, {
+            width: pageWidth,
+            align: 'center'
+          });
+        doc
+          .font('Helvetica')
+          .fontSize(11)
+          .fillColor('#E0ECFF')
+          .text(`Exporté le ${exportDateLabel}`, 0, headerHeight / 2 + 10, {
+            width: pageWidth,
+            align: 'center'
+          });
+        doc.fillColor(textPrimary);
+
+        // Body positioning
+        let y = headerHeight + 30;
+        const photoSize = 140;
+
+        // Add photo centered below the header
+        if (profile.photo_path) {
+          try {
+            let imageBuffer;
+            if (/^https?:\/\//.test(profile.photo_path)) {
+              const res = await fetch(profile.photo_path);
+              const arr = await res.arrayBuffer();
+              imageBuffer = Buffer.from(arr);
+            } else {
+              // Always resolve the photo path relative to the project root
+              const normalizedPath = profile.photo_path
+                .split(/[/\\]+/)
+                .join(path.sep)
+                .replace(/^[/\\]+/, '');
+              const imgPath = path.resolve(__dirname, '../../', normalizedPath);
+              if (fs.existsSync(imgPath)) {
+                imageBuffer = fs.readFileSync(imgPath);
+              }
+            }
+            if (imageBuffer) {
+              const photoX = (pageWidth - photoSize) / 2;
+              doc.image(imageBuffer, photoX, y, {
+                fit: [photoSize, photoSize],
+                align: 'center',
+                valign: 'center'
+              });
+              doc
+                .lineWidth(1.5)
+                .roundedRect(photoX - 4, y - 4, photoSize + 8, photoSize + 8, 12)
+                .stroke(borderColor);
+              y += photoSize + 30;
+            }
+          } catch (_) {
+            // ignore image errors
           }
-        };
+        }
+
+        // Separator line for a cleaner layout
+        doc
+          .moveTo(margin, y)
+          .lineTo(pageWidth - margin, y)
+          .lineWidth(1)
+          .stroke(borderColor);
+        y += 24;
+
+        const sectionPadding = 18;
+        let textX = margin + sectionPadding;
+        let textWidth = innerWidth - sectionPadding * 2;
 
         const drawSectionHeader = (title) => {
-          ensureSpace(64);
           const headerTitle = title ? String(title) : 'Informations';
           doc.save();
           doc.lineWidth(1);
@@ -493,15 +525,10 @@ class ProfileService {
             .text(headerTitle.toUpperCase(), margin + 16, y + 10);
           doc.restore();
           y += headerHeightBox + 14;
-          doc.y = y;
         };
 
-        const addField = (label, value, { allowEmpty = false } = {}) => {
-          const hasValue = value || value === 0;
-          if (!allowEmpty && !hasValue) {
-            return;
-          }
-          ensureSpace(48);
+        const addField = (label, value) => {
+          if (!value && value !== 0) return;
           const safeLabel = label ? String(label) : '';
           doc
             .fillColor(accentDark)
@@ -509,15 +536,25 @@ class ProfileService {
             .fontSize(9)
             .text(safeLabel.toUpperCase(), textX, y);
           y = doc.y + 3;
-          const displayValue = hasValue ? String(value) : '—';
           doc
             .fillColor(textSecondary)
             .font('Helvetica')
             .fontSize(12)
-            .text(displayValue, textX, y, { width: textWidth });
+            .text(String(value), textX, y, { width: textWidth });
           y = doc.y + 12;
-          doc.y = y;
         };
+
+        const displayName = [profile.first_name, profile.last_name]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+        const fallbackName =
+          displayName || profile.email || profile.phone || (profile.id ? `Profil #${profile.id}` : 'Profil');
+
+        drawSectionHeader('Informations principales');
+        addField('Nom complet', displayName || fallbackName);
+        addField('Email', profile.email);
+        addField('Téléphone', profile.phone);
 
         const parseExtraFields = () => {
           if (!profile.extra_fields) {
@@ -554,98 +591,8 @@ class ProfileService {
           }
         };
 
-        applyPageChrome();
-        doc.on('pageAdded', applyPageChrome);
-
-        const displayName = [profile.first_name, profile.last_name]
-          .filter(Boolean)
-          .join(' ')
-          .trim();
-        const fallbackName = displayName || profile.email || profile.phone || (profile.id ? `Profil #${profile.id}` : 'Profil');
-        const ownerLogin = profile.owner_login ? String(profile.owner_login) : '';
-
-        doc
-          .fillColor(textPrimary)
-          .font('Helvetica-Bold')
-          .fontSize(20)
-          .text(fallbackName, margin, y, { width: innerWidth });
-        y = doc.y + 6;
-        doc.y = y;
-
-        const metadata = [];
-        if (profile.id != null) {
-          metadata.push(`Identifiant : ${profile.id}`);
-        }
-        if (ownerLogin) {
-          metadata.push(`Créé par : ${ownerLogin}`);
-        }
-        if (metadata.length > 0) {
-          doc
-            .font('Helvetica')
-            .fontSize(11)
-            .fillColor(mutedText)
-            .text(metadata.join('  •  '), margin, y, { width: innerWidth });
-          y = doc.y + 12;
-          doc.y = y;
-        } else {
-          y += 12;
-          doc.y = y;
-        }
-
-        if (profile.photo_path) {
-          ensureSpace(photoSize + 40);
-          try {
-            let imageBuffer;
-            if (/^https?:\/\//.test(profile.photo_path)) {
-              const res = await fetch(profile.photo_path);
-              const arr = await res.arrayBuffer();
-              imageBuffer = Buffer.from(arr);
-            } else {
-              const normalizedPath = profile.photo_path
-                .split(/[\/\\]+/)
-                .join(path.sep)
-                .replace(/^[\/\\]+/, '');
-              const imgPath = path.resolve(__dirname, '../../', normalizedPath);
-              if (fs.existsSync(imgPath)) {
-                imageBuffer = fs.readFileSync(imgPath);
-              }
-            }
-            if (imageBuffer) {
-              const photoX = (doc.page.width - photoSize) / 2;
-              doc.image(imageBuffer, photoX, y, {
-                fit: [photoSize, photoSize],
-                align: 'center',
-                valign: 'center'
-              });
-              doc
-                .lineWidth(1.5)
-                .roundedRect(photoX - 4, y - 4, photoSize + 8, photoSize + 8, 12)
-                .stroke(borderColor);
-              y += photoSize + 30;
-              doc.y = y;
-            }
-          } catch (_) {
-            // ignore image errors
-          }
-        }
-
-        doc
-          .moveTo(margin, y)
-          .lineTo(margin + innerWidth, y)
-          .lineWidth(1)
-          .stroke(borderColor);
-        y += 24;
-        doc.y = y;
-
-        drawSectionHeader('Informations principales');
-        addField('Nom complet', displayName || fallbackName, { allowEmpty: true });
-        addField('Email', profile.email, { allowEmpty: true });
-        addField('Téléphone', profile.phone, { allowEmpty: true });
-        if (ownerLogin) {
-          addField('Créé par', ownerLogin);
-        }
-
         const extraCategories = parseExtraFields();
+
         extraCategories.forEach(category => {
           drawSectionHeader(category.title);
           category.fields.forEach(field => addField(field.key, field.value));
@@ -653,16 +600,12 @@ class ProfileService {
 
         if (profile.comment && String(profile.comment).trim()) {
           drawSectionHeader('Commentaire');
-          const commentText = String(profile.comment);
-          const estimatedHeight = doc.heightOfString(commentText, { width: textWidth, align: 'left' });
-          ensureSpace(estimatedHeight + 24);
           doc
             .fillColor(textSecondary)
             .font('Helvetica')
             .fontSize(12)
-            .text(commentText, textX, y, { width: textWidth });
+            .text(String(profile.comment), textX, y, { width: textWidth });
           y = doc.y + 12;
-          doc.y = y;
         }
 
         doc.end();
