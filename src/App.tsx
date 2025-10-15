@@ -2327,7 +2327,10 @@ useEffect(() => {
         body: JSON.stringify({ status: 'identified', profile_id: profileId })
       });
       if (res.ok) {
-        fetchRequests();
+        await fetchRequests();
+        if (currentPage === 'dashboard') {
+          await loadStatistics();
+        }
       }
     } catch (error) {
       console.error('Erreur mise à jour demande:', error);
@@ -2369,7 +2372,10 @@ useEffect(() => {
           if (permanent) {
             setHiddenRequestIds((prev) => prev.filter((hiddenId) => hiddenId !== id));
           }
-          fetchRequests();
+          await fetchRequests();
+          if (currentPage === 'dashboard') {
+            await loadStatistics();
+          }
         } catch (error) {
           console.error('Erreur suppression demande:', error);
         }
@@ -3894,7 +3900,10 @@ useEffect(() => {
       if (res.ok) {
         setCdrCaseMessage('Opération créée');
         setCdrCaseName('');
-        fetchCases();
+        await fetchCases();
+        if (currentPage === 'dashboard') {
+          await loadStatistics();
+        }
       } else {
         setCdrCaseMessage(data.error || 'Erreur création d\'opération');
       }
@@ -3985,7 +3994,10 @@ useEffect(() => {
             method: 'DELETE',
             headers: { Authorization: token ? `Bearer ${token}` : '' }
           });
-          fetchCases();
+          await fetchCases();
+          if (currentPage === 'dashboard') {
+            await loadStatistics();
+          }
         } catch (err) {
           console.error('Erreur suppression opération:', err);
         }
