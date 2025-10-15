@@ -376,7 +376,7 @@ class ProfileService {
     try {
       const { default: PDFDocument } = await import('pdfkit');
       // Compression triggers a stack overflow with pdfkit on Node 22, so we disable it.
-      const doc = new PDFDocument({ margin: 50, compress: false });
+      const doc = new PDFDocument({ margin: 50, compress: false, autoFirstPage: false });
       const exportDateLabel = new Intl.DateTimeFormat('fr-FR', {
         day: '2-digit',
         month: 'long',
@@ -393,12 +393,6 @@ class ProfileService {
         stream.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
 
-        // Header block
-        const pageWidth = doc.page.width;
-        const headerHeight = 80;
-        const margin = doc.page.margins.left;
-        const innerWidth = pageWidth - margin * 2;
-
         const accentColor = '#1D4ED8';
         const accentDark = '#1E3A8A';
         const accentSoft = '#DBEAFE';
@@ -407,17 +401,15 @@ class ProfileService {
         const textSecondary = '#1F2937';
 
         const addSignature = () => {
-          const { x, y } = doc;
-          const size = doc._fontSize;
-          const color = doc._fillColor;
+          doc.save();
 
           const signatureWidth = 120;
-          const signatureX = pageWidth - margin - signatureWidth;
-          const signatureY = doc.page.height - doc.page.margins.bottom - 18;
+          const signatureX = doc.page.width - doc.page.margins.right - signatureWidth;
+          const signatureY = doc.page.height - doc.page.margins.bottom - 42;
 
           doc
             .moveTo(signatureX, signatureY)
-            .lineTo(pageWidth - margin, signatureY)
+            .lineTo(signatureX + signatureWidth, signatureY)
             .lineWidth(1)
             .stroke(borderColor);
 
@@ -427,16 +419,20 @@ class ProfileService {
             .fillColor(accentDark)
             .text('SORA', signatureX, signatureY + 6, {
               width: signatureWidth,
-              align: 'right',
-              lineBreak: false
+              align: 'right'
             });
 
-          doc.fontSize(size).fillColor(color);
-          doc.x = x;
-          doc.y = y;
+          doc.restore();
         };
-        addSignature();
+
         doc.on('pageAdded', addSignature);
+        doc.addPage();
+
+        // Header block
+        const pageWidth = doc.page.width;
+        const headerHeight = 80;
+        const margin = doc.page.margins.left;
+        const innerWidth = pageWidth - margin * 2;
 
         doc.rect(0, 0, pageWidth, headerHeight).fill(accentColor);
         doc
