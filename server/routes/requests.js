@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate, requirePermission } from '../middleware/auth.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
 import IdentificationRequest from '../models/IdentificationRequest.js';
 import UserLog from '../models/UserLog.js';
 
@@ -30,10 +30,7 @@ const router = express.Router();
 router.get('/', authenticate, async (req, res) => {
   try {
     let requests;
-    const canViewAll = Array.isArray(req.user.permissions)
-      ? req.user.permissions.includes('requests:manage')
-      : req.user.admin === 1 || req.user.admin === '1';
-    if (canViewAll) {
+    if (req.user.admin === 1 || req.user.admin === '1') {
       requests = await IdentificationRequest.findAll();
     } else {
       requests = await IdentificationRequest.findByUser(req.user.id);
@@ -46,7 +43,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // Mise à jour du statut d'une demande (admin)
-router.patch('/:id', authenticate, requirePermission('requests:manage'), async (req, res) => {
+router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
   const { status, profile_id } = req.body;
   if (!status) {
     return res.status(400).json({ error: 'Statut requis' });
@@ -67,10 +64,8 @@ router.delete('/:id', authenticate, async (req, res) => {
     if (!request) {
       return res.status(404).json({ error: 'Demande non trouvée' });
     }
-    const canManage = Array.isArray(req.user.permissions)
-      ? req.user.permissions.includes('requests:manage')
-      : req.user.admin === 1 || req.user.admin === '1';
-    if (!canManage && request.user_id !== req.user.id) {
+    const isAdmin = req.user.admin === 1 || req.user.admin === '1';
+    if (!isAdmin && request.user_id !== req.user.id) {
       return res.status(403).json({ error: 'Accès refusé' });
     }
     await IdentificationRequest.delete(req.params.id);
