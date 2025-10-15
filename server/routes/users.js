@@ -140,7 +140,6 @@ router.patch('/:id', authenticate, requirePermission('admin:manage_users'), asyn
 
     const updates = {};
     if (login !== undefined) updates.login = login;
-    if (admin !== undefined) updates.admin = admin;
     if (active !== undefined) updates.active = active ? 1 : 0;
     if (password !== undefined) {
       if (password.length < 8) {
@@ -149,11 +148,18 @@ router.patch('/:id', authenticate, requirePermission('admin:manage_users'), asyn
       updates.mdp = password;
     }
 
+    const explicitRolePayloadProvided = Array.isArray(incomingRoles) || typeof role === 'string';
     let rolesToAssign = null;
     if (Array.isArray(incomingRoles)) {
-      rolesToAssign = incomingRoles.map((name) => String(name));
+      rolesToAssign = Array.from(new Set(incomingRoles.map((name) => String(name))));
     } else if (typeof role === 'string') {
       rolesToAssign = role === 'ADMIN' ? ['administrator'] : ['observer'];
+    }
+
+    let normalizedAdmin = null;
+    if (admin !== undefined) {
+      normalizedAdmin = admin === true || admin === 1 || admin === '1';
+      updates.admin = normalizedAdmin ? 1 : 0;
     }
 
     if (rolesToAssign) {
@@ -191,6 +197,22 @@ router.patch('/:id', authenticate, requirePermission('admin:manage_users'), asyn
       const duplicateUser = await User.findByLogin(login);
       if (duplicateUser) {
         return res.status(400).json({ error: 'Login déjà utilisé' });
+      }
+    }
+
+    let existingContext = null;
+    if (!rolesToAssign && normalizedAdmin !== null && !explicitRolePayloadProvided) {
+      existingContext = await accessControlService.getUserContext(userId);
+      const currentRoles = Array.isArray(existingContext.roles)
+        ? existingContext.roles.map((r) => r.name)
+        : [];
+      const hasAdministratorRole = currentRoles.includes('administrator');
+
+      if (normalizedAdmin && !hasAdministratorRole) {
+        rolesToAssign = Array.from(new Set([...currentRoles, 'administrator']));
+      } else if (!normalizedAdmin && hasAdministratorRole) {
+        const remainingRoles = currentRoles.filter((roleName) => roleName !== 'administrator');
+        rolesToAssign = remainingRoles.length ? remainingRoles : ['observer'];
       }
     }
 
