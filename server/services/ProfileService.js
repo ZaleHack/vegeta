@@ -498,41 +498,77 @@ class ProfileService {
           displayName || profile.email || profile.phone || (profile.id ? `Profil #${profile.id}` : 'Profil');
 
         const renderOverview = () => {
-          const photoSize = photoBuffer ? 118 : 0;
-          const photoGap = photoBuffer ? 24 : 0;
-          const textWidth = innerWidth - (photoSize + photoGap);
-          const textX = margin;
+          const contactParts = [];
+          if (profile.email) contactParts.push(String(profile.email));
+          if (profile.phone) contactParts.push(String(profile.phone));
 
-          ensureSpace(photoBuffer ? photoSize + 40 : 60);
+          const photoSize = photoBuffer ? 122 : 0;
+          const photoGap = photoBuffer ? 28 : 0;
+          const cardPadding = 24;
+          const hasPhoto = Boolean(photoBuffer);
+          const baseTextWidth = innerWidth - cardPadding * 2 - (hasPhoto ? photoSize + photoGap : 0);
+          const photoAlongside = hasPhoto && baseTextWidth > 220;
+          const textAreaWidth = photoAlongside ? baseTextWidth : innerWidth - cardPadding * 2;
 
-          const startY = doc.y;
+          doc.font('Helvetica-Bold').fontSize(20);
+          const nameHeight = doc.heightOfString(fallbackName, { width: textAreaWidth });
+
+          const contactText = contactParts.join('\n');
+          doc.font('Helvetica').fontSize(12);
+          const contactHeight = contactText
+            ? doc.heightOfString(contactText, { width: textAreaWidth })
+            : 0;
+
+          const textBlockHeight = nameHeight + (contactText ? contactHeight + 10 : 0);
+          const contentHeight = photoAlongside
+            ? Math.max(textBlockHeight, photoSize)
+            : textBlockHeight + (hasPhoto ? photoSize + 16 : 0);
+          const cardHeight = contentHeight + cardPadding * 2;
+
+          ensureSpace(cardHeight + 30);
+
+          const cardX = margin;
+          const cardY = doc.y;
+
+          doc.save();
+          doc.roundedRect(cardX, cardY, innerWidth, cardHeight, 20).fill(backgroundTint);
+          doc
+            .lineWidth(1.2)
+            .strokeColor(borderColor)
+            .roundedRect(cardX, cardY, innerWidth, cardHeight, 20)
+            .stroke();
+          doc.restore();
+
+          const textX = cardX + cardPadding;
+          let currentY = cardY + cardPadding;
 
           doc
             .font('Helvetica-Bold')
             .fontSize(20)
             .fillColor(textPrimary)
-            .text(fallbackName, textX, doc.y, { width: textWidth });
+            .text(fallbackName, textX, currentY, { width: textAreaWidth });
 
-          const contactParts = [];
-          if (profile.email) contactParts.push(String(profile.email));
-          if (profile.phone) contactParts.push(String(profile.phone));
+          currentY += nameHeight + 10;
 
-          if (contactParts.length) {
+          if (contactText) {
             doc
               .font('Helvetica')
               .fontSize(12)
               .fillColor(textSecondary)
-              .text(contactParts.join(' • '), textX, doc.y + 6, { width: textWidth });
+              .text(contactText, textX, currentY, {
+                width: textAreaWidth,
+                lineGap: 4
+              });
+            currentY += contactHeight + 10;
           }
 
-          if (photoBuffer) {
-            const photoX = margin + innerWidth - photoSize;
-            const photoY = startY;
-
-            doc.save();
-            doc.fillColor(backgroundTint);
-            doc.roundedRect(photoX - 6, photoY - 6, photoSize + 12, photoSize + 12, 14).fill();
-            doc.restore();
+          if (hasPhoto) {
+            const photoX = photoAlongside
+              ? cardX + cardPadding + textAreaWidth + photoGap
+              : cardX + cardPadding;
+            const photoY = photoAlongside
+              ? cardY + cardPadding
+              : cardY + cardPadding + textBlockHeight + 12;
 
             doc.image(photoBuffer, photoX, photoY, {
               fit: [photoSize, photoSize],
@@ -540,18 +576,16 @@ class ProfileService {
               valign: 'center'
             });
 
+            doc.save();
             doc
-              .lineWidth(1.2)
+              .lineWidth(1.3)
               .strokeColor(borderColor)
               .roundedRect(photoX - 6, photoY - 6, photoSize + 12, photoSize + 12, 14)
               .stroke();
-
-            doc.y = Math.max(doc.y + photoSize + 14, photoY + photoSize + 12);
-          } else {
-            doc.y += 32;
+            doc.restore();
           }
 
-          doc.moveDown(0.5);
+          doc.y = cardY + cardHeight + 20;
         };
 
         const drawSection = (title, renderContent) => {
@@ -587,7 +621,7 @@ class ProfileService {
           doc.moveDown(1);
         };
 
-        const renderFields = (fields) => {
+        const renderFields = (fields, { columns = 2 } = {}) => {
           const validFields = (fields || [])
             .filter(field => field && (field.value || field.value === 0))
             .map(field => ({
@@ -598,24 +632,76 @@ class ProfileService {
           if (!validFields.length) return;
 
           const contentWidth = innerWidth - sectionPadding * 2;
-          const baseX = margin + sectionPadding;
+          const gutter = 16;
+          const maxColumns = Math.max(1, Math.min(columns, validFields.length));
 
-          validFields.forEach(field => {
-            ensureSpace(40);
-            doc
-              .font('Helvetica-Bold')
-              .fontSize(10)
-              .fillColor(accentDark)
-              .text(field.label.toUpperCase(), baseX, doc.y, { width: contentWidth });
+          let index = 0;
 
-            doc
-              .font('Helvetica')
-              .fontSize(12)
-              .fillColor(textSecondary)
-              .text(field.value, baseX, doc.y + 4, { width: contentWidth });
+          const measureFieldHeight = (field, width) => {
+            doc.font('Helvetica-Bold').fontSize(9);
+            const labelHeight = doc.heightOfString(field.label.toUpperCase(), {
+              width: width - 24
+            });
+            doc.font('Helvetica').fontSize(11);
+            const valueHeight = doc.heightOfString(field.value, {
+              width: width - 24
+            });
+            return labelHeight + valueHeight + 26;
+          };
 
-            doc.moveDown(1.1);
-          });
+          while (index < validFields.length) {
+            const rowFields = validFields.slice(index, index + maxColumns);
+            const rowColumns = rowFields.length;
+            const cardWidth =
+              (contentWidth - gutter * (rowColumns - 1)) / Math.max(rowColumns, 1);
+
+            const heights = rowFields.map(field => measureFieldHeight(field, cardWidth));
+            const rowHeight = Math.max(...heights);
+
+            ensureSpace(rowHeight + 36);
+
+            const rowTop = doc.y;
+
+            rowFields.forEach((field, position) => {
+              const x = margin + sectionPadding + position * (cardWidth + gutter);
+              const textX = x + 12;
+              const innerWidth = cardWidth - 24;
+
+              doc.save();
+              doc
+                .roundedRect(x, rowTop, cardWidth, rowHeight, 12)
+                .fill(backgroundTint);
+              doc
+                .lineWidth(1)
+                .strokeColor(borderColor)
+                .roundedRect(x, rowTop, cardWidth, rowHeight, 12)
+                .stroke();
+              doc.restore();
+
+              doc
+                .font('Helvetica-Bold')
+                .fontSize(9)
+                .fillColor(accentDark)
+                .text(field.label.toUpperCase(), textX, rowTop + 12, {
+                  width: innerWidth
+                });
+
+              const labelHeight = doc.heightOfString(field.label.toUpperCase(), {
+                width: innerWidth
+              });
+
+              doc
+                .font('Helvetica')
+                .fontSize(11)
+                .fillColor(textSecondary)
+                .text(field.value, textX, rowTop + 12 + labelHeight + 6, {
+                  width: innerWidth
+                });
+            });
+
+            doc.y = rowTop + rowHeight + 14;
+            index += rowFields.length;
+          }
         };
 
         const renderParagraph = (text) => {
@@ -624,16 +710,39 @@ class ProfileService {
           const paragraph = String(text).trim();
           if (!paragraph) return;
 
-          ensureSpace(80);
+          const boxX = margin + sectionPadding;
+          const boxWidth = innerWidth - sectionPadding * 2;
+          const textX = boxX + 14;
+          const textWidth = boxWidth - 28;
 
-          const paragraphX = margin + sectionPadding;
-          const paragraphWidth = innerWidth - sectionPadding * 2;
+          doc.font('Helvetica').fontSize(12);
+          const paragraphHeight = doc.heightOfString(paragraph, {
+            width: textWidth
+          });
+
+          ensureSpace(paragraphHeight + 50);
+
+          const boxY = doc.y;
+          const boxHeight = paragraphHeight + 28;
+
+          doc.save();
+          doc
+            .roundedRect(boxX, boxY, boxWidth, boxHeight, 12)
+            .fill(backgroundTint);
+          doc
+            .lineWidth(1)
+            .strokeColor(borderColor)
+            .roundedRect(boxX, boxY, boxWidth, boxHeight, 12)
+            .stroke();
+          doc.restore();
 
           doc
             .font('Helvetica')
             .fontSize(12)
             .fillColor(textSecondary)
-            .text(paragraph, paragraphX, doc.y, { width: paragraphWidth });
+            .text(paragraph, textX, boxY + 14, { width: textWidth });
+
+          doc.y = boxY + boxHeight + 12;
         };
 
         renderOverview();
@@ -645,7 +754,9 @@ class ProfileService {
         ];
 
         if (mainInformation.some(field => field.value)) {
-          drawSection('Informations principales', () => renderFields(mainInformation));
+          drawSection('Informations principales', () =>
+            renderFields(mainInformation, { columns: 2 })
+          );
         }
 
         const parseExtraFields = () => {
@@ -692,7 +803,8 @@ class ProfileService {
               category.fields.map(field => ({
                 label: field.label || field.key,
                 value: field.value
-              }))
+              })),
+              { columns: 2 }
             )
           );
         });
