@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 
 interface ExtraField {
@@ -72,6 +72,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const [message, setMessage] = useState('');
   const [comment, setComment] = useState(initialValues.comment || '');
   const [dragging, setDragging] = useState<{ catIdx: number; fieldIdx: number } | null>(null);
+  const [dragOver, setDragOver] = useState<
+    { catIdx: number; fieldIdx: number | 'end' } | null
+  >(null);
   const [existingAttachments, setExistingAttachments] = useState<Attachment[]>(
     () => initialValues.attachments || []
   );
@@ -154,24 +157,49 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
 
   const handleDragStart = (catIdx: number, fieldIdx: number) => {
     setDragging({ catIdx, fieldIdx });
+    setDragOver(null);
   };
-  const handleDrop = (catIdx: number, fieldIdx: number) => {
+  const handleDragEnter = (catIdx: number, fieldIdx: number | 'end') => {
     if (!dragging) return;
-    const updated = categories.map(cat => ({ ...cat, fields: [...cat.fields] }));
-    const item = updated[dragging.catIdx].fields.splice(dragging.fieldIdx, 1)[0];
-    if (!item) return;
-    updated[catIdx].fields.splice(fieldIdx, 0, item);
-    setCategories(updated);
-    setDragging(null);
+    if (dragging.catIdx === catIdx && dragging.fieldIdx === fieldIdx) return;
+    setDragOver({ catIdx, fieldIdx });
   };
-  const handleDropOnCategory = (catIdx: number) => {
-    if (!dragging) return;
-    const updated = categories.map(cat => ({ ...cat, fields: [...cat.fields] }));
-    const item = updated[dragging.catIdx].fields.splice(dragging.fieldIdx, 1)[0];
-    if (!item) return;
-    updated[catIdx].fields.push(item);
-    setCategories(updated);
+  const handleDragEnd = () => {
     setDragging(null);
+    setDragOver(null);
+  };
+  const moveField = (
+    source: { catIdx: number; fieldIdx: number },
+    target: { catIdx: number; fieldIdx: number | 'end' }
+  ) => {
+    setCategories(prev => {
+      const updated = prev.map(cat => ({ ...cat, fields: [...cat.fields] }));
+      const sourceCat = updated[source.catIdx];
+      const targetCat = updated[target.catIdx];
+      if (!sourceCat || !targetCat) {
+        return prev;
+      }
+      const [item] = sourceCat.fields.splice(source.fieldIdx, 1);
+      if (!item) {
+        return prev;
+      }
+      if (target.fieldIdx === 'end') {
+        targetCat.fields.push(item);
+      } else {
+        let insertionIndex = target.fieldIdx;
+        if (source.catIdx === target.catIdx && source.fieldIdx < target.fieldIdx) {
+          insertionIndex = Math.max(0, insertionIndex - 1);
+        }
+        targetCat.fields.splice(insertionIndex, 0, item);
+      }
+      return updated;
+    });
+  };
+  const handleDrop = (catIdx: number, fieldIdx: number | 'end') => {
+    if (!dragging) return;
+    moveField(dragging, { catIdx, fieldIdx });
+    setDragging(null);
+    setDragOver(null);
   };
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -305,73 +333,155 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
         onSubmit={submit}
       >
       {message && <div className="text-center text-sm text-green-600">{message}</div>}
-      <div className="space-y-6">
-        {categories.map((cat, cIdx) => (
-          <div
-            key={cIdx}
-            className="space-y-4 bg-gray-50 border border-gray-200 rounded-xl p-6 shadow-sm"
-            onDragOver={e => e.preventDefault()}
-            onDrop={() => handleDropOnCategory(cIdx)}
-          >
-            <div className="flex items-center space-x-3">
-              <input
-                className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Titre de la catégorie"
-                value={cat.title}
-                onChange={e => updateCategoryTitle(cIdx, e.target.value)}
-              />
-              <button
-                type="button"
-                className="text-red-500 hover:text-red-700"
-                onClick={() => removeCategory(cIdx)}
-              >
-                Supprimer
-              </button>
-            </div>
-            {cat.fields.map((field, fIdx) => (
-              <div
-                key={fIdx}
-                className="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0"
-                draggable
-                onDragStart={() => handleDragStart(cIdx, fIdx)}
-                onDragOver={e => e.preventDefault()}
-                onDrop={() => handleDrop(cIdx, fIdx)}
-              >
-                <input
-                  className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Nom du champ"
-                  value={field.key}
-                  onChange={e => updateField(cIdx, fIdx, 'key', e.target.value)}
-                />
-                <input
-                  className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Valeur"
-                  value={field.value}
-                  onChange={e => updateField(cIdx, fIdx, 'value', e.target.value)}
-                />
+      <div className="space-y-8">
+        {categories.map((cat, cIdx) => {
+          const isCategoryTarget = dragOver?.catIdx === cIdx && dragOver?.fieldIdx === 'end';
+          return (
+            <div
+              key={cIdx}
+              className={`relative space-y-5 overflow-hidden rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-lg shadow-slate-200/60 transition-all hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-700/60 dark:bg-slate-900/70 ${
+                isCategoryTarget ? 'ring-2 ring-blue-300/70' : ''
+              }`}
+              onDragOver={e => e.preventDefault()}
+              onDragEnter={() => handleDragEnter(cIdx, 'end')}
+              onDrop={e => {
+                e.preventDefault();
+                const targetField =
+                  dragOver?.catIdx === cIdx && dragOver?.fieldIdx !== undefined
+                    ? dragOver.fieldIdx
+                    : 'end';
+                handleDrop(cIdx, targetField);
+              }}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">
+                    Catégorie
+                  </span>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200/70 bg-white/90 px-4 py-2.5 text-sm font-medium text-slate-700 shadow-inner transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
+                    placeholder="Titre de la catégorie"
+                    value={cat.title}
+                    onChange={e => updateCategoryTitle(cIdx, e.target.value)}
+                  />
+                </div>
                 <button
                   type="button"
-                  className="text-red-500 hover:text-red-700 mt-1 sm:mt-0"
-                  onClick={() => removeField(cIdx, fIdx)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200/70 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-400/70 hover:bg-rose-100 hover:text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200"
+                  onClick={() => removeCategory(cIdx)}
                 >
-                  Supprimer
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer la catégorie
                 </button>
               </div>
-            ))}
-            <button
-              type="button"
-              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
-              onClick={() => addField(cIdx)}
-            >
-              Ajouter un champ
-            </button>
-          </div>
-        ))}
+
+              <div className="space-y-4">
+                {cat.fields.map((field, fIdx) => {
+                  const isDragging = dragging?.catIdx === cIdx && dragging.fieldIdx === fIdx;
+                  const isTarget = dragOver?.catIdx === cIdx && dragOver?.fieldIdx === fIdx;
+                  return (
+                    <div
+                      key={fIdx}
+                      className={`group relative flex flex-col gap-4 rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm transition-all focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-200/80 sm:flex-row sm:items-start sm:gap-5 dark:border-slate-700/60 dark:bg-slate-900/60 ${
+                        isDragging
+                          ? 'cursor-grabbing opacity-70 ring-2 ring-blue-300/80'
+                          : 'cursor-grab hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg'
+                      } ${
+                        isTarget
+                          ? 'border-blue-400 bg-gradient-to-br from-blue-50/90 via-indigo-50/90 to-purple-50/90 ring-2 ring-blue-300/70 dark:from-slate-900/80 dark:via-slate-900/70 dark:to-slate-900/80'
+                          : ''
+                      }`}
+                      draggable
+                      onDragStart={() => handleDragStart(cIdx, fIdx)}
+                      onDragEnter={() => handleDragEnter(cIdx, fIdx)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDrop(cIdx, fIdx);
+                      }}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200/70 bg-slate-50 text-slate-400 transition group-hover:border-slate-300 group-hover:text-slate-500 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-500">
+                        <GripVertical className="h-5 w-5" />
+                      </span>
+                      <div className="flex-1 space-y-3">
+                        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                              Nom du champ
+                            </label>
+                            <input
+                              className="w-full rounded-xl border border-slate-200/80 bg-white/95 px-4 py-2.5 text-sm text-slate-700 shadow-inner transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                              placeholder="Nom du champ"
+                              value={field.key}
+                              onChange={e => updateField(cIdx, fIdx, 'key', e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                              Valeur
+                            </label>
+                            <input
+                              className="w-full rounded-xl border border-slate-200/80 bg-white/95 px-4 py-2.5 text-sm text-slate-700 shadow-inner transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                              placeholder="Valeur"
+                              value={field.value}
+                              onChange={e => updateField(cIdx, fIdx, 'value', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>Glissez pour réorganiser</span>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full border border-rose-200/70 bg-white/70 px-3 py-1.5 text-xs font-semibold text-rose-500 transition hover:-translate-y-0.5 hover:border-rose-400/70 hover:bg-rose-100 hover:text-rose-600 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200"
+                            onClick={() => removeField(cIdx, fIdx)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Supprimer le champ
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {dragging && (
+                  <div
+                    className={`rounded-2xl border-2 border-dashed px-4 py-4 text-center text-sm transition ${
+                      isCategoryTarget
+                        ? 'border-blue-400 bg-blue-50/70 text-blue-600 dark:border-blue-500/60 dark:bg-blue-500/10 dark:text-blue-200'
+                        : 'border-slate-200 text-slate-400 dark:border-slate-700/60 dark:text-slate-500'
+                    }`}
+                    onDragEnter={() => handleDragEnter(cIdx, 'end')}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDrop(cIdx, 'end');
+                    }}
+                  >
+                    Déposez ici pour ajouter à la fin de cette catégorie
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white/80 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
+                onClick={() => addField(cIdx)}
+              >
+                <Plus className="h-4 w-4" />
+                Ajouter un champ
+              </button>
+            </div>
+          );
+        })}
         <button
           type="button"
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/40 transition hover:-translate-y-0.5 hover:shadow-xl"
           onClick={addCategory}
         >
+          <Plus className="h-4 w-4" />
           Ajouter une catégorie
         </button>
       </div>
