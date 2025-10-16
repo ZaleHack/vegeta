@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
+import { ApiError } from '../app/api/apiClient';
+import { useQueryClient } from '../app/query';
+import { profilesKeys } from '../features/profiles/hooks';
+import { saveProfile } from '../features/profiles/api';
 
 interface ExtraField {
   key: string;
@@ -39,6 +43,7 @@ interface ProfileFormProps {
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
 const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId, onSaved }) => {
+  const queryClient = useQueryClient();
   const buildProtectedUrl = (relativePath?: string | null) => {
     if (!relativePath) return null;
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -299,30 +304,25 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     if (removedAttachmentIds.length) {
       form.append('remove_attachment_ids', JSON.stringify(removedAttachmentIds));
     }
-    const token = localStorage.getItem('token');
-    const url = profileId ? `/api/profiles/${profileId}` : '/api/profiles';
-    const method = profileId ? 'PATCH' : 'POST';
-    const res = await fetch(url, {
-      method,
-      headers: {
-        Authorization: token ? `Bearer ${token}` : ''
-      },
-      body: form
-    });
-    const data = await res.json();
-    if (res.ok) {
+    try {
+      const response = await saveProfile({ formData: form, profileId });
+      const savedProfile = response?.profile;
       setMessage('Profil enregistré avec succès');
       setPhoto(null);
       setNewAttachments([]);
       setRemovedAttachmentIds([]);
-      if (data.profile) {
-        setExistingAttachments(Array.isArray(data.profile.attachments) ? data.profile.attachments : []);
-        setPreview(data.profile.photo_path ? buildProtectedUrl(data.profile.photo_path) : null);
+      if (savedProfile) {
+        setExistingAttachments(Array.isArray(savedProfile.attachments) ? savedProfile.attachments : []);
+        setPreview(savedProfile.photo_path ? buildProtectedUrl(savedProfile.photo_path) : null);
         setRemovePhoto(false);
+        if (onSaved) onSaved(savedProfile.id);
+      } else if (onSaved) {
+        onSaved(profileId || undefined);
       }
-      if (onSaved) onSaved(data.profile?.id);
-    } else {
-      setMessage(data.error || 'Erreur lors de la sauvegarde');
+      await queryClient.refetchQueries(profilesKeys.all);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Erreur lors de la sauvegarde';
+      setMessage(message);
     }
   };
 

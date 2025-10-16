@@ -1,34 +1,13 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { X, Paperclip, Download, Search, Users, Eye, PencilLine, Trash2, Share2 } from 'lucide-react';
+import { X, Paperclip, Download, Search, Users, Eye, PencilLine, Trash2, Share2, Loader2 } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
-
-interface ProfileAttachment {
-  id: number;
-  file_path: string;
-  original_name: string | null;
-}
-
-export interface ProfileListItem {
-  id: number;
-  user_id: number;
-  first_name: string | null;
-  last_name: string | null;
-  phone: string | null;
-  email: string | null;
-  comment: string | null;
-  photo_path: string | null;
-  extra_fields?: string | null;
-  attachments?: ProfileAttachment[];
-  archived_at?: string | null;
-  owner_login?: string | null;
-  owner_division_id?: number | null;
-  created_at?: string;
-  shared_with_me?: boolean;
-  shared_user_ids?: number[];
-  is_owner?: boolean;
-}
+import { useQueryClient } from '../app/query';
+import { ApiError } from '../app/api/apiClient';
+import { ProfileListItem } from '../features/profiles/types';
+import { profilesKeys, useProfileQuery, useProfilesQuery } from '../features/profiles/hooks';
+import { deleteProfileById, exportProfilePdf } from '../features/profiles/api';
 
 interface ProfileListProps {
   onCreate?: () => void;
@@ -51,16 +30,33 @@ const ProfileList: React.FC<ProfileListProps> = ({
   focusedProfileId = null,
   onFocusedProfileHandled
 }) => {
-  const [profiles, setProfiles] = useState<ProfileListItem[]>([]);
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<ProfileListItem | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogOptions | null>(null);
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
+
+  const {
+    data: listData,
+    error: queryError,
+    isLoading,
+    isFetching,
+    isError,
+    refetch
+  } = useProfilesQuery({ page, limit, query, refreshKey });
+
+  const profiles = listData?.profiles ?? [];
+  const total = listData?.total ?? 0;
+
+  const requestErrorMessage = useMemo(() => {
+    if (!isError || !queryError) return '';
+    return queryError instanceof ApiError ? queryError.message : 'Erreur lors du chargement des profils';
+  }, [isError, queryError]);
+
+  const combinedErrorMessage = actionError || requestErrorMessage;
 
   const parseFieldCategories = useCallback((profile: ProfileListItem) => {
     const raw = profile.extra_fields as unknown;
@@ -186,52 +182,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
     setPage(1);
   }, [query]);
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const token = localStorage.getItem('token');
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(limit)
-      });
-      const trimmedQuery = query.trim();
-      if (trimmedQuery) {
-        params.set('q', trimmedQuery);
-      }
-      const res = await fetch(`/api/profiles?${params.toString()}`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : ''
-        }
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error || 'Erreur lors du chargement des profils');
-        setProfiles([]);
-        setTotal(0);
-        return;
-      }
-      // Ensure the profiles field from the API is always an array and normalize attachments
-      const rawProfiles: ProfileListItem[] = Array.isArray(data.profiles) ? data.profiles : [];
-      const normalized = rawProfiles.map(profile => ({
-        ...profile,
-        attachments: Array.isArray(profile.attachments) ? profile.attachments : []
-      }));
-      setProfiles(normalized);
-      setTotal(data.total || 0);
-    } catch (err) {
-      setError('Erreur de réseau');
-      setProfiles([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [query, page]);
-
-  useEffect(() => {
-    load();
-  }, [load, refreshKey]);
-
   useEffect(() => {
     if (!focusedProfileId) return;
     const existing = profiles.find(profile => profile.id === focusedProfileId);
@@ -240,45 +190,43 @@ const ProfileList: React.FC<ProfileListProps> = ({
       onFocusedProfileHandled?.();
       return;
     }
-    let cancelled = false;
-    const fetchProfile = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`/api/profiles/${focusedProfileId}`, {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : ''
-          }
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data?.profile || cancelled) {
-          return;
-        }
-        const fetchedProfile: ProfileListItem = {
-          ...data.profile,
-          attachments: Array.isArray(data.profile.attachments) ? data.profile.attachments : []
-        };
-        setSelected(fetchedProfile);
-      } catch (_) {
-        // Ignore focus errors
-      } finally {
-        if (!cancelled) {
-          onFocusedProfileHandled?.();
-        }
-      }
-    };
-    fetchProfile();
-    return () => {
-      cancelled = true;
-    };
+  }, [query]);
+
+  useEffect(() => {
+    if (!focusedProfileId) return;
+    const existing = profiles.find(profile => profile.id === focusedProfileId);
+    if (existing) {
+      setSelected(existing);
+      onFocusedProfileHandled?.();
+    }
   }, [focusedProfileId, profiles, onFocusedProfileHandled]);
+
+  useProfileQuery(focusedProfileId, {
+    enabled: Boolean(focusedProfileId && !profiles.some(profile => profile.id === focusedProfileId)),
+    onSuccess: profile => {
+      setSelected(profile);
+      onFocusedProfileHandled?.();
+    },
+    onError: () => {
+      onFocusedProfileHandled?.();
+    }
+  });
+
+  useEffect(() => {
+    if (!selected) return;
+    const updated = profiles.find(profile => profile.id === selected.id);
+    if (updated && updated !== selected) {
+      setSelected(updated);
+    }
+  }, [profiles, selected]);
 
   const handleSearch = useCallback(() => {
     if (page !== 1) {
       setPage(1);
     } else {
-      load();
+      refetch();
     }
-  }, [load, page]);
+  }, [page, refetch]);
 
   const buildProtectedUrl = (relativePath?: string | null) => {
     if (!relativePath) return null;
@@ -299,22 +247,13 @@ const ProfileList: React.FC<ProfileListProps> = ({
       tone: 'danger',
       icon: <Trash2 className="h-5 w-5" />,
       onConfirm: async () => {
-        const token = localStorage.getItem('token');
         try {
-          const res = await fetch(`/api/profiles/${id}`, {
-            method: 'DELETE',
-            headers: {
-              Authorization: token ? `Bearer ${token}` : ''
-            }
-          });
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            setError(data.error || 'Impossible de supprimer le profil');
-            return;
-          }
-          await load();
-        } catch (_) {
-          setError('Erreur lors de la suppression du profil');
+          setActionError('');
+          await deleteProfileById(id);
+          await queryClient.refetchQueries(profilesKeys.all);
+        } catch (err) {
+          const message = err instanceof ApiError ? err.message : 'Erreur lors de la suppression du profil';
+          setActionError(message);
         }
       }
     });
@@ -326,22 +265,21 @@ const ProfileList: React.FC<ProfileListProps> = ({
   }, [onCreate]);
 
   const exportProfile = async (id: number) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`/api/profiles/${id}/pdf`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : ''
-      }
-    });
-    if (!res.ok) return;
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `profile-${id}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    try {
+      const blob = await exportProfilePdf(id);
+      if (!blob) return;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `profile-${id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Erreur lors de l'export du profil";
+      setActionError(message);
+    }
   };
 
   return (
@@ -394,11 +332,34 @@ const ProfileList: React.FC<ProfileListProps> = ({
           Rechercher
         </button>
       </div>
-      {loading ? (
+      {isLoading ? (
         <LoadingSpinner />
-      ) : error ? (
+      ) : combinedErrorMessage ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm shadow-red-200 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200 dark:shadow-red-900/30">
-          {error}
+          <div className="flex items-start justify-between gap-3">
+            <span className="flex-1">{combinedErrorMessage}</span>
+            <div className="flex items-center gap-2">
+              {!actionError && (
+                <button
+                  type="button"
+                  onClick={() => refetch()}
+                  className="rounded-md bg-white/80 px-2 py-1 text-xs font-semibold text-red-600 shadow-sm ring-1 ring-red-200 transition hover:bg-white"
+                >
+                  Réessayer
+                </button>
+              )}
+              {actionError && (
+                <button
+                  type="button"
+                  onClick={() => setActionError('')}
+                  className="rounded-md p-1 text-red-500 transition hover:bg-red-100/80"
+                  aria-label="Fermer l'alerte"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       ) : profiles.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 px-6 py-12 text-center text-sm font-medium text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400 dark:shadow-none">
@@ -406,6 +367,12 @@ const ProfileList: React.FC<ProfileListProps> = ({
         </div>
       ) : (
         <>
+          {isFetching && (
+            <div className="mb-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Actualisation des profils...
+            </div>
+          )}
           <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
             {profiles.map(p => {
               const photoUrl = buildProtectedUrl(p.photo_path);
