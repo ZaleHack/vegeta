@@ -489,12 +489,24 @@ class ProfileService {
           doc.fillColor(textPrimary);
         };
 
-        doc.on('pageAdded', () => {
+        let currentPageDecorated = false;
+
+        const applyPageChrome = () => {
           addPageDecorations();
           addSignature();
+          currentPageDecorated = true;
+        };
+
+        doc.on('pageAdded', () => {
+          currentPageDecorated = false;
+          applyPageChrome();
         });
 
         doc.addPage();
+
+        if (!currentPageDecorated) {
+          applyPageChrome();
+        }
 
         const margin = doc.page.margins.left;
         const innerWidth = doc.page.width - margin * 2;
