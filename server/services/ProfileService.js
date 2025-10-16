@@ -458,7 +458,8 @@ class ProfileService {
             .fillColor(accentDark)
             .text('SORA', signatureX, signatureY + 6, {
               width: signatureWidth,
-              align: 'right'
+              align: 'right',
+              lineBreak: false
             });
 
           doc.restore();
