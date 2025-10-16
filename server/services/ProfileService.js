@@ -544,6 +544,10 @@ async generatePDF(profile) {
             ...margins,
             bottom: desiredBottom
           };
+
+          if (doc.page.height) {
+            doc.page.maxY = doc.page.height - desiredBottom;
+          }
         }
       };
 
