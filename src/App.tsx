@@ -1713,7 +1713,9 @@ const App: React.FC = () => {
         console.log('🔍 Admin status:', data.user.admin, 'Type:', typeof data.user.admin);
         setCurrentUser(data.user);
         setIsAuthenticated(true);
-        navigateToPage('dashboard', { replace: true });
+        if (currentPage === 'login') {
+          navigateToPage('dashboard', { replace: true });
+        }
         setLogoutReason(null);
       } else {
         localStorage.removeItem('token');
