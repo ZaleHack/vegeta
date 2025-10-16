@@ -469,14 +469,14 @@ async generatePDF(profile) {
       const loadPhotoBuffer = async () => {
         if (!profile.photo_path) return null;
         try {
-          if (/^https?:\\/\\//.test(profile.photo_path)) {
+          if (/^https?:\/\//.test(profile.photo_path)) {
             const res = await fetch(profile.photo_path);
             const arr = await res.arrayBuffer();
             return Buffer.from(arr);
           }
 
           const normalizedPath = profile.photo_path
-            .split(/[\\\\/\\\\]+/)
+            .split(/[\\/]+/)
             .join(path.sep)
             .replace(/^[/\\]+/, '');
           const imgPath = path.resolve(__dirname, '../../', normalizedPath);
