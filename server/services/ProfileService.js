@@ -526,18 +526,60 @@ async generatePDF(profile) {
         return width - marginLeft() - marginRight();
       };
 
+      const signatureAreaHeight = 70;
+
+      const ensureSignatureMargins = () => {
+        if (!doc.page) {
+          return;
+        }
+
+        const desiredBottom = Math.max(
+          signatureAreaHeight,
+          defaultMargins.bottom ?? signatureAreaHeight
+        );
+
+        const margins = doc.page.margins ?? {};
+        if (!margins.bottom || margins.bottom < desiredBottom) {
+          doc.page.margins = {
+            ...margins,
+            bottom: desiredBottom
+          };
+        }
+      };
+
       const addSignature = () => {
         if (!doc.page) {
           return;
         }
+
+        ensureSignatureMargins();
+
+        const previousX = doc.x;
+        const previousY = doc.y;
+
         doc.save();
-        const signatureText = 'SORA';
-        doc.font('Helvetica-Bold').fontSize(12).fillColor(palette.accent);
+
+        const signatureText = 'Sora';
+        const fontSize = 12;
+
+        doc.font('Helvetica-Bold').fontSize(fontSize).fillColor(palette.accent);
+
         const textWidth = doc.widthOfString(signatureText);
         const signatureX = pageWidth() - marginRight() - textWidth;
-        const signatureY = pageHeight() - marginBottom() - 24;
+        const marginBottomValue = marginBottom();
+        const signatureBaseY = pageHeight() - marginBottomValue;
+        const offsetInsideMargin = Math.max(12, Math.min(24, marginBottomValue / 2));
+        const signatureY = Math.min(
+          pageHeight() - fontSize - 8,
+          signatureBaseY + offsetInsideMargin
+        );
+
         doc.text(signatureText, signatureX, signatureY);
+
         doc.restore();
+
+        doc.x = previousX;
+        doc.y = previousY;
       };
 
       const renderMainHeader = () => {
@@ -612,20 +654,20 @@ async generatePDF(profile) {
         doc.y = y + size + 24;
       };
 
-        let pageNumber = 0;
-        let skipHeader = false;
-        doc.on('pageAdded', () => {
-          pageNumber += 1;
-          if (skipHeader) {
-            skipHeader = false;
-            return;
-          }
-          if (pageNumber === 1) {
-            renderMainHeader();
-            renderPhoto();
-          } else {
-            renderContinuationHeader();
-          }
+      let pageNumber = 0;
+      doc.on('pageAdded', () => {
+        pageNumber += 1;
+
+        ensureSignatureMargins();
+
+        if (pageNumber === 1) {
+          renderMainHeader();
+          renderPhoto();
+        } else {
+          renderContinuationHeader();
+        }
+
+        addSignature();
       });
 
       doc.addPage();
@@ -756,18 +798,7 @@ async generatePDF(profile) {
         renderSection(section);
       });
 
-      const ensureSpaceForSignature = () => {
-        const required = 60;
-        const bottomLimit = pageHeight() - marginBottom() - required;
-        if (doc.y > bottomLimit) {
-          skipHeader = true;
-          doc.addPage();
-        }
-      };
-
       doc.moveDown(1.2);
-      ensureSpaceForSignature();
-      addSignature();
 
       doc.end();
     });
