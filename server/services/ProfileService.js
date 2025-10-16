@@ -526,120 +526,68 @@ async generatePDF(profile) {
         return width - marginLeft() - marginRight();
       };
 
-      const safeContentWidth = () => {
-        const width = contentWidth();
-        return typeof width === 'number' && width > 0 ? width : null;
-      };
-
-      const signatureAreaHeight = 70;
-
-      const ensureSignatureMargins = () => {
-        if (!doc.page) {
-          return;
-        }
-
-        const desiredBottom = Math.max(
-          signatureAreaHeight,
-          defaultMargins.bottom ?? signatureAreaHeight
-        );
-
-        const margins = doc.page.margins ?? {};
-        if (!margins.bottom || margins.bottom < desiredBottom) {
-          doc.page.margins = {
-            ...margins,
-            bottom: desiredBottom
-          };
-        }
-      };
-
       const addSignature = () => {
         if (!doc.page) {
           return;
         }
-
-        ensureSignatureMargins();
-
-        const previousX = doc.x;
-        const previousY = doc.y;
-
         doc.save();
-
-        const signatureText = 'Sora';
-        const fontSize = 12;
-
-        doc.font('Helvetica-Bold').fontSize(fontSize).fillColor(palette.accent);
-
+        const signatureText = 'SORA';
+        doc.font('Helvetica-Bold').fontSize(12).fillColor(palette.accent);
         const textWidth = doc.widthOfString(signatureText);
         const signatureX = pageWidth() - marginRight() - textWidth;
-        const marginBottomValue = marginBottom();
-        const signatureBaseY = pageHeight() - marginBottomValue;
-        const offsetInsideMargin = Math.max(12, Math.min(24, marginBottomValue / 2));
-        const signatureY = Math.min(
-          pageHeight() - fontSize - 8,
-          signatureBaseY + offsetInsideMargin
-        );
-
+        const signatureY = pageHeight() - marginBottom() - 24;
         doc.text(signatureText, signatureX, signatureY);
-
         doc.restore();
-
-        doc.x = previousX;
-        doc.y = previousY;
       };
 
       const renderMainHeader = () => {
-        const width = safeContentWidth();
+        const width = contentWidth();
         const startX = marginLeft();
         const startY = marginTop();
         const headerHeight = 96;
 
         doc.save();
-        if (width) {
-          doc
-            .rect(startX, startY, width, headerHeight)
-            .fill(palette.headerBackground);
-        }
+        doc
+          .rect(startX, startY, width, headerHeight)
+          .fill(palette.headerBackground);
         doc.restore();
 
         const titleY = startY + 26;
 
-        const headerTextOptions = { align: 'center' };
-        if (width) {
-          headerTextOptions.width = width;
-        }
         doc
           .font('Helvetica-Bold')
           .fontSize(26)
           .fillColor(palette.headerText)
-          .text('FICHE DE PROFIL', startX, titleY, headerTextOptions);
+          .text('FICHE DE PROFIL', startX, titleY, {
+            width,
+            align: 'center'
+          });
 
         if (exportDate) {
           const dateY = titleY + 36;
-          const exportTextOptions = { align: 'center' };
-          if (width) {
-            exportTextOptions.width = width;
-          }
           doc
             .font('Helvetica')
             .fontSize(12)
             .fillColor(palette.headerMuted)
-            .text(`Exporté le ${exportDate}`, startX, dateY, exportTextOptions);
+            .text(`Exporté le ${exportDate}`, startX, dateY, {
+              width,
+              align: 'center'
+            });
         }
 
         doc.y = startY + headerHeight + 24;
       };
 
       const renderContinuationHeader = () => {
-        const width = safeContentWidth();
-        const textOptions = { align: 'left' };
-        if (width) {
-          textOptions.width = width;
-        }
+        const width = contentWidth();
         doc
           .font('Helvetica-Bold')
           .fontSize(16)
           .fillColor(palette.heading)
-          .text('Fiche de profil', marginLeft(), marginTop(), textOptions);
+          .text('Fiche de profil', marginLeft(), marginTop(), {
+            width,
+            align: 'left'
+          });
         doc.moveDown(0.6);
       };
 
@@ -664,20 +612,20 @@ async generatePDF(profile) {
         doc.y = y + size + 24;
       };
 
-      let pageNumber = 0;
-      doc.on('pageAdded', () => {
-        pageNumber += 1;
-
-        ensureSignatureMargins();
-
-        if (pageNumber === 1) {
-          renderMainHeader();
-          renderPhoto();
-        } else {
-          renderContinuationHeader();
-        }
-
-        addSignature();
+        let pageNumber = 0;
+        let skipHeader = false;
+        doc.on('pageAdded', () => {
+          pageNumber += 1;
+          if (skipHeader) {
+            skipHeader = false;
+            return;
+          }
+          if (pageNumber === 1) {
+            renderMainHeader();
+            renderPhoto();
+          } else {
+            renderContinuationHeader();
+          }
       });
 
       doc.addPage();
@@ -762,42 +710,41 @@ async generatePDF(profile) {
           return;
         }
 
-        const width = safeContentWidth();
+        const width = contentWidth();
 
         doc.moveDown(visibleFields.length ? 0.8 : 0.4);
-        const sectionTitleOptions = width ? { width } : {};
         doc
           .font('Helvetica-Bold')
           .fontSize(14)
           .fillColor(palette.accent)
-          .text(section.title, marginLeft(), doc.y, sectionTitleOptions);
+          .text(section.title, marginLeft(), doc.y, { width });
 
         doc.moveDown(0.2);
         doc
           .lineWidth(1)
           .strokeColor(palette.divider)
           .moveTo(marginLeft(), doc.y)
-          .lineTo(marginLeft() + (width ?? 0), doc.y)
+          .lineTo(marginLeft() + width, doc.y)
           .stroke();
         doc.moveDown(0.6);
 
         visibleFields.forEach((field, index) => {
-          const labelOptions = { continued: true };
-          const valueOptions = { align: 'left' };
-          if (width) {
-            labelOptions.width = width;
-            valueOptions.width = width;
-          }
           doc
             .font('Helvetica-Bold')
             .fontSize(11)
             .fillColor(palette.heading)
-            .text(`${field.label} : `, marginLeft(), doc.y, labelOptions);
+            .text(`${field.label} : `, marginLeft(), doc.y, {
+              width,
+              continued: true
+            });
           doc
             .font('Helvetica')
             .fontSize(11)
             .fillColor(palette.text)
-            .text(field.value, valueOptions);
+            .text(field.value, {
+              width,
+              align: 'left'
+            });
 
           if (index < visibleFields.length - 1) {
             doc.moveDown(0.3);
@@ -809,7 +756,18 @@ async generatePDF(profile) {
         renderSection(section);
       });
 
+      const ensureSpaceForSignature = () => {
+        const required = 60;
+        const bottomLimit = pageHeight() - marginBottom() - required;
+        if (doc.y > bottomLimit) {
+          skipHeader = true;
+          doc.addPage();
+        }
+      };
+
       doc.moveDown(1.2);
+      ensureSpaceForSignature();
+      addSignature();
 
       doc.end();
     });
