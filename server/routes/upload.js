@@ -5,12 +5,14 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import UploadService from '../services/UploadService.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
+import DatabaseCatalogService from '../services/DatabaseCatalogService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 const uploadService = new UploadService();
+const databaseCatalogService = new DatabaseCatalogService();
 
 // Configuration multer pour l'upload de fichiers
 const storage = multer.diskStorage({
@@ -143,20 +145,69 @@ router.delete('/history/:id', authenticate, requireAdmin, async (req, res) => {
 });
 
 // Obtenir la liste des bases disponibles
-router.get('/databases', authenticate, (req, res) => {
-  const databases = [
-    { id: 'esolde.mytable', name: 'esolde - mytable', description: 'Données employés esolde' },
-    { id: 'rhpolice.personne_concours', name: 'rhpolice - personne_concours', description: 'Personnels police nationale' },
-    { id: 'renseignement.agentfinance', name: 'renseignement - agentfinance', description: 'Agents finances publiques' },
-    { id: 'rhgendarmerie.personne', name: 'rhgendarmerie - personne', description: 'Personnel gendarmerie' },
-    { id: 'permis.tables', name: 'permis - tables', description: 'Permis de conduire' },
-    { id: 'expresso.expresso', name: 'expresso - expresso', description: 'Données Expresso Money' },
-    { id: 'elections.dakar', name: 'elections - dakar', description: 'Électeurs région Dakar' },
-    { id: 'autres.vehicules', name: 'autres - vehicules', description: 'Immatriculations véhicules' },
-    { id: 'autres.entreprises', name: 'autres - entreprises', description: 'Registre des entreprises' }
-  ];
+router.get('/databases', authenticate, async (req, res) => {
+  try {
+    const includeAll =
+      (req.user?.admin === 1 || req.user?.admin === '1') && req.query.scope === 'all';
+    const databases = includeAll
+      ? await databaseCatalogService.getAll()
+      : await databaseCatalogService.getEnabled();
+    res.json({ databases });
+  } catch (error) {
+    console.error('Erreur récupération catalogue bases:', error);
+    res.status(500).json({ error: 'Impossible de charger le catalogue des bases' });
+  }
+});
 
-  res.json({ databases });
+// Mettre à jour une base du catalogue
+router.patch('/databases/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { enabled, description, owner, tags, privacy } = req.body || {};
+
+    const updates = {};
+
+    if (typeof enabled === 'boolean') {
+      updates.enabled = enabled;
+    }
+
+    if (typeof description === 'string') {
+      updates.description = description.trim();
+    }
+
+    if (owner === null) {
+      updates.owner = null;
+    } else if (typeof owner === 'string') {
+      updates.owner = owner.trim();
+    }
+
+    if (Array.isArray(tags)) {
+      updates.tags = tags
+        .filter((tag) => typeof tag === 'string')
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0);
+    }
+
+    if (privacy && typeof privacy === 'object') {
+      updates.privacy = {
+        level: typeof privacy.level === 'string' ? privacy.level.trim() : undefined,
+        rules: typeof privacy.rules === 'string' ? privacy.rules.trim() : undefined
+      };
+    }
+
+    updates.updatedAt = new Date().toISOString();
+    updates.updatedBy = req.user?.login || req.user?.id || null;
+
+    const database = await databaseCatalogService.updateSource(id, updates);
+    res.json({ database });
+  } catch (error) {
+    console.error('Erreur mise à jour catalogue base:', error);
+    if (error?.message === 'Source introuvable') {
+      res.status(404).json({ error: error.message });
+      return;
+    }
+    res.status(500).json({ error: error.message || 'Impossible de mettre à jour la base' });
+  }
 });
 
 export default router;
