@@ -526,6 +526,11 @@ async generatePDF(profile) {
         return width - marginLeft() - marginRight();
       };
 
+      const safeContentWidth = () => {
+        const width = contentWidth();
+        return typeof width === 'number' && width > 0 ? width : null;
+      };
+
       const signatureAreaHeight = 70;
 
       const ensureSignatureMargins = () => {
@@ -583,53 +588,58 @@ async generatePDF(profile) {
       };
 
       const renderMainHeader = () => {
-        const width = contentWidth();
+        const width = safeContentWidth();
         const startX = marginLeft();
         const startY = marginTop();
         const headerHeight = 96;
 
         doc.save();
-        doc
-          .rect(startX, startY, width, headerHeight)
-          .fill(palette.headerBackground);
+        if (width) {
+          doc
+            .rect(startX, startY, width, headerHeight)
+            .fill(palette.headerBackground);
+        }
         doc.restore();
 
         const titleY = startY + 26;
 
+        const headerTextOptions = { align: 'center' };
+        if (width) {
+          headerTextOptions.width = width;
+        }
         doc
           .font('Helvetica-Bold')
           .fontSize(26)
           .fillColor(palette.headerText)
-          .text('FICHE DE PROFIL', startX, titleY, {
-            width,
-            align: 'center'
-          });
+          .text('FICHE DE PROFIL', startX, titleY, headerTextOptions);
 
         if (exportDate) {
           const dateY = titleY + 36;
+          const exportTextOptions = { align: 'center' };
+          if (width) {
+            exportTextOptions.width = width;
+          }
           doc
             .font('Helvetica')
             .fontSize(12)
             .fillColor(palette.headerMuted)
-            .text(`Exporté le ${exportDate}`, startX, dateY, {
-              width,
-              align: 'center'
-            });
+            .text(`Exporté le ${exportDate}`, startX, dateY, exportTextOptions);
         }
 
         doc.y = startY + headerHeight + 24;
       };
 
       const renderContinuationHeader = () => {
-        const width = contentWidth();
+        const width = safeContentWidth();
+        const textOptions = { align: 'left' };
+        if (width) {
+          textOptions.width = width;
+        }
         doc
           .font('Helvetica-Bold')
           .fontSize(16)
           .fillColor(palette.heading)
-          .text('Fiche de profil', marginLeft(), marginTop(), {
-            width,
-            align: 'left'
-          });
+          .text('Fiche de profil', marginLeft(), marginTop(), textOptions);
         doc.moveDown(0.6);
       };
 
@@ -752,41 +762,42 @@ async generatePDF(profile) {
           return;
         }
 
-        const width = contentWidth();
+        const width = safeContentWidth();
 
         doc.moveDown(visibleFields.length ? 0.8 : 0.4);
+        const sectionTitleOptions = width ? { width } : {};
         doc
           .font('Helvetica-Bold')
           .fontSize(14)
           .fillColor(palette.accent)
-          .text(section.title, marginLeft(), doc.y, { width });
+          .text(section.title, marginLeft(), doc.y, sectionTitleOptions);
 
         doc.moveDown(0.2);
         doc
           .lineWidth(1)
           .strokeColor(palette.divider)
           .moveTo(marginLeft(), doc.y)
-          .lineTo(marginLeft() + width, doc.y)
+          .lineTo(marginLeft() + (width ?? 0), doc.y)
           .stroke();
         doc.moveDown(0.6);
 
         visibleFields.forEach((field, index) => {
+          const labelOptions = { continued: true };
+          const valueOptions = { align: 'left' };
+          if (width) {
+            labelOptions.width = width;
+            valueOptions.width = width;
+          }
           doc
             .font('Helvetica-Bold')
             .fontSize(11)
             .fillColor(palette.heading)
-            .text(`${field.label} : `, marginLeft(), doc.y, {
-              width,
-              continued: true
-            });
+            .text(`${field.label} : `, marginLeft(), doc.y, labelOptions);
           doc
             .font('Helvetica')
             .fontSize(11)
             .fillColor(palette.text)
-            .text(field.value, {
-              width,
-              align: 'left'
-            });
+            .text(field.value, valueOptions);
 
           if (index < visibleFields.length - 1) {
             doc.moveDown(0.3);
