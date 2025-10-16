@@ -601,12 +601,16 @@ async generatePDF(profile) {
         }
         doc.restore();
 
+        const headerBottom = startY + headerHeight + 24;
+        doc.y = headerBottom;
+
+        if (!width) {
+          return;
+        }
+
         const titleY = startY + 26;
 
-        const headerTextOptions = { align: 'center' };
-        if (width) {
-          headerTextOptions.width = width;
-        }
+        const headerTextOptions = { align: 'center', width };
         doc
           .font('Helvetica-Bold')
           .fontSize(26)
@@ -615,10 +619,7 @@ async generatePDF(profile) {
 
         if (exportDate) {
           const dateY = titleY + 36;
-          const exportTextOptions = { align: 'center' };
-          if (width) {
-            exportTextOptions.width = width;
-          }
+          const exportTextOptions = { align: 'center', width };
           doc
             .font('Helvetica')
             .fontSize(12)
@@ -626,15 +627,15 @@ async generatePDF(profile) {
             .text(`Exporté le ${exportDate}`, startX, dateY, exportTextOptions);
         }
 
-        doc.y = startY + headerHeight + 24;
+        doc.y = headerBottom;
       };
 
       const renderContinuationHeader = () => {
         const width = safeContentWidth();
-        const textOptions = { align: 'left' };
-        if (width) {
-          textOptions.width = width;
+        if (!width) {
+          return;
         }
+        const textOptions = { align: 'left', width };
         doc
           .font('Helvetica-Bold')
           .fontSize(16)
@@ -763,9 +764,12 @@ async generatePDF(profile) {
         }
 
         const width = safeContentWidth();
+        if (!width) {
+          return;
+        }
 
         doc.moveDown(visibleFields.length ? 0.8 : 0.4);
-        const sectionTitleOptions = width ? { width } : {};
+        const sectionTitleOptions = { width };
         doc
           .font('Helvetica-Bold')
           .fontSize(14)
@@ -782,12 +786,8 @@ async generatePDF(profile) {
         doc.moveDown(0.6);
 
         visibleFields.forEach((field, index) => {
-          const labelOptions = { continued: true };
-          const valueOptions = { align: 'left' };
-          if (width) {
-            labelOptions.width = width;
-            valueOptions.width = width;
-          }
+          const labelOptions = { continued: true, width };
+          const valueOptions = { align: 'left', width };
           doc
             .font('Helvetica-Bold')
             .fontSize(11)
