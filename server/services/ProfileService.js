@@ -526,6 +526,14 @@ async generatePDF(profile) {
         return width - marginLeft() - marginRight();
       };
 
+      const safeContentWidth = () => {
+        const width = contentWidth();
+        if (typeof width === 'number' && width > 0) {
+          return width;
+        }
+        return 1;
+      };
+
       const addSignature = () => {
         if (!doc.page) {
           return;
@@ -541,7 +549,7 @@ async generatePDF(profile) {
       };
 
       const renderMainHeader = () => {
-        const width = contentWidth();
+        const width = safeContentWidth();
         const startX = marginLeft();
         const startY = marginTop();
         const headerHeight = 96;
@@ -579,7 +587,7 @@ async generatePDF(profile) {
       };
 
       const renderContinuationHeader = () => {
-        const width = contentWidth();
+        const width = safeContentWidth();
         doc
           .font('Helvetica-Bold')
           .fontSize(16)
@@ -710,7 +718,7 @@ async generatePDF(profile) {
           return;
         }
 
-        const width = contentWidth();
+        const width = safeContentWidth();
 
         doc.moveDown(visibleFields.length ? 0.8 : 0.4);
         doc
