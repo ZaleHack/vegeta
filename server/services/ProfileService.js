@@ -579,16 +579,7 @@ async generatePDF(profile) {
       };
 
       const renderContinuationHeader = () => {
-        const width = contentWidth();
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(16)
-          .fillColor(palette.heading)
-          .text('Fiche de profil', marginLeft(), marginTop(), {
-            width,
-            align: 'left'
-          });
-        doc.moveDown(0.6);
+        doc.y = marginTop();
       };
 
       const renderPhoto = () => {
