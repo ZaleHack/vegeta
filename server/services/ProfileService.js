@@ -375,722 +375,388 @@ class ProfileService {
     };
   }
 
-  async generatePDF(profile) {
-    try {
-      const { default: PDFDocument } = await import('pdfkit');
-      // Compression triggers a stack overflow with pdfkit on Node 22, so we disable it.
-      const doc = new PDFDocument({ margin: 50, compress: false, autoFirstPage: false });
-      const stream = new PassThrough();
-      const chunks = [];
-      doc.pipe(stream);
 
-      return await new Promise(async (resolve, reject) => {
-        stream.on('data', chunk => chunks.push(chunk));
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
-        doc.on('error', reject);
 
-        const accentColor = '#1D4ED8';
-        const accentDark = '#1E3A8A';
-        const accentSoft = '#E0E7FF';
-        const borderColor = '#C7D2FE';
-        const backgroundTint = '#F8FAFF';
-        const textPrimary = '#0F172A';
-        const textSecondary = '#1F2937';
-        const textMuted = '#475569';
-        const neutralBackground = '#FFFFFF';
-        const sectionPadding = 18;
+async generatePDF(profile) {
+  try {
+    const { default: PDFDocument } = await import('pdfkit');
+    // Compression triggers a stack overflow with pdfkit on Node 22, so we disable it.
+    const doc = new PDFDocument({ margin: 50, compress: false, autoFirstPage: false });
+    const stream = new PassThrough();
+    const chunks = [];
+    doc.pipe(stream);
 
-        const formatDateTime = value => {
-          if (!value) return null;
-          const date = value instanceof Date ? value : new Date(value);
-          if (Number.isNaN(date.getTime())) return null;
-          try {
-            return new Intl.DateTimeFormat('fr-FR', {
-              dateStyle: 'long',
-              timeStyle: 'short'
-            }).format(date);
-          } catch (_) {
-            return date.toLocaleString('fr-FR');
+    return await new Promise(async (resolve, reject) => {
+      stream.on('data', chunk => chunks.push(chunk));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const palette = {
+        heading: '#0F172A',
+        text: '#1F2937',
+        muted: '#6B7280',
+        accent: '#1D4ED8',
+        divider: '#E5E7EB',
+        photoBackground: '#EFF6FF'
+      };
+
+      const formatDateTime = value => {
+        if (!value) return null;
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) return null;
+        try {
+          return new Intl.DateTimeFormat('fr-FR', {
+            dateStyle: 'long',
+            timeStyle: 'short'
+        }).format(date);
+        } catch (_) {
+          return date.toLocaleString('fr-FR');
+        }
+      };
+
+      const formatDate = value => {
+        if (!value) return null;
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) return null;
+        try {
+          return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(date);
+        } catch (_) {
+          return date.toLocaleDateString('fr-FR');
+        }
+      };
+
+      const formatFieldValue = value => {
+        if (value === null || value === undefined) {
+          return '';
+        }
+        if (value instanceof Date) {
+          return formatDateTime(value) || '';
+        }
+        if (typeof value === 'number' || typeof value === 'boolean') {
+          return String(value);
+        }
+        if (typeof value === 'string') {
+          const normalized = value.replace(/\\r\\n/g, '\\n');
+          const lines = normalized.split('\\n').map(line => line.trimEnd());
+          return lines.join('\\n').trim();
+        }
+        if (Array.isArray(value)) {
+          return value
+            .map(item => formatFieldValue(item))
+            .filter(Boolean)
+            .join('\\n');
+        }
+        if (typeof value === 'object') {
+          const entries = Object.entries(value)
+            .map(([key, val]) => {
+              const formatted = formatFieldValue(val);
+              if (!formatted) return null;
+              return key ? `${key}: ${formatted}` : formatted;
+            })
+            .filter(Boolean);
+          if (entries.length) {
+            return entries.join('\\n');
           }
-        };
-
-        const loadPhotoBuffer = async () => {
-          if (!profile.photo_path) return null;
           try {
-            if (/^https?:\/\//.test(profile.photo_path)) {
-              const res = await fetch(profile.photo_path);
-              const arr = await res.arrayBuffer();
-              return Buffer.from(arr);
-            }
-
-            const normalizedPath = profile.photo_path
-              .split(/[\/\\]+/)
-              .join(path.sep)
-              .replace(/^[/\\]+/, '');
-            const imgPath = path.resolve(__dirname, '../../', normalizedPath);
-            if (fs.existsSync(imgPath)) {
-              return fs.readFileSync(imgPath);
-            }
+            return JSON.stringify(value);
           } catch (_) {
-            // ignore image errors
+            return '';
           }
-          return null;
-        };
+        }
+        return String(value);
+      };
 
-        const photoBuffer = await loadPhotoBuffer();
+      const loadPhotoBuffer = async () => {
+        if (!profile.photo_path) return null;
+        try {
+          if (/^https?:\\/\\//.test(profile.photo_path)) {
+            const res = await fetch(profile.photo_path);
+            const arr = await res.arrayBuffer();
+            return Buffer.from(arr);
+          }
 
-        const addSignature = () => {
-          doc.save();
+          const normalizedPath = profile.photo_path
+            .split(/[\\\\/\\\\]+/)
+            .join(path.sep)
+            .replace(/^[/\\]+/, '');
+          const imgPath = path.resolve(__dirname, '../../', normalizedPath);
+          if (fs.existsSync(imgPath)) {
+            return fs.readFileSync(imgPath);
+          }
+        } catch (_) {
+          // ignore image errors
+        }
+        return null;
+      };
 
-          const signatureWidth = 120;
-          const signatureX = doc.page.width - doc.page.margins.right - signatureWidth;
-          const signatureY = doc.page.height - doc.page.margins.bottom - 42;
+      const photoBuffer = await loadPhotoBuffer();
+      const exportDate = formatDate(new Date());
 
-          doc
-            .moveTo(signatureX, signatureY)
-            .lineTo(signatureX + signatureWidth, signatureY)
-            .lineWidth(1)
-            .stroke(borderColor);
+      const addSignature = () => {
+        doc.save();
+        const signatureText = 'SORA';
+        doc.font('Helvetica-Bold').fontSize(12).fillColor(palette.accent);
+        const textWidth = doc.widthOfString(signatureText);
+        const signatureX = doc.page.width - doc.page.margins.right - textWidth;
+        const signatureY = doc.page.height - doc.page.margins.bottom - 24;
+        doc.text(signatureText, signatureX, signatureY);
+        doc.restore();
+      };
 
-          doc
-            .font('Helvetica-Bold')
-            .fontSize(12)
-            .fillColor(accentDark)
-            .text('SORA', signatureX, signatureY + 6, {
-              width: signatureWidth,
-              align: 'right'
-            });
+      const margin = doc.page.margins.left;
+      const contentWidth = () => doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-          doc.restore();
-        };
+      const renderMainHeader = () => {
+        const width = contentWidth();
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(26)
+          .fillColor(palette.heading)
+          .text('FICHE DE PROFIL', margin, doc.page.margins.top, {
+            width,
+            align: 'center'
+          });
+        doc.moveDown(0.4);
+        doc
+          .font('Helvetica')
+          .fontSize(12)
+          .fillColor(palette.muted)
+          .text(exportDate ? `Exporté le ${exportDate}` : '', margin, doc.y, {
+            width,
+            align: 'center'
+          });
+        doc.moveDown(1.5);
+      };
 
-        const addPageDecorations = () => {
-          const pageWidth = doc.page.width;
-          const margin = doc.page.margins.left;
-          const innerWidth = pageWidth - margin * 2;
-          const headerHeight = 104;
+      const renderContinuationHeader = () => {
+        const width = contentWidth();
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(16)
+          .fillColor(palette.heading)
+          .text('Fiche de profil', margin, doc.page.margins.top, {
+            width,
+            align: 'left'
+          });
+        doc.moveDown(0.6);
+      };
 
-          doc.save();
-          doc.rect(0, 0, pageWidth, headerHeight).fill(accentColor);
-          doc.restore();
-
-          doc
-            .font('Helvetica')
-            .fontSize(11)
-            .fillColor('#CFE1FF')
-            .text('Synthèse du profil', margin, 30, { width: innerWidth });
-          doc
-            .font('Helvetica-Bold')
-            .fontSize(26)
-            .fillColor('white')
-            .text('FICHE PROFIL', margin, 50, { width: innerWidth });
-
-          doc.y = headerHeight + 18;
-          doc.fillColor(textPrimary);
-        };
-
-        let currentPageDecorated = false;
-
-        const applyPageChrome = () => {
-          addPageDecorations();
-          addSignature();
-          currentPageDecorated = true;
-        };
-
-        doc.on('pageAdded', () => {
-          currentPageDecorated = false;
-          applyPageChrome();
-        });
-
-        doc.addPage();
-
-        if (!currentPageDecorated) {
-          applyPageChrome();
+      const renderPhoto = () => {
+        if (!photoBuffer) {
+          return;
         }
 
-        const margin = doc.page.margins.left;
-        const innerWidth = doc.page.width - margin * 2;
+        const pageWidth = doc.page.width;
+        const size = 150;
+        const x = (pageWidth - size) / 2;
+        const y = doc.y;
 
-        const ensureSpace = (needed = 0) => {
-          const bottom = doc.page.height - doc.page.margins.bottom;
-          if (doc.y + needed > bottom) {
-            doc.addPage();
+        doc.save();
+        doc.circle(pageWidth / 2, y + size / 2, size / 2 + 18).fill(palette.photoBackground);
+        doc.restore();
+
+        doc.save();
+        doc.image(photoBuffer, x, y, {
+          fit: [size, size],
+          align: 'center',
+          valign: 'center'
+        });
+        doc.circle(pageWidth / 2, y + size / 2, size / 2)
+          .lineWidth(2)
+          .strokeColor(palette.accent)
+          .stroke();
+        doc.restore();
+
+        doc.y = y + size + 35;
+      };
+
+        let pageNumber = 0;
+        let skipHeader = false;
+        doc.on('pageAdded', () => {
+          pageNumber += 1;
+          if (skipHeader) {
+            skipHeader = false;
+            return;
           }
-        };
-
-        const displayName = [profile.first_name, profile.last_name]
-          .filter(Boolean)
-          .join(' ')
-          .trim();
-        const fallbackName =
-          displayName || profile.email || profile.phone || (profile.id ? `Profil #${profile.id}` : 'Profil');
-
-        const renderOverview = () => {
-          const contactParts = [];
-          if (profile.email) contactParts.push(String(profile.email));
-          if (profile.phone) contactParts.push(String(profile.phone));
-
-          const identityParts = [];
-          if (profile.id) identityParts.push(`Profil #${profile.id}`);
-          if (profile.owner_login) identityParts.push(`Référent : ${profile.owner_login}`);
-          const identityText = identityParts.join(' • ');
-
-          const photoSize = photoBuffer ? 122 : 0;
-          const photoGap = photoBuffer ? 28 : 0;
-          const cardPadding = 24;
-          const hasPhoto = Boolean(photoBuffer);
-          const baseTextWidth = innerWidth - cardPadding * 2 - (hasPhoto ? photoSize + photoGap : 0);
-          const photoAlongside = hasPhoto && baseTextWidth > 220;
-          const textAreaWidth = photoAlongside ? baseTextWidth : innerWidth - cardPadding * 2;
-
-          doc.font('Helvetica-Bold').fontSize(20);
-          const nameHeight = doc.heightOfString(fallbackName, { width: textAreaWidth });
-
-          doc.font('Helvetica').fontSize(10);
-          const identityHeight = identityText
-            ? doc.heightOfString(identityText, { width: textAreaWidth })
-            : 0;
-
-          const contactText = contactParts.join('\n');
-          doc.font('Helvetica').fontSize(12);
-          const contactHeight = contactText
-            ? doc.heightOfString(contactText, { width: textAreaWidth })
-            : 0;
-
-          const textBlockHeight =
-            nameHeight +
-            (identityText ? identityHeight + 8 : 0) +
-            (contactText ? contactHeight + 10 : 0);
-          const contentHeight = photoAlongside
-            ? Math.max(textBlockHeight, photoSize)
-            : textBlockHeight + (hasPhoto ? photoSize + 16 : 0);
-          const cardHeight = contentHeight + cardPadding * 2;
-
-          ensureSpace(cardHeight + 30);
-
-          const cardX = margin;
-          const cardY = doc.y;
-
-          doc.save();
-          doc.roundedRect(cardX, cardY, innerWidth, cardHeight, 20).fill(backgroundTint);
-          doc
-            .lineWidth(1.2)
-            .strokeColor(borderColor)
-            .roundedRect(cardX, cardY, innerWidth, cardHeight, 20)
-            .stroke();
-          doc.restore();
-
-          const textX = cardX + cardPadding;
-          let currentY = cardY + cardPadding;
-
-          doc
-            .font('Helvetica-Bold')
-            .fontSize(20)
-            .fillColor(textPrimary)
-            .text(fallbackName, textX, currentY, { width: textAreaWidth });
-
-          currentY += nameHeight + 6;
-
-          if (identityText) {
-            doc
-              .font('Helvetica')
-              .fontSize(10)
-              .fillColor(textMuted)
-              .text(identityText, textX, currentY, {
-                width: textAreaWidth,
-                lineGap: 2
-              });
-            currentY += identityHeight + 8;
+          if (pageNumber === 1) {
+            renderMainHeader();
+            renderPhoto();
+          } else {
+            renderContinuationHeader();
           }
+      });
 
-          if (contactText) {
-            doc
-              .font('Helvetica')
-              .fontSize(12)
-              .fillColor(textSecondary)
-              .text(contactText, textX, currentY, {
-                width: textAreaWidth,
-                lineGap: 4
-              });
-            currentY += contactHeight + 10;
-          }
+      doc.addPage();
 
-          if (hasPhoto) {
-            const photoX = photoAlongside
-              ? cardX + cardPadding + textAreaWidth + photoGap
-              : cardX + cardPadding;
-            const photoY = photoAlongside
-              ? cardY + cardPadding
-              : cardY + cardPadding + textBlockHeight + 12;
+      const generalInformation = [
+        { label: 'Nom', value: profile.last_name },
+        { label: 'Prénom', value: profile.first_name },
+        { label: 'Adresse e-mail', value: profile.email },
+        { label: 'Numéro de téléphone', value: profile.phone },
+        { label: 'Commentaire', value: profile.comment }
+      ];
 
-            doc.image(photoBuffer, photoX, photoY, {
-              fit: [photoSize, photoSize],
-              align: 'center',
-              valign: 'center'
-            });
+      const administrativeInformation = [
+        { label: 'Identifiant', value: profile.id ? `#${profile.id}` : null },
+        { label: 'Référent', value: profile.owner_login },
+        { label: 'Créé le', value: formatDateTime(profile.created_at) },
+        { label: 'Mis à jour le', value: formatDateTime(profile.updated_at) }
+      ];
 
-            doc.save();
-            doc
-              .lineWidth(1.3)
-              .strokeColor(borderColor)
-              .roundedRect(photoX - 6, photoY - 6, photoSize + 12, photoSize + 12, 14)
-              .stroke();
-            doc.restore();
-          }
+      const parseExtraSections = () => {
+        if (!profile.extra_fields) {
+          return [];
+        }
 
-          doc.y = cardY + cardHeight + 20;
-        };
+        try {
+          const extras = Array.isArray(profile.extra_fields)
+            ? profile.extra_fields
+            : JSON.parse(profile.extra_fields);
 
-        const drawSection = (title, renderContent) => {
-          if (!renderContent) return false;
+          return extras
+            .map(category => {
+              const rawFields = Array.isArray(category?.fields) ? category.fields : [];
+              const filteredFields = rawFields
+                .map(field => ({
+                  label: field?.label || field?.key,
+                  value: field?.value
+                }))
+                .filter(entry => formatFieldValue(entry.value));
 
-          const hasContent = renderContent({ dryRun: true });
-          if (!hasContent) {
-            return false;
-          }
-
-          const safeTitle = title ? String(title).trim() : '';
-
-          ensureSpace(60);
-
-          doc.save();
-          doc.fillColor(accentColor);
-          doc.rect(margin, doc.y - 2, 4, 18).fill();
-          doc.restore();
-
-          doc
-            .font('Helvetica-Bold')
-            .fontSize(13)
-            .fillColor(accentDark)
-            .text(safeTitle.toUpperCase(), margin + 10, doc.y - 2, { width: innerWidth - 10 });
-
-          const dividerY = doc.y + 4;
-          doc
-            .strokeColor(borderColor)
-            .lineWidth(1)
-            .moveTo(margin, dividerY)
-            .lineTo(margin + innerWidth, dividerY)
-            .stroke();
-
-          doc.moveDown(0.8);
-
-          renderContent({ dryRun: false });
-
-          doc.moveDown(1);
-          return true;
-        };
-
-        const sanitizeFieldEntries = (fields = []) => {
-          const formatValue = value => {
-            if (value === null || value === undefined) {
-              return '';
-            }
-            if (typeof value === 'number' || typeof value === 'boolean') {
-              return String(value);
-            }
-            if (typeof value === 'string') {
-              const normalized = value.replace(/\r\n/g, '\n');
-              const trimmedLines = normalized
-                .split('\n')
-                .map(line => line.trimEnd());
-              return trimmedLines.join('\n').trim();
-            }
-            if (Array.isArray(value)) {
-              return value
-                .map(item => formatValue(item))
-                .filter(Boolean)
-                .join('\n');
-            }
-            if (typeof value === 'object') {
-              const entries = Object.entries(value)
-                .map(([key, val]) => {
-                  const formatted = formatValue(val);
-                  if (!formatted) return null;
-                  return key ? `${key}: ${formatted}` : formatted;
-                })
-                .filter(Boolean);
-              if (entries.length) {
-                return entries.join('\n');
-              }
-              try {
-                return JSON.stringify(value);
-              } catch (_) {
-                return '';
-              }
-            }
-            return String(value);
-          };
-
-          return (fields || [])
-            .map(field => {
-              if (!field) return null;
-              const rawLabel = field.label ?? field.key ?? '';
-              const label = String(rawLabel).trim();
-              const valueText = formatValue(field.value);
-              if (!valueText) {
+              if (!filteredFields.length) {
                 return null;
               }
+
+              const title =
+                category && typeof category.title === 'string' && category.title.trim()
+                  ? category.title.trim()
+                  : 'Informations supplémentaires';
+
               return {
-                label: label || 'Information',
-                value: valueText
+                title,
+                fields: filteredFields
               };
             })
             .filter(Boolean);
-        };
+        } catch (_) {
+          return [];
+        }
+      };
 
-        const renderFields = (fields, { columns = 2, dryRun = false } = {}) => {
-          const validFields = sanitizeFieldEntries(fields);
-          if (!validFields.length) {
-            return false;
-          }
+      const attachments = Array.isArray(profile.attachments) ? profile.attachments : [];
+      const attachmentSection = attachments.length
+        ? [{
+            label: 'Pièces jointes',
+            value: attachments
+              .map((file, index) => {
+                const displayName = String(
+                  file?.original_name ||
+                    (file?.file_path ? path.basename(file.file_path) : `Pièce jointe ${index + 1}`)
+                ).trim();
+                const addedAt = formatDateTime(file?.created_at);
+                return addedAt ? `• ${displayName} (ajouté le ${addedAt})` : `• ${displayName}`;
+              })
+              .join('\n')
+          }]
+        : [];
 
-          if (dryRun) {
-            return true;
-          }
+      const sections = [];
+      if (generalInformation.some(field => formatFieldValue(field.value))) {
+        sections.push({ title: 'Informations générales', fields: generalInformation });
+      }
+      if (administrativeInformation.some(field => formatFieldValue(field.value))) {
+        sections.push({ title: 'Informations administratives', fields: administrativeInformation });
+      }
+      const extraSections = parseExtraSections();
+      sections.push(...extraSections);
+      if (attachmentSection.length) {
+        sections.push({ title: 'Documents', fields: attachmentSection });
+      }
 
-          const contentWidth = innerWidth - sectionPadding * 2;
-          const autoColumns = Math.max(1, Math.floor(contentWidth / 220));
-          const columnCount = Math.max(
-            1,
-            Math.min(columns, validFields.length, autoColumns)
-          );
-          const gutter = columnCount > 1 ? 16 : 0;
+      const renderSection = section => {
+        if (!section || !Array.isArray(section.fields)) {
+          return;
+        }
 
-          const measureFieldHeight = (field, width) => {
-            const inner = Math.max(width - 24, 50);
-            doc.font('Helvetica-Bold').fontSize(9);
-            const labelHeight = doc.heightOfString(field.label.toUpperCase(), {
-              width: inner,
-              lineGap: 2
-            });
-            doc.font('Helvetica').fontSize(11);
-            const valueHeight = doc.heightOfString(field.value, {
-              width: inner,
-              lineGap: 4
-            });
-            return labelHeight + valueHeight + 26;
-          };
+        const visibleFields = section.fields
+          .map(field => ({
+            label: field?.label || 'Information',
+            value: formatFieldValue(field?.value)
+          }))
+          .filter(field => field.value);
 
-          let index = 0;
-          let rendered = false;
+        if (!visibleFields.length) {
+          return;
+        }
 
-          while (index < validFields.length) {
-            const rowFields = validFields.slice(index, index + columnCount);
-            const rowColumns = rowFields.length;
-            const cardWidth =
-              (contentWidth - gutter * (rowColumns - 1)) / Math.max(rowColumns, 1);
+        const width = contentWidth();
 
-            const heights = rowFields.map(field => measureFieldHeight(field, cardWidth));
-            const rowHeight = Math.max(...heights);
+        doc.moveDown(visibleFields.length ? 0.8 : 0.4);
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(14)
+          .fillColor(palette.heading)
+          .text(section.title, margin, doc.y, { width });
 
-            ensureSpace(rowHeight + 30);
+        doc.moveDown(0.2);
+        doc
+          .lineWidth(1)
+          .strokeColor(palette.divider)
+          .moveTo(margin, doc.y)
+          .lineTo(margin + width, doc.y)
+          .stroke();
+        doc.moveDown(0.6);
 
-            const rowTop = doc.y;
-
-            rowFields.forEach((field, position) => {
-              const x = margin + sectionPadding + position * (cardWidth + gutter);
-              const textX = x + 12;
-              const inner = Math.max(cardWidth - 24, 50);
-
-              doc.save();
-              doc
-                .roundedRect(x, rowTop, cardWidth, rowHeight, 12)
-                .fill(backgroundTint);
-              doc
-                .lineWidth(1)
-                .strokeColor(borderColor)
-                .roundedRect(x, rowTop, cardWidth, rowHeight, 12)
-                .stroke();
-              doc.restore();
-
-              doc
-                .font('Helvetica-Bold')
-                .fontSize(9)
-                .fillColor(accentDark)
-                .text(field.label.toUpperCase(), textX, rowTop + 12, {
-                  width: inner,
-                  lineGap: 2
-                });
-
-              const labelHeight = doc.heightOfString(field.label.toUpperCase(), {
-                width: inner,
-                lineGap: 2
-              });
-
-              doc
-                .font('Helvetica')
-                .fontSize(11)
-                .fillColor(textSecondary)
-                .text(field.value, textX, rowTop + 12 + labelHeight + 6, {
-                  width: inner,
-                  lineGap: 4
-                });
-            });
-
-            doc.y = rowTop + rowHeight + 14;
-            index += rowFields.length;
-            rendered = true;
-          }
-
-          return rendered;
-        };
-
-        const renderParagraph = (text, { dryRun = false } = {}) => {
-          if (text === null || text === undefined) return false;
-
-          const paragraph = String(text)
-            .replace(/\r\n/g, '\n')
-            .split('\n')
-            .map(line => line.trimEnd())
-            .join('\n')
-            .trim();
-
-          if (!paragraph) return false;
-
-          const boxX = margin + sectionPadding;
-          const boxWidth = innerWidth - sectionPadding * 2;
-          const textX = boxX + 14;
-          const textWidth = boxWidth - 28;
-
-          doc.font('Helvetica').fontSize(12);
-          const paragraphHeight = doc.heightOfString(paragraph, {
-            width: textWidth,
-            lineGap: 4
-          });
-
-          if (dryRun) {
-            return paragraphHeight > 0;
-          }
-
-          ensureSpace(paragraphHeight + 50);
-
-          const boxY = doc.y;
-          const boxHeight = paragraphHeight + 28;
-
-          doc.save();
+        visibleFields.forEach((field, index) => {
           doc
-            .roundedRect(boxX, boxY, boxWidth, boxHeight, 12)
-            .fill(backgroundTint);
-          doc
-            .lineWidth(1)
-            .strokeColor(borderColor)
-            .roundedRect(boxX, boxY, boxWidth, boxHeight, 12)
-            .stroke();
-          doc.restore();
-
+            .font('Helvetica-Bold')
+            .fontSize(11)
+            .fillColor(palette.heading)
+            .text(`${field.label} : `, margin, doc.y, {
+              width,
+              continued: true
+            });
           doc
             .font('Helvetica')
-            .fontSize(12)
-            .fillColor(textSecondary)
-            .text(paragraph, textX, boxY + 14, {
-              width: textWidth,
-              lineGap: 4
+            .fontSize(11)
+            .fillColor(palette.text)
+            .text(field.value, {
+              width,
+              align: 'left'
             });
 
-          doc.y = boxY + boxHeight + 12;
-          return true;
-        };
-
-        renderOverview();
-
-        const attachmentsCount = Array.isArray(profile.attachments) ? profile.attachments.length : 0;
-
-        const administrativeInformation = [
-          { label: 'Identifiant', value: profile.id ? `#${profile.id}` : null },
-          { label: 'Créé le', value: formatDateTime(profile.created_at) },
-          { label: 'Mis à jour le', value: formatDateTime(profile.updated_at) },
-          { label: 'Propriétaire', value: profile.owner_login },
-          {
-            label: 'Pièces jointes',
-            value: `${attachmentsCount} document${attachmentsCount > 1 ? 's' : ''}`
+          if (index < visibleFields.length - 1) {
+            doc.moveDown(0.3);
           }
-        ];
-
-        const mainInformation = [
-          { label: 'Nom complet', value: displayName || fallbackName },
-          { label: 'Adresse e-mail', value: profile.email },
-          { label: 'Numéro de téléphone', value: profile.phone }
-        ];
-
-        if (administrativeInformation.some(field => field.value)) {
-          drawSection('Résumé administratif', options =>
-            renderFields(administrativeInformation, {
-              columns: Math.min(3, administrativeInformation.length),
-              dryRun: options?.dryRun
-            })
-          );
-        }
-
-        if (mainInformation.some(field => field.value)) {
-          drawSection('Coordonnées', options =>
-            renderFields(mainInformation, {
-              columns: Math.min(2, mainInformation.length),
-              dryRun: options?.dryRun
-            })
-          );
-        }
-
-        const parseExtraFields = () => {
-          if (!profile.extra_fields) {
-            return [];
-          }
-          try {
-            const extras = Array.isArray(profile.extra_fields)
-              ? profile.extra_fields
-              : JSON.parse(profile.extra_fields);
-            return extras
-              .map(cat => {
-                const rawFields = Array.isArray(cat?.fields) ? cat.fields : [];
-                const filteredFields = rawFields.filter(field => {
-                  const value = field?.value;
-                  return value || value === 0;
-                });
-
-                if (filteredFields.length === 0) {
-                  return null;
-                }
-
-                const title =
-                  cat && typeof cat.title === 'string' && cat.title.trim()
-                    ? cat.title.trim()
-                    : 'Informations supplémentaires';
-
-                return {
-                  title,
-                  fields: filteredFields
-                };
-              })
-              .filter(Boolean);
-          } catch (_) {
-            return [];
-          }
-        };
-
-        const extraCategories = parseExtraFields();
-
-        extraCategories.forEach(category => {
-          drawSection(category.title, options =>
-            renderFields(
-              category.fields.map(field => ({
-                label: field.label || field.key,
-                value: field.value
-              })),
-              {
-                columns: Math.min(3, Math.max(1, category.fields.length)),
-                dryRun: options?.dryRun
-              }
-            )
-          );
         });
+      };
 
-        const renderAttachments = (attachments = [], { dryRun = false } = {}) => {
-          const files = attachments.filter(Boolean);
-          if (files.length === 0) return false;
-
-          if (dryRun) {
-            return true;
-          }
-
-          const boxX = margin + sectionPadding;
-          const boxWidth = innerWidth - sectionPadding * 2;
-          const textWidth = boxWidth - 44;
-
-          files.forEach((file, index) => {
-            const displayName = String(
-              file.original_name ||
-                (file.file_path ? path.basename(file.file_path) : `Pièce jointe ${index + 1}`)
-            ).trim();
-
-            const details = [];
-            const addedAt = formatDateTime(file.created_at);
-            if (addedAt) {
-              details.push(`Ajouté le ${addedAt}`);
-            }
-            if (file.file_path) {
-              const sanitizedPath = String(file.file_path).split(/[\\/]+/).pop();
-              if (sanitizedPath && sanitizedPath !== displayName) {
-                details.push(sanitizedPath);
-              }
-            }
-            const metaText = details.join(' • ');
-
-            doc.font('Helvetica-Bold').fontSize(11);
-            const titleHeight = doc.heightOfString(displayName, {
-              width: textWidth,
-              lineGap: 2
-            });
-            doc.font('Helvetica').fontSize(9);
-            const metaHeight = metaText
-              ? doc.heightOfString(metaText, { width: textWidth, lineGap: 2 })
-              : 0;
-
-            const rowHeight = Math.max(40, titleHeight + (metaText ? metaHeight + 10 : 0) + 18);
-
-            ensureSpace(rowHeight + 18);
-
-            const rowY = doc.y;
-
-            doc.save();
-            doc
-              .roundedRect(boxX, rowY, boxWidth, rowHeight, 12)
-              .fill(neutralBackground);
-            doc
-              .lineWidth(1)
-              .strokeColor(borderColor)
-              .roundedRect(boxX, rowY, boxWidth, rowHeight, 12)
-              .stroke();
-            doc.restore();
-
-            const iconCenterX = boxX + 18;
-            const iconCenterY = rowY + rowHeight / 2;
-            doc.save();
-            doc.fillColor(accentSoft).circle(iconCenterX, iconCenterY, 10).fill();
-            doc.fillColor(accentDark).circle(iconCenterX, iconCenterY, 5).fill();
-            doc.restore();
-
-            const textX = boxX + 36;
-            let textY = rowY + 14;
-
-            doc
-              .font('Helvetica-Bold')
-              .fontSize(11)
-              .fillColor(textPrimary)
-              .text(displayName, textX, textY, { width: textWidth, lineGap: 2 });
-
-            textY += titleHeight + 6;
-
-            if (metaText) {
-              doc
-                .font('Helvetica')
-                .fontSize(9)
-                .fillColor(textMuted)
-                .text(metaText, textX, textY, { width: textWidth, lineGap: 2 });
-            }
-
-            doc.y = rowY + rowHeight + 12;
-          });
-
-          return true;
-        };
-
-        if (profile.comment && String(profile.comment).trim()) {
-          drawSection('Commentaire', options =>
-            renderParagraph(String(profile.comment).trim(), options)
-          );
-        }
-
-        if (Array.isArray(profile.attachments) && profile.attachments.length) {
-          drawSection('Pièces jointes', options =>
-            renderAttachments(profile.attachments, options)
-          );
-        }
-
-        doc.end();
+      sections.forEach(section => {
+        renderSection(section);
       });
-    } catch (error) {
-      return Buffer.from('PDF generation not available');
-    }
+
+      const ensureSpaceForSignature = () => {
+        const required = 60;
+        const bottomLimit = doc.page.height - doc.page.margins.bottom - required;
+        if (doc.y > bottomLimit) {
+          skipHeader = true;
+          doc.addPage();
+        }
+      };
+
+      doc.moveDown(1.2);
+      ensureSpaceForSignature();
+      addSignature();
+
+      doc.end();
+    });
+  } catch (error) {
+    console.error('Erreur génération PDF profil:', error);
+    throw new Error('Impossible de générer le PDF du profil');
   }
+}
+
+
 }
 
 export default ProfileService;
