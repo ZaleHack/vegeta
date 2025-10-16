@@ -492,19 +492,50 @@ async generatePDF(profile) {
       const photoBuffer = await loadPhotoBuffer();
       const exportDate = formatDate(new Date());
 
+      const defaultMargins = (() => {
+        const { margins, margin: marginOption } = doc.options;
+        if (margins && typeof margins === 'object') {
+          return {
+            top: margins.top ?? 0,
+            right: margins.right ?? 0,
+            bottom: margins.bottom ?? 0,
+            left: margins.left ?? 0
+          };
+        }
+        if (typeof marginOption === 'number') {
+          return { top: marginOption, right: marginOption, bottom: marginOption, left: marginOption };
+        }
+        return { top: 0, right: 0, bottom: 0, left: 0 };
+      })();
+
+      const currentPage = () => doc.page ?? { margins: defaultMargins, width: 0, height: 0 };
+      const marginLeft = () => currentPage().margins?.left ?? defaultMargins.left ?? 0;
+      const marginTop = () => currentPage().margins?.top ?? defaultMargins.top ?? 0;
+      const pageWidth = () => (currentPage().width && currentPage().width > 0 ? currentPage().width : doc.page?.width ?? 0);
+      const pageHeight = () => (currentPage().height && currentPage().height > 0 ? currentPage().height : doc.page?.height ?? 0);
+      const marginRight = () => currentPage().margins?.right ?? defaultMargins.right ?? 0;
+      const marginBottom = () => currentPage().margins?.bottom ?? defaultMargins.bottom ?? 0;
+      const contentWidth = () => {
+        const width = pageWidth();
+        if (!width) {
+          return 0;
+        }
+        return width - marginLeft() - marginRight();
+      };
+
       const addSignature = () => {
+        if (!doc.page) {
+          return;
+        }
         doc.save();
         const signatureText = 'SORA';
         doc.font('Helvetica-Bold').fontSize(12).fillColor(palette.accent);
         const textWidth = doc.widthOfString(signatureText);
-        const signatureX = doc.page.width - doc.page.margins.right - textWidth;
-        const signatureY = doc.page.height - doc.page.margins.bottom - 24;
+        const signatureX = pageWidth() - marginRight() - textWidth;
+        const signatureY = pageHeight() - marginBottom() - 24;
         doc.text(signatureText, signatureX, signatureY);
         doc.restore();
       };
-
-      const margin = doc.page.margins.left;
-      const contentWidth = () => doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
       const renderMainHeader = () => {
         const width = contentWidth();
@@ -512,7 +543,7 @@ async generatePDF(profile) {
           .font('Helvetica-Bold')
           .fontSize(26)
           .fillColor(palette.heading)
-          .text('FICHE DE PROFIL', margin, doc.page.margins.top, {
+          .text('FICHE DE PROFIL', marginLeft(), marginTop(), {
             width,
             align: 'center'
           });
@@ -521,7 +552,7 @@ async generatePDF(profile) {
           .font('Helvetica')
           .fontSize(12)
           .fillColor(palette.muted)
-          .text(exportDate ? `Exporté le ${exportDate}` : '', margin, doc.y, {
+          .text(exportDate ? `Exporté le ${exportDate}` : '', marginLeft(), doc.y, {
             width,
             align: 'center'
           });
@@ -534,7 +565,7 @@ async generatePDF(profile) {
           .font('Helvetica-Bold')
           .fontSize(16)
           .fillColor(palette.heading)
-          .text('Fiche de profil', margin, doc.page.margins.top, {
+          .text('Fiche de profil', marginLeft(), marginTop(), {
             width,
             align: 'left'
           });
@@ -546,13 +577,13 @@ async generatePDF(profile) {
           return;
         }
 
-        const pageWidth = doc.page.width;
+        const width = pageWidth();
         const size = 150;
-        const x = (pageWidth - size) / 2;
+        const x = (width - size) / 2;
         const y = doc.y;
 
         doc.save();
-        doc.circle(pageWidth / 2, y + size / 2, size / 2 + 18).fill(palette.photoBackground);
+        doc.circle(width / 2, y + size / 2, size / 2 + 18).fill(palette.photoBackground);
         doc.restore();
 
         doc.save();
@@ -561,7 +592,7 @@ async generatePDF(profile) {
           align: 'center',
           valign: 'center'
         });
-        doc.circle(pageWidth / 2, y + size / 2, size / 2)
+        doc.circle(width / 2, y + size / 2, size / 2)
           .lineWidth(2)
           .strokeColor(palette.accent)
           .stroke();
@@ -696,14 +727,14 @@ async generatePDF(profile) {
           .font('Helvetica-Bold')
           .fontSize(14)
           .fillColor(palette.heading)
-          .text(section.title, margin, doc.y, { width });
+          .text(section.title, marginLeft(), doc.y, { width });
 
         doc.moveDown(0.2);
         doc
           .lineWidth(1)
           .strokeColor(palette.divider)
-          .moveTo(margin, doc.y)
-          .lineTo(margin + width, doc.y)
+          .moveTo(marginLeft(), doc.y)
+          .lineTo(marginLeft() + width, doc.y)
           .stroke();
         doc.moveDown(0.6);
 
@@ -712,7 +743,7 @@ async generatePDF(profile) {
             .font('Helvetica-Bold')
             .fontSize(11)
             .fillColor(palette.heading)
-            .text(`${field.label} : `, margin, doc.y, {
+            .text(`${field.label} : `, marginLeft(), doc.y, {
               width,
               continued: true
             });
@@ -737,7 +768,7 @@ async generatePDF(profile) {
 
       const ensureSpaceForSignature = () => {
         const required = 60;
-        const bottomLimit = doc.page.height - doc.page.margins.bottom - required;
+        const bottomLimit = pageHeight() - marginBottom() - required;
         if (doc.y > bottomLimit) {
           skipHeader = true;
           doc.addPage();
