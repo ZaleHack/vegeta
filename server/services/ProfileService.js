@@ -391,12 +391,28 @@ class ProfileService {
 
         const accentColor = '#1D4ED8';
         const accentDark = '#1E3A8A';
-        const accentSoft = '#E2E8FF';
+        const accentSoft = '#E0E7FF';
         const borderColor = '#C7D2FE';
         const backgroundTint = '#F8FAFF';
         const textPrimary = '#0F172A';
         const textSecondary = '#1F2937';
+        const textMuted = '#475569';
+        const neutralBackground = '#FFFFFF';
         const sectionPadding = 18;
+
+        const formatDateTime = value => {
+          if (!value) return null;
+          const date = value instanceof Date ? value : new Date(value);
+          if (Number.isNaN(date.getTime())) return null;
+          try {
+            return new Intl.DateTimeFormat('fr-FR', {
+              dateStyle: 'long',
+              timeStyle: 'short'
+            }).format(date);
+          } catch (_) {
+            return date.toLocaleString('fr-FR');
+          }
+        };
 
         const loadPhotoBuffer = async () => {
           if (!profile.photo_path) return null;
@@ -502,6 +518,11 @@ class ProfileService {
           if (profile.email) contactParts.push(String(profile.email));
           if (profile.phone) contactParts.push(String(profile.phone));
 
+          const identityParts = [];
+          if (profile.id) identityParts.push(`Profil #${profile.id}`);
+          if (profile.owner_login) identityParts.push(`Référent : ${profile.owner_login}`);
+          const identityText = identityParts.join(' • ');
+
           const photoSize = photoBuffer ? 122 : 0;
           const photoGap = photoBuffer ? 28 : 0;
           const cardPadding = 24;
@@ -513,13 +534,21 @@ class ProfileService {
           doc.font('Helvetica-Bold').fontSize(20);
           const nameHeight = doc.heightOfString(fallbackName, { width: textAreaWidth });
 
+          doc.font('Helvetica').fontSize(10);
+          const identityHeight = identityText
+            ? doc.heightOfString(identityText, { width: textAreaWidth })
+            : 0;
+
           const contactText = contactParts.join('\n');
           doc.font('Helvetica').fontSize(12);
           const contactHeight = contactText
             ? doc.heightOfString(contactText, { width: textAreaWidth })
             : 0;
 
-          const textBlockHeight = nameHeight + (contactText ? contactHeight + 10 : 0);
+          const textBlockHeight =
+            nameHeight +
+            (identityText ? identityHeight + 8 : 0) +
+            (contactText ? contactHeight + 10 : 0);
           const contentHeight = photoAlongside
             ? Math.max(textBlockHeight, photoSize)
             : textBlockHeight + (hasPhoto ? photoSize + 16 : 0);
@@ -548,7 +577,19 @@ class ProfileService {
             .fillColor(textPrimary)
             .text(fallbackName, textX, currentY, { width: textAreaWidth });
 
-          currentY += nameHeight + 10;
+          currentY += nameHeight + 6;
+
+          if (identityText) {
+            doc
+              .font('Helvetica')
+              .fontSize(10)
+              .fillColor(textMuted)
+              .text(identityText, textX, currentY, {
+                width: textAreaWidth,
+                lineGap: 2
+              });
+            currentY += identityHeight + 8;
+          }
 
           if (contactText) {
             doc
@@ -638,15 +679,15 @@ class ProfileService {
           let index = 0;
 
           const measureFieldHeight = (field, width) => {
-            doc.font('Helvetica-Bold').fontSize(9);
+            doc.font('Helvetica-Bold').fontSize(8);
             const labelHeight = doc.heightOfString(field.label.toUpperCase(), {
               width: width - 24
             });
-            doc.font('Helvetica').fontSize(11);
+            doc.font('Helvetica').fontSize(10);
             const valueHeight = doc.heightOfString(field.value, {
               width: width - 24
             });
-            return labelHeight + valueHeight + 26;
+            return labelHeight + valueHeight + 22;
           };
 
           while (index < validFields.length) {
@@ -658,7 +699,7 @@ class ProfileService {
             const heights = rowFields.map(field => measureFieldHeight(field, cardWidth));
             const rowHeight = Math.max(...heights);
 
-            ensureSpace(rowHeight + 36);
+            ensureSpace(rowHeight + 30);
 
             const rowTop = doc.y;
 
@@ -680,7 +721,7 @@ class ProfileService {
 
               doc
                 .font('Helvetica-Bold')
-                .fontSize(9)
+                .fontSize(8)
                 .fillColor(accentDark)
                 .text(field.label.toUpperCase(), textX, rowTop + 12, {
                   width: innerWidth
@@ -692,7 +733,7 @@ class ProfileService {
 
               doc
                 .font('Helvetica')
-                .fontSize(11)
+                .fontSize(10)
                 .fillColor(textSecondary)
                 .text(field.value, textX, rowTop + 12 + labelHeight + 6, {
                   width: innerWidth
@@ -747,15 +788,39 @@ class ProfileService {
 
         renderOverview();
 
+        const attachmentsCount = Array.isArray(profile.attachments) ? profile.attachments.length : 0;
+
+        const administrativeInformation = [
+          { label: 'Identifiant', value: profile.id ? `#${profile.id}` : null },
+          { label: 'Créé le', value: formatDateTime(profile.created_at) },
+          { label: 'Mis à jour le', value: formatDateTime(profile.updated_at) },
+          { label: 'Propriétaire', value: profile.owner_login },
+          {
+            label: 'Pièces jointes',
+            value: `${attachmentsCount} document${attachmentsCount > 1 ? 's' : ''}`
+          }
+        ];
+
         const mainInformation = [
           { label: 'Nom complet', value: displayName || fallbackName },
           { label: 'Adresse e-mail', value: profile.email },
           { label: 'Numéro de téléphone', value: profile.phone }
         ];
 
+        if (administrativeInformation.some(field => field.value)) {
+          drawSection('Résumé administratif', () =>
+            renderFields(
+              administrativeInformation,
+              { columns: Math.min(3, administrativeInformation.length) }
+            )
+          );
+        }
+
         if (mainInformation.some(field => field.value)) {
-          drawSection('Informations principales', () =>
-            renderFields(mainInformation, { columns: 2 })
+          drawSection('Coordonnées', () =>
+            renderFields(mainInformation, {
+              columns: Math.min(2, mainInformation.length)
+            })
           );
         }
 
@@ -804,15 +869,102 @@ class ProfileService {
                 label: field.label || field.key,
                 value: field.value
               })),
-              { columns: 2 }
+              {
+                columns: Math.min(3, Math.max(1, category.fields.length))
+              }
             )
           );
         });
+
+        const renderAttachments = (attachments = []) => {
+          const files = attachments.filter(Boolean);
+          if (files.length === 0) return;
+
+          const boxX = margin + sectionPadding;
+          const boxWidth = innerWidth - sectionPadding * 2;
+          const textWidth = boxWidth - 44;
+
+          files.forEach((file, index) => {
+            const displayName = String(
+              file.original_name ||
+                (file.file_path ? path.basename(file.file_path) : `Pièce jointe ${index + 1}`)
+            );
+
+            const details = [];
+            const addedAt = formatDateTime(file.created_at);
+            if (addedAt) {
+              details.push(`Ajouté le ${addedAt}`);
+            }
+            if (file.file_path) {
+              const sanitizedPath = String(file.file_path).split(/[\\/]+/).pop();
+              if (sanitizedPath && sanitizedPath !== displayName) {
+                details.push(sanitizedPath);
+              }
+            }
+            const metaText = details.join(' • ');
+
+            doc.font('Helvetica-Bold').fontSize(11);
+            const titleHeight = doc.heightOfString(displayName, { width: textWidth });
+            doc.font('Helvetica').fontSize(9);
+            const metaHeight = metaText
+              ? doc.heightOfString(metaText, { width: textWidth })
+              : 0;
+
+            const rowHeight = Math.max(40, titleHeight + (metaText ? metaHeight + 10 : 0) + 18);
+
+            ensureSpace(rowHeight + 18);
+
+            const rowY = doc.y;
+
+            doc.save();
+            doc
+              .roundedRect(boxX, rowY, boxWidth, rowHeight, 12)
+              .fill(neutralBackground);
+            doc
+              .lineWidth(1)
+              .strokeColor(borderColor)
+              .roundedRect(boxX, rowY, boxWidth, rowHeight, 12)
+              .stroke();
+            doc.restore();
+
+            const iconCenterX = boxX + 18;
+            const iconCenterY = rowY + rowHeight / 2;
+            doc.save();
+            doc.fillColor(accentSoft).circle(iconCenterX, iconCenterY, 10).fill();
+            doc.fillColor(accentDark).circle(iconCenterX, iconCenterY, 5).fill();
+            doc.restore();
+
+            const textX = boxX + 36;
+            let textY = rowY + 14;
+
+            doc
+              .font('Helvetica-Bold')
+              .fontSize(11)
+              .fillColor(textPrimary)
+              .text(displayName, textX, textY, { width: textWidth });
+
+            textY += titleHeight + 6;
+
+            if (metaText) {
+              doc
+                .font('Helvetica')
+                .fontSize(9)
+                .fillColor(textMuted)
+                .text(metaText, textX, textY, { width: textWidth });
+            }
+
+            doc.y = rowY + rowHeight + 12;
+          });
+        };
 
         if (profile.comment && String(profile.comment).trim()) {
           drawSection('Commentaire', () =>
             renderParagraph(String(profile.comment).trim())
           );
+        }
+
+        if (Array.isArray(profile.attachments) && profile.attachments.length) {
+          drawSection('Pièces jointes', () => renderAttachments(profile.attachments));
         }
 
         doc.end();
