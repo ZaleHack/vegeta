@@ -397,7 +397,10 @@ async generatePDF(profile) {
         muted: '#6B7280',
         accent: '#1D4ED8',
         divider: '#E5E7EB',
-        photoBackground: '#EFF6FF'
+        photoBackground: '#EFF6FF',
+        headerBackground: '#1D4ED8',
+        headerText: '#FFFFFF',
+        headerMuted: '#DBEAFE'
       };
 
       const formatDateTime = value => {
@@ -539,24 +542,40 @@ async generatePDF(profile) {
 
       const renderMainHeader = () => {
         const width = contentWidth();
+        const startX = marginLeft();
+        const startY = marginTop();
+        const headerHeight = 96;
+
+        doc.save();
+        doc
+          .rect(startX, startY, width, headerHeight)
+          .fill(palette.headerBackground);
+        doc.restore();
+
+        const titleY = startY + 26;
+
         doc
           .font('Helvetica-Bold')
           .fontSize(26)
-          .fillColor(palette.heading)
-          .text('FICHE DE PROFIL', marginLeft(), marginTop(), {
+          .fillColor(palette.headerText)
+          .text('FICHE DE PROFIL', startX, titleY, {
             width,
             align: 'center'
           });
-        doc.moveDown(0.4);
-        doc
-          .font('Helvetica')
-          .fontSize(12)
-          .fillColor(palette.muted)
-          .text(exportDate ? `Exporté le ${exportDate}` : '', marginLeft(), doc.y, {
-            width,
-            align: 'center'
-          });
-        doc.moveDown(1.5);
+
+        if (exportDate) {
+          const dateY = titleY + 36;
+          doc
+            .font('Helvetica')
+            .fontSize(12)
+            .fillColor(palette.headerMuted)
+            .text(`Exporté le ${exportDate}`, startX, dateY, {
+              width,
+              align: 'center'
+            });
+        }
+
+        doc.y = startY + headerHeight + 24;
       };
 
       const renderContinuationHeader = () => {
@@ -619,21 +638,6 @@ async generatePDF(profile) {
 
       doc.addPage();
 
-      const generalInformation = [
-        { label: 'Nom', value: profile.last_name },
-        { label: 'Prénom', value: profile.first_name },
-        { label: 'Adresse e-mail', value: profile.email },
-        { label: 'Numéro de téléphone', value: profile.phone },
-        { label: 'Commentaire', value: profile.comment }
-      ];
-
-      const administrativeInformation = [
-        { label: 'Identifiant', value: profile.id ? `#${profile.id}` : null },
-        { label: 'Référent', value: profile.owner_login },
-        { label: 'Créé le', value: formatDateTime(profile.created_at) },
-        { label: 'Mis à jour le', value: formatDateTime(profile.updated_at) }
-      ];
-
       const parseExtraSections = () => {
         if (!profile.extra_fields) {
           return [];
@@ -692,12 +696,6 @@ async generatePDF(profile) {
         : [];
 
       const sections = [];
-      if (generalInformation.some(field => formatFieldValue(field.value))) {
-        sections.push({ title: 'Informations générales', fields: generalInformation });
-      }
-      if (administrativeInformation.some(field => formatFieldValue(field.value))) {
-        sections.push({ title: 'Informations administratives', fields: administrativeInformation });
-      }
       const extraSections = parseExtraSections();
       sections.push(...extraSections);
       if (attachmentSection.length) {
