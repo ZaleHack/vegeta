@@ -612,6 +612,68 @@ async generatePDF(profile) {
         doc.y = y + size + 24;
       };
 
+      const baseTextFont = { name: 'Helvetica', size: 11 };
+      const applyBaseFont = () => {
+        doc.font(baseTextFont.name).fontSize(baseTextFont.size);
+      };
+
+      const measureLineHeight = (fontName, fontSize, multiplier = 1) => {
+        doc.font(fontName).fontSize(fontSize);
+        const height = doc.currentLineHeight(true) * multiplier;
+        applyBaseFont();
+        return height;
+      };
+
+      const measureTextHeight = (text, fontName, fontSize) => {
+        if (!text) {
+          return 0;
+        }
+        doc.font(fontName).fontSize(fontSize);
+        const height = doc.heightOfString(text, {
+          width: contentWidth(),
+          align: 'left'
+        });
+        applyBaseFont();
+        return height;
+      };
+
+      const estimateSectionHeight = (title, fields) => {
+        if (!fields.length) {
+          return 0;
+        }
+
+        const dividerHeight = 4;
+        let total = 0;
+
+        total += measureLineHeight(baseTextFont.name, baseTextFont.size, fields.length ? 0.8 : 0.4);
+        total += measureTextHeight(title, 'Helvetica-Bold', 14);
+        total += measureLineHeight('Helvetica-Bold', 14, 0.2);
+        total += dividerHeight;
+        total += measureLineHeight(baseTextFont.name, baseTextFont.size, 0.6);
+
+        fields.forEach((field, index) => {
+          const combined = `${field.label} : ${field.value}`;
+          total += measureTextHeight(combined, baseTextFont.name, baseTextFont.size);
+          if (index < fields.length - 1) {
+            total += measureLineHeight(baseTextFont.name, baseTextFont.size, 0.3);
+          }
+        });
+
+        return total;
+      };
+
+      const ensurePageCapacity = requiredHeight => {
+        if (!requiredHeight) {
+          return;
+        }
+
+        const available = pageHeight() - marginBottom() - doc.y;
+        if (available <= 0 || requiredHeight > available) {
+          doc.addPage();
+          applyBaseFont();
+        }
+      };
+
         let pageNumber = 0;
         let skipHeader = false;
         doc.on('pageAdded', () => {
@@ -629,6 +691,7 @@ async generatePDF(profile) {
       });
 
       doc.addPage();
+      applyBaseFont();
 
       const parseExtraSections = () => {
         if (!profile.extra_fields) {
@@ -710,8 +773,11 @@ async generatePDF(profile) {
           return;
         }
 
+        ensurePageCapacity(estimateSectionHeight(section.title, visibleFields));
+
         const width = contentWidth();
 
+        applyBaseFont();
         doc.moveDown(visibleFields.length ? 0.8 : 0.4);
         doc
           .font('Helvetica-Bold')
