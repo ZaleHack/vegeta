@@ -602,22 +602,14 @@ async generatePDF(profile) {
         const y = doc.y;
 
         doc.save();
-        doc.circle(width / 2, y + size / 2, size / 2 + 18).fill(palette.photoBackground);
-        doc.restore();
-
-        doc.save();
         doc.image(photoBuffer, x, y, {
           fit: [size, size],
           align: 'center',
           valign: 'center'
         });
-        doc.circle(width / 2, y + size / 2, size / 2)
-          .lineWidth(2)
-          .strokeColor(palette.accent)
-          .stroke();
         doc.restore();
 
-        doc.y = y + size + 35;
+        doc.y = y + size + 24;
       };
 
         let pageNumber = 0;
@@ -724,7 +716,7 @@ async generatePDF(profile) {
         doc
           .font('Helvetica-Bold')
           .fontSize(14)
-          .fillColor(palette.heading)
+          .fillColor(palette.accent)
           .text(section.title, marginLeft(), doc.y, { width });
 
         doc.moveDown(0.2);
