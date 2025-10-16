@@ -642,7 +642,12 @@ class ProfileService {
         };
 
         const drawSection = (title, renderContent) => {
-          if (!renderContent) return;
+          if (!renderContent) return false;
+
+          const hasContent = renderContent({ dryRun: true });
+          if (!hasContent) {
+            return false;
+          }
 
           const safeTitle = title ? String(title).trim() : '';
 
@@ -669,41 +674,108 @@ class ProfileService {
 
           doc.moveDown(0.8);
 
-          renderContent();
+          renderContent({ dryRun: false });
 
           doc.moveDown(1);
+          return true;
         };
 
-        const renderFields = (fields, { columns = 2 } = {}) => {
-          const validFields = (fields || [])
-            .filter(field => field && (field.value || field.value === 0))
-            .map(field => ({
-              label: String(field.label || field.key || ''),
-              value: String(field.value)
-            }));
-
-          if (!validFields.length) return;
-
-          const contentWidth = innerWidth - sectionPadding * 2;
-          const gutter = 16;
-          const maxColumns = Math.max(1, Math.min(columns, validFields.length));
-
-          let index = 0;
-
-          const measureFieldHeight = (field, width) => {
-            doc.font('Helvetica-Bold').fontSize(8);
-            const labelHeight = doc.heightOfString(field.label.toUpperCase(), {
-              width: width - 24
-            });
-            doc.font('Helvetica').fontSize(10);
-            const valueHeight = doc.heightOfString(field.value, {
-              width: width - 24
-            });
-            return labelHeight + valueHeight + 22;
+        const sanitizeFieldEntries = (fields = []) => {
+          const formatValue = value => {
+            if (value === null || value === undefined) {
+              return '';
+            }
+            if (typeof value === 'number' || typeof value === 'boolean') {
+              return String(value);
+            }
+            if (typeof value === 'string') {
+              const normalized = value.replace(/\r\n/g, '\n');
+              const trimmedLines = normalized
+                .split('\n')
+                .map(line => line.trimEnd());
+              return trimmedLines.join('\n').trim();
+            }
+            if (Array.isArray(value)) {
+              return value
+                .map(item => formatValue(item))
+                .filter(Boolean)
+                .join('\n');
+            }
+            if (typeof value === 'object') {
+              const entries = Object.entries(value)
+                .map(([key, val]) => {
+                  const formatted = formatValue(val);
+                  if (!formatted) return null;
+                  return key ? `${key}: ${formatted}` : formatted;
+                })
+                .filter(Boolean);
+              if (entries.length) {
+                return entries.join('\n');
+              }
+              try {
+                return JSON.stringify(value);
+              } catch (_) {
+                return '';
+              }
+            }
+            return String(value);
           };
 
+          return (fields || [])
+            .map(field => {
+              if (!field) return null;
+              const rawLabel = field.label ?? field.key ?? '';
+              const label = String(rawLabel).trim();
+              const valueText = formatValue(field.value);
+              if (!valueText) {
+                return null;
+              }
+              return {
+                label: label || 'Information',
+                value: valueText
+              };
+            })
+            .filter(Boolean);
+        };
+
+        const renderFields = (fields, { columns = 2, dryRun = false } = {}) => {
+          const validFields = sanitizeFieldEntries(fields);
+          if (!validFields.length) {
+            return false;
+          }
+
+          if (dryRun) {
+            return true;
+          }
+
+          const contentWidth = innerWidth - sectionPadding * 2;
+          const autoColumns = Math.max(1, Math.floor(contentWidth / 220));
+          const columnCount = Math.max(
+            1,
+            Math.min(columns, validFields.length, autoColumns)
+          );
+          const gutter = columnCount > 1 ? 16 : 0;
+
+          const measureFieldHeight = (field, width) => {
+            const inner = Math.max(width - 24, 50);
+            doc.font('Helvetica-Bold').fontSize(9);
+            const labelHeight = doc.heightOfString(field.label.toUpperCase(), {
+              width: inner,
+              lineGap: 2
+            });
+            doc.font('Helvetica').fontSize(11);
+            const valueHeight = doc.heightOfString(field.value, {
+              width: inner,
+              lineGap: 4
+            });
+            return labelHeight + valueHeight + 26;
+          };
+
+          let index = 0;
+          let rendered = false;
+
           while (index < validFields.length) {
-            const rowFields = validFields.slice(index, index + maxColumns);
+            const rowFields = validFields.slice(index, index + columnCount);
             const rowColumns = rowFields.length;
             const cardWidth =
               (contentWidth - gutter * (rowColumns - 1)) / Math.max(rowColumns, 1);
@@ -718,7 +790,7 @@ class ProfileService {
             rowFields.forEach((field, position) => {
               const x = margin + sectionPadding + position * (cardWidth + gutter);
               const textX = x + 12;
-              const innerWidth = cardWidth - 24;
+              const inner = Math.max(cardWidth - 24, 50);
 
               doc.save();
               doc
@@ -733,35 +805,47 @@ class ProfileService {
 
               doc
                 .font('Helvetica-Bold')
-                .fontSize(8)
+                .fontSize(9)
                 .fillColor(accentDark)
                 .text(field.label.toUpperCase(), textX, rowTop + 12, {
-                  width: innerWidth
+                  width: inner,
+                  lineGap: 2
                 });
 
               const labelHeight = doc.heightOfString(field.label.toUpperCase(), {
-                width: innerWidth
+                width: inner,
+                lineGap: 2
               });
 
               doc
                 .font('Helvetica')
-                .fontSize(10)
+                .fontSize(11)
                 .fillColor(textSecondary)
                 .text(field.value, textX, rowTop + 12 + labelHeight + 6, {
-                  width: innerWidth
+                  width: inner,
+                  lineGap: 4
                 });
             });
 
             doc.y = rowTop + rowHeight + 14;
             index += rowFields.length;
+            rendered = true;
           }
+
+          return rendered;
         };
 
-        const renderParagraph = (text) => {
-          if (!text) return;
+        const renderParagraph = (text, { dryRun = false } = {}) => {
+          if (text === null || text === undefined) return false;
 
-          const paragraph = String(text).trim();
-          if (!paragraph) return;
+          const paragraph = String(text)
+            .replace(/\r\n/g, '\n')
+            .split('\n')
+            .map(line => line.trimEnd())
+            .join('\n')
+            .trim();
+
+          if (!paragraph) return false;
 
           const boxX = margin + sectionPadding;
           const boxWidth = innerWidth - sectionPadding * 2;
@@ -770,8 +854,13 @@ class ProfileService {
 
           doc.font('Helvetica').fontSize(12);
           const paragraphHeight = doc.heightOfString(paragraph, {
-            width: textWidth
+            width: textWidth,
+            lineGap: 4
           });
+
+          if (dryRun) {
+            return paragraphHeight > 0;
+          }
 
           ensureSpace(paragraphHeight + 50);
 
@@ -793,9 +882,13 @@ class ProfileService {
             .font('Helvetica')
             .fontSize(12)
             .fillColor(textSecondary)
-            .text(paragraph, textX, boxY + 14, { width: textWidth });
+            .text(paragraph, textX, boxY + 14, {
+              width: textWidth,
+              lineGap: 4
+            });
 
           doc.y = boxY + boxHeight + 12;
+          return true;
         };
 
         renderOverview();
@@ -820,18 +913,19 @@ class ProfileService {
         ];
 
         if (administrativeInformation.some(field => field.value)) {
-          drawSection('Résumé administratif', () =>
-            renderFields(
-              administrativeInformation,
-              { columns: Math.min(3, administrativeInformation.length) }
-            )
+          drawSection('Résumé administratif', options =>
+            renderFields(administrativeInformation, {
+              columns: Math.min(3, administrativeInformation.length),
+              dryRun: options?.dryRun
+            })
           );
         }
 
         if (mainInformation.some(field => field.value)) {
-          drawSection('Coordonnées', () =>
+          drawSection('Coordonnées', options =>
             renderFields(mainInformation, {
-              columns: Math.min(2, mainInformation.length)
+              columns: Math.min(2, mainInformation.length),
+              dryRun: options?.dryRun
             })
           );
         }
@@ -875,22 +969,27 @@ class ProfileService {
         const extraCategories = parseExtraFields();
 
         extraCategories.forEach(category => {
-          drawSection(category.title, () =>
+          drawSection(category.title, options =>
             renderFields(
               category.fields.map(field => ({
                 label: field.label || field.key,
                 value: field.value
               })),
               {
-                columns: Math.min(3, Math.max(1, category.fields.length))
+                columns: Math.min(3, Math.max(1, category.fields.length)),
+                dryRun: options?.dryRun
               }
             )
           );
         });
 
-        const renderAttachments = (attachments = []) => {
+        const renderAttachments = (attachments = [], { dryRun = false } = {}) => {
           const files = attachments.filter(Boolean);
-          if (files.length === 0) return;
+          if (files.length === 0) return false;
+
+          if (dryRun) {
+            return true;
+          }
 
           const boxX = margin + sectionPadding;
           const boxWidth = innerWidth - sectionPadding * 2;
@@ -900,7 +999,7 @@ class ProfileService {
             const displayName = String(
               file.original_name ||
                 (file.file_path ? path.basename(file.file_path) : `Pièce jointe ${index + 1}`)
-            );
+            ).trim();
 
             const details = [];
             const addedAt = formatDateTime(file.created_at);
@@ -916,10 +1015,13 @@ class ProfileService {
             const metaText = details.join(' • ');
 
             doc.font('Helvetica-Bold').fontSize(11);
-            const titleHeight = doc.heightOfString(displayName, { width: textWidth });
+            const titleHeight = doc.heightOfString(displayName, {
+              width: textWidth,
+              lineGap: 2
+            });
             doc.font('Helvetica').fontSize(9);
             const metaHeight = metaText
-              ? doc.heightOfString(metaText, { width: textWidth })
+              ? doc.heightOfString(metaText, { width: textWidth, lineGap: 2 })
               : 0;
 
             const rowHeight = Math.max(40, titleHeight + (metaText ? metaHeight + 10 : 0) + 18);
@@ -953,7 +1055,7 @@ class ProfileService {
               .font('Helvetica-Bold')
               .fontSize(11)
               .fillColor(textPrimary)
-              .text(displayName, textX, textY, { width: textWidth });
+              .text(displayName, textX, textY, { width: textWidth, lineGap: 2 });
 
             textY += titleHeight + 6;
 
@@ -962,21 +1064,25 @@ class ProfileService {
                 .font('Helvetica')
                 .fontSize(9)
                 .fillColor(textMuted)
-                .text(metaText, textX, textY, { width: textWidth });
+                .text(metaText, textX, textY, { width: textWidth, lineGap: 2 });
             }
 
             doc.y = rowY + rowHeight + 12;
           });
+
+          return true;
         };
 
         if (profile.comment && String(profile.comment).trim()) {
-          drawSection('Commentaire', () =>
-            renderParagraph(String(profile.comment).trim())
+          drawSection('Commentaire', options =>
+            renderParagraph(String(profile.comment).trim(), options)
           );
         }
 
         if (Array.isArray(profile.attachments) && profile.attachments.length) {
-          drawSection('Pièces jointes', () => renderAttachments(profile.attachments));
+          drawSection('Pièces jointes', options =>
+            renderAttachments(profile.attachments, options)
+          );
         }
 
         doc.end();
