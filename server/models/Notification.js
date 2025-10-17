@@ -48,13 +48,18 @@ class Notification {
     if (!userId) {
       return [];
     }
+    let safeLimit = Number.isInteger(limit) ? limit : parseInt(limit, 10);
+    if (!Number.isInteger(safeLimit) || safeLimit <= 0) {
+      safeLimit = 20;
+    }
+    safeLimit = Math.min(safeLimit, 100);
     const rows = await database.query(
       `SELECT id, user_id, type, data, read_at, created_at
        FROM autres.notifications
        WHERE user_id = ?
        ORDER BY created_at DESC
        LIMIT ?`,
-      [userId, limit]
+      [userId, safeLimit]
     );
     return rows;
   }
