@@ -545,11 +545,18 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
-      await this.pool.execute(`
-        UPDATE autres.search_logs
-        SET extra_searches = 0
-        WHERE extra_searches IS NULL OR extra_searches = ''
-      `);
+      const [extraSearchesColumn] = await this.pool.query(
+        `SHOW COLUMNS FROM autres.search_logs LIKE 'extra_searches'`
+      );
+      const hasExtraSearchesColumn = extraSearchesColumn.length > 0;
+
+      if (hasExtraSearchesColumn) {
+        await this.pool.execute(`
+          UPDATE autres.search_logs
+          SET extra_searches = 0
+          WHERE extra_searches IS NULL OR extra_searches = ''
+        `);
+      }
 
       await ensureColumnDefinition('autres.search_logs', 'extra_searches', {
         type: 'INT',
@@ -557,6 +564,14 @@ class DatabaseManager {
         default: 0,
         after: 'execution_time_ms'
       });
+
+      if (!hasExtraSearchesColumn) {
+        await this.pool.execute(`
+          UPDATE autres.search_logs
+          SET extra_searches = 0
+          WHERE extra_searches IS NULL OR extra_searches = ''
+        `);
+      }
 
       // Table de journalisation des actions utilisateur
       await query(`
