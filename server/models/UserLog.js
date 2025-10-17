@@ -24,7 +24,11 @@ class UserLog {
   }
 
   static async getLogs(page = 1, limit = 20, username = '', userId = null) {
-    const offset = (page - 1) * limit;
+    const parsedLimit = Number.parseInt(limit, 10);
+    const safeLimit = Math.max(1, Number.isNaN(parsedLimit) ? 20 : parsedLimit);
+    const parsedPage = Number.parseInt(page, 10);
+    const safePage = Math.max(1, Number.isNaN(parsedPage) ? 1 : parsedPage);
+    const offset = (safePage - 1) * safeLimit;
     const params = [];
     const conditions = [];
 
@@ -44,8 +48,8 @@ class UserLog {
        LEFT JOIN autres.users u ON l.user_id = u.id
        ${where}
        ORDER BY l.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+       LIMIT ${safeLimit} OFFSET ${offset}`,
+      params
     );
 
     const totalRow = await database.queryOne(
