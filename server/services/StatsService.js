@@ -1,4 +1,5 @@
 import database from '../config/database.js';
+import { sanitizeLimit } from '../utils/number-utils.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -469,7 +470,8 @@ class StatsService {
    * Permet de filtrer par nom d'utilisateur.
    */
   async getSearchLogs(limit = 20, username = '', userId = null) {
-    const cacheKey = `searchLogs:${limit}:${username}:${userId || 'all'}`;
+    const safeLimit = sanitizeLimit(limit, { defaultValue: 20, min: 1, max: 200 });
+    const cacheKey = `searchLogs:${safeLimit}:${username}:${userId || 'all'}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
       return cached;
@@ -497,8 +499,7 @@ class StatsService {
         sql += ' WHERE ' + conditions.join(' AND ');
       }
 
-      sql += ' ORDER BY sl.search_date DESC LIMIT ?';
-      params.push(limit);
+      sql += ` ORDER BY sl.search_date DESC LIMIT ${safeLimit}`;
 
       const logs = await database.query(sql, params);
       this.cache.set(cacheKey, logs || []);

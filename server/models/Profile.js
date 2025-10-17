@@ -1,5 +1,6 @@
 import database from '../config/database.js';
 import { ensureUserExists } from '../utils/foreign-key-helpers.js';
+import { sanitizeLimit, sanitizeOffset } from '../utils/number-utils.js';
 import {
   normalizeExtraFields,
   normalizeProfileRecord,
@@ -159,12 +160,15 @@ class Profile {
       search: search ? String(search) : ''
     });
 
+    const safeLimit = sanitizeLimit(limit, { defaultValue: 10, min: 1, max: 100 });
+    const safeOffset = sanitizeOffset(offset, { defaultValue: 0 });
+
     const rows = await database.query(
       `${PROFILE_BASE_SELECT}
        ${whereClause}
        ORDER BY p.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+       LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+      params
     );
     const totalRes = await database.queryOne(
       `SELECT COUNT(*) as count

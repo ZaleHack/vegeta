@@ -1,13 +1,14 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import Notification from '../models/Notification.js';
+import { sanitizeLimit } from '../utils/number-utils.js';
 
 const router = express.Router();
 
 router.get('/', authenticate, async (req, res) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 20;
-    const notifications = await Notification.findRecentByUser(req.user.id, isNaN(limit) ? 20 : limit);
+    const limit = sanitizeLimit(req.query.limit, { defaultValue: 20, min: 1, max: 100 });
+    const notifications = await Notification.findRecentByUser(req.user.id, limit);
     const formatted = notifications.map((item) => ({
       ...item,
       data: item.data ? JSON.parse(item.data) : null

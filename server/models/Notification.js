@@ -1,5 +1,6 @@
 import database from '../config/database.js';
 import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
+import { sanitizeLimit } from '../utils/number-utils.js';
 
 function serializeData(value) {
   if (value === null || value === undefined) {
@@ -48,13 +49,15 @@ class Notification {
     if (!userId) {
       return [];
     }
+
+    const safeLimit = sanitizeLimit(limit, { defaultValue: 20, min: 1, max: 100 });
     const rows = await database.query(
       `SELECT id, user_id, type, data, read_at, created_at
        FROM autres.notifications
        WHERE user_id = ?
        ORDER BY created_at DESC
-       LIMIT ?`,
-      [userId, limit]
+       LIMIT ${safeLimit}`,
+      [userId]
     );
     return rows;
   }
