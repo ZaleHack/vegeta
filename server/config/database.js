@@ -142,7 +142,10 @@ class DatabaseManager {
         const isNullable = definition.nullable !== false;
         parts.push(isNullable ? 'NULL' : 'NOT NULL');
 
-        if (Object.prototype.hasOwnProperty.call(definition, 'default')) {
+        const typeUpper = definition.type?.toUpperCase() || '';
+        const canHaveDefault = !/(TEXT|BLOB|JSON|GEOMETRY)/.test(typeUpper);
+
+        if (canHaveDefault && Object.prototype.hasOwnProperty.call(definition, 'default')) {
           parts.push(escapeDefaultValue(definition.default));
         }
 
@@ -608,8 +611,8 @@ class DatabaseManager {
           last_name VARCHAR(255) DEFAULT NULL,
           phone VARCHAR(50) DEFAULT NULL,
           email VARCHAR(255) DEFAULT NULL,
-          comment TEXT NOT NULL DEFAULT '',
-          extra_fields TEXT NOT NULL DEFAULT '[]',
+          comment TEXT NOT NULL,
+          extra_fields TEXT NOT NULL,
           photo_path VARCHAR(255) DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -630,7 +633,6 @@ class DatabaseManager {
         {
           type: 'TEXT',
           nullable: false,
-          default: '',
           after: 'email'
         },
         commentInfo
@@ -654,7 +656,6 @@ class DatabaseManager {
         {
           type: 'TEXT',
           nullable: false,
-          default: '[]',
           after: 'comment'
         },
         extraFieldsInfo
