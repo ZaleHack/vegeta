@@ -7,6 +7,9 @@ let originalFetch: typeof fetch | null = null;
 
 const textEncoder = new TextEncoder();
 
+const isWebCryptoAvailable = (): boolean =>
+  typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.subtle !== 'undefined';
+
 const getAtob = () => {
   if (typeof globalThis.atob === 'function') {
     return globalThis.atob;
@@ -157,6 +160,13 @@ export const encryptJsonPayload = async (body: string): Promise<EncryptedJsonPay
 
 export const setupEncryptedFetch = () => {
   if (typeof window === 'undefined' || typeof window.fetch !== 'function') {
+    return;
+  }
+
+  if (!isWebCryptoAvailable()) {
+    console.warn(
+      "Chiffrement des requêtes JSON désactivé : l'API Web Crypto est indisponible dans cet environnement."
+    );
     return;
   }
 
