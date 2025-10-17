@@ -545,6 +545,12 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      await this.pool.execute(`
+        UPDATE autres.search_logs
+        SET extra_searches = 0
+        WHERE extra_searches IS NULL OR extra_searches = ''
+      `);
+
       await ensureColumnDefinition('autres.search_logs', 'extra_searches', {
         type: 'INT',
         nullable: false,
