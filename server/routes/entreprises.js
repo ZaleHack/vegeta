@@ -1,15 +1,16 @@
 import express from 'express';
 import database from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { sanitizeLimit, sanitizeOffset, toSafeInteger } from '../utils/number-utils.js';
 
 const router = express.Router();
 
 router.get('/', authenticate, async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 12;
+    const page = toSafeInteger(req.query.page, { defaultValue: 1, min: 1 });
+    const limit = sanitizeLimit(req.query.limit, { defaultValue: 12, min: 1, max: 500 });
     const search = (req.query.search || '').trim();
-    const offset = (page - 1) * limit;
+    const offset = sanitizeOffset((page - 1) * limit, { defaultValue: 0 });
 
     let whereClause = '';
     const params = [];
@@ -43,8 +44,8 @@ router.get('/', authenticate, async (req, res) => {
         premiere_annee_exercice, forme_juridique, regime_fiscal,
         pays_du_siege_de_lentreprise, nombre_etablissement, controle,
         date_reception, libelle_activite_principale, observations, systeme
-      FROM entreprises ${whereClause} LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+      FROM entreprises ${whereClause} LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
     res.json({ entries: rows, total: totalResult.count });

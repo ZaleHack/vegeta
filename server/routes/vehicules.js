@@ -1,15 +1,16 @@
 import express from 'express';
 import database from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { sanitizeLimit, sanitizeOffset, toSafeInteger } from '../utils/number-utils.js';
 
 const router = express.Router();
 
 router.get('/', authenticate, async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 12;
+    const page = toSafeInteger(req.query.page, { defaultValue: 1, min: 1 });
+    const limit = sanitizeLimit(req.query.limit, { defaultValue: 12, min: 1, max: 500 });
     const search = (req.query.search || '').trim();
-    const offset = (page - 1) * limit;
+    const offset = sanitizeOffset((page - 1) * limit, { defaultValue: 0 });
 
     let whereClause = '';
     const params = [];
@@ -67,8 +68,8 @@ router.get('/', authenticate, async (req, res) => {
         tel_portable AS Tel_Portable,
         PrecImmat,
         Date_PrecImmat
-      FROM vehicules ${whereClause} LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+      FROM vehicules ${whereClause} LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
     res.json({ entries: rows, total: totalResult.count });

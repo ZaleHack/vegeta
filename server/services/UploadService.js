@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import statsCache from './stats-cache.js';
+import { sanitizeLimit } from '../utils/number-utils.js';
 // Catalogue des tables chargé dynamiquement
 
 class UploadService {
@@ -275,6 +276,7 @@ class UploadService {
 
   async getUploadHistory(userId = null, limit = 20) {
     try {
+      const safeLimit = sanitizeLimit(limit, { defaultValue: 20, min: 1, max: 200 });
       let sql = `
         SELECT uh.*, u.login as username
         FROM upload_history uh
@@ -287,8 +289,7 @@ class UploadService {
         params.push(userId);
       }
 
-      sql += ' ORDER BY uh.created_at DESC LIMIT ?';
-      params.push(limit);
+      sql += ` ORDER BY uh.created_at DESC LIMIT ${safeLimit}`;
 
       return await database.query(sql, params);
     } catch (error) {

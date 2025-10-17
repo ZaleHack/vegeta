@@ -1,5 +1,6 @@
 import database from '../config/database.js';
 import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
+import { sanitizeLimit, sanitizeOffset, toSafeInteger } from '../utils/number-utils.js';
 
 class UserSession {
   static async start(userId) {
@@ -52,7 +53,9 @@ class UserSession {
   }
 
   static async getSessions(page = 1, limit = 20, { username = '' } = {}) {
-    const offset = (page - 1) * limit;
+    const pageNumber = toSafeInteger(page, { defaultValue: 1, min: 1 });
+    const safeLimit = sanitizeLimit(limit, { defaultValue: 20, min: 1, max: 200 });
+    const offset = sanitizeOffset((pageNumber - 1) * safeLimit, { defaultValue: 0 });
     const params = [];
     let whereClause = '';
 
@@ -68,8 +71,8 @@ class UserSession {
          JOIN autres.users u ON s.user_id = u.id
          ${whereClause}
          ORDER BY s.login_at DESC
-         LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+         LIMIT ${safeLimit} OFFSET ${offset}`,
+      params
     );
 
     const totalRow = await database.queryOne(

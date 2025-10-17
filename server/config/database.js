@@ -536,6 +536,7 @@ class DatabaseManager {
           tables_searched TEXT,
           results_count INT DEFAULT 0,
           execution_time_ms INT DEFAULT 0,
+          extra_searches INT NOT NULL DEFAULT 0,
           ip_address VARCHAR(45),
           user_agent TEXT,
           search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -543,6 +544,13 @@ class DatabaseManager {
           INDEX idx_search_date (search_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
+
+      await ensureColumnDefinition('autres.search_logs', 'extra_searches', {
+        type: 'INT',
+        nullable: false,
+        default: 0,
+        after: 'execution_time_ms'
+      });
 
       // Table de journalisation des actions utilisateur
       await query(`

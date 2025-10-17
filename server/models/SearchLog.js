@@ -1,6 +1,7 @@
 import database from '../config/database.js';
 import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
 import statsCache from '../services/stats-cache.js';
+import { sanitizeNonNegative } from '../utils/number-utils.js';
 
 const serialize = (value) => {
   if (value === null || value === undefined) {
@@ -25,6 +26,7 @@ class SearchLog {
     tables_searched = [],
     results_count = 0,
     execution_time_ms = 0,
+    extra_searches = 0,
     ip_address = null,
     user_agent = null
   }) {
@@ -37,6 +39,7 @@ class SearchLog {
       serialize(tables_searched),
       Number.isFinite(results_count) ? Math.max(0, Number(results_count)) : 0,
       Number.isFinite(execution_time_ms) ? Math.max(0, Math.round(Number(execution_time_ms))) : 0,
+      sanitizeNonNegative(extra_searches),
       ip_address || null,
       user_agent || null
     ];
@@ -51,9 +54,10 @@ class SearchLog {
           tables_searched,
           results_count,
           execution_time_ms,
+          extra_searches,
           ip_address,
           user_agent
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [userIdValue, ...payload.slice(1)]
       );
     };
