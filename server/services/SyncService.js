@@ -199,7 +199,10 @@ class SyncService {
       );
       return;
     }
-    const batchSize = this.resolveBatchSize(syncConfig);
+    const rawBatchSize = this.resolveBatchSize(syncConfig);
+    const batchSize = Number.isFinite(rawBatchSize)
+      ? Math.max(1, Math.floor(rawBatchSize))
+      : DEFAULT_BATCH_SIZE;
 
     try {
       let lastPrimaryKey = null;
@@ -228,11 +231,11 @@ class SyncService {
       }
 
       while (hasMore) {
-        const whereClause =
-          lastPrimaryKey === null ? '' : `WHERE \`${primaryKey}\` > ?`;
+        const whereClause = lastPrimaryKey === null ? '' : `WHERE \`${primaryKey}\` > ?`;
+        const params = lastPrimaryKey === null ? [] : [lastPrimaryKey];
         const rows = await database.query(
-          `SELECT * FROM ${qualifiedTableName} ${whereClause} ORDER BY \`${primaryKey}\` ASC LIMIT ?`,
-          lastPrimaryKey === null ? [batchSize] : [lastPrimaryKey, batchSize]
+          `SELECT * FROM ${qualifiedTableName} ${whereClause} ORDER BY \`${primaryKey}\` ASC LIMIT ${batchSize}`,
+          params
         );
 
         if (!rows.length) {
