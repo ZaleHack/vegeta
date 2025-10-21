@@ -118,6 +118,11 @@ if (!fs.existsSync(uploadsPath)) {
 }
 const uploadsRoot = path.resolve(uploadsPath);
 
+const btsPath = path.join(__dirname, '../bts');
+if (!fs.existsSync(btsPath)) {
+  fs.mkdirSync(btsPath, { recursive: true });
+}
+
 app.get('/uploads/*', authenticate, async (req, res) => {
   try {
     const requestedPath = req.params[0] || '';
