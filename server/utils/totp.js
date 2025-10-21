@@ -63,7 +63,7 @@ function generateHotp(secretBuffer, counter, digits = DEFAULT_DIGITS) {
   return otp;
 }
 
-export function generateSecret(login, issuer = 'Devine Intelligence') {
+export function generateSecret(login, issuer = 'Sora') {
   const random = crypto.randomBytes(20);
   const base32 = base32Encode(random).replace(/=/gu, '').slice(0, 32);
 

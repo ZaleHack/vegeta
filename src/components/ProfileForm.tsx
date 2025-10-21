@@ -478,7 +478,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
         })}
         <button
           type="button"
-          className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/40 transition hover:-translate-y-0.5 hover:shadow-xl"
+          className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/40 transition hover:-translate-y-0.5 hover:shadow-xl"
           onClick={addCategory}
         >
           <Plus className="h-4 w-4" />
