@@ -36,6 +36,8 @@ const normalizeCaseNumber = (value) => {
 class CaseService {
   constructor() {
     this.cdrService = new CdrService();
+    this.globalCaseId = this.cdrService.getGlobalCaseId();
+    this.globalCaseName = this.cdrService.getGlobalCaseName();
   }
 
   _isAdmin(user) {
@@ -210,8 +212,8 @@ class CaseService {
     }
     return await this.cdrService.search(identifier, {
       ...options,
-      caseId: existingCase.id,
-      caseName: existingCase.name
+      caseId: this.globalCaseId,
+      caseName: this.globalCaseName
     });
   }
 
@@ -229,7 +231,7 @@ class CaseService {
     const filteredNumbers = Array.isArray(numbers)
       ? numbers.filter(n => ALLOWED_PREFIXES.some(p => String(n).startsWith(p)))
       : [];
-    return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.id, {
+    return await this.cdrService.findCommonContacts(filteredNumbers, this.globalCaseId, {
       startDate,
       endDate,
       startTime,
@@ -276,7 +278,7 @@ class CaseService {
 
     const statusReferenceSet = new Set([...fileReferenceNumbers, ...referenceNumbers]);
 
-    const detections = await this.cdrService.detectNumberChanges(existingCase.id, {
+    const detections = await this.cdrService.detectNumberChanges(this.globalCaseId, {
       startDate,
       endDate,
       referenceNumbers: Array.from(referenceNumbers)
@@ -352,7 +354,7 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
-    return await this.cdrService.listLocations(existingCase.id);
+    return await this.cdrService.listLocations(this.globalCaseId);
   }
 
   async deleteFile(caseId, fileId, user) {
@@ -1317,7 +1319,10 @@ class CaseService {
       const identifier = rawNumber.startsWith('221') ? rawNumber : `221${rawNumber}`;
       let result;
       try {
-        result = await this.cdrService.search(identifier, { caseId, caseName });
+        result = await this.cdrService.search(identifier, {
+          caseId: this.globalCaseId,
+          caseName: this.globalCaseName
+        });
       } catch (err) {
         console.error('Erreur agrégation CDR pour rapport', err);
         ensureNumberEntry(identifier);
