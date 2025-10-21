@@ -22,11 +22,15 @@ const normalizeCaseNumber = (value) => {
   }
   sanitized = sanitized.replace(/\D/g, '');
   if (!sanitized) return '';
-  if (sanitized.startsWith('221')) {
+  sanitized = sanitized.replace(/^0+/, '');
+  if (!sanitized) return '';
+  if (sanitized.startsWith('221') && sanitized.length > 9) {
     return sanitized;
   }
-  sanitized = sanitized.replace(/^0+/, '');
-  return sanitized ? `221${sanitized}` : '';
+  if (sanitized.length <= 9 && !sanitized.startsWith('221')) {
+    return `221${sanitized}`;
+  }
+  return sanitized;
 };
 
 class CaseService {
@@ -1247,25 +1251,7 @@ class CaseService {
   }
 
   async _buildCaseInsights(caseId, caseName, numbers) {
-    const normalizeTrackedNumber = (value) => {
-      if (!value) return '';
-      let sanitized = String(value).trim();
-      if (!sanitized) return '';
-      sanitized = sanitized.replace(/\s+/g, '');
-      if (sanitized.startsWith('+')) {
-        sanitized = sanitized.slice(1);
-      }
-      while (sanitized.startsWith('00')) {
-        sanitized = sanitized.slice(2);
-      }
-      sanitized = sanitized.replace(/\D/g, '');
-      if (!sanitized) return '';
-      if (!sanitized.startsWith('221')) {
-        sanitized = sanitized.replace(/^0+/, '');
-        sanitized = sanitized ? `221${sanitized}` : '';
-      }
-      return sanitized;
-    };
+    const normalizeTrackedNumber = (value) => normalizeCaseNumber(value);
 
     const uniqueNumbers = Array.from(
       new Set(

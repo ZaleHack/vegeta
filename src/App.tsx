@@ -1547,6 +1547,7 @@ const App: React.FC = () => {
   }, [selectedCase, cdrIdentifiers]);
 
   const normalizeCdrNumber = useCallback((value: string) => {
+    if (!value) return '';
     let sanitized = value.trim();
     if (!sanitized) return '';
     sanitized = sanitized.replace(/\s+/g, '');
@@ -1558,11 +1559,15 @@ const App: React.FC = () => {
     }
     sanitized = sanitized.replace(/\D/g, '');
     if (!sanitized) return '';
-    if (sanitized.startsWith('221')) {
+    sanitized = sanitized.replace(/^0+/, '');
+    if (!sanitized) return '';
+    if (sanitized.startsWith('221') && sanitized.length > 9) {
       return sanitized;
     }
-    sanitized = sanitized.replace(/^0+/, '');
-    return sanitized ? `221${sanitized}` : '';
+    if (sanitized.length <= 9 && !sanitized.startsWith('221')) {
+      return `221${sanitized}`;
+    }
+    return sanitized;
   }, []);
 
   const dedupeCdrIdentifiers = useCallback(
