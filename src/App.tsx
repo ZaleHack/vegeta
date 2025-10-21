@@ -77,7 +77,7 @@ import ProfileList, { ProfileListItem } from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
 import CdrMap from './components/CdrMap';
 import LinkDiagram from './components/LinkDiagram';
-import SoraLogo from './components/SoraLogo';
+import DevineLogo from './components/DevineLogo';
 import ConfirmDialog, { ConfirmDialogOptions } from './components/ConfirmDialog';
 import { useNotifications } from './components/NotificationProvider';
 import { normalizePreview, NormalizedPreviewEntry, BaseSearchHit } from './utils/search';
@@ -304,7 +304,7 @@ type RequestMetric = {
 };
 
 
-const DASHBOARD_CARD_STORAGE_KEY = 'sora.dashboard.cardOrder';
+const DASHBOARD_CARD_STORAGE_KEY = 'devine-intelligence.dashboard.cardOrder';
 const DEFAULT_CARD_ORDER = ['total-searches', 'data', 'profiles', 'requests', 'operations'];
 
 interface GendarmerieEntry {
@@ -4437,17 +4437,17 @@ useEffect(() => {
         className={`min-h-screen flex items-center justify-center p-4 ${
           theme === 'dark'
             ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100'
-            : 'bg-gradient-to-br from-blue-50 via-white to-blue-50'
+            : 'bg-gradient-to-br from-red-50 via-white to-red-50'
         }`}
       >
         <div className="max-w-md w-full">
           <div className="bg-white shadow-2xl rounded-2xl overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6">
+            <div className="bg-gradient-to-r from-red-600 to-red-700 px-8 py-6">
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4 text-white">
-                  <SoraLogo className="h-10 w-10" />
+                  <DevineLogo className="h-10 w-10" />
                 </div>
-                <h2 className="text-2xl font-bold text-white">SORA</h2>
+                <h2 className="text-2xl font-bold text-white">Devine Intelligence</h2>
               </div>
             </div>
             
@@ -4466,7 +4466,7 @@ useEffect(() => {
                     id="login"
                     type="text"
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     placeholder="Entrez votre nom d'utilisateur"
                     value={loginData.login}
                     onChange={(e) => setLoginData({ ...loginData, login: e.target.value })}
@@ -4480,7 +4480,7 @@ useEffect(() => {
                     id="password"
                     type="password"
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     placeholder="Entrez votre mot de passe"
                     value={loginData.password}
                     onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
@@ -4502,7 +4502,7 @@ useEffect(() => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all"
+                  className="w-full bg-red-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 transition-all"
                 >
                   {loading ? (
                     <div className="flex items-center justify-center">
@@ -4526,7 +4526,7 @@ useEffect(() => {
 
     const combinedSection = (
       <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
-        <div className="border-b border-slate-200/70 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-6 text-white dark:border-slate-700/60">
+        <div className="border-b border-slate-200/70 bg-gradient-to-r from-red-600 via-red-500 to-red-700 p-6 text-white dark:border-slate-700/60">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 className="text-lg font-semibold">Recherche CDR</h3>
@@ -4913,7 +4913,7 @@ useEffect(() => {
           title="Déployer le menu"
           aria-label="Déployer le menu"
         >
-          <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 opacity-0 transition-opacity group-hover:opacity-100" />
+          <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-red-600 via-red-500 to-red-700 opacity-0 transition-opacity group-hover:opacity-100" />
           <ChevronRight className="relative h-5 w-5" />
         </button>
       )}
@@ -4928,12 +4928,12 @@ useEffect(() => {
         <div className="relative p-6 border-b border-white/60 dark:border-gray-800/70">
           <div className="flex items-center justify-between">
             <div className={`flex items-center gap-3 ${!sidebarOpen && 'justify-center gap-0'}`}>
-              <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30">
-                <SoraLogo className="h-7 w-7" />
+              <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30">
+                <DevineLogo className="h-7 w-7" />
               </div>
               {sidebarOpen && (
                 <div>
-                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent tracking-tight">SORA</h1>
+                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-red-600 via-red-500 to-red-700 bg-clip-text text-transparent tracking-tight">Devine Intelligence</h1>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Surveillance &amp; Operations</p>
                 </div>
               )}
@@ -4959,7 +4959,7 @@ useEffect(() => {
                 className="group relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/60 bg-white/70 text-gray-600 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-gray-700/70 dark:bg-gray-800/70 dark:text-gray-200"
                 title={sidebarOpen ? 'Réduire le menu' : 'Déployer le menu'}
               >
-                <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 opacity-0 transition-opacity group-hover:opacity-100" />
+                <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-red-600 via-red-500 to-red-700 opacity-0 transition-opacity group-hover:opacity-100" />
                 <span className="relative">
                   {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                 </span>
@@ -4976,7 +4976,7 @@ useEffect(() => {
               title="Dashboard"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'dashboard'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -4989,7 +4989,7 @@ useEffect(() => {
               title="Recherche"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'search'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5002,7 +5002,7 @@ useEffect(() => {
               title="Annuaire Gendarmerie"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'annuaire'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5015,7 +5015,7 @@ useEffect(() => {
               title="ONG"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'ong'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5028,7 +5028,7 @@ useEffect(() => {
               title="Entreprises"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'entreprises'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5041,7 +5041,7 @@ useEffect(() => {
               title="Véhicules"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'vehicules'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5054,7 +5054,7 @@ useEffect(() => {
               title="CDR"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5067,7 +5067,7 @@ useEffect(() => {
               title="Détection de Fraude"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'fraud-detection'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5080,7 +5080,7 @@ useEffect(() => {
               title="Demandes"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'requests'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5096,7 +5096,7 @@ useEffect(() => {
               title="Fiches de profil"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'profiles'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5110,7 +5110,7 @@ useEffect(() => {
                 title="White List"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'blacklist'
-                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                    ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                     : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
                 } ${!sidebarOpen && 'justify-center px-0'}`}
               >
@@ -5125,7 +5125,7 @@ useEffect(() => {
                 title="Logs"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'logs'
-                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                    ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                     : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
                 } ${!sidebarOpen && 'justify-center px-0'}`}
               >
@@ -5140,7 +5140,7 @@ useEffect(() => {
                 title="Utilisateurs"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'users'
-                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                    ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                     : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
                 } ${!sidebarOpen && 'justify-center px-0'}`}
               >
@@ -5155,7 +5155,7 @@ useEffect(() => {
                 title="Charger des données"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'upload'
-                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                    ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
                     : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
                 } ${!sidebarOpen && 'justify-center px-0'}`}
               >
@@ -6151,7 +6151,7 @@ useEffect(() => {
                       />
                       <button
                         type="submit"
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                       >
                         <Plus className="h-4 w-4" />
                         <span>Créer l'opération</span>
@@ -6245,7 +6245,7 @@ useEffect(() => {
                               <>
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                                   onClick={submitRenameCase}
                                   disabled={renamingCaseLoading}
                                 >
@@ -6266,7 +6266,7 @@ useEffect(() => {
                               <>
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                                   onClick={() => {
                                     cancelRenameCase();
                                     setSelectedCase(c);
@@ -6752,7 +6752,7 @@ useEffect(() => {
                         <div className="flex gap-2">
                           <button
                             type="button"
-                            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                             onClick={submitRenameCase}
                             disabled={renamingCaseLoading}
                           >
@@ -6794,7 +6794,7 @@ useEffect(() => {
                 <>
                   <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
-                      <div className="border-b border-white/30 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-6 text-white">
+                      <div className="border-b border-white/30 bg-gradient-to-br from-red-600 via-red-500 to-red-700 p-6 text-white">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="space-y-2">
                             <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-white/80">
@@ -6856,7 +6856,7 @@ useEffect(() => {
                             <button
                               type="submit"
                               disabled={cdrUploading || !cdrFile || !cdrNumber}
-                              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {cdrUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-4 w-4" />}
                               <span>Importer le fichier</span>
@@ -7115,7 +7115,7 @@ useEffect(() => {
                       </div>
                       <button
                         type="submit"
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                       >
                         <Search className="h-4 w-4" />
                         Lancer la recherche
@@ -7345,7 +7345,7 @@ useEffect(() => {
                             <div className="flex flex-wrap items-center gap-3">
                               {isAdmin && r.status !== 'identified' && (
                                 <button
-                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                                   onClick={() => startIdentify(r)}
                                 >
                                   <UserCheck className="h-4 w-4" />
@@ -7497,7 +7497,7 @@ useEffect(() => {
                       <button
                         type="submit"
                         disabled={!blacklistNumber.trim()}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Plus className="h-4 w-4" />
                         Ajouter
@@ -7999,7 +7999,7 @@ useEffect(() => {
                 <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                   <button
                     onClick={openCreateModal}
-                    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition-transform hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition-transform hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                   >
                     <Plus className="mr-2 h-5 w-5" />
                     Nouvel utilisateur
@@ -8276,7 +8276,7 @@ useEffect(() => {
           {currentPage === 'dashboard' && (
             <div className="space-y-8">
               {/* Header */}
-              <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme SORA" />
+              <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme Devine Intelligence" />
 
               {loadingStats ? (
                 <div className="flex items-center justify-center py-16">
@@ -8801,7 +8801,7 @@ useEffect(() => {
                           topSearchTerms.slice(0, 9).map((term, index) => (
                             <div
                               key={index}
-                              className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-blue-100 transition-all dark:from-gray-800 dark:to-gray-700 dark:hover:from-blue-900 dark:hover:to-blue-800"
+                              className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-red-50 hover:to-red-100 transition-all dark:from-gray-800 dark:to-gray-700 dark:hover:from-red-900 dark:hover:to-red-800"
                             >
                               <div className="flex items-center space-x-3">
                                 <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full text-blue-600 font-bold text-sm dark:bg-blue-900 dark:text-blue-200">
@@ -8946,7 +8946,7 @@ useEffect(() => {
                       <button
                         type="submit"
                         disabled={loading}
-                        className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 focus:outline-none focus:ring-4 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-red-600 hover:via-red-500 hover:to-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/40 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {loading ? (
                           <span className="flex items-center gap-2">

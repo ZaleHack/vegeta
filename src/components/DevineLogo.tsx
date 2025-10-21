@@ -1,10 +1,10 @@
 import React from 'react';
 
-interface SoraLogoProps {
+interface DevineLogoProps {
   className?: string;
 }
 
-const SoraLogo: React.FC<SoraLogoProps> = ({ className }) => (
+const DevineLogo: React.FC<DevineLogoProps> = ({ className }) => (
   <svg
     viewBox="0 0 64 64"
     fill="none"
@@ -35,4 +35,4 @@ const SoraLogo: React.FC<SoraLogoProps> = ({ className }) => (
   </svg>
 );
 
-export default SoraLogo;
+export default DevineLogo;
