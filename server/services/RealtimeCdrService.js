@@ -1,4 +1,6 @@
 import database from '../config/database.js';
+import client from '../config/elasticsearch.js';
+import { isElasticsearchEnabled } from '../config/environment.js';
 
 const EMPTY_RESULT = {
   total: 0,
@@ -8,6 +10,29 @@ const EMPTY_RESULT = {
   topLocations: [],
   path: []
 };
+
+const REALTIME_INDEX = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
+const MAX_BATCH_SIZE = 5000;
+
+const parsePositiveInteger = (value, fallback) => {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.floor(parsed);
+  }
+  return fallback;
+};
+
+const INDEX_BATCH_SIZE = Math.min(
+  parsePositiveInteger(process.env.REALTIME_CDR_INDEX_BATCH_SIZE, 500),
+  MAX_BATCH_SIZE
+);
+const INDEX_POLL_INTERVAL = Math.max(
+  1000,
+  parsePositiveInteger(process.env.REALTIME_CDR_INDEX_INTERVAL_MS, 5000)
+);
+
+const isConnectionError = (error) =>
+  error?.name === 'ConnectionError' || error?.meta?.statusCode === 0;
 
 const sanitizeNumber = (value) => {
   if (value === null || value === undefined) {
@@ -110,6 +135,90 @@ const normalizeTimeBound = (value) => {
   return null;
 };
 
+const timeToSeconds = (value) => {
+  const normalized = normalizeTimeBound(value);
+  if (!normalized) {
+    return null;
+  }
+  const parts = normalized.split(':').map((part) => Number(part));
+  if (parts.some((part) => Number.isNaN(part))) {
+    return null;
+  }
+  return parts[0] * 3600 + parts[1] * 60 + parts[2];
+};
+
+const normalizeString = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const text = String(value).trim();
+  return text || null;
+};
+
+const normalizeDateInput = (value) => {
+  if (value instanceof Date) {
+    return value.toISOString().split('T')[0];
+  }
+  return normalizeString(value);
+};
+
+const normalizeDateTimeInput = (value) => {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  return normalizeString(value);
+};
+
+const toNullableNumber = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const parseDurationSeconds = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.round(value));
+  }
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+  if (/^\d+$/.test(text)) {
+    const parsed = Number.parseInt(text, 10);
+    return Number.isNaN(parsed) ? null : Math.max(0, parsed);
+  }
+  if (text.includes(':')) {
+    const parts = text.split(':').map((part) => Number(part));
+    if (parts.some((part) => Number.isNaN(part))) {
+      return null;
+    }
+    while (parts.length < 3) {
+      parts.unshift(0);
+    }
+    const seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return seconds >= 0 ? seconds : null;
+  }
+  return null;
+};
+
+const buildCallTimestampValue = (dateValue, timeValue) => {
+  const normalizedDate = normalizeDateInput(dateValue);
+  if (!normalizedDate) {
+    return null;
+  }
+  const normalizedTime = normalizeTimeBound(timeValue) || '00:00:00';
+  const timestamp = `${normalizedDate}T${normalizedTime}`;
+  if (Number.isNaN(new Date(timestamp).getTime())) {
+    return null;
+  }
+  return timestamp;
+};
+
 const formatDateValue = (value) => {
   if (!value && value !== 0) {
     return 'N/A';
@@ -157,7 +266,7 @@ const formatDuration = (value) => {
     return 'N/A';
   }
   if (/^\d+$/.test(text)) {
-    const seconds = parseInt(text, 10);
+    const seconds = Number.parseInt(text, 10);
     if (Number.isNaN(seconds) || seconds <= 0) {
       return 'N/A';
     }
@@ -167,7 +276,7 @@ const formatDuration = (value) => {
     return `${Math.round(seconds / 60)} min`;
   }
   if (text.includes(':')) {
-    const parts = text.split(':').map((p) => parseInt(p, 10));
+    const parts = text.split(':').map((p) => Number.parseInt(p, 10));
     if (parts.every((n) => !Number.isNaN(n))) {
       while (parts.length < 3) {
         parts.unshift(0);
@@ -199,6 +308,53 @@ const resolveEventType = (value) => {
 };
 
 class RealtimeCdrService {
+  constructor() {
+    this.indexName = REALTIME_INDEX;
+    this.elasticEnabled = isElasticsearchEnabled();
+    this.batchSize = INDEX_BATCH_SIZE;
+    this.pollInterval = INDEX_POLL_INTERVAL;
+    this.indexEnsured = false;
+    this.indexReady = false;
+    this.lastIndexedId = 0;
+    this.indexing = false;
+    this.indexTimer = null;
+
+    this.initializationPromise = this.elasticEnabled
+      ? this.#initializeElasticsearch().catch((error) => {
+          console.error('Erreur initialisation Elasticsearch CDR temps réel:', error);
+          this.elasticEnabled = false;
+          return false;
+        })
+      : Promise.resolve(false);
+  }
+
+  async #initializeElasticsearch() {
+    const ensured = await this.#ensureElasticsearchIndex();
+    if (!ensured) {
+      console.warn(
+        '⚠️ Elasticsearch indisponible : indexation temps réel des CDR désactivée.'
+      );
+      return false;
+    }
+
+    try {
+      await this.#loadLastIndexedId();
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.error(
+          "Erreur lecture du dernier identifiant indexé pour les CDR temps réel:",
+          error.message
+        );
+        return false;
+      }
+      throw error;
+    }
+
+    this.indexReady = false;
+    this.#scheduleIndexing(0);
+    return true;
+  }
+
   async search(identifier, options = {}) {
     const trimmedIdentifier = typeof identifier === 'string' ? identifier.trim() : '';
     if (!trimmedIdentifier) {
@@ -218,41 +374,79 @@ class RealtimeCdrService {
       limit = 2000
     } = options;
 
+    const startTimeBound = normalizeTimeBound(startTime);
+    const endTimeBound = normalizeTimeBound(endTime);
+    const limitValue = Math.min(Math.max(Number.parseInt(limit, 10) || 2000, 1), 10000);
+
+    if (this.elasticEnabled && this.initializationPromise) {
+      try {
+        await this.initializationPromise;
+      } catch (error) {
+        console.error('Erreur initialisation indexation CDR temps réel:', error);
+      }
+    }
+
+    if (this.elasticEnabled && this.indexReady) {
+      const rowsFromElasticsearch = await this.#searchElasticsearch(
+        Array.from(identifierVariants),
+        {
+          startDate,
+          endDate,
+          startTimeBound,
+          endTimeBound,
+          limit: limitValue
+        }
+      );
+
+      if (Array.isArray(rowsFromElasticsearch)) {
+        return this.#buildResult(rowsFromElasticsearch, identifierVariants);
+      }
+    }
+
+    const rows = await this.#searchDatabase(identifierVariants, {
+      startDate,
+      endDate,
+      startTimeBound,
+      endTimeBound,
+      limit: limitValue
+    });
+    return this.#buildResult(rows, identifierVariants);
+  }
+
+  async #searchDatabase(identifierVariants, filters) {
     const conditions = [];
     const params = [];
 
     const variantList = Array.from(identifierVariants);
     if (variantList.length > 0) {
-      const numberConditions = variantList.map(() => '(numero_appelant = ? OR numero_appele = ?)');
+      const numberConditions = variantList.map(
+        () => '(numero_appelant = ? OR numero_appele = ?)'
+      );
       conditions.push(`(${numberConditions.join(' OR ')})`);
       variantList.forEach((variant) => {
         params.push(variant, variant);
       });
     }
 
-    if (startDate) {
+    if (filters.startDate) {
       conditions.push('date_debut_appel >= ?');
-      params.push(startDate);
+      params.push(filters.startDate);
     }
-    if (endDate) {
+    if (filters.endDate) {
       conditions.push('date_debut_appel <= ?');
-      params.push(endDate);
+      params.push(filters.endDate);
     }
 
-    const startTimeBound = normalizeTimeBound(startTime);
-    const endTimeBound = normalizeTimeBound(endTime);
-
-    if (startTimeBound) {
+    if (filters.startTimeBound) {
       conditions.push('heure_debut_appel >= ?');
-      params.push(startTimeBound);
+      params.push(filters.startTimeBound);
     }
-    if (endTimeBound) {
+    if (filters.endTimeBound) {
       conditions.push('heure_debut_appel <= ?');
-      params.push(endTimeBound);
+      params.push(filters.endTimeBound);
     }
 
-    const limitValue = Math.min(Math.max(parseInt(limit, 10) || 2000, 1), 10000);
-    params.push(limitValue);
+    params.push(filters.limit);
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -282,8 +476,368 @@ class RealtimeCdrService {
       LIMIT ?
     `;
 
-    const rows = await database.query(sql, params);
-    return this.#buildResult(rows, identifierVariants);
+    return database.query(sql, params);
+  }
+
+  async #searchElasticsearch(variantList, filters) {
+    if (!Array.isArray(variantList) || variantList.length === 0) {
+      return [];
+    }
+
+    if (!(await this.#ensureElasticsearchIndex())) {
+      return null;
+    }
+
+    const filterClauses = [{ terms: { identifiers: variantList } }];
+
+    if (filters.startDate) {
+      filterClauses.push({ range: { date_debut_appel: { gte: filters.startDate } } });
+    }
+    if (filters.endDate) {
+      filterClauses.push({ range: { date_debut_appel: { lte: filters.endDate } } });
+    }
+
+    if (filters.startTimeBound) {
+      const seconds = timeToSeconds(filters.startTimeBound);
+      if (seconds !== null) {
+        filterClauses.push({ range: { start_time_seconds: { gte: seconds } } });
+      }
+    }
+    if (filters.endTimeBound) {
+      const seconds = timeToSeconds(filters.endTimeBound);
+      if (seconds !== null) {
+        filterClauses.push({ range: { start_time_seconds: { lte: seconds } } });
+      }
+    }
+
+    try {
+      const response = await client.search({
+        index: this.indexName,
+        size: filters.limit,
+        query: { bool: { filter: filterClauses } },
+        sort: [
+          { call_timestamp: { order: 'asc', unmapped_type: 'date' } },
+          { record_id: { order: 'asc' } }
+        ],
+        track_total_hits: false
+      });
+
+      const hits = response?.hits?.hits || [];
+      if (!hits.length) {
+        return [];
+      }
+
+      return hits.map((hit) => {
+        const source = hit._source || {};
+        return {
+          id: source.record_id ?? hit._id,
+          type_appel: source.type_appel ?? null,
+          date_debut_appel: source.date_debut_appel ?? null,
+          date_fin_appel: source.date_fin_appel ?? null,
+          heure_debut_appel: source.heure_debut_appel ?? null,
+          heure_fin_appel: source.heure_fin_appel ?? null,
+          duree_appel: source.duree_appel ?? null,
+          numero_appelant:
+            source.numero_appelant ?? source.numero_appelant_normalized ?? null,
+          imei_appelant: source.imei_appelant ?? null,
+          numero_appele: source.numero_appele ?? source.numero_appele_normalized ?? null,
+          imsi_appelant: source.imsi_appelant ?? null,
+          cgi: source.cgi ?? null,
+          longitude: source.longitude ?? null,
+          latitude: source.latitude ?? null,
+          azimut: source.azimut ?? null,
+          nom_bts: source.nom_bts ?? null,
+          source_file: source.source_file ?? null,
+          inserted_at: source.inserted_at ?? null
+        };
+      });
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.error('Erreur de recherche Elasticsearch CDR temps réel:', error.message);
+        this.elasticEnabled = false;
+        this.indexEnsured = false;
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async #ensureElasticsearchIndex() {
+    if (!this.elasticEnabled) {
+      return false;
+    }
+    if (this.indexEnsured) {
+      return true;
+    }
+
+    try {
+      const exists = await client.indices.exists({ index: this.indexName });
+      if (!exists) {
+        await client.indices.create({
+          index: this.indexName,
+          mappings: {
+            properties: {
+              record_id: { type: 'long' },
+              type_appel: { type: 'keyword' },
+              event_type: { type: 'keyword' },
+              date_debut_appel: { type: 'date' },
+              date_fin_appel: { type: 'date' },
+              heure_debut_appel: { type: 'keyword' },
+              heure_fin_appel: { type: 'keyword' },
+              duree_appel: { type: 'keyword' },
+              duration_seconds: { type: 'integer' },
+              numero_appelant: { type: 'keyword' },
+              numero_appelant_sanitized: { type: 'keyword' },
+              numero_appelant_normalized: { type: 'keyword' },
+              numero_appele: { type: 'keyword' },
+              numero_appele_sanitized: { type: 'keyword' },
+              numero_appele_normalized: { type: 'keyword' },
+              caller_variants: { type: 'keyword' },
+              callee_variants: { type: 'keyword' },
+              identifiers: { type: 'keyword' },
+              imei_appelant: { type: 'keyword' },
+              imsi_appelant: { type: 'keyword' },
+              cgi: { type: 'keyword' },
+              longitude: { type: 'double' },
+              latitude: { type: 'double' },
+              azimut: { type: 'keyword' },
+              nom_bts: { type: 'keyword' },
+              source_file: { type: 'keyword' },
+              inserted_at: { type: 'date' },
+              call_timestamp: { type: 'date' },
+              start_time_seconds: { type: 'integer' },
+              end_time_seconds: { type: 'integer' }
+            }
+          }
+        });
+      }
+      this.indexEnsured = true;
+      return true;
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.error(
+          "Erreur connexion Elasticsearch lors de la préparation de l'index CDR temps réel:",
+          error.message
+        );
+        return false;
+      }
+      console.error('Erreur préparation index Elasticsearch CDR temps réel:', error);
+      throw error;
+    }
+  }
+
+  async #loadLastIndexedId() {
+    if (!this.elasticEnabled) {
+      this.lastIndexedId = 0;
+      return;
+    }
+
+    const response = await client.search({
+      index: this.indexName,
+      size: 1,
+      sort: [{ record_id: { order: 'desc' } }],
+      _source: ['record_id']
+    });
+
+    const hits = response?.hits?.hits || [];
+    if (hits.length > 0) {
+      const value = hits[0]?._source?.record_id;
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        this.lastIndexedId = parsed;
+      }
+    }
+  }
+
+  #scheduleIndexing(delay = this.pollInterval) {
+    if (!this.elasticEnabled) {
+      return;
+    }
+    if (this.indexTimer) {
+      return;
+    }
+    const effectiveDelay = Math.max(0, Number.isFinite(delay) ? delay : this.pollInterval);
+
+    this.indexTimer = setTimeout(() => {
+      this.indexTimer = null;
+      this.#indexNewRows();
+    }, effectiveDelay);
+
+    if (typeof this.indexTimer.unref === 'function') {
+      this.indexTimer.unref();
+    }
+  }
+
+  async #indexNewRows() {
+    if (!this.elasticEnabled || this.indexing) {
+      if (this.elasticEnabled) {
+        this.#scheduleIndexing(this.pollInterval);
+      }
+      return;
+    }
+
+    if (!(await this.#ensureElasticsearchIndex())) {
+      this.elasticEnabled = false;
+      console.warn(
+        '⚠️ Indexation temps réel des CDR désactivée (Elasticsearch indisponible).'
+      );
+      return;
+    }
+
+    this.indexing = true;
+
+    try {
+      let hasMore = true;
+      while (hasMore && this.elasticEnabled) {
+        const rows = await database.query(
+          `
+            SELECT
+              id,
+              type_appel,
+              date_debut_appel,
+              date_fin_appel,
+              heure_debut_appel,
+              heure_fin_appel,
+              duree_appel,
+              numero_appelant,
+              imei_appelant,
+              numero_appele,
+              imsi_appelant,
+              cgi,
+              longitude,
+              latitude,
+              azimut,
+              nom_bts,
+              source_file,
+              inserted_at
+            FROM autres.cdr_realtime
+            WHERE id > ?
+            ORDER BY id ASC
+            LIMIT ?
+          `,
+          [this.lastIndexedId, this.batchSize]
+        );
+
+        if (!rows.length) {
+          hasMore = false;
+          break;
+        }
+
+        await this.#indexBatch(rows);
+        this.lastIndexedId = rows[rows.length - 1].id;
+        hasMore = rows.length === this.batchSize;
+      }
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.warn(
+          '⚠️ Indexation Elasticsearch désactivée pour les CDR temps réel (connexion perdue).'
+        );
+        this.elasticEnabled = false;
+        this.indexEnsured = false;
+      } else {
+        console.error("Erreur lors de l'indexation des CDR temps réel:", error);
+      }
+    } finally {
+      this.indexReady = true;
+      this.indexing = false;
+      if (this.elasticEnabled) {
+        this.#scheduleIndexing(this.pollInterval);
+      }
+    }
+  }
+
+  async #indexBatch(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return;
+    }
+
+    const operations = [];
+
+    for (const row of rows) {
+      const document = this.#transformRow(row);
+      if (!document) {
+        continue;
+      }
+      operations.push({ index: { _index: this.indexName, _id: String(row.id) } });
+      operations.push(document);
+    }
+
+    if (operations.length === 0) {
+      return;
+    }
+
+    try {
+      const response = await client.bulk({ operations, refresh: false });
+      if (response.errors && Array.isArray(response.items)) {
+        for (const item of response.items) {
+          const action = item.index || item.create || item.update;
+          if (action?.error) {
+            console.error(
+              `Erreur indexation CDR temps réel #${action._id || 'inconnu'} :`,
+              action.error
+            );
+          }
+        }
+      }
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.error('Erreur indexation Elasticsearch CDR temps réel:', error.message);
+        this.elasticEnabled = false;
+        this.indexEnsured = false;
+        throw error;
+      }
+      throw error;
+    }
+  }
+
+  #transformRow(row) {
+    if (!row || typeof row !== 'object') {
+      return null;
+    }
+
+    const rawCaller = normalizeString(row.numero_appelant);
+    const rawCallee = normalizeString(row.numero_appele);
+    const callerVariants = buildIdentifierVariants(rawCaller);
+    const calleeVariants = buildIdentifierVariants(rawCallee);
+    const identifiers = new Set([...callerVariants, ...calleeVariants]);
+
+    const dateStart = normalizeDateInput(row.date_debut_appel);
+    const dateEnd = normalizeDateInput(row.date_fin_appel);
+    const startTime = normalizeTimeBound(row.heure_debut_appel);
+    const endTime = normalizeTimeBound(row.heure_fin_appel);
+
+    return {
+      record_id: row.id,
+      type_appel: normalizeString(row.type_appel),
+      event_type: resolveEventType(row.type_appel),
+      date_debut_appel: dateStart,
+      date_fin_appel: dateEnd,
+      heure_debut_appel: startTime,
+      heure_fin_appel: endTime,
+      duree_appel: normalizeString(row.duree_appel),
+      duration_seconds: parseDurationSeconds(row.duree_appel),
+      numero_appelant: rawCaller,
+      numero_appelant_sanitized: sanitizeNumber(rawCaller) || null,
+      numero_appelant_normalized: normalizePhoneNumber(rawCaller) || null,
+      numero_appele: rawCallee,
+      numero_appele_sanitized: sanitizeNumber(rawCallee) || null,
+      numero_appele_normalized: normalizePhoneNumber(rawCallee) || null,
+      caller_variants: Array.from(callerVariants),
+      callee_variants: Array.from(calleeVariants),
+      identifiers: Array.from(identifiers),
+      imei_appelant: normalizeString(row.imei_appelant),
+      imsi_appelant: normalizeString(row.imsi_appelant),
+      cgi: normalizeString(row.cgi),
+      longitude: toNullableNumber(row.longitude),
+      latitude: toNullableNumber(row.latitude),
+      azimut: normalizeString(row.azimut),
+      nom_bts: normalizeString(row.nom_bts),
+      source_file: normalizeString(row.source_file),
+      inserted_at: normalizeDateTimeInput(row.inserted_at),
+      call_timestamp: buildCallTimestampValue(dateStart, startTime),
+      start_time_seconds: timeToSeconds(startTime),
+      end_time_seconds: timeToSeconds(endTime)
+    };
   }
 
   #buildResult(rows, identifierSet) {
