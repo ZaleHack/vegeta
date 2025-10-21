@@ -6051,8 +6051,6 @@ useEffect(() => {
                 </div>
               </section>
 
-              <div>{renderCdrSearchForm()}</div>
-
               <section className="space-y-6">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                   <div>
