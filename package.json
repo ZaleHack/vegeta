@@ -11,7 +11,6 @@
     "sync": "node server/scripts/sync-all.js",
     "create-indexes": "node server/scripts/create-search-indexes.js",
     "search:bootstrap": "npm run create-indexes && npm run sync",
-    "bts:enrich": "node server/scripts/enrich-bts-cdr.js",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
