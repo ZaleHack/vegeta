@@ -861,14 +861,16 @@ export default {
       'cgi_appelant',
       'cgi_appele',
       'cgi_appele_original',
-      'nom_localisation'
+      'nom_localisation',
+      'nom_bts'
     ],
-    preview: ['oce', 'type_cdr', 'numero_intl_appelant', 'numero_intl_appele', 'cdr_numb'],
+    preview: ['oce', 'type_cdr', 'numero_intl_appelant', 'numero_intl_appele', 'cdr_numb', 'nom_bts'],
     filters: {
       date_debut: 'date',
       date_fin: 'date',
       latitude: 'number',
-      longitude: 'number'
+      longitude: 'number',
+      azimut: 'number'
     },
     theme: 'telecom'
   },
@@ -890,14 +892,16 @@ export default {
       'cgi_appelant',
       'cgi_appele',
       'cgi_appele_original',
-      'nom_localisation'
+      'nom_localisation',
+      'nom_bts'
     ],
-    preview: ['oce', 'type_cdr', 'numero_intl_appelant', 'numero_intl_appele', 'nom_localisation'],
+    preview: ['oce', 'type_cdr', 'numero_intl_appelant', 'numero_intl_appele', 'nom_localisation', 'nom_bts'],
     filters: {
       date_debut: 'date',
       date_fin: 'date',
       latitude: 'number',
-      longitude: 'number'
+      longitude: 'number',
+      azimut: 'number'
     },
     theme: 'telecom'
   },

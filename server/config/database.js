@@ -798,7 +798,9 @@ class DatabaseManager {
           cgi_appele_original VARCHAR(50) DEFAULT NULL,
           latitude DECIMAL(10,6) DEFAULT NULL,
           longitude DECIMAL(10,6) DEFAULT NULL,
+          azimut DECIMAL(10,4) DEFAULT NULL,
           nom_localisation VARCHAR(255) DEFAULT NULL,
+          nom_bts VARCHAR(255) DEFAULT NULL,
           INDEX idx_case_id (case_id),
           INDEX idx_file_id (file_id),
           INDEX idx_numero_appelant (numero_intl_appelant),
@@ -808,6 +810,16 @@ class DatabaseManager {
           FOREIGN KEY (case_id) REFERENCES autres.cdr_cases(id) ON DELETE CASCADE,
           FOREIGN KEY (file_id) REFERENCES autres.cdr_case_files(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await query(`
+        ALTER TABLE autres.cdr_records
+        ADD COLUMN IF NOT EXISTS azimut DECIMAL(10,4) DEFAULT NULL AFTER longitude
+      `);
+
+      await query(`
+        ALTER TABLE autres.cdr_records
+        ADD COLUMN IF NOT EXISTS nom_bts VARCHAR(255) DEFAULT NULL AFTER nom_localisation
       `);
 
       await query(`

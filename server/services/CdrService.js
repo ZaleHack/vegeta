@@ -80,6 +80,30 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isConnectionError = (error) =>
   error?.name === 'ConnectionError' || error?.meta?.statusCode === 0;
 
+const escapeCsvValue = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  const str = String(value);
+  if (!str) {
+    return '';
+  }
+  const needsQuotes = /[",\r\n]/.test(str);
+  const escaped = str.replace(/"/g, '""');
+  return needsQuotes ? `"${escaped}"` : escaped;
+};
+
+const normalizeHeaderName = (header) => {
+  if (!header) {
+    return '';
+  }
+  return String(header)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '')
+    .toLowerCase();
+};
+
 class CdrService {
   constructor() {
     if (CdrService.instance) {
@@ -216,6 +240,7 @@ class CdrService {
               cgi_appele: { type: 'keyword' },
               cgi_appele_original: { type: 'keyword' },
               nom_localisation: { type: 'keyword' },
+              nom_bts: { type: 'keyword' },
               call_timestamp: { type: 'date' },
               date_debut: { type: 'keyword' },
               heure_debut: { type: 'keyword' },
@@ -308,6 +333,9 @@ class CdrService {
       getValue(['numerointlappeleoriginal', 'numeroappeleoriginal'])
     );
 
+    const nomLocalisation = getValue(['nomlocalisation', 'nombts']) || null;
+    const nomBts = getValue(['nombts']) || nomLocalisation;
+
     const record = {
       oce: getValue(['oce']) || null,
       type_cdr: getValue(['typecdr', 'typeappel']) || null,
@@ -331,7 +359,8 @@ class CdrService {
       latitude: getValue(['latitude']) || null,
       longitude: getValue(['longitude']) || null,
       azimut: getValue(['azimut']) || null,
-      nom_localisation: getValue(['nomlocalisation', 'nombts']) || null,
+      nom_localisation: nomLocalisation,
+      nom_bts: nomBts || null,
       line_number: lineNumber
     };
 
@@ -367,6 +396,13 @@ class CdrService {
     for (const record of records) {
       if (!record) {
         continue;
+      }
+
+      if (
+        record.nom_localisation &&
+        (record.nom_bts === null || record.nom_bts === undefined || String(record.nom_bts).trim() === '')
+      ) {
+        record.nom_bts = record.nom_localisation;
       }
 
       const hasLatitude = record.latitude !== null && record.latitude !== undefined && record.latitude !== '';
@@ -437,9 +473,114 @@ class CdrService {
       ) {
         record.nom_localisation = location.nom_bts;
       }
+      if (location.nom_bts) {
+        record.nom_bts = location.nom_bts;
+      }
     });
 
     return records;
+  }
+
+  async writeEnrichedCsvFile(filePath, originalRows, headers, records) {
+    if (!Array.isArray(originalRows) || originalRows.length === 0) {
+      return;
+    }
+    if (!Array.isArray(records) || records.length !== originalRows.length) {
+      return;
+    }
+
+    try {
+      const requiredColumns = [
+        { header: 'LONGITUDE', getValue: (record) => record.longitude },
+        { header: 'LATITUDE', getValue: (record) => record.latitude },
+        { header: 'AZIMUT', getValue: (record) => record.azimut },
+        {
+          header: 'NOM_BTS',
+          getValue: (record) => record.nom_bts ?? record.nom_localisation ?? null
+        }
+      ];
+
+      const headerList = Array.isArray(headers) && headers.length > 0
+        ? [...headers]
+        : Object.keys(originalRows[0] || {});
+
+      if (headerList.length === 0) {
+        return;
+      }
+
+      const headerMap = new Map();
+      headerList.forEach((header) => {
+        headerMap.set(normalizeHeaderName(header), header);
+      });
+
+      let headerAdded = false;
+      for (const column of requiredColumns) {
+        const normalized = normalizeHeaderName(column.header);
+        if (!headerMap.has(normalized)) {
+          headerList.push(column.header);
+          headerMap.set(normalized, column.header);
+          headerAdded = true;
+        }
+      }
+
+      let valueUpdated = false;
+      const updatedRows = originalRows.map((row, index) => {
+        const record = records[index] || {};
+        const nextRow = { ...row };
+        for (const column of requiredColumns) {
+          const headerKey = headerMap.get(normalizeHeaderName(column.header));
+          if (!headerKey) {
+            continue;
+          }
+          const value = column.getValue(record);
+          if (value === null || value === undefined || value === '') {
+            continue;
+          }
+          const current = nextRow[headerKey];
+          const hasExistingValue =
+            current !== undefined &&
+            current !== null &&
+            String(current).trim() !== '';
+          if (!hasExistingValue) {
+            nextRow[headerKey] = value;
+            valueUpdated = true;
+          }
+        }
+        return nextRow;
+      });
+
+      if (!headerAdded && !valueUpdated) {
+        return;
+      }
+
+      const toCellValue = (value) => {
+        if (value === null || value === undefined) {
+          return '';
+        }
+        if (typeof value === 'number') {
+          return Number.isFinite(value) ? value : '';
+        }
+        if (typeof value === 'boolean') {
+          return value ? 'true' : 'false';
+        }
+        if (typeof value === 'string') {
+          return value;
+        }
+        return JSON.stringify(value);
+      };
+
+      const lines = [];
+      lines.push(headerList.map((header) => escapeCsvValue(header)).join(','));
+      for (const row of updatedRows) {
+        const cells = headerList.map((header) => escapeCsvValue(toCellValue(row[header])));
+        lines.push(cells.join(','));
+      }
+
+      const csvContent = `${lines.join('\n')}\n`;
+      await fs.promises.writeFile(filePath, csvContent, 'utf-8');
+    } catch (error) {
+      console.error('Erreur écriture fichier CDR enrichi:', error);
+    }
   }
 
   async indexRecords(metadata, records) {
@@ -522,20 +663,29 @@ class CdrService {
   }
 
   async readCsvRecords(filePath, metadata) {
-    const records = await new Promise((resolve, reject) => {
-      const records = [];
+    const { records, originalRows, headers } = await new Promise((resolve, reject) => {
+      const collectedRecords = [];
+      const rawRows = [];
+      let capturedHeaders = null;
       let lineNumber = 0;
       fs.createReadStream(filePath)
         .pipe(csv())
+        .on('headers', (hdrs) => {
+          if (Array.isArray(hdrs)) {
+            capturedHeaders = [...hdrs];
+          }
+        })
         .on('data', (row) => {
           lineNumber += 1;
+          rawRows.push({ ...row });
           const record = this.transformRow(row, metadata.cdrNumber, lineNumber);
-          records.push(record);
+          collectedRecords.push(record);
         })
-        .on('end', () => resolve(records))
+        .on('end', () => resolve({ records: collectedRecords, originalRows: rawRows, headers: capturedHeaders }))
         .on('error', (error) => reject(error));
     });
     await this.enrichRecords(records);
+    await this.writeEnrichedCsvFile(filePath, originalRows, headers, records);
     return records;
   }
 
@@ -781,7 +931,7 @@ class CdrService {
       if (!location) {
         return true;
       }
-      const locationValue = (record.nom_localisation || '').trim();
+      const locationValue = (record.nom_localisation || record.nom_bts || '').trim();
       if (!locationValue) {
         return false;
       }
@@ -900,7 +1050,7 @@ class CdrService {
           locationsMap[key] = {
             latitude: record.latitude,
             longitude: record.longitude,
-            nom: record.nom_localisation,
+            nom: record.nom_localisation || record.nom_bts || null,
             azimut: record.azimut ?? null,
             count: 0
           };
@@ -939,7 +1089,7 @@ class CdrService {
         const entry = {
           latitude: record.latitude,
           longitude: record.longitude,
-          nom: record.nom_localisation,
+          nom: record.nom_localisation || record.nom_bts || null,
           type: eventType,
           callDate,
           endDate,
