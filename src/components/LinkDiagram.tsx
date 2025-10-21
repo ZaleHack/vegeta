@@ -239,7 +239,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
   return (
     <div className={overlayClasses}>
       <div className={containerClasses}>
-        <div className="flex flex-col gap-4 px-6 py-4 bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white">
+        <div className="flex flex-col gap-4 px-6 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold">Diagramme des liens</h2>

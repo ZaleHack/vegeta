@@ -475,7 +475,7 @@ class CaseService {
           .font('Helvetica-Bold')
           .fontSize(12)
           .fillColor(colors.title)
-          .text('Devine Intelligence', signatureX, signatureY + 6, {
+          .text('SORA', signatureX, signatureY + 6, {
             width: signatureWidth,
             align: 'right'
           });
@@ -543,7 +543,7 @@ class CaseService {
           .fontSize(11)
           .fillColor(colors.muted)
           .text(
-            'Synthèse stratégique générée automatiquement par Devine Intelligence',
+            'Synthèse stratégique générée automatiquement par Sora Intelligence',
             heroX + 32,
             heroY + 60,
             { width: availableWidth - 64 }

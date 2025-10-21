@@ -5,19 +5,15 @@ const fs = require('fs');
 class DatabaseManager {
   constructor() {
     const dataDir = path.join(__dirname, '../../data');
-    const newDbPath = path.join(dataDir, 'devine-intelligence.db');
-    const legacyDbPaths = ['sora.db', 'vegeta.db'];
+    const newDbPath = path.join(dataDir, 'sora.db');
+    const oldDbPath = path.join(dataDir, 'vegeta.db');
 
-    // Preserve existing data by migrating the old database files if needed
-    for (const legacyName of legacyDbPaths) {
-      const legacyPath = path.join(dataDir, legacyName);
-      if (fs.existsSync(legacyPath) && !fs.existsSync(newDbPath)) {
-        try {
-          fs.renameSync(legacyPath, newDbPath);
-          break;
-        } catch (err) {
-          console.error('❌ Erreur lors de la migration de la base de données:', err);
-        }
+    // Preserve existing data by migrating the old database file if needed
+    if (fs.existsSync(oldDbPath) && !fs.existsSync(newDbPath)) {
+      try {
+        fs.renameSync(oldDbPath, newDbPath);
+      } catch (err) {
+        console.error('❌ Erreur lors de la migration de la base de données:', err);
       }
     }
 
