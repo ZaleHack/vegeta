@@ -2,9 +2,11 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import Blacklist from '../models/Blacklist.js';
 import UserLog from '../models/UserLog.js';
+import CaseService from '../services/CaseService.js';
 import realtimeCdrService from '../services/RealtimeCdrService.js';
 
 const router = express.Router();
+const caseService = new CaseService();
 
 const isValidDate = (value) => {
   if (!value) {
@@ -54,6 +56,23 @@ const normalizePhoneNumber = (value) => {
 
 router.get('/realtime/search', authenticate, async (req, res) => {
   try {
+    const caseIdParam =
+      typeof req.query.caseId === 'string'
+        ? req.query.caseId
+        : typeof req.query.case_id === 'string'
+          ? req.query.case_id
+          : null;
+
+    const caseId = caseIdParam ? Number.parseInt(caseIdParam, 10) : NaN;
+    if (!Number.isInteger(caseId) || caseId <= 0) {
+      return res.status(400).json({ error: 'ID de dossier requis' });
+    }
+
+    const existingCase = await caseService.getCaseById(caseId, req.user);
+    if (!existingCase) {
+      return res.status(404).json({ error: 'Dossier introuvable' });
+    }
+
     const identifier = typeof req.query.phone === 'string'
       ? req.query.phone
       : typeof req.query.number === 'string'
@@ -88,6 +107,7 @@ router.get('/realtime/search', authenticate, async (req, res) => {
             alert: true,
             number: sanitizedIdentifier,
             page: 'cdr-realtime',
+            case_id: caseId,
             message: 'Tentative de recherche sur un numéro blacklisté'
           })
         });
