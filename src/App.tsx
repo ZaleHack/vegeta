@@ -104,7 +104,6 @@ import { useSearchHistory } from './features/search/useSearchHistory';
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 const CASE_PAGE_SIZE_OPTIONS = [6, 12, 24];
-const CASE_FILE_PAGE_SIZE_OPTIONS = [5, 10, 20];
 const FRAUD_ROLE_LABELS: Record<string, string> = {
   caller: 'Appelant',
   callee: 'Appelé',
@@ -544,14 +543,6 @@ interface CdrCase {
   is_owner?: number | boolean;
   shared_user_ids?: number[];
   shared_with_me?: boolean;
-}
-
-interface CaseFile {
-  id: number;
-  filename: string;
-  uploaded_at: string;
-  line_count: number;
-  cdr_number: string | null;
 }
 
 interface FraudFileInfo {
@@ -1443,24 +1434,6 @@ const App: React.FC = () => {
   }, [totalCasePages]);
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
-  const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
-  const [caseFilesPage, setCaseFilesPage] = useState(1);
-  const [caseFilesPerPage, setCaseFilesPerPage] = useState(CASE_FILE_PAGE_SIZE_OPTIONS[0]);
-  const totalCaseFilesPages = Math.ceil(caseFiles.length / caseFilesPerPage) || 1;
-  const paginatedCaseFiles = useMemo(
-    () =>
-      caseFiles.slice(
-        (caseFilesPage - 1) * caseFilesPerPage,
-        caseFilesPage * caseFilesPerPage
-      ),
-    [caseFiles, caseFilesPage, caseFilesPerPage]
-  );
-  useEffect(() => {
-    setCaseFilesPage((page) => Math.min(page, Math.max(totalCaseFilesPages, 1)));
-  }, [totalCaseFilesPages]);
-  useEffect(() => {
-    setCaseFilesPage(1);
-  }, [selectedCase?.id]);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
   const [showMeetingPoints, setShowMeetingPoints] = useState(false);
   const [zoneMode, setZoneMode] = useState(false);
@@ -1586,19 +1559,6 @@ const App: React.FC = () => {
     [normalizeCdrNumber]
   );
 
-  const caseReferenceNumbers = useMemo(() => {
-    const rawNumbers = caseFiles
-      .map((file) => {
-        const value = file.cdr_number;
-        if (value === null || value === undefined) {
-          return '';
-        }
-        return String(value);
-      })
-      .filter((value) => value.trim().length > 0);
-    return dedupeCdrIdentifiers(rawNumbers);
-  }, [caseFiles, dedupeCdrIdentifiers]);
-
   const getEffectiveCdrIdentifiers = useCallback(() => {
     const combined = cdrIdentifierInput
       ? [...cdrIdentifiers, cdrIdentifierInput]
@@ -1623,8 +1583,7 @@ const App: React.FC = () => {
     () => getEffectiveCdrIdentifiers(),
     [getEffectiveCdrIdentifiers]
   );
-  const hasFraudDetectionNumbers =
-    effectiveCdrIdentifiers.length > 0 || caseReferenceNumbers.length > 0;
+  const hasFraudDetectionNumbers = effectiveCdrIdentifiers.length > 0;
 
   const formatFraudDate = (value?: string | null) => {
     if (!value) return '-';
@@ -3404,11 +3363,10 @@ useEffect(() => {
     const dedupedInput = providedNumbers.length > 0
       ? dedupeCdrIdentifiers(providedNumbers)
       : dedupeCdrIdentifiers(cdrIdentifiers);
-    const numbersForRequest = dedupedInput.length > 0 ? dedupedInput : caseReferenceNumbers;
 
-    if (numbersForRequest.length === 0) {
+    if (dedupedInput.length === 0) {
       setFraudResult(null);
-      setFraudError('Aucun CDR importé ne peut être analysé pour cette opération.');
+      setFraudError('Ajoutez au moins un numéro pour lancer l’analyse.');
       return;
     }
 
@@ -3420,7 +3378,7 @@ useEffect(() => {
       const params = new URLSearchParams();
       if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
       if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
-      numbersForRequest.forEach((identifier) => {
+      dedupedInput.forEach((identifier) => {
         params.append('numbers', identifier);
       });
       const query = params.toString();
@@ -3448,11 +3406,9 @@ useEffect(() => {
 
   const handleFraudDetectionClick = async () => {
     const identifiers = getEffectiveCdrIdentifiers();
-    const numbersForDetection = identifiers.length > 0 ? identifiers : caseReferenceNumbers;
-
-    if (numbersForDetection.length === 0) {
+    if (identifiers.length === 0) {
       setFraudResult(null);
-      setFraudError('Importez des CDR ou ajoutez un numéro pour lancer l’analyse');
+      setFraudError('Ajoutez au moins un numéro pour lancer l’analyse');
       return;
     }
 
@@ -3460,10 +3416,8 @@ useEffect(() => {
       setCdrIdentifierInput('');
     }
 
-    if (identifiers.length > 0) {
-      commitCdrIdentifiers(identifiers);
-    }
-    await fetchFraudDetection(numbersForDetection);
+    commitCdrIdentifiers(identifiers);
+    await fetchFraudDetection(identifiers);
   };
 
   const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
@@ -3857,53 +3811,12 @@ useEffect(() => {
     }
   };
 
-  const fetchCaseFiles = async (caseId: number) => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/cases/${caseId}/files`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCaseFiles(data);
-      }
-    } catch (err) {
-      console.error('Erreur chargement fichiers:', err);
-    }
-  };
-
-  const handleDeleteFile = (fileId: number) => {
-    if (!selectedCase) return;
-    const caseId = selectedCase.id;
-    openConfirmDialog({
-      title: 'Supprimer le fichier',
-      description: 'Supprimer ce fichier de l’opération sélectionnée ?',
-      confirmLabel: 'Supprimer',
-      tone: 'danger',
-      icon: <FileText className="h-5 w-5" />,
-      onConfirm: async () => {
-        try {
-          const token = localStorage.getItem('token');
-          await fetch(`/api/cases/${caseId}/files/${fileId}`, {
-            method: 'DELETE',
-            headers: { Authorization: token ? `Bearer ${token}` : '' }
-          });
-          fetchCaseFiles(caseId);
-        } catch (err) {
-          console.error('Erreur suppression fichier:', err);
-        }
-      }
-    });
-  };
-
   useEffect(() => {
     if (!selectedCase) {
-      setCaseFiles([]);
       setFraudResult(null);
       setFraudError('');
       setFraudLoading(false);
     } else {
-      fetchCaseFiles(selectedCase.id);
       setFraudResult(null);
       setFraudError('');
     }
@@ -4734,7 +4647,7 @@ useEffect(() => {
               )}
               {!hasFraudDetectionNumbers ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
-                  Importez des CDR ou ajoutez un numéro à la recherche pour lancer l’analyse de fraude.
+                  Ajoutez un numéro à la recherche pour lancer l’analyse de fraude.
                 </div>
               ) : fraudLoading ? (
                 <div className="flex items-center justify-center py-10">
@@ -6765,85 +6678,6 @@ useEffect(() => {
               {!showCdrMap && (
                 <div className="space-y-6">
                   {renderCdrSearchForm()}
-                  <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
-                    <div className="border-b border-white/30 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-6 text-white">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="space-y-2">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-white/80">
-                            <Clock className="h-4 w-4" />
-                            Historique
-                          </span>
-                          <h3 className="text-2xl font-semibold leading-tight">Historique des imports</h3>
-                          <p className="text-sm text-white/80 sm:max-w-sm">
-                            Consultez les fichiers déjà indexés pour cette opération.
-                          </p>
-                        </div>
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 text-white">
-                          <UploadCloud className="h-7 w-7" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-4 p-6">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h4 className="text-base font-semibold text-slate-700 dark:text-slate-200">Fichiers indexés</h4>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">Liste des relevés associés à cette opération.</p>
-                        </div>
-                        <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                          <Clock className="h-4 w-4" />
-                          {caseFiles.length} importation{caseFiles.length > 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      {caseFiles.length === 0 ? (
-                        <div className="rounded-3xl border border-dashed border-slate-200 bg-white/80 px-4 py-6 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
-                          Aucun fichier CDR indexé pour le moment. Les nouvelles données seront ajoutées automatiquement.
-                        </div>
-                      ) : (
-                        <>
-                          <div className="w-full overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                            <table className="min-w-full text-sm text-slate-600 dark:text-slate-200">
-                              <thead className="bg-slate-100/80 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 dark:bg-slate-800/80 dark:text-slate-300">
-                                <tr>
-                                  <th className="px-4 py-3 text-left">Nom du fichier</th>
-                                  <th className="px-4 py-3 text-left">Numéro</th>
-                                  <th className="px-4 py-3 text-left">Lignes</th>
-                                  <th className="px-4 py-3 text-right">Action</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                                {paginatedCaseFiles.map((f) => (
-                                  <tr key={f.id} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
-                                    <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-100">{f.filename}</td>
-                                    <td className="px-4 py-3">{f.cdr_number || '-'}</td>
-                                    <td className="px-4 py-3">{f.line_count}</td>
-                                    <td className="px-4 py-3 text-right">
-                                      <button
-                                        className="text-sm font-semibold text-rose-600 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-                                        onClick={() => handleDeleteFile(f.id)}
-                                      >
-                                        Supprimer
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          <PaginationControls
-                            currentPage={caseFilesPage}
-                            totalPages={Math.max(totalCaseFilesPages, 1)}
-                            onPageChange={setCaseFilesPage}
-                            pageSize={caseFilesPerPage}
-                            pageSizeOptions={CASE_FILE_PAGE_SIZE_OPTIONS}
-                            onPageSizeChange={(size) => {
-                              setCaseFilesPerPage(size);
-                              setCaseFilesPage(1);
-                            }}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </div>
                 </div>
               )}
 
