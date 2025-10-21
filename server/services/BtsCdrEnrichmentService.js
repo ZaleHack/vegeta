@@ -196,13 +196,23 @@ class BtsCdrEnrichmentService {
       let rowHasData = false;
 
       for (const header of ADDITIONAL_HEADERS) {
-        const rawValue = info?.[header] ?? '';
-        const nextValue =
-          rawValue === null || rawValue === undefined ? '' : String(rawValue);
         const currentValue =
           record[header] === null || record[header] === undefined
             ? ''
             : String(record[header]);
+
+        if (!info) {
+          if (currentValue) {
+            rowHasData = true;
+          }
+
+          record[header] = currentValue;
+          continue;
+        }
+
+        const rawValue = info[header];
+        const nextValue =
+          rawValue === null || rawValue === undefined ? '' : String(rawValue);
 
         if (currentValue !== nextValue) {
           updatedCells += 1;

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import BtsCdrEnrichmentService from '../services/BtsCdrEnrichmentService.js';
+import { closeBtsPool } from '../config/btsDatabase.js';
 
 dotenv.config();
 
@@ -64,7 +65,24 @@ const run = async () => {
   await processDirectory();
 };
 
-run().catch((error) => {
-  console.error('Erreur lors de l\'enrichissement des CDR BTS:', error);
-  process.exit(1);
-});
+const shutdown = async () => {
+  try {
+    await closeBtsPool();
+  } catch (error) {
+    console.error('Erreur lors de la fermeture de la connexion BTS:', error);
+    process.exitCode = 1;
+  }
+};
+
+const main = async () => {
+  try {
+    await run();
+  } catch (error) {
+    console.error("Erreur lors de l'enrichissement des CDR BTS:", error);
+    process.exitCode = 1;
+  } finally {
+    await shutdown();
+  }
+};
+
+main();
