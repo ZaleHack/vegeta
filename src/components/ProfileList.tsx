@@ -376,7 +376,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
             <button
               type="button"
               onClick={handleCreateClick}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl"
             >
               Créer une fiche
             </button>
@@ -541,7 +541,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
       {selected && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur">
           <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900 dark:shadow-slate-900/60">
-            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-5 text-white">
+            <div className="bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-6 py-5 text-white">
               <h2 className="text-2xl font-semibold">Détails du profil</h2>
               <p className="mt-1 text-sm text-white/80">
                 {selected.owner_login
