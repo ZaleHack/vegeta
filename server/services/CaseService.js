@@ -22,22 +22,16 @@ const normalizeCaseNumber = (value) => {
   }
   sanitized = sanitized.replace(/\D/g, '');
   if (!sanitized) return '';
-  sanitized = sanitized.replace(/^0+/, '');
-  if (!sanitized) return '';
-  if (sanitized.startsWith('221') && sanitized.length > 9) {
+  if (sanitized.startsWith('221')) {
     return sanitized;
   }
-  if (sanitized.length <= 9 && !sanitized.startsWith('221')) {
-    return `221${sanitized}`;
-  }
-  return sanitized;
+  sanitized = sanitized.replace(/^0+/, '');
+  return sanitized ? `221${sanitized}` : '';
 };
 
 class CaseService {
   constructor() {
     this.cdrService = new CdrService();
-    this.globalCaseId = this.cdrService.getGlobalCaseId();
-    this.globalCaseName = this.cdrService.getGlobalCaseName();
   }
 
   _isAdmin(user) {
@@ -212,8 +206,8 @@ class CaseService {
     }
     return await this.cdrService.search(identifier, {
       ...options,
-      caseId: this.globalCaseId,
-      caseName: this.globalCaseName
+      caseId: existingCase.id,
+      caseName: existingCase.name
     });
   }
 
@@ -231,7 +225,7 @@ class CaseService {
     const filteredNumbers = Array.isArray(numbers)
       ? numbers.filter(n => ALLOWED_PREFIXES.some(p => String(n).startsWith(p)))
       : [];
-    return await this.cdrService.findCommonContacts(filteredNumbers, this.globalCaseId, {
+    return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.id, {
       startDate,
       endDate,
       startTime,
@@ -278,7 +272,7 @@ class CaseService {
 
     const statusReferenceSet = new Set([...fileReferenceNumbers, ...referenceNumbers]);
 
-    const detections = await this.cdrService.detectNumberChanges(this.globalCaseId, {
+    const detections = await this.cdrService.detectNumberChanges(existingCase.id, {
       startDate,
       endDate,
       referenceNumbers: Array.from(referenceNumbers)
@@ -354,7 +348,7 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
-    return await this.cdrService.listLocations(this.globalCaseId);
+    return await this.cdrService.listLocations(existingCase.id);
   }
 
   async deleteFile(caseId, fileId, user) {
@@ -1319,10 +1313,7 @@ class CaseService {
       const identifier = rawNumber.startsWith('221') ? rawNumber : `221${rawNumber}`;
       let result;
       try {
-        result = await this.cdrService.search(identifier, {
-          caseId: this.globalCaseId,
-          caseName: this.globalCaseName
-        });
+        result = await this.cdrService.search(identifier, { caseId, caseName });
       } catch (err) {
         console.error('Erreur agrégation CDR pour rapport', err);
         ensureNumberEntry(identifier);
