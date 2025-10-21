@@ -153,7 +153,7 @@ router.get('/:id/search', authenticate, async (req, res) => {
     if (!existingCase) {
       return res.status(404).json({ error: 'Dossier introuvable' });
     }
-    const identifier = req.query.phone || req.query.imei || req.query.identifier;
+    const identifier = req.query.phone || req.query.imei;
     if (!identifier) {
       return res.status(400).json({ error: 'Paramètre phone ou imei requis' });
     }
