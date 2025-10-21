@@ -11,7 +11,7 @@
     "sync": "node server/scripts/sync-all.js",
     "create-indexes": "node server/scripts/create-search-indexes.js",
     "search:bootstrap": "npm run create-indexes && npm run sync",
-    "build": "tsc && vite build",
+    "build": "node scripts/build.js",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },

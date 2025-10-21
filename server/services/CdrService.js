@@ -8,6 +8,7 @@ import chokidar from 'chokidar';
 import client from '../config/elasticsearch.js';
 import Case from '../models/Case.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
+import BtsLocationService from './BtsLocationService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +16,8 @@ const __dirname = path.dirname(__filename);
 const ALLOWED_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 const CDR_INDEX = process.env.ELASTICSEARCH_CDR_INDEX || 'cdr-events';
 const SUPPORTED_EXTENSIONS = new Set(['.csv', '.xls', '.xlsx']);
+const GLOBAL_CASE_ID = 0;
+const GLOBAL_CASE_NAME = 'Flux CDR temps réel';
 
 const normalizePhoneNumber = (value) => {
   if (!value) return '';
@@ -29,11 +32,15 @@ const normalizePhoneNumber = (value) => {
   }
   sanitized = sanitized.replace(/\D/g, '');
   if (!sanitized) return '';
-  if (sanitized.startsWith('221')) {
+  sanitized = sanitized.replace(/^0+/, '');
+  if (!sanitized) return '';
+  if (sanitized.startsWith('221') && sanitized.length > 9) {
     return sanitized;
   }
-  sanitized = sanitized.replace(/^0+/, '');
-  return sanitized ? `221${sanitized}` : '';
+  if (sanitized.length <= 9 && !sanitized.startsWith('221')) {
+    return `221${sanitized}`;
+  }
+  return sanitized;
 };
 
 const normalizeDateValue = (value) => {
@@ -82,13 +89,24 @@ class CdrService {
     this.indexName = CDR_INDEX;
     this.elasticEnabled = isElasticsearchEnabled();
     this.baseDir = path.join(__dirname, '../../uploads/cdr');
+    this.btsDir = path.join(__dirname, '../../bts');
     this.manualProcessing = new Set();
+    this.btsProcessing = new Set();
+    this.btsLocationService = new BtsLocationService();
+    this.globalCaseId = GLOBAL_CASE_ID;
+    this.globalCaseName = GLOBAL_CASE_NAME;
 
     this.ensureBaseDirectory();
+    this.ensureBtsDirectory();
 
     if (!CdrService.watcherInitialized) {
       this.initializeWatcher();
       CdrService.watcherInitialized = true;
+    }
+
+    if (!CdrService.btsWatcherInitialized) {
+      this.initializeBtsWatcher();
+      CdrService.btsWatcherInitialized = true;
     }
 
     CdrService.instance = this;
@@ -96,6 +114,14 @@ class CdrService {
 
   async ensureBaseDirectory() {
     await ensureDirectory(this.baseDir);
+  }
+
+  async ensureBtsDirectory() {
+    try {
+      await ensureDirectory(this.btsDir);
+    } catch (error) {
+      console.error('Erreur création du dossier BTS:', error);
+    }
   }
 
   getCaseDirectory(caseId) {
@@ -108,6 +134,41 @@ class CdrService {
 
   getMarkerPath(filePath) {
     return `${filePath}.indexed`;
+  }
+
+  normalizeHeaderKey(key) {
+    if (!key) return '';
+    return String(key)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '')
+      .toLowerCase();
+  }
+
+  createRowValueAccessor(row) {
+    if (!row || typeof row !== 'object') {
+      return () => null;
+    }
+    const normalizedMap = new Map();
+    for (const [key, value] of Object.entries(row)) {
+      const normalized = this.normalizeHeaderKey(key);
+      if (!normalizedMap.has(normalized)) {
+        normalizedMap.set(normalized, value);
+      }
+    }
+
+    return (candidates) => {
+      if (!Array.isArray(candidates)) {
+        candidates = [candidates];
+      }
+      for (const candidate of candidates) {
+        const normalized = this.normalizeHeaderKey(candidate);
+        if (normalizedMap.has(normalized)) {
+          return normalizedMap.get(normalized);
+        }
+      }
+      return null;
+    };
   }
 
   parseFileIdentifiers(filePath) {
@@ -162,6 +223,7 @@ class CdrService {
               heure_fin: { type: 'keyword' },
               latitude: { type: 'double' },
               longitude: { type: 'double' },
+              azimut: { type: 'double' },
               line_number: { type: 'integer' },
               original_filename: { type: 'keyword' }
             }
@@ -229,41 +291,47 @@ class CdrService {
   }
 
   transformRow(row, cdrNumber, lineNumber) {
+    const getValue = this.createRowValueAccessor(row);
     const normalizePhone = (value) => {
       const normalized = normalizePhoneNumber(value);
       return normalized || null;
     };
 
-    const dateDebut = this.normalizeDate(row['Date debut'] || row['date_debut']);
-    const heureDebut = this.normalizeTime(row['Heure debut'] || row['heure_debut']);
-    const dateFin = this.normalizeDate(row['Date fin'] || row['date_fin']);
-    const heureFin = this.normalizeTime(row['Heure fin'] || row['heure_fin']);
+    const dateDebut = this.normalizeDate(getValue(['datedebut', 'datedebutappel']));
+    const heureDebut = this.normalizeTime(getValue(['heuredebut', 'heuredebutappel']));
+    const dateFin = this.normalizeDate(getValue(['datefin', 'datefinappel']));
+    const heureFin = this.normalizeTime(getValue(['heurefin', 'heurefinappel']));
+
+    const numeroAppelant = normalizePhone(getValue(['numerointlappelant', 'numeroappelant']));
+    const numeroAppele = normalizePhone(getValue(['numerointlappele', 'numeroappele']));
+    const numeroAppeleOriginal = normalizePhone(
+      getValue(['numerointlappeleoriginal', 'numeroappeleoriginal'])
+    );
 
     const record = {
-      oce: row['OCE'] || row['oce'] || null,
-      type_cdr: row['Type CDR'] || row['type_cdr'] || null,
+      oce: getValue(['oce']) || null,
+      type_cdr: getValue(['typecdr', 'typeappel']) || null,
       cdr_numb: cdrNumber,
       date_debut: dateDebut,
       heure_debut: heureDebut,
       date_fin: dateFin,
       heure_fin: heureFin,
-      duree: row['Duree'] || row['duree'] || null,
-      numero_intl_appelant: normalizePhone(row['Numero intl appelant'] || row['numero_intl_appelant']),
-      numero_intl_appele: normalizePhone(row['Numero intl appele'] || row['numero_intl_appele']),
-      numero_intl_appele_original: normalizePhone(
-        row['Numero intl appele original'] || row['numero_intl_appele_original']
-      ),
-      imei_appelant: row['IMEI appelant'] || row['imei_appelant'] || null,
-      imei_appele: row['IMEI appele'] || row['imei_appele'] || null,
-      imei_appele_original: row['IMEI appele original'] || row['imei_appele_original'] || null,
-      imsi_appelant: row['IMSI appelant'] || row['imsi_appelant'] || null,
-      imsi_appele: row['IMSI appele'] || row['imsi_appele'] || null,
-      cgi_appelant: row['CGI appelant'] || row['cgi_appelant'] || null,
-      cgi_appele: row['CGI appele'] || row['cgi_appele'] || null,
-      cgi_appele_original: row['CGI appele original'] || row['cgi_appele_original'] || null,
-      latitude: row['Latitude'] || row['latitude'] || null,
-      longitude: row['Longitude'] || row['longitude'] || null,
-      nom_localisation: row['Nom localisation'] || row['nom_localisation'] || null,
+      duree: getValue(['duree', 'dureeappel']) || null,
+      numero_intl_appelant: numeroAppelant,
+      numero_intl_appele: numeroAppele,
+      numero_intl_appele_original: numeroAppeleOriginal,
+      imei_appelant: getValue(['imeiappelant']) || null,
+      imei_appele: getValue(['imeiappele']) || null,
+      imei_appele_original: getValue(['imeiappeleoriginal']) || null,
+      imsi_appelant: getValue(['imsiappelant']) || null,
+      imsi_appele: getValue(['imsiappele']) || null,
+      cgi_appelant: getValue(['cgiappelant', 'cgi']) || null,
+      cgi_appele: getValue(['cgiappele']) || null,
+      cgi_appele_original: getValue(['cgiappeleoriginal']) || null,
+      latitude: getValue(['latitude']) || null,
+      longitude: getValue(['longitude']) || null,
+      azimut: getValue(['azimut']) || null,
+      nom_localisation: getValue(['nomlocalisation', 'nombts']) || null,
       line_number: lineNumber
     };
 
@@ -280,8 +348,98 @@ class CdrService {
       const lon = Number(record.longitude);
       record.longitude = Number.isNaN(lon) ? null : lon;
     }
+    if (record.azimut !== null && record.azimut !== undefined && record.azimut !== '') {
+      const azi = Number(record.azimut);
+      record.azimut = Number.isNaN(azi) ? null : azi;
+    }
 
     return record;
+  }
+
+  async enrichRecords(records) {
+    if (!Array.isArray(records) || records.length === 0) {
+      return records;
+    }
+
+    const lookups = [];
+    const targets = [];
+
+    for (const record of records) {
+      if (!record) {
+        continue;
+      }
+
+      const hasLatitude = record.latitude !== null && record.latitude !== undefined && record.latitude !== '';
+      const hasLongitude = record.longitude !== null && record.longitude !== undefined && record.longitude !== '';
+      const hasNom =
+        record.nom_localisation !== null &&
+        record.nom_localisation !== undefined &&
+        String(record.nom_localisation).trim() !== '';
+      const hasAzimut = record.azimut !== null && record.azimut !== undefined && record.azimut !== '';
+
+      if (hasLatitude && hasLongitude && hasNom && hasAzimut) {
+        continue;
+      }
+
+      const cgiCandidate = [
+        record.cgi_appelant,
+        record.cgi_appele,
+        record.cgi_appele_original
+      ].find((value) => {
+        if (value === null || value === undefined) {
+          return false;
+        }
+        const text = String(value).trim();
+        return text.length > 0;
+      });
+
+      if (!cgiCandidate) {
+        continue;
+      }
+
+      const normalized = String(cgiCandidate).trim();
+      targets.push({ record, cgi: normalized });
+      lookups.push(
+        this.btsLocationService
+          .getLocation(normalized)
+          .catch(() => null)
+      );
+    }
+
+    if (lookups.length === 0) {
+      return records;
+    }
+
+    const locations = await Promise.all(lookups);
+
+    locations.forEach((location, index) => {
+      if (!location) {
+        return;
+      }
+      const target = targets[index];
+      if (!target) {
+        return;
+      }
+      const { record } = target;
+
+      if (location.latitude !== null && location.latitude !== undefined) {
+        record.latitude = location.latitude;
+      }
+      if (location.longitude !== null && location.longitude !== undefined) {
+        record.longitude = location.longitude;
+      }
+      if (location.azimut !== null && location.azimut !== undefined) {
+        record.azimut = location.azimut;
+      }
+      if (
+        location.nom_bts &&
+        (!record.nom_localisation || String(record.nom_localisation).trim() === '')
+      ) {
+        record.nom_localisation = location.nom_bts;
+      }
+    });
+
+    return records;
   }
 
   async indexRecords(metadata, records) {
@@ -301,9 +459,23 @@ class CdrService {
 
     const operations = [];
     for (const record of records) {
-      const documentId = `${metadata.caseId}-${metadata.fileId}-${record.line_number}`;
+      const prefixParts = [];
+      if (metadata.caseId !== undefined && metadata.caseId !== null) {
+        prefixParts.push(metadata.caseId);
+      }
+      if (metadata.fileId !== undefined && metadata.fileId !== null) {
+        prefixParts.push(metadata.fileId);
+      }
+      if (metadata.documentPrefix) {
+        prefixParts.push(metadata.documentPrefix);
+      }
+      if (prefixParts.length === 0) {
+        prefixParts.push('cdr');
+      }
+      const documentId = `${prefixParts.join('-')}-${record.line_number}`;
+
       const doc = {
-        case_id: metadata.caseId,
+        case_id: metadata.caseId ?? null,
         case_name: metadata.caseName,
         file_id: metadata.fileId,
         cdr_number: metadata.cdrNumber,
@@ -350,7 +522,7 @@ class CdrService {
   }
 
   async readCsvRecords(filePath, metadata) {
-    return await new Promise((resolve, reject) => {
+    const records = await new Promise((resolve, reject) => {
       const records = [];
       let lineNumber = 0;
       fs.createReadStream(filePath)
@@ -363,6 +535,8 @@ class CdrService {
         .on('end', () => resolve(records))
         .on('error', (error) => reject(error));
     });
+    await this.enrichRecords(records);
+    return records;
   }
 
   async parseCsv(filePath, metadata) {
@@ -376,10 +550,12 @@ class CdrService {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
     let lineNumber = 0;
-    return rows.map((row) => {
+    const records = rows.map((row) => {
       lineNumber += 1;
       return this.transformRow(row, metadata.cdrNumber, lineNumber);
     });
+    await this.enrichRecords(records);
+    return records;
   }
 
   async parseExcel(filePath, metadata) {
@@ -399,7 +575,56 @@ class CdrService {
     return [];
   }
 
+  async loadRecordsForGlobal() {
+    await this.ensureBtsDirectory();
+    let entries = [];
+    try {
+      entries = await fs.promises.readdir(this.btsDir);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return [];
+      }
+      throw error;
+    }
+
+    const records = [];
+    for (const entry of entries) {
+      const extension = path.extname(entry).toLowerCase();
+      if (!SUPPORTED_EXTENSIONS.has(extension)) {
+        continue;
+      }
+      const fullPath = path.join(this.btsDir, entry);
+      const metadata = {
+        caseId: this.globalCaseId,
+        caseName: this.globalCaseName,
+        fileId: null,
+        cdrNumber: null,
+        originalName: entry,
+        documentPrefix: `bts-${entry.replace(/[^a-zA-Z0-9_-]+/g, '_')}`
+      };
+      try {
+        const fileRecords = await this.readRecordsFromFile(fullPath, metadata);
+        const enrichedRecords = fileRecords.map((record) => ({
+          ...record,
+          case_id: metadata.caseId,
+          case_name: metadata.caseName,
+          file_id: metadata.fileId,
+          cdr_number: metadata.cdrNumber,
+          original_filename: metadata.originalName
+        }));
+        records.push(...enrichedRecords);
+      } catch (error) {
+        console.error('Erreur lecture fichier CDR BTS:', error);
+      }
+    }
+
+    return records;
+  }
+
   async loadRecordsForCase(caseId) {
+    if (caseId === this.globalCaseId) {
+      return await this.loadRecordsForGlobal();
+    }
     const caseDir = this.getCaseDirectory(caseId);
     let entries = [];
     try {
@@ -676,10 +901,17 @@ class CdrService {
             latitude: record.latitude,
             longitude: record.longitude,
             nom: record.nom_localisation,
+            azimut: record.azimut ?? null,
             count: 0
           };
         }
         locationsMap[key].count += 1;
+        if (
+          locationsMap[key].azimut === null ||
+          locationsMap[key].azimut === undefined
+        ) {
+          locationsMap[key].azimut = record.azimut ?? null;
+        }
 
         let duration = 'N/A';
         if (record.duree) {
@@ -714,6 +946,8 @@ class CdrService {
           startTime: startTimeValue,
           endTime: endTimeValue,
           duration,
+          azimut: record.azimut ?? null,
+          cgi: record.cgi_appelant || record.cgi_appele || record.cgi_appele_original || null,
           imeiCaller: record.imei_appelant,
           imeiCalled: record.imei_appele,
           caller,
@@ -905,6 +1139,57 @@ class CdrService {
     }
   }
 
+  async handleBtsFile(filePath) {
+    const resolved = path.resolve(filePath);
+    if (this.btsProcessing.has(resolved)) {
+      return;
+    }
+
+    if (await this.isFileIndexed(filePath)) {
+      return;
+    }
+
+    const extension = path.extname(filePath).toLowerCase();
+    if (!SUPPORTED_EXTENSIONS.has(extension)) {
+      return;
+    }
+
+    this.btsProcessing.add(resolved);
+
+    try {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        try {
+          const stats = await fs.promises.stat(filePath);
+          if (stats.size === 0) {
+            await sleep(500);
+            continue;
+          }
+          break;
+        } catch {
+          await sleep(500);
+        }
+      }
+
+      const baseName = path.basename(filePath);
+      const metadata = {
+        caseId: this.globalCaseId,
+        caseName: this.globalCaseName,
+        fileId: null,
+        cdrNumber: null,
+        originalName: baseName,
+        documentPrefix: `bts-${baseName.replace(/[^a-zA-Z0-9_-]+/g, '_')}`
+      };
+
+      const records = await this.readRecordsFromFile(filePath, metadata);
+      const { inserted, indexed } = await this.indexRecords(metadata, records);
+      await this.markFileIndexed(filePath, inserted, indexed);
+    } catch (error) {
+      console.error('Erreur indexation automatique fichier BTS:', error);
+    } finally {
+      this.btsProcessing.delete(resolved);
+    }
+  }
+
   initializeWatcher() {
     const watcher = chokidar.watch(path.join(this.baseDir, '**/*'), {
       ignoreInitial: false,
@@ -923,6 +1208,31 @@ class CdrService {
 
     watcher.on('error', (error) => {
       console.error('Erreur watcher fichiers CDR:', error);
+    });
+  }
+
+  initializeBtsWatcher() {
+    const watcher = chokidar.watch(path.join(this.btsDir, '**/*'), {
+      ignoreInitial: false,
+      awaitWriteFinish: {
+        stabilityThreshold: 1000,
+        pollInterval: 200
+      }
+    });
+
+    watcher.on('add', (filePath) => {
+      if (filePath.endsWith('.indexed') || filePath.endsWith('.meta.json')) {
+        return;
+      }
+      const extension = path.extname(filePath).toLowerCase();
+      if (!SUPPORTED_EXTENSIONS.has(extension)) {
+        return;
+      }
+      this.handleBtsFile(filePath);
+    });
+
+    watcher.on('error', (error) => {
+      console.error('Erreur watcher fichiers BTS:', error);
     });
   }
 
@@ -952,7 +1262,7 @@ class CdrService {
       type = 'both'
     } = options;
 
-    if (!caseId) {
+    if (caseId === undefined || caseId === null) {
       throw new Error('caseId requis pour la recherche CDR');
     }
 
@@ -1594,6 +1904,14 @@ class CdrService {
 
   async clearTable(caseId) {
     await this.deleteCaseData(caseId);
+  }
+
+  getGlobalCaseId() {
+    return this.globalCaseId;
+  }
+
+  getGlobalCaseName() {
+    return this.globalCaseName;
   }
 }
 
