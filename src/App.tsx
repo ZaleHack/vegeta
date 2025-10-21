@@ -519,6 +519,7 @@ interface CdrPoint {
   imeiCaller?: string;
   imeiCalled?: string;
   source?: string;
+  tracked?: string;
 }
 
 interface CdrSearchResult {
@@ -3282,7 +3283,12 @@ useEffect(() => {
                   : false;
               })
             : [];
-          filtered.forEach((p: CdrPoint) => (p.source = id));
+          filtered.forEach((p: CdrPoint) => {
+            const caller = (p.caller || '').trim();
+            const locationOwner = p.type === 'web' ? id : caller || id;
+            p.source = locationOwner;
+            p.tracked = id;
+          });
           allPaths.push(...filtered);
         } else {
           setCdrError(data.error || 'Erreur lors de la recherche');

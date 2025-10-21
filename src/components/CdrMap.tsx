@@ -50,6 +50,7 @@ interface Point {
   imeiCaller?: string;
   imeiCalled?: string;
   source?: string;
+  tracked?: string;
 }
 
 interface Contact {
@@ -774,8 +775,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         }
       }
 
+      if (point.tracked) {
+        details.push({ label: 'Numéro suivi', value: formatPhoneForDisplay(point.tracked) });
+      }
       if (point.source) {
-        details.push({ label: 'Numéro suivi', value: formatPhoneForDisplay(point.source) });
+        const trackedNormalized = normalizePhoneDigits(point.tracked);
+        const sourceNormalized = normalizePhoneDigits(point.source);
+        const label = point.type === 'web' ? 'Numéro localisé' : 'Numéro appelant localisé';
+        const shouldShowLocationOwner =
+          !point.tracked || trackedNormalized !== sourceNormalized || point.type === 'web';
+        if (shouldShowLocationOwner) {
+          details.push({ label, value: formatPhoneForDisplay(point.source) });
+        }
       }
 
       const filteredDetails = details.filter(
@@ -1095,7 +1106,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         <div className="pointer-events-none absolute inset-0 bg-white/75" aria-hidden />
         <div className="relative space-y-3 px-4 py-4">
           <div className="rounded-2xl border border-white/60 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-sm">
-            <p className="text-[10px] uppercase tracking-wide text-purple-500">Numéro suivi</p>
+            <p className="text-[10px] uppercase tracking-wide text-purple-500">Numéro localisé</p>
             <p className="text-sm font-semibold text-purple-600">
               {formatPhoneForDisplay(zone.source)}
             </p>
