@@ -9,9 +9,16 @@ dotenv.config();
 const service = new BtsCdrEnrichmentService();
 
 const logResult = (result) => {
-  const relativePath = path.relative(process.cwd(), result.filePath);
   const enrichedInfo = `${result.enrichedRows}/${result.rows}`;
-  console.log(`✅ ${relativePath} - ${enrichedInfo} lignes enrichies`);
+  const sourcePath = path.relative(process.cwd(), result.sourcePath || result.filePath);
+  const outputPath = path.relative(process.cwd(), result.filePath);
+
+  if (sourcePath === outputPath) {
+    console.log(`✅ ${outputPath} - ${enrichedInfo} lignes enrichies`);
+    return;
+  }
+
+  console.log(`✅ ${sourcePath} → ${outputPath} - ${enrichedInfo} lignes enrichies`);
 };
 
 const logError = (file, error) => {
@@ -32,6 +39,7 @@ const processSingleFile = async (filePath) => {
 const processDirectory = async () => {
   await service.ensureBaseDirectory();
   const baseDir = service.getBaseDirectory();
+  const outputDir = service.getOutputDirectory();
   let entries = [];
 
   try {
@@ -46,6 +54,7 @@ const processDirectory = async () => {
 
   if (csvFiles.length === 0) {
     console.log('Aucun fichier CSV à traiter dans le dossier bts/.');
+    console.log(`Les fichiers enrichis seront écrits dans ${path.relative(process.cwd(), outputDir)}/`);
     return;
   }
 

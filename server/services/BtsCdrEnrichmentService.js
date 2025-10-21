@@ -112,9 +112,12 @@ const ensureDirectory = async (dirPath) => {
 class BtsCdrEnrichmentService {
   constructor(options = {}) {
     const baseDir = options.baseDir || path.join(process.cwd(), 'bts');
+    const outputDir = options.outputDir || path.join(baseDir, 'enriched');
+
     this.baseDir = path.resolve(baseDir);
+    this.outputDir = path.resolve(outputDir);
     this.lookupService = new BtsLookupService();
-    this.ensureDirPromise = ensureDirectory(this.baseDir);
+    this.ensureDirPromise = Promise.all([ensureDirectory(this.baseDir), ensureDirectory(this.outputDir)]);
   }
 
   async ensureBaseDirectory() {
@@ -123,6 +126,10 @@ class BtsCdrEnrichmentService {
 
   getBaseDirectory() {
     return this.baseDir;
+  }
+
+  getOutputDirectory() {
+    return this.outputDir;
   }
 
   resolvePath(filePath) {
@@ -156,6 +163,13 @@ class BtsCdrEnrichmentService {
   async enrichFile(filePath) {
     await this.ensureBaseDirectory();
     const resolvedPath = this.resolvePath(filePath);
+    const relativePath = path.relative(this.baseDir, resolvedPath);
+
+    if (relativePath.startsWith('..')) {
+      throw new Error('Le fichier CDR doit être situé dans le dossier bts/');
+    }
+
+    const outputPath = path.join(this.outputDir, relativePath);
 
     const stats = await fs.promises.stat(resolvedPath);
     if (!stats.isFile()) {
@@ -220,14 +234,16 @@ class BtsCdrEnrichmentService {
       }
     }
 
-    await this.writeCsv(resolvedPath, outputHeaders, records, {
+    await this.writeCsv(outputPath, outputHeaders, records, {
       delimiter,
       lineEnding,
       hasBom
     });
 
     return {
-      filePath: resolvedPath,
+      sourcePath: resolvedPath,
+      outputPath,
+      filePath: outputPath,
       rows: records.length,
       enrichedRows,
       updatedValues: updatedCells
