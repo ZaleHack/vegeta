@@ -14,11 +14,15 @@ const normalizePhoneNumber = (value) => {
   }
   sanitized = sanitized.replace(/\D/g, '');
   if (!sanitized) return '';
-  if (sanitized.startsWith('221')) {
+  sanitized = sanitized.replace(/^0+/, '');
+  if (!sanitized) return '';
+  if (sanitized.startsWith('221') && sanitized.length > 9) {
     return sanitized;
   }
-  sanitized = sanitized.replace(/^0+/, '');
-  return sanitized ? `221${sanitized}` : '';
+  if (sanitized.length <= 9 && !sanitized.startsWith('221')) {
+    return `221${sanitized}`;
+  }
+  return sanitized;
 };
 
 const normalizeDateValue = (value) => {
