@@ -3247,6 +3247,16 @@ useEffect(() => {
       return;
     }
 
+    if (!selectedCase) {
+      setLinkDiagram(null);
+      setCdrResult(null);
+      setCdrLoading(false);
+      setCdrError('Veuillez sélectionner un dossier pour lancer la recherche');
+      setCdrInfoMessage('');
+      setShowCdrMap(false);
+      return;
+    }
+
     setLinkDiagram(null);
     setCdrLoading(true);
     setCdrError('');
@@ -3260,6 +3270,7 @@ useEffect(() => {
 
       for (const id of ids) {
         const params = new URLSearchParams();
+        params.append('caseId', String(selectedCase.id));
         params.append('phone', id);
         if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
         if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
