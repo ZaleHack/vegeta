@@ -308,7 +308,10 @@ const resolveEventType = (value) => {
 };
 
 class RealtimeCdrService {
-  constructor() {
+  constructor(options = {}) {
+    const { autoStart = true } = options;
+
+    this.autoStart = autoStart !== false;
     this.indexName = REALTIME_INDEX;
     this.elasticEnabled = isElasticsearchEnabled();
     this.batchSize = INDEX_BATCH_SIZE;
@@ -319,13 +322,13 @@ class RealtimeCdrService {
     this.indexing = false;
     this.indexTimer = null;
 
-    this.initializationPromise = this.elasticEnabled
+    this.initializationPromise = this.elasticEnabled && this.autoStart
       ? this.#initializeElasticsearch().catch((error) => {
           console.error('Erreur initialisation Elasticsearch CDR temps réel:', error);
           this.elasticEnabled = false;
           return false;
         })
-      : Promise.resolve(false);
+      : null;
   }
 
   async #initializeElasticsearch() {
@@ -649,6 +652,92 @@ class RealtimeCdrService {
     }
   }
 
+  #resolveBatchSize(limit) {
+    const parsed = Number(limit);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.min(Math.floor(parsed), MAX_BATCH_SIZE);
+    }
+
+    const base = Number(this.batchSize);
+    if (Number.isFinite(base) && base > 0) {
+      return Math.min(Math.floor(base), MAX_BATCH_SIZE);
+    }
+
+    return Math.min(Math.max(1, INDEX_BATCH_SIZE), MAX_BATCH_SIZE);
+  }
+
+  async #fetchRows(afterId, limit) {
+    const numericAfterId = Number(afterId);
+    const startId = Number.isFinite(numericAfterId)
+      ? Math.max(0, Math.floor(numericAfterId))
+      : 0;
+
+    const effectiveLimit = this.#resolveBatchSize(limit);
+
+    return database.query(
+      `
+        SELECT
+          id,
+          type_appel,
+          date_debut_appel,
+          date_fin_appel,
+          heure_debut_appel,
+          heure_fin_appel,
+          duree_appel,
+          numero_appelant,
+          imei_appelant,
+          numero_appele,
+          imsi_appelant,
+          cgi,
+          longitude,
+          latitude,
+          azimut,
+          nom_bts,
+          source_file,
+          inserted_at
+        FROM autres.cdr_realtime
+        WHERE id > ?
+        ORDER BY id ASC
+        LIMIT ?
+      `,
+      [startId, effectiveLimit]
+    );
+  }
+
+  async #resetElasticsearchIndex() {
+    if (!this.elasticEnabled) {
+      return false;
+    }
+
+    try {
+      const exists = await client.indices.exists({ index: this.indexName });
+      if (exists) {
+        await client.indices.delete({ index: this.indexName });
+      }
+      this.indexEnsured = false;
+      this.lastIndexedId = 0;
+      return true;
+    } catch (error) {
+      const statusCode = error?.meta?.statusCode;
+      if (statusCode === 404) {
+        this.indexEnsured = false;
+        this.lastIndexedId = 0;
+        return true;
+      }
+
+      if (isConnectionError(error)) {
+        console.error(
+          'Erreur suppression index Elasticsearch CDR temps réel:',
+          error.message
+        );
+        this.elasticEnabled = false;
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
   #scheduleIndexing(delay = this.pollInterval) {
     if (!this.elasticEnabled) {
       return;
@@ -665,6 +754,149 @@ class RealtimeCdrService {
 
     if (typeof this.indexTimer.unref === 'function') {
       this.indexTimer.unref();
+    }
+  }
+
+  async bootstrapIndex(options = {}) {
+    if (!this.elasticEnabled) {
+      console.warn(
+        "⚠️ Indexation CDR temps réel ignorée : Elasticsearch est désactivé."
+      );
+      return {
+        indexed: 0,
+        batches: 0,
+        lastId: this.lastIndexedId || 0,
+        skipped: true
+      };
+    }
+
+    if (this.indexing) {
+      console.warn(
+        '⚠️ Impossible de lancer la réindexation CDR temps réel : une indexation est déjà en cours.'
+      );
+      return {
+        indexed: 0,
+        batches: 0,
+        lastId: this.lastIndexedId || 0,
+        skipped: true
+      };
+    }
+
+    if (this.indexTimer) {
+      clearTimeout(this.indexTimer);
+      this.indexTimer = null;
+    }
+
+    const { reset = false, batchSize = null, onBatchComplete = null } = options;
+
+    const originalBatchSize = this.batchSize;
+    const previousIndexReady = this.indexReady;
+    const overrideBatchSize = this.#resolveBatchSize(
+      batchSize === null ? this.batchSize : batchSize
+    );
+    this.batchSize = overrideBatchSize;
+
+    let totalIndexed = 0;
+    let batchCount = 0;
+    let lastId = this.lastIndexedId || 0;
+
+    this.indexing = true;
+    this.indexReady = false;
+
+    try {
+      if (reset) {
+        const resetOk = await this.#resetElasticsearchIndex();
+        if (!resetOk) {
+          return {
+            indexed: 0,
+            batches: 0,
+            lastId: this.lastIndexedId || 0,
+            skipped: true
+          };
+        }
+      }
+
+      const ensured = await this.#ensureElasticsearchIndex();
+      if (!ensured) {
+        return {
+          indexed: 0,
+          batches: 0,
+          lastId: this.lastIndexedId || 0,
+          skipped: true
+        };
+      }
+
+      if (!reset) {
+        await this.#loadLastIndexedId();
+      } else {
+        this.lastIndexedId = 0;
+      }
+
+      lastId = this.lastIndexedId || 0;
+
+      let hasMore = true;
+      while (hasMore && this.elasticEnabled) {
+        const rows = await this.#fetchRows(lastId, this.batchSize);
+        if (!rows.length) {
+          hasMore = false;
+          break;
+        }
+
+        const indexedCount = await this.#indexBatch(rows);
+        totalIndexed += indexedCount;
+        batchCount += 1;
+        lastId = rows[rows.length - 1].id;
+        this.lastIndexedId = lastId;
+
+        if (typeof onBatchComplete === 'function') {
+          try {
+            await onBatchComplete({
+              batch: batchCount,
+              indexed: indexedCount,
+              lastId
+            });
+          } catch (callbackError) {
+            console.error(
+              'Erreur lors de la notification de progression CDR temps réel:',
+              callbackError
+            );
+          }
+        }
+
+        hasMore = rows.length === this.batchSize;
+      }
+
+      this.indexReady = true;
+
+      return {
+        indexed: totalIndexed,
+        batches: batchCount,
+        lastId,
+        skipped: false
+      };
+    } catch (error) {
+      if (isConnectionError(error)) {
+        return {
+          indexed: totalIndexed,
+          batches: batchCount,
+          lastId: this.lastIndexedId || lastId || 0,
+          error,
+          skipped: false
+        };
+      }
+
+      throw error;
+    } finally {
+      this.batchSize = originalBatchSize;
+      this.indexing = false;
+
+      if (!this.indexReady && previousIndexReady) {
+        this.indexReady = previousIndexReady;
+      }
+
+      if (this.autoStart && this.elasticEnabled) {
+        this.#scheduleIndexing(this.pollInterval);
+      }
     }
   }
 
@@ -689,34 +921,8 @@ class RealtimeCdrService {
     try {
       let hasMore = true;
       while (hasMore && this.elasticEnabled) {
-        const rows = await database.query(
-          `
-            SELECT
-              id,
-              type_appel,
-              date_debut_appel,
-              date_fin_appel,
-              heure_debut_appel,
-              heure_fin_appel,
-              duree_appel,
-              numero_appelant,
-              imei_appelant,
-              numero_appele,
-              imsi_appelant,
-              cgi,
-              longitude,
-              latitude,
-              azimut,
-              nom_bts,
-              source_file,
-              inserted_at
-            FROM autres.cdr_realtime
-            WHERE id > ?
-            ORDER BY id ASC
-            LIMIT ?
-          `,
-          [this.lastIndexedId, this.batchSize]
-        );
+        const batchLimit = this.#resolveBatchSize(this.batchSize);
+        const rows = await this.#fetchRows(this.lastIndexedId, batchLimit);
 
         if (!rows.length) {
           hasMore = false;
@@ -725,7 +931,7 @@ class RealtimeCdrService {
 
         await this.#indexBatch(rows);
         this.lastIndexedId = rows[rows.length - 1].id;
-        hasMore = rows.length === this.batchSize;
+        hasMore = rows.length === batchLimit;
       }
     } catch (error) {
       if (isConnectionError(error)) {
@@ -748,10 +954,11 @@ class RealtimeCdrService {
 
   async #indexBatch(rows) {
     if (!Array.isArray(rows) || rows.length === 0) {
-      return;
+      return 0;
     }
 
     const operations = [];
+    let documentsToIndex = 0;
 
     for (const row of rows) {
       const document = this.#transformRow(row);
@@ -760,15 +967,18 @@ class RealtimeCdrService {
       }
       operations.push({ index: { _index: this.indexName, _id: String(row.id) } });
       operations.push(document);
+      documentsToIndex += 1;
     }
 
     if (operations.length === 0) {
-      return;
+      return 0;
     }
 
     try {
       const response = await client.bulk({ operations, refresh: false });
+      let successCount = documentsToIndex;
       if (response.errors && Array.isArray(response.items)) {
+        successCount = 0;
         for (const item of response.items) {
           const action = item.index || item.create || item.update;
           if (action?.error) {
@@ -776,9 +986,20 @@ class RealtimeCdrService {
               `Erreur indexation CDR temps réel #${action._id || 'inconnu'} :`,
               action.error
             );
+          } else {
+            successCount += 1;
+          }
+        }
+      } else if (Array.isArray(response.items)) {
+        successCount = 0;
+        for (const item of response.items) {
+          const action = item.index || item.create || item.update;
+          if (!action?.error) {
+            successCount += 1;
           }
         }
       }
+      return successCount;
     } catch (error) {
       if (isConnectionError(error)) {
         console.error('Erreur indexation Elasticsearch CDR temps réel:', error.message);
@@ -944,4 +1165,7 @@ class RealtimeCdrService {
   }
 }
 
-export default new RealtimeCdrService();
+const realtimeCdrService = new RealtimeCdrService();
+
+export { RealtimeCdrService };
+export default realtimeCdrService;
