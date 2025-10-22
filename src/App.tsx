@@ -3304,23 +3304,29 @@ useEffect(() => {
 
             const callerNormalized = normalizeCdrNumber(rawCaller);
             const calleeNormalized = normalizeCdrNumber(rawCallee);
-            let contactNormalized = normalizeCdrNumber(rawNumber);
-            let contactRaw = rawNumber;
+            type ContactCandidate = { normalized?: string; raw: string };
+            const candidates: ContactCandidate[] = [
+              { normalized: normalizeCdrNumber(rawNumber), raw: rawNumber },
+              { normalized: callerNormalized, raw: rawCaller },
+              { normalized: calleeNormalized, raw: rawCallee }
+            ];
 
-            if (!contactNormalized) {
-              if (callerNormalized && callerNormalized !== trackedNormalized) {
-                contactNormalized = callerNormalized;
-                contactRaw = rawCaller;
-              } else if (calleeNormalized && calleeNormalized !== trackedNormalized) {
-                contactNormalized = calleeNormalized;
-                contactRaw = rawCallee;
-              } else if (callerNormalized) {
-                contactNormalized = callerNormalized;
-                contactRaw = rawCaller;
-              } else if (calleeNormalized) {
-                contactNormalized = calleeNormalized;
-                contactRaw = rawCallee;
+            let contactNormalized = '';
+            let contactRaw = '';
+
+            const pickContact = (allowTracked: boolean) => {
+              for (const candidate of candidates) {
+                if (!candidate.normalized) continue;
+                if (!allowTracked && candidate.normalized === trackedNormalized) continue;
+                contactNormalized = candidate.normalized;
+                contactRaw = candidate.raw || candidate.normalized;
+                return true;
               }
+              return false;
+            };
+
+            if (!pickContact(false)) {
+              pickContact(true);
             }
 
             if (contactNormalized) {
