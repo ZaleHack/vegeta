@@ -39,10 +39,6 @@ import {
   ClipboardList,
   RefreshCw,
   Bell,
-  PhoneIncoming,
-  PhoneOutgoing,
-  MessageSquare,
-  MapPin,
   AlertTriangle,
   Share2,
   GripVertical,
@@ -1391,10 +1387,6 @@ const App: React.FC = () => {
   const [cdrEnd, setCdrEnd] = useState('');
   const [cdrStartTime, setCdrStartTime] = useState('');
   const [cdrEndTime, setCdrEndTime] = useState('');
-  const [cdrIncoming, setCdrIncoming] = useState(true);
-  const [cdrOutgoing, setCdrOutgoing] = useState(true);
-  const [cdrSms, setCdrSms] = useState(true);
-  const [cdrPosition, setCdrPosition] = useState(true);
   const [cdrItinerary, setCdrItinerary] = useState(false);
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
@@ -3272,16 +3264,7 @@ useEffect(() => {
         const data = await res.json();
         if (res.ok) {
           const filtered = Array.isArray(data.path)
-            ? data.path.filter((p: CdrPoint) => {
-                if (String(p.number || '').startsWith('2214')) return false;
-                if (p.type === 'web') return cdrPosition;
-                if (p.type === 'sms') return cdrSms;
-                return p.direction === 'incoming'
-                  ? cdrIncoming
-                  : p.direction === 'outgoing'
-                  ? cdrOutgoing
-                  : false;
-              })
+            ? data.path.filter((p: CdrPoint) => !String(p.number || '').startsWith('2214'))
             : [];
           filtered.forEach((p: CdrPoint) => {
             const caller = (p.caller || '').trim();
@@ -3479,23 +3462,12 @@ useEffect(() => {
     setCdrEnd('');
     setCdrStartTime('');
     setCdrEndTime('');
-    setCdrIncoming(true);
-    setCdrOutgoing(true);
-    setCdrSms(true);
-    setCdrPosition(true);
     setCdrItinerary(false);
     setCdrError('');
     setCdrInfoMessage('');
     setCdrResult(null);
     setShowCdrMap(false);
   };
-
-  useEffect(() => {
-    if (cdrIdentifiers.length > 0) {
-      fetchCdrData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cdrIncoming, cdrOutgoing, cdrSms, cdrPosition]);
 
   const handleCdrSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -4542,51 +4514,7 @@ useEffect(() => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <ToggleSwitch
-              label={
-                <div className="flex items-center gap-2">
-                  <PhoneIncoming className="h-4 w-4 text-emerald-500" />
-                  <span>Appels entrants</span>
-                </div>
-              }
-              checked={cdrIncoming}
-              onChange={setCdrIncoming}
-              activeColor="peer-checked:bg-emerald-500 dark:peer-checked:bg-emerald-500"
-            />
-            <ToggleSwitch
-              label={
-                <div className="flex items-center gap-2">
-                  <PhoneOutgoing className="h-4 w-4 text-blue-500" />
-                  <span>Appels sortants</span>
-                </div>
-              }
-              checked={cdrOutgoing}
-              onChange={setCdrOutgoing}
-              activeColor="peer-checked:bg-blue-500 dark:peer-checked:bg-blue-500"
-            />
-            <ToggleSwitch
-              label={
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-green-500" />
-                  <span>SMS</span>
-                </div>
-              }
-              checked={cdrSms}
-              onChange={setCdrSms}
-              activeColor="peer-checked:bg-green-500 dark:peer-checked:bg-green-500"
-            />
-            <ToggleSwitch
-              label={
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-rose-500" />
-                  <span>Position</span>
-                </div>
-              }
-              checked={cdrPosition}
-              onChange={setCdrPosition}
-              activeColor="peer-checked:bg-rose-500 dark:peer-checked:bg-rose-500"
-            />
+          <div className="grid grid-cols-1 gap-3">
             <ToggleSwitch
               label={
                 <div className="flex items-center gap-2">
