@@ -902,44 +902,6 @@ export default {
     theme: 'telecom'
   },
 
-  'autres.cdr_realtime': {
-    display: 'cdr_realtime',
-    database: 'autres',
-    searchable: [
-      'type_appel',
-      'numero_appelant',
-      'numero_appele',
-      'imei_appelant',
-      'imsi_appelant',
-      'cgi',
-      'nom_bts',
-      'source_file'
-    ],
-    preview: [
-      'type_appel',
-      'numero_appelant',
-      'numero_appele',
-      'date_debut_appel',
-      'heure_debut_appel',
-      'nom_bts'
-    ],
-    filters: {
-      type_appel: 'string',
-      date_debut_appel: 'date',
-      date_fin_appel: 'date',
-      heure_debut_appel: 'string',
-      heure_fin_appel: 'string',
-      numero_appelant: 'string',
-      numero_appele: 'string',
-      longitude: 'number',
-      latitude: 'number'
-    },
-    theme: 'telecom',
-    sync: {
-      disabled: true
-    }
-  },
-
   'autres.fichemilitaire': {
     display: 'fichemilitaire',
     database: 'autres',
