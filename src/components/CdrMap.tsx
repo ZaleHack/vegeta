@@ -91,6 +91,35 @@ interface MeetingPoint {
   total: string;
 }
 
+interface GroupedPoint {
+  lat: number;
+  lng: number;
+  events: Point[];
+  perSource: { source?: string; events: Point[] }[];
+}
+
+const NO_SOURCE_KEY = '__no_source__';
+
+const computeOffsetPosition = (
+  lat: number,
+  lng: number,
+  index: number,
+  total: number,
+  distanceMeters = 25
+): [number, number] => {
+  if (total <= 1) {
+    return [lat, lng];
+  }
+
+  const angle = (2 * Math.PI * index) / total;
+  const latOffset = (distanceMeters * Math.cos(angle)) / 111_320;
+  const latRad = (lat * Math.PI) / 180;
+  const denominator = Math.cos(latRad) || 1;
+  const lngOffset = (distanceMeters * Math.sin(angle)) / (111_320 * denominator);
+
+  return [lat + latOffset, lng + lngOffset];
+};
+
 type EventVisuals = {
   label: string;
   gradient: string;
@@ -564,7 +593,18 @@ const MeetingPointMarker: React.FC<{
 const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated }) => {
   if (!points || points.length === 0) return null;
 
-  const first = points[0];
+  const callerPoints = useMemo(
+    () =>
+      points.filter(
+        (p) =>
+          p.type === 'web' ||
+          (typeof p.direction === 'string' && p.direction.toLowerCase() === 'outgoing')
+      ),
+    [points]
+  );
+
+  const referencePoints = callerPoints.length > 0 ? callerPoints : points;
+  const first = referencePoints[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const mapRef = useRef<L.Map | null>(null);
 
@@ -908,9 +948,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const sourceNumbers = useMemo(
     () =>
       Array.from(
-        new Set(points.map((p) => p.source).filter((n): n is string => Boolean(n)))
+        new Set(
+          callerPoints.map((p) => p.source).filter((n): n is string => Boolean(n))
+        )
       ),
-    [points]
+    [callerPoints]
   );
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1003,7 +1045,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   };
 
   const displayedPoints = useMemo(() => {
-    let filtered = points;
+    let filtered = callerPoints;
     if (selectedSource) {
       filtered = filtered.filter((p) => p.source === selectedSource);
     } else {
@@ -1016,7 +1058,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       if (isNaN(lat) || isNaN(lng)) return false;
       return pointInPolygon(L.latLng(lat, lng), zoneShape);
     });
-  }, [points, zoneShape, selectedSource, visibleSources]);
+  }, [callerPoints, zoneShape, selectedSource, visibleSources]);
 
   const activeSourceCount = useMemo(() => {
     const set = new Set<string>();
@@ -1396,7 +1438,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       { positions: [number, number][]; counts: Map<string, number> }
     >();
     sourceNumbers.forEach((src) => {
-      const pts = points
+      const pts = callerPoints
         .filter((p) => p.source === src)
         .sort((a, b) => {
           const dateA = new Date(`${a.callDate}T${a.startTime}`);
@@ -1433,7 +1475,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         return firstCount > 1;
       })
       .map((s) => ({ positions: s.positions, sources: Array.from(s.counts.keys()) }));
-  }, [points, sourceNumbers]);
+  }, [callerPoints, sourceNumbers]);
 
   const similarNumbers = useMemo(() => {
     const set = new Set<string>();
@@ -1460,10 +1502,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
   const similarPoints = useMemo(
     () =>
-      points.filter(
+      callerPoints.filter(
         (p) => p.source && visibleSimilar.has(p.source)
       ),
-    [points, visibleSimilar]
+    [callerPoints, visibleSimilar]
   );
 
   const connectorPoints = useMemo(() => {
@@ -1761,26 +1803,125 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
-  const groupedPoints = useMemo(() => {
+  const groupedPoints = useMemo<GroupedPoint[]>(() => {
     const groups = new Map<
       string,
-      { lat: number; lng: number; events: Point[] }
+      {
+        lat: number;
+        lng: number;
+        perSource: Map<string, { source?: string; events: Point[] }>;
+      }
     >();
+
     displayedPoints.forEach((p) => {
       const lat = parseFloat(p.latitude);
       const lng = parseFloat(p.longitude);
       if (isNaN(lat) || isNaN(lng)) return;
-      const sourceKey = usePerNumberColors ? p.source || '__no_source__' : '__all__';
-      const key = `${lat},${lng},${sourceKey}`;
-      const group = groups.get(key);
-      if (group) {
-        group.events.push(p);
+      const key = `${lat},${lng}`;
+      let group = groups.get(key);
+      if (!group) {
+        group = { lat, lng, perSource: new Map() };
+        groups.set(key, group);
+      }
+
+      const sourceKey = p.source ?? NO_SOURCE_KEY;
+      const entry = group.perSource.get(sourceKey);
+      if (entry) {
+        entry.events.push(p);
       } else {
-        groups.set(key, { lat, lng, events: [p] });
+        group.perSource.set(sourceKey, { source: p.source, events: [p] });
       }
     });
-    return Array.from(groups.values());
-  }, [displayedPoints, usePerNumberColors]);
+
+    return Array.from(groups.values()).map(({ lat, lng, perSource }) => {
+      const perSourceEntries = Array.from(perSource.values());
+      const events = perSourceEntries.flatMap((entry) => entry.events);
+      return { lat, lng, events, perSource: perSourceEntries };
+    });
+  }, [displayedPoints]);
+
+  const createMarkerForEvents = useCallback(
+    (events: Point[], position: [number, number], key: string) => {
+      if (events.length === 0) return null;
+      if (events.length === 1) {
+        const loc = events[0];
+        return (
+          <Marker
+            key={key}
+            position={position}
+            icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
+          >
+            <Popup className="cdr-popup">{renderEventPopupContent(loc)}</Popup>
+          </Marker>
+        );
+      }
+
+      const first = events[0];
+      const uniqueSources = Array.from(
+        new Set(
+          events
+            .map((ev) => ev.source)
+            .filter((src): src is string => Boolean(src))
+        )
+      );
+
+      return (
+        <Marker
+          key={key}
+          position={position}
+          icon={getGroupIcon(
+            events.length,
+            first.type,
+            first.direction,
+            resolveSourceColor(first.source)
+          )}
+        >
+          <Popup className="cdr-popup">
+            <div className="w-[260px] space-y-2.5">
+              <div className="rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
+                    <MapPin className="h-4 w-4 text-slate-500" />
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Localisation</p>
+                    <p className="text-sm font-semibold leading-snug text-slate-800">
+                      {first.nom || 'Localisation'}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
+                    {events.length} évènement{events.length > 1 ? 's' : ''}
+                  </span>
+                  {uniqueSources.map((src) => (
+                    <span
+                      key={src}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600"
+                    >
+                      <span
+                        className="inline-flex h-2 w-2 rounded-full"
+                        style={{ backgroundColor: resolveSourceColor(src) || '#6366f1' }}
+                      />
+                      {formatPhoneForDisplay(src)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
+                {events.map((loc, i) => (
+                  <div key={i}>
+                    {renderEventPopupContent(loc, { compact: true, showLocation: false })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Popup>
+        </Marker>
+      );
+    },
+    [renderEventPopupContent, resolveSourceColor]
+  );
   return (
     <>
         <div className="relative w-full h-screen">
@@ -1828,87 +1969,32 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         )}
         {showBaseMarkers && (
           <MarkerClusterGroup maxClusterRadius={0}>
-            {groupedPoints.map((group, idx) => {
-          if (group.events.length === 1) {
-            const loc = group.events[0];
-            return (
-              <Marker
-                key={idx}
-                position={[group.lat, group.lng]}
-                icon={getIcon(
-                  loc.type,
-                  loc.direction,
-                  resolveSourceColor(loc.source)
-                )}
-              >
-                <Popup className="cdr-popup">
-                  {renderEventPopupContent(loc)}
-                </Popup>
-              </Marker>
-            );
-          }
-          const first = group.events[0];
-          return (
-            <Marker
-              key={idx}
-              position={[group.lat, group.lng]}
-              icon={getGroupIcon(
-                group.events.length,
-                first.type,
-                first.direction,
-                resolveSourceColor(first.source)
-              )}
-            >
-              <Popup className="cdr-popup">
-                <div className="w-[260px] space-y-2.5">
-                  <div className="rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-sm">
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
-                        <MapPin className="h-4 w-4 text-slate-500" />
-                      </span>
-                      <div className="flex-1">
-                        <p className="text-[11px] uppercase tracking-wide text-slate-400">Localisation</p>
-                        <p className="text-sm font-semibold leading-snug text-slate-800">
-                          {first.nom || 'Localisation'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
-                        {group.events.length} évènement{group.events.length > 1 ? 's' : ''}
-                      </span>
-                      {Array.from(
-                        new Set(
-                          group.events
-                            .map((ev) => ev.source)
-                            .filter((src): src is string => Boolean(src))
-                        )
-                      ).map((src) => (
-                        <span
-                          key={src}
-                          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600"
-                        >
-                          <span
-                            className="inline-flex h-2 w-2 rounded-full"
-                            style={{ backgroundColor: resolveSourceColor(src) || '#6366f1' }}
-                          />
-                          {formatPhoneForDisplay(src)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
-                    {group.events.map((loc, i) => (
-                      <div key={i}>
-                        {renderEventPopupContent(loc, { compact: true, showLocation: false })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+            {groupedPoints.flatMap((group, idx) => {
+              const perSourceEntries = group.perSource;
+              if (perSourceEntries.length <= 1) {
+                const marker = createMarkerForEvents(
+                  group.events,
+                  [group.lat, group.lng],
+                  `group-${idx}`
+                );
+                return marker ? [marker] : [];
+              }
+
+              return perSourceEntries.flatMap((entry, entryIdx) => {
+                const position = computeOffsetPosition(
+                  group.lat,
+                  group.lng,
+                  entryIdx,
+                  perSourceEntries.length
+                );
+                const marker = createMarkerForEvents(
+                  entry.events,
+                  position,
+                  `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
+                );
+                return marker ? [marker] : [];
+              });
+            })}
           </MarkerClusterGroup>
         )}
         {showMeetingPoints &&
