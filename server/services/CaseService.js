@@ -185,17 +185,13 @@ class CaseService {
     if (!existingCase) {
       throw new Error('Case not found');
     }
-    const normalizedCdrNumber = normalizeCaseNumber(
-      typeof cdrNumber === 'string' ? cdrNumber : ''
-    );
-    const storedCdrNumber = normalizedCdrNumber || null;
-
-    const fileRecord = await Case.addFile(caseId, originalName, storedCdrNumber);
+    const cdrNum = cdrNumber.startsWith('221') ? cdrNumber : `221${cdrNumber}`;
+    const fileRecord = await Case.addFile(caseId, originalName, cdrNum);
     const result = await this.cdrService.saveAndIndexFile({
       caseId,
       caseName: existingCase.name,
       fileId: fileRecord.id,
-      cdrNumber: storedCdrNumber,
+      cdrNumber: cdrNum,
       tempPath: filePath,
       originalName
     });
@@ -479,7 +475,7 @@ class CaseService {
           .font('Helvetica-Bold')
           .fontSize(12)
           .fillColor(colors.title)
-          .text('SORA', signatureX, signatureY + 6, {
+          .text('Devine Intelligence', signatureX, signatureY + 6, {
             width: signatureWidth,
             align: 'right'
           });
@@ -547,7 +543,7 @@ class CaseService {
           .fontSize(11)
           .fillColor(colors.muted)
           .text(
-            'Synthèse stratégique générée automatiquement par Sora Intelligence',
+            'Synthèse stratégique générée automatiquement par Devine Intelligence',
             heroX + 32,
             heroY + 60,
             { width: availableWidth - 64 }

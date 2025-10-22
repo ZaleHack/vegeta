@@ -7,7 +7,7 @@ const assert = (condition: unknown, message: string): void => {
 };
 
 const baseData: ProfileSummaryData = {
-  fullName: 'Sora Ndiaye',
+  fullName: 'Devine Ndiaye',
   identifier: 140,
   alias: null,
   owner: 'Cellule Investigation',
@@ -43,7 +43,7 @@ const runTests = () => {
   );
 
   // Cas 3 : email présent → la ligne apparaît
-  const withEmailData: ProfileSummaryData = { ...baseData, email: 'contact@sora.sn' };
+  const withEmailData: ProfileSummaryData = { ...baseData, email: 'contact@devine-intelligence.sn' };
   const sectionsWithEmail = buildProfileSections(withEmailData);
   const contactSection = sectionsWithEmail.find((section) => section.title === 'Coordonnées');
   assert(contactSection, 'La section Coordonnées doit apparaître lorsque au moins une coordonnée est renseignée.');

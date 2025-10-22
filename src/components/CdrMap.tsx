@@ -50,14 +50,10 @@ interface Point {
   imeiCaller?: string;
   imeiCalled?: string;
   source?: string;
-  tracked?: string;
 }
 
 interface Contact {
-  id: string;
-  tracked?: string;
-  contact?: string;
-  contactNormalized?: string;
+  number: string;
   callCount: number;
   smsCount: number;
   callDuration: string;
@@ -93,35 +89,6 @@ interface MeetingPoint {
   end: string;
   total: string;
 }
-
-interface GroupedPoint {
-  lat: number;
-  lng: number;
-  events: Point[];
-  perSource: { source?: string; events: Point[] }[];
-}
-
-const NO_SOURCE_KEY = '__no_source__';
-
-const computeOffsetPosition = (
-  lat: number,
-  lng: number,
-  index: number,
-  total: number,
-  distanceMeters = 25
-): [number, number] => {
-  if (total <= 1) {
-    return [lat, lng];
-  }
-
-  const angle = (2 * Math.PI * index) / total;
-  const latOffset = (distanceMeters * Math.cos(angle)) / 111_320;
-  const latRad = (lat * Math.PI) / 180;
-  const denominator = Math.cos(latRad) || 1;
-  const lngOffset = (distanceMeters * Math.sin(angle)) / (111_320 * denominator);
-
-  return [lat + latOffset, lng + lngOffset];
-};
 
 type EventVisuals = {
   label: string;
@@ -298,12 +265,9 @@ const getIcon = (
 
 const normalizePhoneDigits = (value?: string): string => {
   if (!value) return '';
-  let digits = value.replace(/\D/g, '');
-  if (digits.startsWith('00')) {
-    digits = digits.replace(/^00+/, '');
-  }
+  const digits = value.replace(/\D/g, '');
   if (digits.startsWith('221')) {
-    digits = digits.slice(3);
+    return digits.slice(3);
   }
   return digits;
 };
@@ -599,18 +563,7 @@ const MeetingPointMarker: React.FC<{
 const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated }) => {
   if (!points || points.length === 0) return null;
 
-  const callerPoints = useMemo(
-    () =>
-      points.filter(
-        (p) =>
-          p.type === 'web' ||
-          (typeof p.direction === 'string' && p.direction.toLowerCase() === 'outgoing')
-      ),
-    [points]
-  );
-
-  const referencePoints = callerPoints.length > 0 ? callerPoints : points;
-  const first = referencePoints[0];
+  const first = points[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const mapRef = useRef<L.Map | null>(null);
 
@@ -772,57 +725,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         );
       };
 
-      const trackedNormalized = normalizePhoneDigits(point.tracked);
-      const addedParticipants = new Set<string>();
-      const registerParticipant = (value?: string, icon?: LucideIcon) => {
-        if (!value) return;
-        const normalized = normalizePhoneDigits(value);
-        if (normalized && trackedNormalized && normalized === trackedNormalized) {
-          return;
-        }
-        const key = normalized || value.trim();
-        if (!key || addedParticipants.has(key)) {
-          return;
-        }
-        addedParticipants.add(key);
-        addParticipant('Contact', value, icon ?? PhoneIncoming);
-      };
-
       if (point.type === 'sms') {
-        registerParticipant(point.caller, MessageSquare);
-        registerParticipant(point.callee, MessageSquare);
-        if (addedParticipants.size === 0) {
-          registerParticipant(point.number, MessageSquare);
-        }
+        addParticipant('Expéditeur', point.caller, MessageSquare);
+        addParticipant('Destinataire', point.callee, MessageSquare);
       } else if (point.type !== 'web') {
-        const direction = (point.direction || '').toLowerCase();
-        const callIcon =
-          direction === 'incoming'
-            ? PhoneIncoming
-            : direction === 'outgoing'
-              ? PhoneOutgoing
-              : PhoneOutgoing;
-        registerParticipant(point.caller, callIcon);
-        registerParticipant(point.callee, callIcon);
-        if (addedParticipants.size === 0) {
-          registerParticipant(point.number, callIcon);
-        }
+        addParticipant('Appelant', point.caller, PhoneOutgoing);
+        addParticipant('Appelé', point.callee, PhoneIncoming);
       }
 
       const details: { label: string; value?: React.ReactNode }[] = [];
       const formattedDuration = formatPointDuration(point) ?? point.duration ?? undefined;
-      const pushCombinedDate = () => {
-        const parts: string[] = [];
-        if (point.callDate) {
-          parts.push(formatDate(point.callDate));
-        }
-        if (point.startTime) {
-          parts.push(point.startTime);
-        }
-        if (parts.length > 0) {
-          details.push({ label: 'Date & heure', value: parts.join(' • ') });
-        }
-      };
 
       if (point.type === 'web') {
         if (point.callDate) {
@@ -841,22 +753,29 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           details.push({ label: 'Durée', value: formattedDuration });
         }
       } else if (point.type === 'sms') {
-        pushCombinedDate();
+        if (point.callDate) {
+          details.push({ label: 'Date', value: formatDate(point.callDate) });
+        }
+        if (point.startTime) {
+          details.push({ label: 'Heure', value: point.startTime });
+        }
       } else {
-        pushCombinedDate();
+        if (point.callDate) {
+          details.push({ label: 'Date', value: formatDate(point.callDate) });
+        }
+        if (point.startTime) {
+          details.push({ label: 'Début', value: point.startTime });
+        }
+        if (point.endTime) {
+          details.push({ label: 'Fin', value: point.endTime });
+        }
         if (formattedDuration) {
           details.push({ label: 'Durée', value: formattedDuration });
         }
       }
+
       if (point.source) {
-        const trackedNormalized = normalizePhoneDigits(point.tracked);
-        const sourceNormalized = normalizePhoneDigits(point.source);
-        const label = point.type === 'web' ? 'Numéro localisé' : 'Numéro appelant localisé';
-        const shouldShowLocationOwner =
-          !point.tracked || trackedNormalized !== sourceNormalized || point.type === 'web';
-        if (shouldShowLocationOwner) {
-          details.push({ label, value: formatPhoneForDisplay(point.source) });
-        }
+        details.push({ label: 'Numéro suivi', value: formatPhoneForDisplay(point.source) });
       }
 
       const filteredDetails = details.filter(
@@ -978,11 +897,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const sourceNumbers = useMemo(
     () =>
       Array.from(
-        new Set(
-          callerPoints.map((p) => p.source).filter((n): n is string => Boolean(n))
-        )
+        new Set(points.map((p) => p.source).filter((n): n is string => Boolean(n)))
       ),
-    [callerPoints]
+    [points]
   );
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -991,16 +908,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   }, [sourceNumbers]);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [visibleSources, setVisibleSources] = useState<Set<string>>(new Set());
-  const normalizedVisibleSources = useMemo(() => {
-    const normalized = new Set<string>();
-    visibleSources.forEach((value) => {
-      const normalizedValue = normalizePhoneDigits(value);
-      if (normalizedValue) {
-        normalized.add(normalizedValue);
-      }
-    });
-    return normalized;
-  }, [visibleSources]);
 
   useEffect(() => {
     setVisibleSources(new Set(sourceNumbers));
@@ -1084,100 +991,21 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     return inside;
   };
 
-  const isPointWithinZone = useCallback(
-    (point: Point) => {
-      if (!zoneShape || zoneShape.length < 3) return true;
-      const lat = parseFloat(point.latitude);
-      const lng = parseFloat(point.longitude);
-      if (isNaN(lat) || isNaN(lng)) return false;
-      return pointInPolygon(L.latLng(lat, lng), zoneShape);
-    },
-    [zoneShape]
-  );
-
   const displayedPoints = useMemo(() => {
-    let filtered = callerPoints;
+    let filtered = points;
     if (selectedSource) {
       filtered = filtered.filter((p) => p.source === selectedSource);
     } else {
       filtered = filtered.filter((p) => !p.source || visibleSources.has(p.source));
     }
-    return filtered.filter(isPointWithinZone);
-  }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
-
-  const contactPoints = useMemo(() => {
-    const matchesVisible = (raw?: string): boolean => {
-      if (visibleSources.size === 0) {
-        return true;
-      }
-      const value = (raw || '').trim();
-      if (!value) {
-        return false;
-      }
-      if (visibleSources.has(value)) {
-        return true;
-      }
-      const normalized = normalizePhoneDigits(value);
-      if (!normalized) {
-        return false;
-      }
-      if (normalizedVisibleSources.has(normalized)) {
-        return true;
-      }
-      if (visibleSources.has(normalized)) {
-        return true;
-      }
-      return false;
-    };
-
-    const base = points.filter((point) => {
-      if (!isPointWithinZone(point)) return false;
-
-      if (!selectedSource) {
-        const trackedVisible = matchesVisible(point.tracked);
-        const sourceVisible = matchesVisible(point.source);
-        if (!trackedVisible && !sourceVisible) {
-          return false;
-        }
-      }
-
-      const type = (point.type || '').toLowerCase();
-      return type !== 'web';
+    if (!zoneShape || zoneShape.length < 3) return filtered;
+    return filtered.filter((p) => {
+      const lat = parseFloat(p.latitude);
+      const lng = parseFloat(p.longitude);
+      if (isNaN(lat) || isNaN(lng)) return false;
+      return pointInPolygon(L.latLng(lat, lng), zoneShape);
     });
-
-    if (!selectedSource) {
-      return base;
-    }
-
-    const normalizedSelected = normalizePhoneDigits(selectedSource);
-    if (!normalizedSelected) {
-      return base;
-    }
-
-    const filtered = base.filter((point) => {
-      const trackedNormalized = normalizePhoneDigits(point.tracked);
-      const callerNormalized = normalizePhoneDigits(point.caller);
-      const calleeNormalized = normalizePhoneDigits(point.callee);
-      const numberNormalized = normalizePhoneDigits(point.number);
-      const sourceNormalized = normalizePhoneDigits(point.source);
-
-      return (
-        trackedNormalized === normalizedSelected ||
-        callerNormalized === normalizedSelected ||
-        calleeNormalized === normalizedSelected ||
-        numberNormalized === normalizedSelected ||
-        sourceNormalized === normalizedSelected
-      );
-    });
-
-    return filtered.length > 0 ? filtered : base;
-  }, [
-    selectedSource,
-    points,
-    visibleSources,
-    normalizedVisibleSources,
-    isPointWithinZone
-  ]);
+  }, [points, zoneShape, selectedSource, visibleSources]);
 
   const activeSourceCount = useMemo(() => {
     const set = new Set<string>();
@@ -1267,7 +1095,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         <div className="pointer-events-none absolute inset-0 bg-white/75" aria-hidden />
         <div className="relative space-y-3 px-4 py-4">
           <div className="rounded-2xl border border-white/60 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-sm">
-            <p className="text-[10px] uppercase tracking-wide text-purple-500">Numéro localisé</p>
+            <p className="text-[10px] uppercase tracking-wide text-purple-500">Numéro suivi</p>
             <p className="text-sm font-semibold text-purple-600">
               {formatPhoneForDisplay(zone.source)}
             </p>
@@ -1296,156 +1124,20 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   };
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
-    const contactMap = new Map<
-      string,
-      {
-        caller?: string;
-        callee?: string;
-        callCount: number;
-        smsCount: number;
-        callDuration: number;
-      }
-    >();
+    const contactMap = new Map<string, { callCount: number; smsCount: number; callDuration: number }>();
     const locationMap = new Map<string, LocationStat>();
-    const displayedSet = new Set(displayedPoints);
-    const normalizedSelected = normalizePhoneDigits(selectedSource ?? '');
-    const activeZone = zoneShape && zoneShape.length >= 3 ? zoneShape : null;
-
-    let contactEvents = contactPoints;
-    if (selectedSource && normalizedSelected) {
-      const filtered = points.filter((point) => {
-        const trackedNormalized = normalizePhoneDigits(point.tracked);
-        if (!trackedNormalized || trackedNormalized !== normalizedSelected) {
-          return false;
-        }
-
-        if (!activeZone) {
-          return true;
-        }
-
-        const lat = parseFloat(point.latitude);
-        const lng = parseFloat(point.longitude);
-        if (isNaN(lat) || isNaN(lng)) {
-          return true;
-        }
-
-        return pointInPolygon(L.latLng(lat, lng), activeZone);
-      });
-
-      if (filtered.length > 0) {
-        contactEvents = filtered;
-      }
-    }
-
-    const contactSet = new Set(contactEvents);
-    const trackedNumbersSet = new Set<string>();
-    points.forEach((point) => {
-      const normalized = normalizePhoneDigits(point.tracked);
-      if (normalized) {
-        trackedNumbersSet.add(normalized);
-      }
-    });
-    const excludeTrackedContacts = trackedNumbersSet.size >= 2;
-
-    contactEvents.forEach((p) => {
-      const eventType = (p.type || '').toLowerCase();
-      if (eventType !== 'web') {
-        const trackedRaw = (p.tracked || '').trim();
-        const trackedNormalized = normalizePhoneDigits(trackedRaw);
-        if (trackedNormalized) {
-          const rawCaller = (p.caller || '').trim();
-          const rawCallee = (p.callee || '').trim();
-          const rawNumber = (p.number || '').trim();
-
-          const callerNormalized = normalizePhoneDigits(rawCaller);
-          const calleeNormalized = normalizePhoneDigits(rawCallee);
-          type ContactCandidate = { normalized?: string; raw: string };
-          const candidates: ContactCandidate[] = [
-            { normalized: normalizePhoneDigits(rawNumber), raw: rawNumber },
-            { normalized: callerNormalized, raw: rawCaller },
-            { normalized: calleeNormalized, raw: rawCallee }
-          ];
-
-          let contactNormalized = '';
-          let contactRaw = '';
-
-          const pickContact = (allowTracked: boolean) => {
-            for (const candidate of candidates) {
-              if (!candidate.normalized) continue;
-              if (!allowTracked && candidate.normalized === trackedNormalized) continue;
-              contactNormalized = candidate.normalized;
-              contactRaw = candidate.raw || candidate.normalized;
-              return true;
-            }
-            return false;
-          };
-
-          if (!pickContact(false)) {
-            pickContact(true);
-          }
-
-          if (contactNormalized) {
-            if (!excludeTrackedContacts || !trackedNumbersSet.has(contactNormalized)) {
-              const key = `${trackedNormalized}|${contactNormalized}`;
-              const entry =
-                contactMap.get(key) ||
-                {
-                  tracked: trackedRaw || undefined,
-                  contact: contactRaw || undefined,
-                  contactNormalized,
-                  callCount: 0,
-                  smsCount: 0,
-                  callDurationSeconds: 0
-                };
-
-              if (!entry.tracked && trackedRaw) {
-                entry.tracked = trackedRaw;
-              }
-              if (!entry.contact && contactRaw) {
-                entry.contact = contactRaw;
-              }
-              entry.contactNormalized = contactNormalized;
-
-              if (eventType === 'sms') {
-                entry.smsCount += 1;
-              } else {
-                entry.callCount += 1;
-                entry.callDurationSeconds += getPointDurationInSeconds(p);
-              }
-
-              contactMap.set(key, entry);
-            }
-          }
-        }
-      }
-
-      if (!displayedSet.has(p)) {
-        return;
-      }
-
-      const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
-      const loc =
-        locationMap.get(key) ||
-        {
-          latitude: p.latitude,
-          longitude: p.longitude,
-          nom: p.nom,
-          count: 0,
-          lastDate: p.callDate,
-          lastTime: p.startTime
-        };
-      loc.count += 1;
-      const current = new Date(`${p.callDate}T${p.startTime}`);
-      const prev = loc.lastDate && loc.lastTime ? new Date(`${loc.lastDate}T${loc.lastTime}`) : null;
-      if (!prev || current > prev) {
-        loc.lastDate = p.callDate;
-        loc.lastTime = p.startTime;
-      }
-      locationMap.set(key, loc);
-    });
 
     displayedPoints.forEach((p) => {
-      if (contactSet.has(p)) return;
+      if (p.number) {
+        const entry = contactMap.get(p.number) || { callCount: 0, smsCount: 0, callDuration: 0 };
+        if (p.type === 'sms') {
+          entry.smsCount += 1;
+        } else {
+          entry.callCount += 1;
+          entry.callDuration += getPointDurationInSeconds(p);
+        }
+        contactMap.set(p.number, entry);
+      }
 
       const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
       const loc =
@@ -1469,17 +1161,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     });
 
     const contacts: Contact[] = Array.from(contactMap.entries())
-      .map(([id, c]) => ({
-        id,
-        tracked: c.tracked,
-        contact: c.contact,
-        contactNormalized: c.contactNormalized,
+      .map(([number, c]) => ({
+        number,
         callCount: c.callCount,
         smsCount: c.smsCount,
-        callDuration: formatDuration(c.callDurationSeconds),
+        callDuration: formatDuration(c.callDuration),
         total: c.callCount + c.smsCount
       }))
-      .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total);
 
     const allLocations = Array.from(locationMap.values()).filter(
@@ -1502,13 +1190,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       .slice(0, 10);
 
     return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: displayedPoints.length };
-  }, [
-    contactPoints,
-    displayedPoints,
-    points,
-    selectedSource,
-    zoneShape
-  ]);
+  }, [displayedPoints]);
 
   const toggleLocationVisibility = (loc: LocationStat) => {
     const key = `${loc.latitude},${loc.longitude},${loc.nom || ''}`;
@@ -1703,7 +1385,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       { positions: [number, number][]; counts: Map<string, number> }
     >();
     sourceNumbers.forEach((src) => {
-      const pts = callerPoints
+      const pts = points
         .filter((p) => p.source === src)
         .sort((a, b) => {
           const dateA = new Date(`${a.callDate}T${a.startTime}`);
@@ -1740,7 +1422,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         return firstCount > 1;
       })
       .map((s) => ({ positions: s.positions, sources: Array.from(s.counts.keys()) }));
-  }, [callerPoints, sourceNumbers]);
+  }, [points, sourceNumbers]);
 
   const similarNumbers = useMemo(() => {
     const set = new Set<string>();
@@ -1767,10 +1449,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
   const similarPoints = useMemo(
     () =>
-      callerPoints.filter(
+      points.filter(
         (p) => p.source && visibleSimilar.has(p.source)
       ),
-    [callerPoints, visibleSimilar]
+    [points, visibleSimilar]
   );
 
   const connectorPoints = useMemo(() => {
@@ -2049,27 +1731,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   }, [displayedPoints]);
 
   const handleToggleMeetingPoint = (number: string) => {
-    const trimmed = number.trim();
-    const normalized = normalizePhoneDigits(number);
-    const target = normalized || trimmed;
-    if (!target) return;
-
-    const mp = meetingPoints.find((m) =>
-      m.numbers.some((n) => {
-        const normalizedMeeting = normalizePhoneDigits(n);
-        const candidate = normalizedMeeting || n.trim();
-        return candidate === target;
-      })
-    );
-
+    const mp = meetingPoints.find((m) => m.numbers.includes(number));
     if (!mp) return;
-
-    const isActive = showMeetingPoints && activeMeetingNumber === target;
+    const isActive = showMeetingPoints && activeMeetingNumber === number;
     if (isActive) {
       setActiveMeetingNumber(null);
       onToggleMeetingPoints?.();
     } else {
-      setActiveMeetingNumber(target);
+      setActiveMeetingNumber(number);
       if (!showMeetingPoints) {
         onToggleMeetingPoints?.();
       }
@@ -2081,125 +1750,26 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
-  const groupedPoints = useMemo<GroupedPoint[]>(() => {
+  const groupedPoints = useMemo(() => {
     const groups = new Map<
       string,
-      {
-        lat: number;
-        lng: number;
-        perSource: Map<string, { source?: string; events: Point[] }>;
-      }
+      { lat: number; lng: number; events: Point[] }
     >();
-
     displayedPoints.forEach((p) => {
       const lat = parseFloat(p.latitude);
       const lng = parseFloat(p.longitude);
       if (isNaN(lat) || isNaN(lng)) return;
-      const key = `${lat},${lng}`;
-      let group = groups.get(key);
-      if (!group) {
-        group = { lat, lng, perSource: new Map() };
-        groups.set(key, group);
-      }
-
-      const sourceKey = p.source ?? NO_SOURCE_KEY;
-      const entry = group.perSource.get(sourceKey);
-      if (entry) {
-        entry.events.push(p);
+      const sourceKey = usePerNumberColors ? p.source || '__no_source__' : '__all__';
+      const key = `${lat},${lng},${sourceKey}`;
+      const group = groups.get(key);
+      if (group) {
+        group.events.push(p);
       } else {
-        group.perSource.set(sourceKey, { source: p.source, events: [p] });
+        groups.set(key, { lat, lng, events: [p] });
       }
     });
-
-    return Array.from(groups.values()).map(({ lat, lng, perSource }) => {
-      const perSourceEntries = Array.from(perSource.values());
-      const events = perSourceEntries.flatMap((entry) => entry.events);
-      return { lat, lng, events, perSource: perSourceEntries };
-    });
-  }, [displayedPoints]);
-
-  const createMarkerForEvents = useCallback(
-    (events: Point[], position: [number, number], key: string) => {
-      if (events.length === 0) return null;
-      if (events.length === 1) {
-        const loc = events[0];
-        return (
-          <Marker
-            key={key}
-            position={position}
-            icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
-          >
-            <Popup className="cdr-popup">{renderEventPopupContent(loc)}</Popup>
-          </Marker>
-        );
-      }
-
-      const first = events[0];
-      const uniqueSources = Array.from(
-        new Set(
-          events
-            .map((ev) => ev.source)
-            .filter((src): src is string => Boolean(src))
-        )
-      );
-
-      return (
-        <Marker
-          key={key}
-          position={position}
-          icon={getGroupIcon(
-            events.length,
-            first.type,
-            first.direction,
-            resolveSourceColor(first.source)
-          )}
-        >
-          <Popup className="cdr-popup">
-            <div className="w-[260px] space-y-2.5">
-              <div className="rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-sm">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
-                    <MapPin className="h-4 w-4 text-slate-500" />
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Localisation</p>
-                    <p className="text-sm font-semibold leading-snug text-slate-800">
-                      {first.nom || 'Localisation'}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
-                    {events.length} évènement{events.length > 1 ? 's' : ''}
-                  </span>
-                  {uniqueSources.map((src) => (
-                    <span
-                      key={src}
-                      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600"
-                    >
-                      <span
-                        className="inline-flex h-2 w-2 rounded-full"
-                        style={{ backgroundColor: resolveSourceColor(src) || '#6366f1' }}
-                      />
-                      {formatPhoneForDisplay(src)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
-                {events.map((loc, i) => (
-                  <div key={i}>
-                    {renderEventPopupContent(loc, { compact: true, showLocation: false })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Popup>
-        </Marker>
-      );
-    },
-    [renderEventPopupContent, resolveSourceColor]
-  );
+    return Array.from(groups.values());
+  }, [displayedPoints, usePerNumberColors]);
   return (
     <>
         <div className="relative w-full h-screen">
@@ -2247,44 +1817,93 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         )}
         {showBaseMarkers && (
           <MarkerClusterGroup maxClusterRadius={0}>
-            {groupedPoints.flatMap((group, idx) => {
-              const perSourceEntries = group.perSource;
-              if (perSourceEntries.length <= 1) {
-                const marker = createMarkerForEvents(
-                  group.events,
-                  [group.lat, group.lng],
-                  `group-${idx}`
-                );
-                return marker ? [marker] : [];
-              }
-
-              return perSourceEntries.flatMap((entry, entryIdx) => {
-                const position = computeOffsetPosition(
-                  group.lat,
-                  group.lng,
-                  entryIdx,
-                  perSourceEntries.length
-                );
-                const marker = createMarkerForEvents(
-                  entry.events,
-                  position,
-                  `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
-                );
-                return marker ? [marker] : [];
-              });
-            })}
+            {groupedPoints.map((group, idx) => {
+          if (group.events.length === 1) {
+            const loc = group.events[0];
+            return (
+              <Marker
+                key={idx}
+                position={[group.lat, group.lng]}
+                icon={getIcon(
+                  loc.type,
+                  loc.direction,
+                  resolveSourceColor(loc.source)
+                )}
+              >
+                <Popup className="cdr-popup">
+                  {renderEventPopupContent(loc)}
+                </Popup>
+              </Marker>
+            );
+          }
+          const first = group.events[0];
+          return (
+            <Marker
+              key={idx}
+              position={[group.lat, group.lng]}
+              icon={getGroupIcon(
+                group.events.length,
+                first.type,
+                first.direction,
+                resolveSourceColor(first.source)
+              )}
+            >
+              <Popup className="cdr-popup">
+                <div className="w-[260px] space-y-2.5">
+                  <div className="rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
+                        <MapPin className="h-4 w-4 text-slate-500" />
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-[11px] uppercase tracking-wide text-slate-400">Localisation</p>
+                        <p className="text-sm font-semibold leading-snug text-slate-800">
+                          {first.nom || 'Localisation'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
+                        {group.events.length} évènement{group.events.length > 1 ? 's' : ''}
+                      </span>
+                      {Array.from(
+                        new Set(
+                          group.events
+                            .map((ev) => ev.source)
+                            .filter((src): src is string => Boolean(src))
+                        )
+                      ).map((src) => (
+                        <span
+                          key={src}
+                          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600"
+                        >
+                          <span
+                            className="inline-flex h-2 w-2 rounded-full"
+                            style={{ backgroundColor: resolveSourceColor(src) || '#6366f1' }}
+                          />
+                          {formatPhoneForDisplay(src)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
+                    {group.events.map((loc, i) => (
+                      <div key={i}>
+                        {renderEventPopupContent(loc, { compact: true, showLocation: false })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
           </MarkerClusterGroup>
         )}
         {showMeetingPoints &&
           meetingPoints
             .filter(
-              (mp) =>
-                !activeMeetingNumber ||
-                mp.numbers.some((n) => {
-                  const normalized = normalizePhoneDigits(n);
-                  const candidate = normalized || n.trim();
-                  return candidate === activeMeetingNumber;
-                })
+              (mp) => !activeMeetingNumber || mp.numbers.includes(activeMeetingNumber)
             )
             .map((mp, idx) => (
               <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
@@ -2680,13 +2299,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               <tbody>
                 {meetingPoints
                   .filter(
-                    (m) =>
-                      !activeMeetingNumber ||
-                      m.numbers.some((num) => {
-                        const normalized = normalizePhoneDigits(num);
-                        const candidate = normalized || num.trim();
-                        return candidate === activeMeetingNumber;
-                      })
+                    (m) => !activeMeetingNumber || m.numbers.includes(activeMeetingNumber)
                   )
                   .map((m, i) => (
                     <tr key={i} className="border-t">
@@ -2760,8 +2373,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="text-left">
-                      <th className="pr-4">Numéro suivi</th>
-                      <th className="pr-4">Contact</th>
+                      <th className="pr-4">Numéro</th>
                       <th className="pr-4">Appels</th>
                       <th className="pr-4">Durée</th>
                       <th className="pr-4">SMS</th>
@@ -2772,40 +2384,24 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   <tbody>
                     {paginatedContacts.map((c, i) => {
                       const idx = (contactPage - 1) * pageSize + i;
-                      const contactNumber = c.contact?.trim() || '';
-                      const toggleKey = contactNumber
-                        ? normalizePhoneDigits(contactNumber) || contactNumber
-                        : c.contactNormalized || '';
-                      const meetingCount = toggleKey
-                        ? meetingPoints.filter((m) =>
-                            m.numbers.some((num) => {
-                              const normalized = normalizePhoneDigits(num);
-                              const candidate = normalized || num.trim();
-                              return candidate === toggleKey;
-                            })
-                          ).length
-                        : 0;
-                      const isActiveMeeting =
-                        toggleKey && showMeetingPoints && activeMeetingNumber === toggleKey;
-                      const toggleValue = contactNumber || toggleKey;
+                      const meetingCount = meetingPoints.filter((m) => m.numbers.includes(c.number)).length;
                       return (
                         <tr
-                          key={c.id}
+                          key={c.number}
                           className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
                         >
-                          <td className="pr-4">{formatPhoneForDisplay(c.tracked)}</td>
-                          <td className="pr-4">{formatPhoneForDisplay(c.contact)}</td>
+                          <td className="pr-4">{c.number}</td>
                           <td className="pr-4">{c.callCount}</td>
                           <td className="pr-4">{c.callDuration}</td>
                           <td className="pr-4">{c.smsCount}</td>
                           <td className="pr-4">
                             {meetingCount}
-                            {meetingCount > 0 && toggleValue && (
+                            {meetingCount > 0 && (
                               <button
                                 className="ml-1 text-blue-600"
-                                onClick={() => handleToggleMeetingPoint(toggleValue)}
+                                onClick={() => handleToggleMeetingPoint(c.number)}
                               >
-                                {isActiveMeeting ? (
+                                {showMeetingPoints && activeMeetingNumber === c.number ? (
                                   <EyeOff size={16} />
                                 ) : (
                                   <Eye size={16} />

@@ -6,10 +6,6 @@ import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import statsCache from './stats-cache.js';
 
-const EXCLUDED_DATA_TABLES = new Set(
-  ['autres.cdr_realtime', 'cdr_realtime'].map((name) => name.toLowerCase())
-);
-
 /**
  * Service de génération de statistiques basées sur les journaux de recherche
  * et les différentes tables configurées dans la plateforme.
@@ -328,12 +324,7 @@ class StatsService {
     }
 
     const catalog = this.loadCatalog();
-    const entries = Object.entries(catalog).filter(([tableName]) => {
-      if (typeof tableName !== 'string') {
-        return true;
-      }
-      return !EXCLUDED_DATA_TABLES.has(tableName.toLowerCase());
-    });
+    const entries = Object.entries(catalog);
     const results = await Promise.all(
       entries.map(async ([tableName, config]) => {
         try {
