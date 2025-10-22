@@ -219,6 +219,13 @@ const getPointColor = (type: string, direction?: string) => {
   return '#16a34a';
 };
 
+const getFilterSource = (point: Point): string | undefined => {
+  const tracked = point.tracked?.trim();
+  if (tracked) return tracked;
+  const source = point.source?.trim();
+  return source || undefined;
+};
+
 const getIcon = (
   type: string,
   direction: string | undefined,
@@ -908,7 +915,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const sourceNumbers = useMemo(
     () =>
       Array.from(
-        new Set(points.map((p) => p.source).filter((n): n is string => Boolean(n)))
+        new Set(points.map((p) => getFilterSource(p)).filter((n): n is string => Boolean(n)))
       ),
     [points]
   );
@@ -1005,9 +1012,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const displayedPoints = useMemo(() => {
     let filtered = points;
     if (selectedSource) {
-      filtered = filtered.filter((p) => p.source === selectedSource);
+      filtered = filtered.filter((p) => getFilterSource(p) === selectedSource);
     } else {
-      filtered = filtered.filter((p) => !p.source || visibleSources.has(p.source));
+      filtered = filtered.filter((p) => {
+        const src = getFilterSource(p);
+        return !src || visibleSources.has(src);
+      });
     }
     if (!zoneShape || zoneShape.length < 3) return filtered;
     return filtered.filter((p) => {
@@ -1021,8 +1031,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const activeSourceCount = useMemo(() => {
     const set = new Set<string>();
     displayedPoints.forEach((p) => {
-      if (p.source) {
-        set.add(p.source);
+      const src = getFilterSource(p);
+      if (src) {
+        set.add(src);
       }
     });
     return set.size;
@@ -1227,7 +1238,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     if (selectedSource === null && sourceNumbers.length > 1) {
       const perSource = new Map<string, Map<string, LocationStat>>();
       displayedPoints.forEach((p) => {
-        const src = p.source || 'unknown';
+        const src = getFilterSource(p) || 'unknown';
         let map = perSource.get(src);
         if (!map) {
           map = new Map();
@@ -1397,7 +1408,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     >();
     sourceNumbers.forEach((src) => {
       const pts = points
-        .filter((p) => p.source === src)
+        .filter((p) => getFilterSource(p) === src)
         .sort((a, b) => {
           const dateA = new Date(`${a.callDate}T${a.startTime}`);
           const dateB = new Date(`${b.callDate}T${b.startTime}`);
@@ -1460,9 +1471,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
   const similarPoints = useMemo(
     () =>
-      points.filter(
-        (p) => p.source && visibleSimilar.has(p.source)
-      ),
+      points.filter((p) => {
+        const src = getFilterSource(p);
+        return src && visibleSimilar.has(src);
+      }),
     [points, visibleSimilar]
   );
 
@@ -1770,7 +1782,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       const lat = parseFloat(p.latitude);
       const lng = parseFloat(p.longitude);
       if (isNaN(lat) || isNaN(lng)) return;
-      const sourceKey = usePerNumberColors ? p.source || '__no_source__' : '__all__';
+      const groupedSource = getFilterSource(p);
+      const sourceKey = usePerNumberColors ? groupedSource || '__no_source__' : '__all__';
       const key = `${lat},${lng},${sourceKey}`;
       const group = groups.get(key);
       if (group) {
@@ -1838,7 +1851,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 icon={getIcon(
                   loc.type,
                   loc.direction,
-                  resolveSourceColor(loc.source)
+                  resolveSourceColor(getFilterSource(loc))
                 )}
               >
                 <Popup className="cdr-popup">
@@ -1856,7 +1869,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 group.events.length,
                 first.type,
                 first.direction,
-                resolveSourceColor(first.source)
+                resolveSourceColor(getFilterSource(first))
               )}
             >
               <Popup className="cdr-popup">
@@ -1880,7 +1893,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                       {Array.from(
                         new Set(
                           group.events
-                            .map((ev) => ev.source)
+                            .map((ev) => getFilterSource(ev))
                             .filter((src): src is string => Boolean(src))
                         )
                       ).map((src) => (
@@ -1979,7 +1992,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 parseFloat(loc.latitude),
                 parseFloat(loc.longitude)
               ]}
-              icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
+              icon={getIcon(loc.type, loc.direction, resolveSourceColor(getFilterSource(loc)))}
             >
               <Popup className="cdr-popup">
                 {renderEventPopupContent(loc)}
