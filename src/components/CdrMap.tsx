@@ -1227,9 +1227,38 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     >();
     const locationMap = new Map<string, LocationStat>();
     const displayedSet = new Set(displayedPoints);
-    const contactSet = new Set(contactPoints);
+    const normalizedSelected = normalizePhoneDigits(selectedSource ?? '');
+    const activeZone = zoneShape && zoneShape.length >= 3 ? zoneShape : null;
 
-    contactPoints.forEach((p) => {
+    let contactEvents = contactPoints;
+    if (selectedSource && normalizedSelected) {
+      const filtered = points.filter((point) => {
+        const trackedNormalized = normalizePhoneDigits(point.tracked);
+        if (!trackedNormalized || trackedNormalized !== normalizedSelected) {
+          return false;
+        }
+
+        if (!activeZone) {
+          return true;
+        }
+
+        const lat = parseFloat(point.latitude);
+        const lng = parseFloat(point.longitude);
+        if (isNaN(lat) || isNaN(lng)) {
+          return true;
+        }
+
+        return pointInPolygon(L.latLng(lat, lng), activeZone);
+      });
+
+      if (filtered.length > 0) {
+        contactEvents = filtered;
+      }
+    }
+
+    const contactSet = new Set(contactEvents);
+
+    contactEvents.forEach((p) => {
       const eventType = (p.type || '').toLowerCase();
       if (eventType !== 'web') {
         const rawCaller = (p.caller || p.source || '').trim();
@@ -1342,7 +1371,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       .slice(0, 10);
 
     return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: displayedPoints.length };
-  }, [contactPoints, displayedPoints]);
+  }, [
+    contactPoints,
+    displayedPoints,
+    points,
+    selectedSource,
+    zoneShape
+  ]);
 
   const toggleLocationVisibility = (loc: LocationStat) => {
     const key = `${loc.latitude},${loc.longitude},${loc.nom || ''}`;
