@@ -298,9 +298,12 @@ const getIcon = (
 
 const normalizePhoneDigits = (value?: string): string => {
   if (!value) return '';
-  const digits = value.replace(/\D/g, '');
+  let digits = value.replace(/\D/g, '');
+  if (digits.startsWith('00')) {
+    digits = digits.replace(/^00+/, '');
+  }
   if (digits.startsWith('221')) {
-    return digits.slice(3);
+    digits = digits.slice(3);
   }
   return digits;
 };
@@ -988,6 +991,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   }, [sourceNumbers]);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [visibleSources, setVisibleSources] = useState<Set<string>>(new Set());
+  const normalizedVisibleSources = useMemo(() => {
+    const normalized = new Set<string>();
+    visibleSources.forEach((value) => {
+      const normalizedValue = normalizePhoneDigits(value);
+      if (normalizedValue) {
+        normalized.add(normalizedValue);
+      }
+    });
+    return normalized;
+  }, [visibleSources]);
 
   useEffect(() => {
     setVisibleSources(new Set(sourceNumbers));
@@ -1093,11 +1106,39 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
 
   const contactPoints = useMemo(() => {
+    const matchesVisible = (raw?: string): boolean => {
+      if (visibleSources.size === 0) {
+        return true;
+      }
+      const value = (raw || '').trim();
+      if (!value) {
+        return false;
+      }
+      if (visibleSources.has(value)) {
+        return true;
+      }
+      const normalized = normalizePhoneDigits(value);
+      if (!normalized) {
+        return false;
+      }
+      if (normalizedVisibleSources.has(normalized)) {
+        return true;
+      }
+      if (visibleSources.has(normalized)) {
+        return true;
+      }
+      return false;
+    };
+
     const base = points.filter((point) => {
       if (!isPointWithinZone(point)) return false;
 
-      if (!selectedSource && point.source && !visibleSources.has(point.source)) {
-        return false;
+      if (!selectedSource) {
+        const trackedVisible = matchesVisible(point.tracked);
+        const sourceVisible = matchesVisible(point.source);
+        if (!trackedVisible && !sourceVisible) {
+          return false;
+        }
       }
 
       const type = (point.type || '').toLowerCase();
@@ -1130,7 +1171,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     });
 
     return filtered.length > 0 ? filtered : base;
-  }, [selectedSource, points, visibleSources, isPointWithinZone]);
+  }, [
+    selectedSource,
+    points,
+    visibleSources,
+    normalizedVisibleSources,
+    isPointWithinZone
+  ]);
 
   const activeSourceCount = useMemo(() => {
     const set = new Set<string>();
