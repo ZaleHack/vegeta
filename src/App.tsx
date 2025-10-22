@@ -3278,13 +3278,72 @@ useEffect(() => {
         }
       }
 
-      const contactsMap = new Map<string, { callCount: number; smsCount: number }>();
+      const trackedNumbersSet = new Set<string>();
+      ids.forEach((value) => {
+        const normalized = normalizeCdrNumber(value);
+        if (normalized) {
+          trackedNumbersSet.add(normalized);
+        }
+      });
+      const excludeTrackedContacts = trackedNumbersSet.size >= 2;
+
+      const contactsMap = new Map<
+        string,
+        { number: string; callCount: number; smsCount: number }
+      >();
       const locationsMap = new Map<string, CdrLocation>();
       allPaths.forEach((p: CdrPoint) => {
-        if (p.number) {
-          const entry = contactsMap.get(p.number) || { callCount: 0, smsCount: 0 };
-          if (p.type === 'sms') entry.smsCount += 1; else entry.callCount += 1;
-          contactsMap.set(p.number, entry);
+        const eventType = (p.type || '').toLowerCase();
+        if (eventType !== 'web') {
+          const trackedRaw = (p.tracked ?? '').toString().trim();
+          const trackedNormalized = normalizeCdrNumber(trackedRaw);
+          if (trackedNormalized) {
+            const rawNumber = (p.number ?? '').toString().trim();
+            const rawCaller = (p.caller ?? '').toString().trim();
+            const rawCallee = (p.callee ?? '').toString().trim();
+
+            const callerNormalized = normalizeCdrNumber(rawCaller);
+            const calleeNormalized = normalizeCdrNumber(rawCallee);
+            let contactNormalized = normalizeCdrNumber(rawNumber);
+            let contactRaw = rawNumber;
+
+            if (!contactNormalized) {
+              if (callerNormalized && callerNormalized !== trackedNormalized) {
+                contactNormalized = callerNormalized;
+                contactRaw = rawCaller;
+              } else if (calleeNormalized && calleeNormalized !== trackedNormalized) {
+                contactNormalized = calleeNormalized;
+                contactRaw = rawCallee;
+              } else if (callerNormalized) {
+                contactNormalized = callerNormalized;
+                contactRaw = rawCaller;
+              } else if (calleeNormalized) {
+                contactNormalized = calleeNormalized;
+                contactRaw = rawCallee;
+              }
+            }
+
+            if (contactNormalized) {
+              if (!excludeTrackedContacts || !trackedNumbersSet.has(contactNormalized)) {
+                const key = contactNormalized;
+                const entry =
+                  contactsMap.get(key) ||
+                  { number: contactRaw || key, callCount: 0, smsCount: 0 };
+
+                if (contactRaw && (!entry.number || entry.number === key)) {
+                  entry.number = contactRaw;
+                }
+
+                if (eventType === 'sms') {
+                  entry.smsCount += 1;
+                } else {
+                  entry.callCount += 1;
+                }
+
+                contactsMap.set(key, entry);
+              }
+            }
+          }
         }
         const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
         const loc = locationsMap.get(key) || {
@@ -3297,9 +3356,9 @@ useEffect(() => {
         locationsMap.set(key, loc);
       });
 
-      const contacts = Array.from(contactsMap.entries())
-        .map(([number, c]) => ({
-          number,
+      const contacts = Array.from(contactsMap.values())
+        .map((c) => ({
+          number: c.number,
           callCount: c.callCount,
           smsCount: c.smsCount,
           total: c.callCount + c.smsCount

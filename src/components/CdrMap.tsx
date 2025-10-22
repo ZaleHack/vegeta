@@ -1338,6 +1338,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     }
 
     const contactSet = new Set(contactEvents);
+    const trackedNumbersSet = new Set<string>();
+    points.forEach((point) => {
+      const normalized = normalizePhoneDigits(point.tracked);
+      if (normalized) {
+        trackedNumbersSet.add(normalized);
+      }
+    });
+    const excludeTrackedContacts = trackedNumbersSet.size >= 2;
 
     contactEvents.forEach((p) => {
       const eventType = (p.type || '').toLowerCase();
@@ -1371,34 +1379,36 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           }
 
           if (contactNormalized) {
-            const key = `${trackedNormalized}|${contactNormalized}`;
-            const entry =
-              contactMap.get(key) ||
-              {
-                tracked: trackedRaw || undefined,
-                contact: contactRaw || undefined,
-                contactNormalized,
-                callCount: 0,
-                smsCount: 0,
-                callDurationSeconds: 0
-              };
+            if (!excludeTrackedContacts || !trackedNumbersSet.has(contactNormalized)) {
+              const key = `${trackedNormalized}|${contactNormalized}`;
+              const entry =
+                contactMap.get(key) ||
+                {
+                  tracked: trackedRaw || undefined,
+                  contact: contactRaw || undefined,
+                  contactNormalized,
+                  callCount: 0,
+                  smsCount: 0,
+                  callDurationSeconds: 0
+                };
 
-            if (!entry.tracked && trackedRaw) {
-              entry.tracked = trackedRaw;
-            }
-            if (!entry.contact && contactRaw) {
-              entry.contact = contactRaw;
-            }
-            entry.contactNormalized = contactNormalized;
+              if (!entry.tracked && trackedRaw) {
+                entry.tracked = trackedRaw;
+              }
+              if (!entry.contact && contactRaw) {
+                entry.contact = contactRaw;
+              }
+              entry.contactNormalized = contactNormalized;
 
-            if (eventType === 'sms') {
-              entry.smsCount += 1;
-            } else {
-              entry.callCount += 1;
-              entry.callDurationSeconds += getPointDurationInSeconds(p);
-            }
+              if (eventType === 'sms') {
+                entry.smsCount += 1;
+              } else {
+                entry.callCount += 1;
+                entry.callDurationSeconds += getPointDurationInSeconds(p);
+              }
 
-            contactMap.set(key, entry);
+              contactMap.set(key, entry);
+            }
           }
         }
       }
