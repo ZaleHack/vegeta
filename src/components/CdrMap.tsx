@@ -54,7 +54,9 @@ interface Point {
 }
 
 interface Contact {
-  number: string;
+  id: string;
+  caller?: string;
+  callee?: string;
   callCount: number;
   smsCount: number;
   callDuration: string;
@@ -1177,19 +1179,47 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   };
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
-    const contactMap = new Map<string, { callCount: number; smsCount: number; callDuration: number }>();
+    const contactMap = new Map<
+      string,
+      {
+        caller?: string;
+        callee?: string;
+        callCount: number;
+        smsCount: number;
+        callDuration: number;
+      }
+    >();
     const locationMap = new Map<string, LocationStat>();
 
     displayedPoints.forEach((p) => {
-      if (p.number) {
-        const entry = contactMap.get(p.number) || { callCount: 0, smsCount: 0, callDuration: 0 };
-        if (p.type === 'sms') {
-          entry.smsCount += 1;
-        } else {
-          entry.callCount += 1;
-          entry.callDuration += getPointDurationInSeconds(p);
+      const eventType = (p.type || '').toLowerCase();
+      if (eventType !== 'web') {
+        const rawCaller = (p.caller || p.source || '').trim();
+        const rawCallee = (p.callee || p.number || '').trim();
+        if (rawCaller || rawCallee) {
+          const key = `${rawCaller || '__unknown__'}|${rawCallee || '__unknown__'}`;
+          const entry =
+            contactMap.get(key) ||
+            {
+              caller: rawCaller || undefined,
+              callee: rawCallee || undefined,
+              callCount: 0,
+              smsCount: 0,
+              callDuration: 0
+            };
+
+          if (rawCaller && !entry.caller) entry.caller = rawCaller;
+          if (rawCallee && !entry.callee) entry.callee = rawCallee;
+
+          if (eventType === 'sms') {
+            entry.smsCount += 1;
+          } else {
+            entry.callCount += 1;
+            entry.callDuration += getPointDurationInSeconds(p);
+          }
+
+          contactMap.set(key, entry);
         }
-        contactMap.set(p.number, entry);
       }
 
       const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
@@ -1214,13 +1244,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     });
 
     const contacts: Contact[] = Array.from(contactMap.entries())
-      .map(([number, c]) => ({
-        number,
+      .map(([id, c]) => ({
+        id,
+        caller: c.caller,
+        callee: c.callee,
         callCount: c.callCount,
         smsCount: c.smsCount,
         callDuration: formatDuration(c.callDuration),
         total: c.callCount + c.smsCount
       }))
+      .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total);
 
     const allLocations = Array.from(locationMap.values()).filter(
@@ -2470,7 +2503,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="text-left">
-                      <th className="pr-4">Numéro</th>
+                      <th className="pr-4">Appelant</th>
+                      <th className="pr-4">Appelé</th>
                       <th className="pr-4">Appels</th>
                       <th className="pr-4">Durée</th>
                       <th className="pr-4">SMS</th>
@@ -2481,24 +2515,28 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   <tbody>
                     {paginatedContacts.map((c, i) => {
                       const idx = (contactPage - 1) * pageSize + i;
-                      const meetingCount = meetingPoints.filter((m) => m.numbers.includes(c.number)).length;
+                      const callerNumber = c.caller?.trim() || '';
+                      const meetingCount = callerNumber
+                        ? meetingPoints.filter((m) => m.numbers.includes(callerNumber)).length
+                        : 0;
                       return (
                         <tr
-                          key={c.number}
+                          key={c.id}
                           className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
                         >
-                          <td className="pr-4">{c.number}</td>
+                          <td className="pr-4">{formatPhoneForDisplay(c.caller)}</td>
+                          <td className="pr-4">{formatPhoneForDisplay(c.callee)}</td>
                           <td className="pr-4">{c.callCount}</td>
                           <td className="pr-4">{c.callDuration}</td>
                           <td className="pr-4">{c.smsCount}</td>
                           <td className="pr-4">
                             {meetingCount}
-                            {meetingCount > 0 && (
+                            {meetingCount > 0 && callerNumber && (
                               <button
                                 className="ml-1 text-blue-600"
-                                onClick={() => handleToggleMeetingPoint(c.number)}
+                                onClick={() => handleToggleMeetingPoint(callerNumber)}
                               >
-                                {showMeetingPoints && activeMeetingNumber === c.number ? (
+                                {showMeetingPoints && activeMeetingNumber === callerNumber ? (
                                   <EyeOff size={16} />
                                 ) : (
                                   <Eye size={16} />
