@@ -1,6 +1,6 @@
-# Plateforme Devine Intelligence
+# Plateforme SORA
 
-Ce dépôt contient l'application Devine Intelligence (interface web et serveur Node.js) utilisée pour la gestion des profils, des demandes d'identification, des recherches transverses et des notifications internes.
+Ce dépôt contient l'application SORA (interface web et serveur Node.js) utilisée pour la gestion des profils, des demandes d'identification, des recherches transverses et des notifications internes.
 
 ## Prérequis
 

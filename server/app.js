@@ -20,6 +20,7 @@ import ongRoutes from './routes/ong.js';
 import vehiculesRoutes from './routes/vehicules.js';
 import profilesRoutes from './routes/profiles.js';
 import casesRoutes from './routes/cases.js';
+import cdrRoutes from './routes/cdr.js';
 import requestsRoutes from './routes/requests.js';
 import identifiedNumbersRoutes from './routes/identified-numbers.js';
 import blacklistRoutes from './routes/blacklist.js';
@@ -163,6 +164,7 @@ app.use('/api/ong', ongRoutes);
 app.use('/api/vehicules', vehiculesRoutes);
 app.use('/api/profiles', profilesRoutes);
 app.use('/api/cases', casesRoutes);
+app.use('/api/cdr', cdrRoutes);
 app.use('/api/requests', requestsRoutes);
 app.use('/api/identified-numbers', identifiedNumbersRoutes);
 app.use('/api/blacklist', blacklistRoutes);
@@ -193,7 +195,7 @@ app.get('/api/health', (req, res) => {
 
 // Servir l'application React pour toutes les autres routes
 app.get('*', (req, res) => {
-  res.json({ message: 'API Devine Intelligence - Utilisez /api/* pour les endpoints' });
+  res.json({ message: 'API SORA - Utilisez /api/* pour les endpoints' });
 });
 
 // Gestionnaire d'erreurs global
@@ -213,7 +215,7 @@ app.use((error, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Serveur Devine Intelligence démarré sur le port ${PORT}`);
+  console.log(`🚀 Serveur SORA démarré sur le port ${PORT}`);
   console.log(`📊 Base de données: MySQL`);
   console.log(`🔒 Mode: ${process.env.NODE_ENV || 'development'}`);
 
@@ -235,7 +237,7 @@ server.on('error', (error) => {
 
 // Gestion propre de l'arrêt
 const shutdown = () => {
-  console.log('Arrêt du serveur Devine Intelligence...');
+  console.log('Arrêt du serveur SORA...');
   server.close(() => {
     database.close()
       .then(() => {
