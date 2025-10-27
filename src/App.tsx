@@ -39,12 +39,7 @@ import {
   ClipboardList,
   RefreshCw,
   Bell,
-  PhoneIncoming,
-  PhoneOutgoing,
-  MessageSquare,
-  MapPin,
   AlertTriangle,
-  AlertCircle,
   Share2,
   GripVertical,
   X,
@@ -77,7 +72,7 @@ import ProfileList, { ProfileListItem } from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
 import CdrMap from './components/CdrMap';
 import LinkDiagram from './components/LinkDiagram';
-import DevineLogo from './components/DevineLogo';
+import SoraLogo from './components/SoraLogo';
 import ConfirmDialog, { ConfirmDialogOptions } from './components/ConfirmDialog';
 import { useNotifications } from './components/NotificationProvider';
 import { normalizePreview, NormalizedPreviewEntry, BaseSearchHit } from './utils/search';
@@ -105,7 +100,6 @@ import { useSearchHistory } from './features/search/useSearchHistory';
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 const CASE_PAGE_SIZE_OPTIONS = [6, 12, 24];
-const CASE_FILE_PAGE_SIZE_OPTIONS = [5, 10, 20];
 const FRAUD_ROLE_LABELS: Record<string, string> = {
   caller: 'Appelant',
   callee: 'Appelé',
@@ -304,7 +298,7 @@ type RequestMetric = {
 };
 
 
-const DASHBOARD_CARD_STORAGE_KEY = 'devine-intelligence.dashboard.cardOrder';
+const DASHBOARD_CARD_STORAGE_KEY = 'sora.dashboard.cardOrder';
 const DEFAULT_CARD_ORDER = ['total-searches', 'data', 'profiles', 'requests', 'operations'];
 
 interface GendarmerieEntry {
@@ -521,6 +515,7 @@ interface CdrPoint {
   imeiCaller?: string;
   imeiCalled?: string;
   source?: string;
+  tracked?: string;
 }
 
 interface CdrSearchResult {
@@ -542,14 +537,6 @@ interface CdrCase {
   is_owner?: number | boolean;
   shared_user_ids?: number[];
   shared_with_me?: boolean;
-}
-
-interface CaseFile {
-  id: number;
-  filename: string;
-  uploaded_at: string;
-  line_count: number;
-  cdr_number: string | null;
 }
 
 interface FraudFileInfo {
@@ -1400,20 +1387,11 @@ const App: React.FC = () => {
   const [cdrEnd, setCdrEnd] = useState('');
   const [cdrStartTime, setCdrStartTime] = useState('');
   const [cdrEndTime, setCdrEndTime] = useState('');
-  const [cdrIncoming, setCdrIncoming] = useState(true);
-  const [cdrOutgoing, setCdrOutgoing] = useState(true);
-  const [cdrSms, setCdrSms] = useState(true);
-  const [cdrPosition, setCdrPosition] = useState(true);
   const [cdrItinerary, setCdrItinerary] = useState(false);
   const [cdrResult, setCdrResult] = useState<CdrSearchResult | null>(null);
   const [cdrLoading, setCdrLoading] = useState(false);
   const [cdrError, setCdrError] = useState('');
   const [cdrInfoMessage, setCdrInfoMessage] = useState('');
-  const [cdrFile, setCdrFile] = useState<File | null>(null);
-  const [cdrNumber, setCdrNumber] = useState('');
-  const [cdrUploadMessage, setCdrUploadMessage] = useState('');
-  const [cdrUploadError, setCdrUploadError] = useState('');
-  const [cdrUploading, setCdrUploading] = useState(false);
   const [cdrCaseName, setCdrCaseName] = useState('');
   const [cdrCaseMessage, setCdrCaseMessage] = useState('');
   const [cases, setCases] = useState<CdrCase[]>([]);
@@ -1446,24 +1424,6 @@ const App: React.FC = () => {
   }, [totalCasePages]);
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
-  const [caseFiles, setCaseFiles] = useState<CaseFile[]>([]);
-  const [caseFilesPage, setCaseFilesPage] = useState(1);
-  const [caseFilesPerPage, setCaseFilesPerPage] = useState(CASE_FILE_PAGE_SIZE_OPTIONS[0]);
-  const totalCaseFilesPages = Math.ceil(caseFiles.length / caseFilesPerPage) || 1;
-  const paginatedCaseFiles = useMemo(
-    () =>
-      caseFiles.slice(
-        (caseFilesPage - 1) * caseFilesPerPage,
-        caseFilesPage * caseFilesPerPage
-      ),
-    [caseFiles, caseFilesPage, caseFilesPerPage]
-  );
-  useEffect(() => {
-    setCaseFilesPage((page) => Math.min(page, Math.max(totalCaseFilesPages, 1)));
-  }, [totalCaseFilesPages]);
-  useEffect(() => {
-    setCaseFilesPage(1);
-  }, [selectedCase?.id]);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
   const [showMeetingPoints, setShowMeetingPoints] = useState(false);
   const [zoneMode, setZoneMode] = useState(false);
@@ -1584,19 +1544,6 @@ const App: React.FC = () => {
     [normalizeCdrNumber]
   );
 
-  const caseReferenceNumbers = useMemo(() => {
-    const rawNumbers = caseFiles
-      .map((file) => {
-        const value = file.cdr_number;
-        if (value === null || value === undefined) {
-          return '';
-        }
-        return String(value);
-      })
-      .filter((value) => value.trim().length > 0);
-    return dedupeCdrIdentifiers(rawNumbers);
-  }, [caseFiles, dedupeCdrIdentifiers]);
-
   const getEffectiveCdrIdentifiers = useCallback(() => {
     const combined = cdrIdentifierInput
       ? [...cdrIdentifiers, cdrIdentifierInput]
@@ -1621,8 +1568,7 @@ const App: React.FC = () => {
     () => getEffectiveCdrIdentifiers(),
     [getEffectiveCdrIdentifiers]
   );
-  const hasFraudDetectionNumbers =
-    effectiveCdrIdentifiers.length > 0 || caseReferenceNumbers.length > 0;
+  const hasFraudDetectionNumbers = effectiveCdrIdentifiers.length > 0;
 
   const formatFraudDate = (value?: string | null) => {
     if (!value) return '-';
@@ -3280,8 +3226,6 @@ useEffect(() => {
   };
 
   const fetchCdrData = async (identifiersOverride?: string[]) => {
-    if (!selectedCase) return;
-
     const ids = dedupeCdrIdentifiers(identifiersOverride ?? cdrIdentifiers).filter(
       (identifier) => identifier && !identifier.startsWith('2214')
     );
@@ -3314,37 +3258,98 @@ useEffect(() => {
         if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
         if (cdrStartTime) params.append('startTime', cdrStartTime);
         if (cdrEndTime) params.append('endTime', cdrEndTime);
-        const res = await fetch(`/api/cases/${selectedCase.id}/search?${params.toString()}`, {
+        const res = await fetch(`/api/cdr/realtime/search?${params.toString()}`, {
           headers: { Authorization: token ? `Bearer ${token}` : '' }
         });
         const data = await res.json();
         if (res.ok) {
           const filtered = Array.isArray(data.path)
-            ? data.path.filter((p: CdrPoint) => {
-                if (String(p.number || '').startsWith('2214')) return false;
-                if (p.type === 'web') return cdrPosition;
-                if (p.type === 'sms') return cdrSms;
-                return p.direction === 'incoming'
-                  ? cdrIncoming
-                  : p.direction === 'outgoing'
-                  ? cdrOutgoing
-                  : false;
-              })
+            ? data.path.filter((p: CdrPoint) => !String(p.number || '').startsWith('2214'))
             : [];
-          filtered.forEach((p: CdrPoint) => (p.source = id));
+          filtered.forEach((p: CdrPoint) => {
+            const caller = (p.caller || '').trim();
+            const locationOwner = p.type === 'web' ? id : caller || id;
+            p.source = locationOwner;
+            p.tracked = id;
+          });
           allPaths.push(...filtered);
         } else {
           setCdrError(data.error || 'Erreur lors de la recherche');
         }
       }
 
-      const contactsMap = new Map<string, { callCount: number; smsCount: number }>();
+      const trackedNumbersSet = new Set<string>();
+      ids.forEach((value) => {
+        const normalized = normalizeCdrNumber(value);
+        if (normalized) {
+          trackedNumbersSet.add(normalized);
+        }
+      });
+      const excludeTrackedContacts = trackedNumbersSet.size >= 2;
+
+      const contactsMap = new Map<
+        string,
+        { number: string; callCount: number; smsCount: number }
+      >();
       const locationsMap = new Map<string, CdrLocation>();
       allPaths.forEach((p: CdrPoint) => {
-        if (p.number) {
-          const entry = contactsMap.get(p.number) || { callCount: 0, smsCount: 0 };
-          if (p.type === 'sms') entry.smsCount += 1; else entry.callCount += 1;
-          contactsMap.set(p.number, entry);
+        const eventType = (p.type || '').toLowerCase();
+        if (eventType !== 'web') {
+          const trackedRaw = (p.tracked ?? '').toString().trim();
+          const trackedNormalized = normalizeCdrNumber(trackedRaw);
+          if (trackedNormalized) {
+            const rawNumber = (p.number ?? '').toString().trim();
+            const rawCaller = (p.caller ?? '').toString().trim();
+            const rawCallee = (p.callee ?? '').toString().trim();
+
+            const callerNormalized = normalizeCdrNumber(rawCaller);
+            const calleeNormalized = normalizeCdrNumber(rawCallee);
+            type ContactCandidate = { normalized?: string; raw: string };
+            const candidates: ContactCandidate[] = [
+              { normalized: normalizeCdrNumber(rawNumber), raw: rawNumber },
+              { normalized: callerNormalized, raw: rawCaller },
+              { normalized: calleeNormalized, raw: rawCallee }
+            ];
+
+            let contactNormalized = '';
+            let contactRaw = '';
+
+            const pickContact = (allowTracked: boolean) => {
+              for (const candidate of candidates) {
+                if (!candidate.normalized) continue;
+                if (!allowTracked && candidate.normalized === trackedNormalized) continue;
+                contactNormalized = candidate.normalized;
+                contactRaw = candidate.raw || candidate.normalized;
+                return true;
+              }
+              return false;
+            };
+
+            if (!pickContact(false)) {
+              pickContact(true);
+            }
+
+            if (contactNormalized) {
+              if (!excludeTrackedContacts || !trackedNumbersSet.has(contactNormalized)) {
+                const key = contactNormalized;
+                const entry =
+                  contactsMap.get(key) ||
+                  { number: contactRaw || key, callCount: 0, smsCount: 0 };
+
+                if (contactRaw && (!entry.number || entry.number === key)) {
+                  entry.number = contactRaw;
+                }
+
+                if (eventType === 'sms') {
+                  entry.smsCount += 1;
+                } else {
+                  entry.callCount += 1;
+                }
+
+                contactsMap.set(key, entry);
+              }
+            }
+          }
         }
         const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
         const loc = locationsMap.get(key) || {
@@ -3357,9 +3362,9 @@ useEffect(() => {
         locationsMap.set(key, loc);
       });
 
-      const contacts = Array.from(contactsMap.entries())
-        .map(([number, c]) => ({
-          number,
+      const contacts = Array.from(contactsMap.values())
+        .map((c) => ({
+          number: c.number,
           callCount: c.callCount,
           smsCount: c.smsCount,
           total: c.callCount + c.smsCount
@@ -3398,11 +3403,11 @@ useEffect(() => {
     const dedupedInput = providedNumbers.length > 0
       ? dedupeCdrIdentifiers(providedNumbers)
       : dedupeCdrIdentifiers(cdrIdentifiers);
-    const numbersForRequest = dedupedInput.length > 0 ? dedupedInput : caseReferenceNumbers;
+    const numbersForRequest = dedupedInput;
 
     if (numbersForRequest.length === 0) {
       setFraudResult(null);
-      setFraudError('Aucun CDR importé ne peut être analysé pour cette opération.');
+      setFraudError('Ajoutez au moins un numéro à analyser.');
       return;
     }
 
@@ -3442,11 +3447,11 @@ useEffect(() => {
 
   const handleFraudDetectionClick = async () => {
     const identifiers = getEffectiveCdrIdentifiers();
-    const numbersForDetection = identifiers.length > 0 ? identifiers : caseReferenceNumbers;
+    const numbersForDetection = identifiers;
 
     if (numbersForDetection.length === 0) {
       setFraudResult(null);
-      setFraudError('Importez des CDR ou ajoutez un numéro pour lancer l’analyse');
+      setFraudError('Ajoutez au moins un numéro pour lancer l’analyse');
       return;
     }
 
@@ -3522,23 +3527,12 @@ useEffect(() => {
     setCdrEnd('');
     setCdrStartTime('');
     setCdrEndTime('');
-    setCdrIncoming(true);
-    setCdrOutgoing(true);
-    setCdrSms(true);
-    setCdrPosition(true);
     setCdrItinerary(false);
     setCdrError('');
     setCdrInfoMessage('');
     setCdrResult(null);
     setShowCdrMap(false);
   };
-
-  useEffect(() => {
-    if (cdrIdentifiers.length > 0) {
-      fetchCdrData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cdrIncoming, cdrOutgoing, cdrSms, cdrPosition]);
 
   const handleCdrSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -3852,53 +3846,12 @@ useEffect(() => {
     }
   };
 
-  const fetchCaseFiles = async (caseId: number) => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/cases/${caseId}/files`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCaseFiles(data);
-      }
-    } catch (err) {
-      console.error('Erreur chargement fichiers:', err);
-    }
-  };
-
-  const handleDeleteFile = (fileId: number) => {
-    if (!selectedCase) return;
-    const caseId = selectedCase.id;
-    openConfirmDialog({
-      title: 'Supprimer le fichier',
-      description: 'Supprimer ce fichier de l’opération sélectionnée ?',
-      confirmLabel: 'Supprimer',
-      tone: 'danger',
-      icon: <FileText className="h-5 w-5" />,
-      onConfirm: async () => {
-        try {
-          const token = localStorage.getItem('token');
-          await fetch(`/api/cases/${caseId}/files/${fileId}`, {
-            method: 'DELETE',
-            headers: { Authorization: token ? `Bearer ${token}` : '' }
-          });
-          fetchCaseFiles(caseId);
-        } catch (err) {
-          console.error('Erreur suppression fichier:', err);
-        }
-      }
-    });
-  };
-
   useEffect(() => {
     if (!selectedCase) {
-      setCaseFiles([]);
       setFraudResult(null);
       setFraudError('');
       setFraudLoading(false);
     } else {
-      fetchCaseFiles(selectedCase.id);
       setFraudResult(null);
       setFraudError('');
     }
@@ -4047,44 +4000,6 @@ useEffect(() => {
     } catch (error) {
       console.error('Erreur export rapport opération:', error);
       notifyError("Impossible d'exporter le rapport PDF de l'opération.");
-    }
-  };
-
-  const handleCdrUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cdrFile || !selectedCase || !cdrNumber.trim()) return;
-    const normalizedNumber = normalizeCdrNumber(cdrNumber);
-    if (!normalizedNumber) {
-      setCdrUploadError('Numéro invalide');
-      return;
-    }
-    setCdrNumber(normalizedNumber);
-    setCdrUploading(true);
-    setCdrUploadMessage('');
-    setCdrUploadError('');
-    try {
-      const formData = new FormData();
-      formData.append('file', cdrFile);
-      formData.append('cdrNumber', normalizedNumber);
-      const res = await fetch(`/api/cases/${selectedCase.id}/upload`, {
-        method: 'POST',
-        headers: createAuthHeaders(),
-        body: formData
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCdrUploadMessage('Fichier importé avec succès');
-        setCdrFile(null);
-        setCdrNumber('');
-        await fetchCaseFiles(selectedCase.id);
-      } else {
-        setCdrUploadError(data.error || "Erreur lors de l'import");
-      }
-    } catch (error) {
-      console.error('Erreur upload CDR:', error);
-      setCdrUploadError("Erreur lors de l'import");
-    } finally {
-      setCdrUploading(false);
     }
   };
 
@@ -4437,17 +4352,17 @@ useEffect(() => {
         className={`min-h-screen flex items-center justify-center p-4 ${
           theme === 'dark'
             ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100'
-            : 'bg-gradient-to-br from-red-50 via-white to-red-50'
+            : 'bg-gradient-to-br from-blue-50 via-white to-blue-50'
         }`}
       >
         <div className="max-w-md w-full">
           <div className="bg-white shadow-2xl rounded-2xl overflow-hidden">
-            <div className="bg-gradient-to-r from-red-600 to-red-700 px-8 py-6">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6">
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4 text-white">
-                  <DevineLogo className="h-10 w-10" />
+                  <SoraLogo className="h-10 w-10" />
                 </div>
-                <h2 className="text-2xl font-bold text-white">Devine Intelligence</h2>
+                <h2 className="text-2xl font-bold text-white">SORA</h2>
               </div>
             </div>
             
@@ -4466,7 +4381,7 @@ useEffect(() => {
                     id="login"
                     type="text"
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="Entrez votre nom d'utilisateur"
                     value={loginData.login}
                     onChange={(e) => setLoginData({ ...loginData, login: e.target.value })}
@@ -4480,7 +4395,7 @@ useEffect(() => {
                     id="password"
                     type="password"
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="Entrez votre mot de passe"
                     value={loginData.password}
                     onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
@@ -4502,7 +4417,7 @@ useEffect(() => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-red-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 transition-all"
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all"
                 >
                   {loading ? (
                     <div className="flex items-center justify-center">
@@ -4525,285 +4440,281 @@ useEffect(() => {
     const showDetectionPanel = !showCdrMap && Boolean(selectedCase);
 
     const combinedSection = (
-      <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
-        <div className="border-b border-slate-200/70 bg-gradient-to-r from-red-600 via-red-500 to-red-700 p-6 text-white dark:border-slate-700/60">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Recherche CDR</h3>
-              <p className="text-sm text-white/80">Affinez votre requête pour visualiser les communications pertinentes.</p>
+      <section className="rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/50 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+        <div className="space-y-8 p-6 sm:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30">
+                  <Activity className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Recherche CDR</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-300">Configurez et lancez vos analyses en quelques clics.</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white px-3 py-1 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                  <Search className="h-3.5 w-3.5" />
+                  {effectiveCdrIdentifiers.length} identifiant{effectiveCdrIdentifiers.length > 1 ? 's' : ''}
+                </span>
+                {(cdrStart || cdrEnd) && (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white px-3 py-1 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                    <Clock className="h-3.5 w-3.5" />
+                    Période : {cdrStart || 'non définie'} → {cdrEnd || 'non définie'}
+                  </span>
+                )}
+                {cdrItinerary && (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-blue-50 px-3 py-1 text-blue-600 shadow-sm dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-200">
+                    <Car className="h-3.5 w-3.5" />
+                    Itinéraire activé
+                  </span>
+                )}
+                {selectedCase && (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white px-3 py-1 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                    <Database className="h-3.5 w-3.5" />
+                    {selectedCase.name || `Opération #${selectedCase.id}`}
+                  </span>
+                )}
+              </div>
             </div>
             {showDetectionPanel && (
-              <div className="rounded-2xl border border-white/30 bg-white/10 p-4 shadow-lg shadow-black/20">
+              <div className="flex w-full flex-col gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 text-sm shadow-sm dark:border-slate-700/60 dark:bg-slate-900/40 lg:w-[320px]">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-1 text-white/90">
-                    <p className="text-[11px] uppercase tracking-wide text-white/70">Détection de fraude</p>
-                    <h3 className="text-lg font-semibold text-white">Changement de numéro</h3>
-                    <p className="text-xs text-white/80">
-                      Analysez les numéros utilisés par les terminaux identifiés dans l'opération en cours.
-                    </p>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Détection de fraude</p>
+                    <h4 className="text-base font-semibold text-slate-800 dark:text-slate-100">Changement de numéro</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Analysez les terminaux identifiés dans l'opération en cours.</p>
                   </div>
                   <button
                     type="button"
                     onClick={handleFraudDetectionClick}
                     disabled={fraudLoading || !selectedCase || !hasFraudDetectionNumbers}
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {fraudLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Scan className="h-3.5 w-3.5" />}
                     <span>Analyser</span>
                   </button>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/30 bg-white/15 px-4 py-3 text-xs">
-                    <p className="text-white/70">IMEI analysés</p>
-                    <p className="mt-1 text-2xl font-semibold text-white">{fraudStats.totalImeis}</p>
+                <dl className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">IMEI analysés</dt>
+                    <dd className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">{fraudStats.totalImeis}</dd>
                   </div>
-                  <div className="rounded-2xl border border-white/30 bg-white/15 px-4 py-3 text-xs">
-                    <p className="text-white/70">Numéros détectés</p>
-                    <p className="mt-1 text-2xl font-semibold text-white">{fraudStats.totalNumbers}</p>
+                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Numéros détectés</dt>
+                    <dd className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">{fraudStats.totalNumbers}</dd>
                   </div>
                   <div
-                    className={`rounded-2xl px-4 py-3 text-xs ${
+                    className={`rounded-xl px-4 py-3 shadow-sm ${
                       fraudStats.newNumbers > 0
-                        ? 'border border-rose-100/60 bg-rose-500/40 text-white'
-                        : 'border border-emerald-100/60 bg-emerald-500/30 text-white'
+                        ? 'border border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200'
+                        : 'border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200'
                     }`}
                   >
-                    <p className="text-white/80">Nouveaux numéros</p>
-                    <p className="mt-1 text-2xl font-semibold">{fraudStats.newNumbers}</p>
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide">Nouveaux numéros</dt>
+                    <dd className="mt-1 text-xl font-semibold">{fraudStats.newNumbers}</dd>
                   </div>
-                </div>
+                </dl>
               </div>
             )}
-            <div className="hidden h-12 w-12 items-center justify-center rounded-2xl bg-white/20 md:flex">
-              <Search className="h-6 w-6" />
-            </div>
-          </div>
-        </div>
-        <div
-          className={`p-6 ${
-            showDetectionPanel
-              ? 'space-y-6 xl:grid xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] xl:items-start xl:space-y-0 xl:gap-6'
-              : ''
-          }`}
-        >
-          <form onSubmit={handleCdrSearch} className="space-y-5">
-            <div>
-              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Numéros recherchés</label>
-              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700/60 dark:bg-slate-900/50">
-                {cdrIdentifiers.map((id, idx) => (
-                  <span
-                  key={idx}
-                  className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
-                >
-                  {id}
-                  <button
-                    type="button"
-                    onClick={() => removeCdrIdentifier(idx)}
-                    className="text-blue-500 transition hover:text-blue-700 dark:hover:text-blue-100"
-                  >
-                    <X size={14} />
-                  </button>
-                </span>
-              ))}
-              <input
-                type="text"
-                value={cdrIdentifierInput}
-                onChange={(e) => setCdrIdentifierInput(e.target.value)}
-                onBlur={(e) => setCdrIdentifierInput(normalizeCdrNumber(e.target.value))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addCdrIdentifier();
-                  }
-                }}
-                placeholder="Ajouter un numéro"
-                className="flex-1 min-w-[150px] border-none bg-transparent py-1 text-sm focus:outline-none focus:ring-0"
-              />
-            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Date de début</label>
-              <input
-                type="date"
-                value={cdrStart}
-                onChange={(e) => setCdrStart(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Date de fin</label>
-              <input
-                type="date"
-                value={cdrEnd}
-                onChange={(e) => setCdrEnd(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Heure de début</label>
-              <input
-                type="time"
-                value={cdrStartTime}
-                onChange={(e) => setCdrStartTime(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Heure de fin</label>
-              <input
-                type="time"
-                value={cdrEndTime}
-                onChange={(e) => setCdrEndTime(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <ToggleSwitch
-              label={
-                <div className="flex items-center gap-2">
-                  <PhoneIncoming className="h-4 w-4 text-emerald-500" />
-                  <span>Appels entrants</span>
-                </div>
-              }
-              checked={cdrIncoming}
-              onChange={setCdrIncoming}
-              activeColor="peer-checked:bg-emerald-500 dark:peer-checked:bg-emerald-500"
-            />
-            <ToggleSwitch
-              label={
-                <div className="flex items-center gap-2">
-                  <PhoneOutgoing className="h-4 w-4 text-blue-500" />
-                  <span>Appels sortants</span>
-                </div>
-              }
-              checked={cdrOutgoing}
-              onChange={setCdrOutgoing}
-              activeColor="peer-checked:bg-blue-500 dark:peer-checked:bg-blue-500"
-            />
-            <ToggleSwitch
-              label={
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-green-500" />
-                  <span>SMS</span>
-                </div>
-              }
-              checked={cdrSms}
-              onChange={setCdrSms}
-              activeColor="peer-checked:bg-green-500 dark:peer-checked:bg-green-500"
-            />
-            <ToggleSwitch
-              label={
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-rose-500" />
-                  <span>Position</span>
-                </div>
-              }
-              checked={cdrPosition}
-              onChange={setCdrPosition}
-              activeColor="peer-checked:bg-rose-500 dark:peer-checked:bg-rose-500"
-            />
-            <ToggleSwitch
-              label={
-                <div className="flex items-center gap-2">
-                  <Car className="h-4 w-4 text-indigo-500" />
-                  <span>Itinéraire</span>
-                </div>
-              }
-              checked={cdrItinerary}
-              onChange={setCdrItinerary}
-              activeColor="peer-checked:bg-indigo-500 dark:peer-checked:bg-indigo-500"
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <button
-              type="button"
-              onClick={resetCdrSearch}
-              className="inline-flex items-center gap-2 self-start rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-800/80"
+          <div
+            className={`grid gap-6 ${
+              showDetectionPanel ? 'xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start' : ''
+            }`}
+          >
+            <form
+              onSubmit={handleCdrSearch}
+              className="space-y-6 rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-900/70"
             >
-              <RefreshCw className="h-4 w-4" />
-              <span>Réinitialiser</span>
-            </button>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="submit"
-                disabled={cdrLoading}
-                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Search className="h-4 w-4" />
-                <span>Rechercher</span>
-              </button>
-              {effectiveCdrIdentifiers.length >= 2 && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">Paramètres de recherche</h4>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Définissez les identifiants et la période d'analyse.</p>
+                </div>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
-                  onClick={handleLinkDiagram}
+                  onClick={resetCdrSearch}
+                  className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:text-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
                 >
-                  <Share2 className="h-4 w-4" />
-                  <span>Diagramme des liens</span>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Réinitialiser
                 </button>
-              )}
-            </div>
-          </div>
-          </form>
-          {showDetectionPanel && (
-            <div className="space-y-6 rounded-3xl border border-slate-200/70 bg-slate-50/80 p-6 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-              {fraudError && (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
-                  {fraudError}
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Identifiants ciblés</label>
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-dashed border-slate-300/70 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                  {cdrIdentifiers.map((id, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
+                    >
+                      {id}
+                      <button
+                        type="button"
+                        onClick={() => removeCdrIdentifier(idx)}
+                        className="text-blue-500 transition hover:text-blue-700 dark:hover:text-blue-100"
+                      >
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    type="text"
+                    value={cdrIdentifierInput}
+                    onChange={(e) => setCdrIdentifierInput(e.target.value)}
+                    onBlur={(e) => setCdrIdentifierInput(normalizeCdrNumber(e.target.value))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCdrIdentifier();
+                      }
+                    }}
+                    placeholder="Ajouter un numéro"
+                    className="flex-1 min-w-[150px] border-none bg-transparent py-1 text-sm focus:outline-none focus:ring-0"
+                  />
                 </div>
-              )}
-              {!hasFraudDetectionNumbers ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
-                  Importez des CDR ou ajoutez un numéro à la recherche pour lancer l’analyse de fraude.
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Date de début</label>
+                  <input
+                    type="date"
+                    value={cdrStart}
+                    onChange={(e) => setCdrStart(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
+                  />
                 </div>
-              ) : fraudLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-slate-100" />
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Date de fin</label>
+                  <input
+                    type="date"
+                    value={cdrEnd}
+                    onChange={(e) => setCdrEnd(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
+                  />
                 </div>
-              ) : fraudResult ? (
-                <div className="space-y-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    <span>Dernière analyse&nbsp;: {formatFraudDateTime(fraudResult.updatedAt)}</span>
-                    {hasFraudSuspiciousNumbers && (
-                      <span className="inline-flex items-center gap-2 rounded-full bg-rose-500/10 px-3 py-1 font-semibold text-rose-500 dark:text-rose-300">
-                        <AlertTriangle className="h-3.5 w-3.5" /> Anomalies détectées
-                      </span>
-                    )}
-                  </div>
-                  {fraudResult.imeis.length === 0 ? (
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700 shadow-inner dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100">
-                      Aucun changement de numéro détecté pour les identifiants recherchés.
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Heure de début</label>
+                  <input
+                    type="time"
+                    value={cdrStartTime}
+                    onChange={(e) => setCdrStartTime(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Heure de fin</label>
+                  <input
+                    type="time"
+                    value={cdrEndTime}
+                    onChange={(e) => setCdrEndTime(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-900/60">
+                <ToggleSwitch
+                  label={
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-200">
+                      <Car className="h-4 w-4 text-indigo-500" />
+                      <span>Calculer l'itinéraire</span>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {fraudResult.imeis.map((imeiEntry) => (
-                        <div
-                          key={imeiEntry.imei}
-                          className="space-y-4 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/60"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">IMEI {imeiEntry.imei}</p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''} détecté{imeiEntry.numbers.length > 1 ? 's' : ''}
-                              </p>
+                  }
+                  checked={cdrItinerary}
+                  onChange={setCdrItinerary}
+                  activeColor="peer-checked:bg-indigo-500 dark:peer-checked:bg-indigo-500"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-200/80 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                    i
+                  </span>
+                  <span>Ajoutez plusieurs numéros pour enrichir l'analyse.</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={cdrLoading}
+                    className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Search className="h-4 w-4" />
+                    <span>Rechercher</span>
+                  </button>
+                  {effectiveCdrIdentifiers.length >= 2 && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
+                      onClick={handleLinkDiagram}
+                    >
+                      <Share2 className="h-4 w-4" />
+                      <span>Diagramme des liens</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+            {showDetectionPanel && (
+              <div className="space-y-6 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-6 text-sm shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                {fraudError && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+                    {fraudError}
+                  </div>
+                )}
+                {!hasFraudDetectionNumbers ? (
+                  <div className="rounded-xl border border-dashed border-slate-300/70 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                    Importez des CDR ou ajoutez un numéro à la recherche pour lancer l’analyse de fraude.
+                  </div>
+                ) : fraudLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-slate-100" />
+                  </div>
+                ) : fraudResult ? (
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      <span>Dernière analyse&nbsp;: {formatFraudDateTime(fraudResult.updatedAt)}</span>
+                      {hasFraudSuspiciousNumbers && (
+                        <span className="inline-flex items-center gap-2 rounded-full bg-rose-500/10 px-3 py-1 text-rose-600 dark:text-rose-300">
+                          <AlertTriangle className="h-3.5 w-3.5" /> Anomalies détectées
+                        </span>
+                      )}
+                    </div>
+                    {fraudResult.imeis.length === 0 ? (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700 shadow-inner dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100">
+                        Aucun changement de numéro détecté pour les identifiants recherchés.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {fraudResult.imeis.map((imeiEntry) => (
+                          <div
+                            key={imeiEntry.imei}
+                            className="space-y-4 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/60"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">IMEI {imeiEntry.imei}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''} détecté{imeiEntry.numbers.length > 1 ? 's' : ''}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100/70 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                                  <Activity className="h-3.5 w-3.5" /> {imeiEntry.numbers.reduce((acc, item) => acc + item.occurrences, 0)} occurrences
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 text-xs">
-                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100/70 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
-                                <Activity className="h-3.5 w-3.5" /> {imeiEntry.numbers.reduce((acc, item) => acc + item.occurrences, 0)} occurrences
-                              </span>
-                            </div>
-                          </div>
                             {imeiEntry.numbers.length === 0 ? (
-                              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
+                              <div className="rounded-xl border border-dashed border-slate-300/70 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
                                 Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
                               </div>
                             ) : (
@@ -4873,18 +4784,19 @@ useEffect(() => {
                                 })}
                               </div>
                             )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-slate-300/70 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                    Lancez une analyse pour détecter les nouveaux numéros associés aux identifiants recherchés.
                   </div>
                 )}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-300">
-                  Lancez une analyse pour détecter les nouveaux numéros associés aux identifiants recherchés.
-                </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       </section>
     );
@@ -4913,7 +4825,7 @@ useEffect(() => {
           title="Déployer le menu"
           aria-label="Déployer le menu"
         >
-          <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-red-600 via-red-500 to-red-700 opacity-0 transition-opacity group-hover:opacity-100" />
+          <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 opacity-0 transition-opacity group-hover:opacity-100" />
           <ChevronRight className="relative h-5 w-5" />
         </button>
       )}
@@ -4928,12 +4840,12 @@ useEffect(() => {
         <div className="relative p-6 border-b border-white/60 dark:border-gray-800/70">
           <div className="flex items-center justify-between">
             <div className={`flex items-center gap-3 ${!sidebarOpen && 'justify-center gap-0'}`}>
-              <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30">
-                <DevineLogo className="h-7 w-7" />
+              <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30">
+                <SoraLogo className="h-7 w-7" />
               </div>
               {sidebarOpen && (
                 <div>
-                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-red-600 via-red-500 to-red-700 bg-clip-text text-transparent tracking-tight">Devine Intelligence</h1>
+                  <h1 className="text-xl font-extrabold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent tracking-tight">SORA</h1>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Surveillance &amp; Operations</p>
                 </div>
               )}
@@ -4959,7 +4871,7 @@ useEffect(() => {
                 className="group relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/60 bg-white/70 text-gray-600 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-gray-700/70 dark:bg-gray-800/70 dark:text-gray-200"
                 title={sidebarOpen ? 'Réduire le menu' : 'Déployer le menu'}
               >
-                <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-red-600 via-red-500 to-red-700 opacity-0 transition-opacity group-hover:opacity-100" />
+                <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 opacity-0 transition-opacity group-hover:opacity-100" />
                 <span className="relative">
                   {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                 </span>
@@ -4976,7 +4888,7 @@ useEffect(() => {
               title="Dashboard"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'dashboard'
-                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -4989,7 +4901,7 @@ useEffect(() => {
               title="Recherche"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'search'
-                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5002,7 +4914,7 @@ useEffect(() => {
               title="Annuaire Gendarmerie"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'annuaire'
-                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5015,7 +4927,7 @@ useEffect(() => {
               title="ONG"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'ong'
-                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5028,7 +4940,7 @@ useEffect(() => {
               title="Entreprises"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'entreprises'
-                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5041,7 +4953,7 @@ useEffect(() => {
               title="Véhicules"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'vehicules'
-                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5054,7 +4966,7 @@ useEffect(() => {
               title="CDR"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr'
-                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5067,7 +4979,7 @@ useEffect(() => {
               title="Détection de Fraude"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'fraud-detection'
-                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5080,7 +4992,7 @@ useEffect(() => {
               title="Demandes"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'requests'
-                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5096,7 +5008,7 @@ useEffect(() => {
               title="Fiches de profil"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'profiles'
-                  ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                   : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
@@ -5110,7 +5022,7 @@ useEffect(() => {
                 title="White List"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'blacklist'
-                    ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                     : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
                 } ${!sidebarOpen && 'justify-center px-0'}`}
               >
@@ -5125,7 +5037,7 @@ useEffect(() => {
                 title="Logs"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'logs'
-                    ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                     : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
                 } ${!sidebarOpen && 'justify-center px-0'}`}
               >
@@ -5140,7 +5052,7 @@ useEffect(() => {
                 title="Utilisateurs"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'users'
-                    ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                     : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
                 } ${!sidebarOpen && 'justify-center px-0'}`}
               >
@@ -5155,7 +5067,7 @@ useEffect(() => {
                 title="Charger des données"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                   currentPage === 'upload'
-                    ? 'bg-gradient-to-r from-red-600 via-red-500 to-red-700 text-white shadow-lg shadow-blue-500/30'
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                     : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
                 } ${!sidebarOpen && 'justify-center px-0'}`}
               >
@@ -6151,7 +6063,7 @@ useEffect(() => {
                       />
                       <button
                         type="submit"
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                       >
                         <Plus className="h-4 w-4" />
                         <span>Créer l'opération</span>
@@ -6245,7 +6157,7 @@ useEffect(() => {
                               <>
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                                   onClick={submitRenameCase}
                                   disabled={renamingCaseLoading}
                                 >
@@ -6266,16 +6178,14 @@ useEffect(() => {
                               <>
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-                                  onClick={() => {
-                                    cancelRenameCase();
-                                    setSelectedCase(c);
-                                    setCdrResult(null);
-                                    setShowCdrMap(false);
-                                    setCdrUploadMessage('');
-                                    setCdrUploadError('');
-                                    navigateToPage('cdr-case');
-                                  }}
+                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                                onClick={() => {
+                                  cancelRenameCase();
+                                  setSelectedCase(c);
+                                  setCdrResult(null);
+                                  setShowCdrMap(false);
+                                  navigateToPage('cdr-case');
+                                }}
                                 >
                                   <ArrowRight className="h-4 w-4" />
                                   <span>Ouvrir</span>
@@ -6752,7 +6662,7 @@ useEffect(() => {
                         <div className="flex gap-2">
                           <button
                             type="button"
-                            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                             onClick={submitRenameCase}
                             disabled={renamingCaseLoading}
                           >
@@ -6791,159 +6701,9 @@ useEffect(() => {
               )}
 
               {!showCdrMap && (
-                <>
-                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
-                      <div className="border-b border-white/30 bg-gradient-to-br from-red-600 via-red-500 to-red-700 p-6 text-white">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="space-y-2">
-                            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.4em] text-white/80">
-                              <UploadCloud className="h-4 w-4" />
-                              Importation CDR
-                            </span>
-                            <h3 className="text-2xl font-semibold leading-tight">Ajoutez vos relevés d'appels</h3>
-                            <p className="text-sm text-white/80 sm:max-w-sm">
-                              Associez un fichier CDR à un numéro pivot pour l'analyse de l'opération en cours.
-                            </p>
-                          </div>
-                          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 text-white">
-                            <Phone className="h-7 w-7" />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-6 p-6">
-                        <form onSubmit={handleCdrUpload} className="space-y-6">
-                          <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-                            <div className="space-y-2">
-                              <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Numéro associé</label>
-                              <div className="relative">
-                                <Phone className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
-                                <input
-                                  type="text"
-                                  value={cdrNumber}
-                                  onChange={(e) => setCdrNumber(e.target.value)}
-                                  onBlur={(e) => setCdrNumber(normalizeCdrNumber(e.target.value))}
-                                  placeholder="Ex. 770000000"
-                                  className="block w-full rounded-3xl border border-slate-200/80 bg-white/80 py-3 pl-12 pr-4 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
-                                />
-                              </div>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Le numéro sera utilisé pour indexer le fichier importé.
-                              </p>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Fichier CDR (.csv)</label>
-                              <label className="group relative flex min-h-[150px] cursor-pointer flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 px-6 text-center text-sm font-medium text-slate-600 transition hover:border-blue-500 hover:bg-blue-50/70 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-300 dark:hover:border-blue-400 dark:hover:bg-blue-500/10">
-                                <UploadCloud className="h-8 w-8 text-blue-500 transition duration-200 group-hover:scale-105 dark:text-blue-300" />
-                                <div>Glissez-déposez ou cliquez pour importer</div>
-                                <span className="text-xs font-normal text-slate-500 dark:text-slate-400">Format pris en charge : CSV</span>
-                                <input
-                                  type="file"
-                                  accept=".csv"
-                                  onChange={(e) => setCdrFile(e.target.files?.[0] || null)}
-                                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                                />
-                              </label>
-                              {cdrFile && (
-                                <p className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-200">
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                  {cdrFile.name}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <button
-                              type="submit"
-                              disabled={cdrUploading || !cdrFile || !cdrNumber}
-                              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {cdrUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-4 w-4" />}
-                              <span>Importer le fichier</span>
-                            </button>
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
-                              Seuls les fichiers .csv fournis par les opérateurs sont acceptés.
-                            </span>
-                          </div>
-                          {cdrUploadMessage && (
-                            <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/90 px-4 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
-                              <CheckCircle2 className="h-4 w-4" />
-                              {cdrUploadMessage}
-                            </div>
-                          )}
-                          {cdrUploadError && (
-                            <div className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-2 text-sm font-medium text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
-                              <AlertCircle className="h-4 w-4" />
-                              {cdrUploadError}
-                            </div>
-                          )}
-                        </form>
-
-                        <div className="space-y-4 border-t border-slate-200/80 pt-6 dark:border-slate-700/60">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <h4 className="text-base font-semibold text-slate-700 dark:text-slate-200">Historique des imports</h4>
-                              <p className="text-sm text-slate-500 dark:text-slate-400">Suivez les fichiers déjà analysés pour ce dossier.</p>
-                            </div>
-                            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                              <Clock className="h-4 w-4" />
-                              {caseFiles.length} importation{caseFiles.length > 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          {caseFiles.length === 0 ? (
-                            <div className="rounded-3xl border border-dashed border-slate-200 bg-white/80 px-4 py-6 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
-                              Aucun fichier CDR importé pour le moment. Importez un relevé pour l'afficher ici.
-                            </div>
-                          ) : (
-                            <>
-                              <div className="w-full overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                                <table className="min-w-full text-sm text-slate-600 dark:text-slate-200">
-                                  <thead className="bg-slate-100/80 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 dark:bg-slate-800/80 dark:text-slate-300">
-                                    <tr>
-                                      <th className="px-4 py-3 text-left">Nom du fichier</th>
-                                      <th className="px-4 py-3 text-left">Numéro</th>
-                                      <th className="px-4 py-3 text-left">Lignes</th>
-                                      <th className="px-4 py-3 text-right">Action</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                                    {paginatedCaseFiles.map((f) => (
-                                      <tr key={f.id} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
-                                        <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-100">{f.filename}</td>
-                                        <td className="px-4 py-3">{f.cdr_number || '-'}</td>
-                                        <td className="px-4 py-3">{f.line_count}</td>
-                                        <td className="px-4 py-3 text-right">
-                                          <button
-                                            className="text-sm font-semibold text-rose-600 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-                                            onClick={() => handleDeleteFile(f.id)}
-                                          >
-                                            Supprimer
-                                          </button>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                              <PaginationControls
-                                currentPage={caseFilesPage}
-                                totalPages={Math.max(totalCaseFilesPages, 1)}
-                                onPageChange={setCaseFilesPage}
-                                pageSize={caseFilesPerPage}
-                                pageSizeOptions={CASE_FILE_PAGE_SIZE_OPTIONS}
-                                onPageSizeChange={(size) => {
-                                  setCaseFilesPerPage(size);
-                                  setCaseFilesPage(1);
-                                }}
-                              />
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {renderCdrSearchForm()}
-                  </div>
-                </>
+                <div className="grid grid-cols-1 gap-6">
+                  {renderCdrSearchForm()}
+                </div>
               )}
 
               {cdrLoading && (
@@ -7115,7 +6875,7 @@ useEffect(() => {
                       </div>
                       <button
                         type="submit"
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                       >
                         <Search className="h-4 w-4" />
                         Lancer la recherche
@@ -7345,7 +7105,7 @@ useEffect(() => {
                             <div className="flex flex-wrap items-center gap-3">
                               {isAdmin && r.status !== 'identified' && (
                                 <button
-                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                                   onClick={() => startIdentify(r)}
                                 >
                                   <UserCheck className="h-4 w-4" />
@@ -7497,7 +7257,7 @@ useEffect(() => {
                       <button
                         type="submit"
                         disabled={!blacklistNumber.trim()}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Plus className="h-4 w-4" />
                         Ajouter
@@ -7999,7 +7759,7 @@ useEffect(() => {
                 <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                   <button
                     onClick={openCreateModal}
-                    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition-transform hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition-transform hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                   >
                     <Plus className="mr-2 h-5 w-5" />
                     Nouvel utilisateur
@@ -8276,7 +8036,7 @@ useEffect(() => {
           {currentPage === 'dashboard' && (
             <div className="space-y-8">
               {/* Header */}
-              <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme Devine Intelligence" />
+              <PageHeader icon={<BarChart3 className="h-6 w-6" />} title="Dashboard" subtitle="Analyse complète de l'utilisation de la plateforme SORA" />
 
               {loadingStats ? (
                 <div className="flex items-center justify-center py-16">
@@ -8801,7 +8561,7 @@ useEffect(() => {
                           topSearchTerms.slice(0, 9).map((term, index) => (
                             <div
                               key={index}
-                              className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-red-50 hover:to-red-100 transition-all dark:from-gray-800 dark:to-gray-700 dark:hover:from-red-900 dark:hover:to-red-800"
+                              className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl hover:from-blue-50 hover:to-blue-100 transition-all dark:from-gray-800 dark:to-gray-700 dark:hover:from-blue-900 dark:hover:to-blue-800"
                             >
                               <div className="flex items-center space-x-3">
                                 <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full text-blue-600 font-bold text-sm dark:bg-blue-900 dark:text-blue-200">
@@ -8946,7 +8706,7 @@ useEffect(() => {
                       <button
                         type="submit"
                         disabled={loading}
-                        className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 via-red-500 to-red-700 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-red-600 hover:via-red-500 hover:to-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 focus:outline-none focus:ring-4 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {loading ? (
                           <span className="flex items-center gap-2">

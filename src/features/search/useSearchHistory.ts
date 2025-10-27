@@ -7,7 +7,7 @@ export interface SearchHistoryEntry {
   timestamp: number;
 }
 
-const SEARCH_HISTORY_STORAGE_KEY = 'devine-intelligence-unified-search-history';
+const SEARCH_HISTORY_STORAGE_KEY = 'sora-unified-search-history';
 const SEARCH_HISTORY_PREVIEW_LIMIT = 6;
 const SEARCH_HISTORY_LIMIT = 10;
 
