@@ -26,6 +26,8 @@ import {
   FileText,
   Upload,
   UploadCloud,
+  PhoneIncoming,
+  PhoneOutgoing,
   Phone,
   Building2,
   Globe,

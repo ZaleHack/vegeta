@@ -6,14 +6,24 @@ class DatabaseManager {
   constructor() {
     const dataDir = path.join(__dirname, '../../data');
     const newDbPath = path.join(dataDir, 'sora.db');
-    const oldDbPath = path.join(dataDir, 'vegeta.db');
+    const legacyDbPaths = [
+      path.join(dataDir, 'vegeta.db'),
+      path.join(dataDir, 'devine-intelligence.db')
+    ];
 
-    // Preserve existing data by migrating the old database file if needed
-    if (fs.existsSync(oldDbPath) && !fs.existsSync(newDbPath)) {
-      try {
-        fs.renameSync(oldDbPath, newDbPath);
-      } catch (err) {
-        console.error('❌ Erreur lors de la migration de la base de données:', err);
+    // Preserve existing data by migrating any known legacy database file if needed
+    if (!fs.existsSync(newDbPath)) {
+      for (const legacyPath of legacyDbPaths) {
+        if (!fs.existsSync(legacyPath)) {
+          continue;
+        }
+
+        try {
+          fs.renameSync(legacyPath, newDbPath);
+          break;
+        } catch (err) {
+          console.error('❌ Erreur lors de la migration de la base de données:', err);
+        }
       }
     }
 
