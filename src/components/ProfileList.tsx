@@ -981,7 +981,15 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
-                  const handleSelect = () => setSelectedFolderId(folder.id);
+                  const handleSelect = () => {
+                    setSelectedFolderId(current => {
+                      const next = current === folder.id ? null : folder.id;
+                      if (next === null) {
+                        setSelected(null);
+                      }
+                      return next;
+                    });
+                  };
                   const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = event => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
