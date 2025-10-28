@@ -71,6 +71,26 @@
   .dark .hover\:bg-gray-50:hover { @apply bg-slate-800; }
 }
 
+@layer utilities {
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .animate-float-slow {
+    animation: float 16s ease-in-out infinite;
+  }
+
+  .animate-float-delayed {
+    animation: float 20s ease-in-out infinite;
+    animation-delay: 4s;
+  }
+}
+
 @keyframes loading-bar {
   0% {
     transform: translateX(-100%);
