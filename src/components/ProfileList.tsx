@@ -1502,7 +1502,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
           </div>
         </div>
       )}
-      </div>
       {confirmDialog && (
         <ConfirmDialog
           open
