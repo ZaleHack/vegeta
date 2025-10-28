@@ -1,5 +1,22 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { X, Paperclip, Download, Search, Users, Eye, PencilLine, Trash2, Share2, FolderPlus, Folder } from 'lucide-react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import {
+  X,
+  Paperclip,
+  Download,
+  Search,
+  Users,
+  Eye,
+  PencilLine,
+  Trash2,
+  Share2,
+  FolderPlus,
+  Folder,
+  Sparkles,
+  Check,
+  Loader2,
+  Mail,
+  Phone
+} from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
@@ -79,10 +96,14 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const [folderError, setFolderError] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogOptions | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [showCreateFolderForm, setShowCreateFolderForm] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderError, setNewFolderError] = useState('');
+  const newFolderInputRef = useRef<HTMLInputElement | null>(null);
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
 
-  const loadFolders = useCallback(async () => {
+  const loadFolders = useCallback(async (): Promise<ProfileFolderSummary[]> => {
     try {
       setFoldersLoading(true);
       setFolderError('');
@@ -96,13 +117,15 @@ const ProfileList: React.FC<ProfileListProps> = ({
       if (!res.ok) {
         setFolderError(data.error || 'Erreur lors du chargement des dossiers');
         setFolders([]);
-        return;
+        return [];
       }
       const folderList: ProfileFolderSummary[] = Array.isArray(data.folders) ? data.folders : [];
       setFolders(folderList);
+      return folderList;
     } catch (_) {
       setFolderError('Erreur de réseau');
       setFolders([]);
+      return [];
     } finally {
       setFoldersLoading(false);
     }
@@ -112,37 +135,89 @@ const ProfileList: React.FC<ProfileListProps> = ({
     loadFolders();
   }, [loadFolders, refreshKey]);
 
-  const handleCreateFolder = useCallback(async () => {
-    const name = window.prompt('Nom du dossier');
-    if (!name) return;
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setCreatingFolder(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/profile-folders', {
-        method: 'POST',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ name: trimmed })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setFolderError(data.error || 'Erreur lors de la création du dossier');
+  const toggleCreateFolderForm = useCallback(() => {
+    setShowCreateFolderForm(prev => !prev);
+  }, []);
+
+  const handleSubmitNewFolder = useCallback(
+    async (event?: React.FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+      const trimmed = newFolderName.trim();
+      if (!trimmed) {
+        setNewFolderError('Nom du dossier requis');
         return;
       }
-      await loadFolders();
-      if (data?.folder?.id) {
-        setSelectedFolderId(data.folder.id);
+      setCreatingFolder(true);
+      setNewFolderError('');
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/profile-folders', {
+          method: 'POST',
+          headers: {
+            Authorization: token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name: trimmed })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setNewFolderError(data.error || 'Erreur lors de la création du dossier');
+          return;
+        }
+        const updated = await loadFolders();
+        if (data?.folder?.id) {
+          setSelectedFolderId(data.folder.id);
+        } else if (Array.isArray(updated) && updated.length > 0) {
+          setSelectedFolderId(updated[0].id);
+        }
+        setShowCreateFolderForm(false);
+      } catch (_) {
+        setNewFolderError('Erreur lors de la création du dossier');
+      } finally {
+        setCreatingFolder(false);
       }
-    } catch (_) {
-      setFolderError('Erreur lors de la création du dossier');
-    } finally {
-      setCreatingFolder(false);
-    }
-  }, [loadFolders]);
+    },
+    [loadFolders, newFolderName]
+  );
+
+  const handleDeleteFolder = useCallback(
+    (folder: ProfileFolderSummary) => {
+      setConfirmDialog({
+        title: 'Supprimer le dossier',
+        description:
+          "Supprimer définitivement ce dossier ? Les fiches qu'il contient doivent être déplacées au préalable.",
+        confirmLabel: 'Supprimer',
+        cancelLabel: 'Annuler',
+        tone: 'danger',
+        icon: <Trash2 className="h-5 w-5" />,
+        onConfirm: async () => {
+          const token = localStorage.getItem('token');
+          try {
+            const res = await fetch(`/api/profile-folders/${folder.id}`, {
+              method: 'DELETE',
+              headers: {
+                Authorization: token ? `Bearer ${token}` : ''
+              }
+            });
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              setFolderError(data.error || 'Impossible de supprimer le dossier');
+              return;
+            }
+            setFolderError('');
+            setSelectedFolderId(current => (current === folder.id ? null : current));
+            setProfiles([]);
+            setTotal(0);
+            setSelected(null);
+            await loadFolders();
+          } catch (_) {
+            setFolderError('Erreur lors de la suppression du dossier');
+          }
+        }
+      });
+    },
+    [loadFolders]
+  );
 
   const parseFieldCategories = useCallback((profile: ProfileListItem) => {
     const raw = profile.extra_fields as unknown;
@@ -236,6 +311,24 @@ const ProfileList: React.FC<ProfileListProps> = ({
     [parseFieldCategories]
   );
 
+  const getDisplayName = useCallback((profile: ProfileListItem) => {
+    const first = typeof profile.first_name === 'string' ? profile.first_name.trim() : '';
+    const last = typeof profile.last_name === 'string' ? profile.last_name.trim() : '';
+    const combined = [first, last].filter(Boolean).join(' ').trim();
+    if (combined) {
+      return combined;
+    }
+    const email = typeof profile.email === 'string' ? profile.email.trim() : '';
+    if (email) {
+      return email;
+    }
+    const phone = typeof profile.phone === 'string' ? profile.phone.trim() : '';
+    if (phone) {
+      return phone;
+    }
+    return 'Profil sans nom';
+  }, []);
+
   const isOwner = useCallback((profile: ProfileListItem) => currentUser?.id === profile.user_id, [currentUser]);
 
   const canEditProfile = useCallback(
@@ -325,6 +418,15 @@ const ProfileList: React.FC<ProfileListProps> = ({
   }, [load, refreshKey]);
 
   useEffect(() => {
+    if (showCreateFolderForm) {
+      newFolderInputRef.current?.focus();
+    } else {
+      setNewFolderName('');
+      setNewFolderError('');
+    }
+  }, [showCreateFolderForm]);
+
+  useEffect(() => {
     if (!folders.length) {
       setSelectedFolderId(null);
       return;
@@ -407,6 +509,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
   };
 
   const selectedPhotoUrl = selected ? buildProtectedUrl(selected.photo_path) : null;
+  const selectedDisplayName = selected ? getDisplayName(selected) : 'Profil sans nom';
+  const selectedSharedCount = selected && Array.isArray(selected.shared_user_ids) ? selected.shared_user_ids.length : 0;
 
   const remove = (id: number) => {
     setConfirmDialog({
@@ -494,11 +598,23 @@ const ProfileList: React.FC<ProfileListProps> = ({
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={handleCreateFolder}
+                onClick={toggleCreateFolderForm}
                 disabled={creatingFolder}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-500/40 dark:bg-slate-900/70 dark:text-blue-200 dark:hover:bg-blue-500/10"
+                className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 ${
+                  showCreateFolderForm
+                    ? 'bg-blue-600 text-white shadow-blue-400/40 hover:bg-blue-700'
+                    : 'border border-blue-200 bg-white text-blue-600 hover:bg-blue-50 dark:border-blue-500/40 dark:bg-slate-900/70 dark:text-blue-200 dark:hover:bg-blue-500/10'
+                } disabled:cursor-not-allowed disabled:opacity-60`}
               >
-                <FolderPlus className="h-4 w-4" /> {creatingFolder ? 'Création...' : 'Nouveau dossier'}
+                {showCreateFolderForm ? (
+                  <>
+                    <X className="h-4 w-4" /> Fermer
+                  </>
+                ) : (
+                  <>
+                    <FolderPlus className="h-4 w-4" /> Nouveau dossier
+                  </>
+                )}
               </button>
               {onCreate && (
                 <button
@@ -514,6 +630,58 @@ const ProfileList: React.FC<ProfileListProps> = ({
               )}
             </div>
           </div>
+          {showCreateFolderForm && (
+            <div className="relative overflow-hidden rounded-3xl border border-blue-200/70 bg-white/95 p-5 shadow-xl shadow-blue-100/60 dark:border-blue-500/40 dark:bg-slate-900/85 dark:shadow-slate-900/50">
+              <div className="pointer-events-none absolute -top-10 right-6 h-40 w-40 rounded-full bg-blue-400/20 blur-3xl" />
+              <form className="relative flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={handleSubmitNewFolder}>
+                <div className="flex flex-1 items-start gap-3">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20 dark:bg-blue-500/20 dark:text-blue-200 dark:ring-blue-500/30">
+                    <Sparkles className="h-5 w-5" />
+                  </span>
+                  <div className="flex-1 space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-100">Nom du dossier</label>
+                        <span className="text-xs font-medium uppercase tracking-wide text-blue-500/80 dark:text-blue-300/90">Nouveau</span>
+                      </div>
+                      <input
+                        ref={newFolderInputRef}
+                        type="text"
+                        value={newFolderName}
+                        onChange={event => setNewFolderName(event.target.value)}
+                        placeholder="Ex. Dossiers sensibles"
+                        className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-inner shadow-blue-100 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100 dark:focus:border-blue-400"
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Donnez un nom explicite pour identifier facilement les fiches regroupées.
+                    </p>
+                    {newFolderError && (
+                      <p className="text-sm font-medium text-rose-500 dark:text-rose-300">{newFolderError}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 sm:flex-col sm:items-stretch">
+                  <button
+                    type="submit"
+                    disabled={creatingFolder}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {creatingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    {creatingFolder ? 'Création...' : 'Créer le dossier'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateFolderForm(false)}
+                    disabled={creatingFolder}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Organisez vos fiches par dossier et partagez-les facilement avec les membres de votre division.
           </p>
@@ -540,56 +708,105 @@ const ProfileList: React.FC<ProfileListProps> = ({
                 Créez votre premier dossier pour regrouper vos fiches.
               </div>
             ) : (
-              <div className="flex flex-wrap gap-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {folders.map(folder => {
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
+                  const canManage = isAdminUser || folder.is_owner;
+                  const handleSelect = () => setSelectedFolderId(folder.id);
+                  const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleSelect();
+                    }
+                  };
                   return (
-                    <button
+                    <div
                       key={folder.id}
-                      type="button"
-                      onClick={() => setSelectedFolderId(folder.id)}
-                      className={`group relative flex min-w-[220px] flex-1 items-start gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                      role="button"
+                      tabIndex={0}
+                      onClick={handleSelect}
+                      onKeyDown={handleKeyDown}
+                      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border p-4 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
                         active
-                          ? 'border-blue-500 bg-blue-50/80 shadow-lg shadow-blue-200 dark:border-blue-400/60 dark:bg-blue-500/10'
-                          : 'border-slate-200 bg-white/80 shadow-sm hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700/60 dark:bg-slate-900/60'
+                          ? 'border-blue-500/60 bg-gradient-to-br from-blue-50 via-white to-blue-100 shadow-blue-200/60 dark:border-blue-400/60 dark:from-slate-900/70 dark:via-slate-950 dark:to-blue-900/20'
+                          : 'border-slate-200 bg-white/85 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/60'
                       }`}
                     >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
-                        <Folder className="h-5 w-5" />
-                      </span>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{folder.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {folder.profiles_count ?? 0} {folder.profiles_count === 1 ? 'fiche' : 'fiches'}
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {folder.shared_with_me && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
-                              <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
-                            </span>
-                          )}
-                          {folder.is_owner && sharedCount > 0 && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
-                              <Users className="h-3.5 w-3.5" /> {sharedCount} partage{sharedCount > 1 ? 's' : ''}
-                            </span>
-                          )}
+                      <div className="flex items-start gap-4">
+                        <div className="relative h-14 w-16 shrink-0">
+                          <span
+                            className={`absolute left-2 top-0 h-3 w-10 rounded-t-lg shadow ${
+                              active
+                                ? 'bg-gradient-to-r from-amber-300 to-amber-200 shadow-amber-200/60'
+                                : 'bg-gradient-to-r from-amber-200 to-amber-100 shadow-amber-100/40'
+                            }`}
+                          />
+                          <span
+                            className={`absolute bottom-0 left-0 h-12 w-full rounded-xl border shadow-inner ${
+                              active
+                                ? 'border-amber-400 bg-gradient-to-br from-amber-200 via-amber-100 to-amber-300'
+                                : 'border-amber-200 bg-gradient-to-br from-amber-100 via-amber-50 to-amber-200'
+                            }`}
+                          />
+                          <Folder
+                            className={`absolute inset-0 m-auto h-6 w-6 ${
+                              active ? 'text-amber-500' : 'text-amber-400'
+                            }`}
+                          />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{folder.name}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {folder.profiles_count ?? 0} {folder.profiles_count === 1 ? 'fiche' : 'fiches'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {onShareFolder && canManage && (
+                                <button
+                                  type="button"
+                                  onClick={event => {
+                                    event.stopPropagation();
+                                    onShareFolder(folder);
+                                  }}
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-indigo-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-400/60 dark:bg-slate-800 dark:text-indigo-200 dark:hover:bg-indigo-500/20"
+                                  aria-label={`Partager le dossier ${folder.name}`}
+                                >
+                                  <Share2 className="h-4 w-4" />
+                                </button>
+                              )}
+                              {canManage && (
+                                <button
+                                  type="button"
+                                  onClick={event => {
+                                    event.stopPropagation();
+                                    handleDeleteFolder(folder);
+                                  }}
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-rose-500 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-50 focus:outline-none focus:ring-2 focus:ring-rose-400/60 dark:bg-slate-800 dark:text-rose-300 dark:hover:bg-rose-500/20"
+                                  aria-label={`Supprimer le dossier ${folder.name}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {folder.shared_with_me && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
+                                <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
+                              </span>
+                            )}
+                            {folder.is_owner && sharedCount > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                                <Users className="h-3.5 w-3.5" /> {sharedCount} partage{sharedCount > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      {onShareFolder && (isAdminUser || folder.is_owner) && (
-                        <button
-                          type="button"
-                          onClick={event => {
-                            event.stopPropagation();
-                            onShareFolder(folder);
-                          }}
-                          className="inline-flex items-center justify-center rounded-full bg-white/80 p-2 text-indigo-600 shadow-sm transition hover:scale-105 hover:bg-indigo-50 group-hover:-translate-y-0.5 dark:bg-slate-800 dark:text-indigo-200 dark:hover:bg-indigo-500/20"
-                          aria-label={`Partager le dossier ${folder.name}`}
-                        >
-                          <Share2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -612,12 +829,11 @@ const ProfileList: React.FC<ProfileListProps> = ({
           <>
             <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {profiles.map(p => {
-              const photoUrl = buildProtectedUrl(p.photo_path);
-              const previewFields = getPreviewFields(p);
-              const displayName =
-                [p.first_name, p.last_name].filter(Boolean).join(' ').trim() || 'Profil sans nom';
-              const sharedCount = Array.isArray(p.shared_user_ids) ? p.shared_user_ids.length : 0;
-              return (
+                const photoUrl = buildProtectedUrl(p.photo_path);
+                const previewFields = getPreviewFields(p);
+                const displayName = getDisplayName(p);
+                const sharedCount = Array.isArray(p.shared_user_ids) ? p.shared_user_ids.length : 0;
+                return (
                 <div
                   key={p.id}
                   className="group relative overflow-hidden rounded-3xl bg-white/90 p-6 shadow-lg ring-1 ring-slate-200 transition-all hover:-translate-y-1 hover:shadow-2xl dark:bg-slate-900/70 dark:ring-slate-700"
@@ -735,89 +951,127 @@ const ProfileList: React.FC<ProfileListProps> = ({
         )
       ) : null}
       {selected && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur">
-          <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900 dark:shadow-slate-900/60">
-            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-5 text-white">
-              <h2 className="text-2xl font-semibold">Détails du profil</h2>
-              <p className="mt-1 text-sm text-white/80">
-                {selected.owner_login
-                  ? `Partagé par ${selected.owner_login}`
-                  : 'Profil partagé dans votre division'}
-              </p>
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 px-4 py-8 backdrop-blur-sm">
+          <div className="relative w-full max-w-3xl overflow-hidden rounded-[32px] border border-white/20 bg-white/95 shadow-2xl shadow-slate-900/40 dark:border-slate-800 dark:bg-slate-950/95 dark:shadow-slate-950/60">
+            <div className="relative h-44 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.45),_transparent_60%)]" />
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="absolute right-6 top-6 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+                aria-label="Fermer la fiche profil"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="absolute inset-x-6 bottom-6 flex flex-wrap items-end justify-between gap-4 text-white">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">Fiche profil</p>
+                  <h2 className="mt-1 text-2xl font-semibold leading-tight">{selectedDisplayName}</h2>
+                  <p className="mt-1 text-sm text-white/80">
+                    {selected.is_owner
+                      ? 'Profil créé par vous'
+                      : selected.owner_login
+                      ? `Partagé par ${selected.owner_login}`
+                      : 'Profil partagé dans votre division'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selected.shared_with_me && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white">
+                      <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
+                    </span>
+                  )}
+                  {selected.is_owner && selectedSharedCount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white">
+                      <Users className="h-3.5 w-3.5" /> Partagé avec {selectedSharedCount}{' '}
+                      {selectedSharedCount > 1 ? 'membres' : 'membre'}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <button
-              className="absolute right-5 top-5 rounded-full bg-white/20 p-2 text-white transition hover:bg-white/40"
-              onClick={() => setSelected(null)}
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <div className="space-y-6 p-6 text-sm text-slate-700 dark:text-slate-200">
-              <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-                {selectedPhotoUrl ? (
-                  <img
-                    src={selectedPhotoUrl}
-                    alt="profil"
-                    className="h-32 w-32 rounded-2xl object-cover shadow-lg ring-2 ring-blue-500"
-                  />
-                ) : (
-                  <div className="flex h-32 w-32 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 shadow-inner dark:bg-slate-800 dark:text-slate-500">
-                    <Users className="h-10 w-10" />
-                  </div>
-                )}
-                <div className="flex-1 space-y-3">
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
-                    <p className="text-sm font-medium">
-                      {selected.first_name || selected.last_name
-                        ? `${selected.first_name ?? ''} ${selected.last_name ?? ''}`.trim() || 'Profil sans nom'
-                        : 'Profil sans nom'}
+            <div className="grid gap-8 p-6 text-sm text-slate-700 dark:text-slate-200 lg:grid-cols-[240px_1fr]">
+              <div className="space-y-6">
+                <div className="relative mx-auto h-40 w-40">
+                  <div className="absolute inset-0 rounded-[28px] bg-gradient-to-br from-slate-100 to-slate-200 shadow-inner shadow-blue-200/40 ring-2 ring-blue-200/60 dark:from-slate-800 dark:to-slate-700 dark:shadow-slate-900/60 dark:ring-blue-500/40" />
+                  {selectedPhotoUrl ? (
+                    <img
+                      src={selectedPhotoUrl}
+                      alt="profil"
+                      className="relative z-10 h-full w-full rounded-[28px] object-cover"
+                    />
+                  ) : (
+                    <div className="relative z-10 flex h-full w-full items-center justify-center rounded-[28px] bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                      <Users className="h-10 w-10" />
+                    </div>
+                  )}
+                  <div className="absolute inset-x-8 bottom-[-12px] h-10 rounded-full bg-slate-900/10 blur-xl dark:bg-black/40" />
+                </div>
+                <div className="space-y-4 rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Créateur</p>
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                      {selected.is_owner ? 'Vous' : selected.owner_login || 'Un membre de votre division'}
                     </p>
+                  </div>
+                  <div className="space-y-2">
                     {selected.email && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{selected.email}</p>
+                      <div className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/95 px-3 py-2 text-sm font-medium text-slate-600 shadow-inner shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                        <Mail className="h-4 w-4 text-blue-500 dark:text-blue-300" />
+                        <span className="break-all">{selected.email}</span>
+                      </div>
                     )}
                     {selected.phone && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{selected.phone}</p>
+                      <div className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/95 px-3 py-2 text-sm font-medium text-slate-600 shadow-inner shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                        <Phone className="h-4 w-4 text-blue-500 dark:text-blue-300" />
+                        <span className="break-all">{selected.phone}</span>
+                      </div>
                     )}
-                    {selected.shared_with_me && (
-                      <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
-                        <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
-                      </p>
-                    )}
-                    {selected.is_owner && Array.isArray(selected.shared_user_ids) && selected.shared_user_ids.length > 0 && (
-                      <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
-                        <Users className="h-3.5 w-3.5" /> Partagé avec {selected.shared_user_ids.length}{' '}
-                        {selected.shared_user_ids.length > 1 ? 'membres' : 'membre'}
-                      </p>
+                    {!selected.email && !selected.phone && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Aucune coordonnée renseignée.</p>
                     )}
                   </div>
                 </div>
               </div>
-              <div className="max-h-72 space-y-4 overflow-y-auto pr-2">
-                {buildCategories(selected).map((cat, idx) => (
-                  <div key={idx} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
-                    {cat.title && (
-                      <div className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{cat.title}</div>
-                    )}
-                    <div className="space-y-1 text-sm text-slate-600 dark:text-slate-300">
-                      {(cat.fields || [])
-                        .filter((f: any) => f.value)
-                        .map((f: any, i: number) => (
-                          <div key={i} className="flex justify-between gap-3">
-                            <span className="font-medium text-slate-500 dark:text-slate-400">{f.key}</span>
-                            <span className="text-right text-slate-700 dark:text-slate-200">{f.value}</span>
+              <div className="space-y-6 overflow-y-auto pr-1 lg:max-h-[28rem]">
+                {buildCategories(selected).map((cat, idx) => {
+                  const fields = (cat.fields || []).filter((f: any) => f.value);
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70"
+                    >
+                      {cat.title && (
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                          {cat.title}
+                        </h3>
+                      )}
+                      <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        {fields.map((f: any, i: number) => (
+                          <div
+                            key={i}
+                            className="rounded-2xl border border-slate-200/70 bg-white/95 px-3 py-3 shadow-inner shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-950/40"
+                          >
+                            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                              {f.key}
+                            </dt>
+                            <dd className="mt-1 break-words text-sm font-medium text-slate-700 dark:text-slate-100">{f.value}</dd>
                           </div>
                         ))}
+                      </dl>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {selected.comment && (
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-slate-700 shadow-sm dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-slate-200">
-                    <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">Commentaire</div>
-                    <p className="mt-1 text-sm text-blue-800 dark:text-blue-200">{selected.comment}</p>
+                  <div className="rounded-3xl border border-blue-200/70 bg-blue-50/80 p-5 text-blue-800 shadow-sm dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-200">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-blue-500 dark:text-blue-200">Commentaire</h3>
+                    <p className="mt-2 text-sm leading-relaxed">{selected.comment}</p>
                   </div>
                 )}
                 {selected.attachments && selected.attachments.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  <div className="space-y-3 rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-100">
                       <Paperclip className="h-4 w-4" /> Pièces jointes
                     </div>
                     <ul className="space-y-2">
@@ -825,15 +1079,12 @@ const ProfileList: React.FC<ProfileListProps> = ({
                         const label = att.original_name || att.file_path.split('/').pop();
                         const href = buildProtectedUrl(att.file_path);
                         return (
-                          <li
-                            key={att.id}
-                            className="flex rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-blue-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-blue-300"
-                          >
+                          <li key={att.id}>
                             <a
                               href={href || '#'}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex w-full items-center justify-between gap-2 overflow-hidden hover:underline"
+                              className="group flex items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/85 px-3 py-2 text-sm font-medium text-blue-600 transition hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700/60 dark:bg-slate-950/40 dark:text-blue-300 dark:hover:border-blue-400"
                             >
                               <span className="flex items-center gap-2 overflow-hidden">
                                 <Paperclip className="h-4 w-4 text-slate-400 dark:text-slate-500" />
