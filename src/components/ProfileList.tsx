@@ -496,7 +496,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
   );
 
   const canCreateProfileNow = readyFolderId === selectedFolderId && !loading;
-  const showCreateSelectionHint = !selectedFolderId && !loading;
   const showCreateLoadingHint = loading;
 
   useEffect(() => {
