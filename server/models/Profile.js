@@ -153,7 +153,14 @@ class Profile {
     return true;
   }
 
-  static buildAccessConditions({ userId, divisionId, isAdmin, search, folderId }) {
+  static buildAccessConditions({
+    userId,
+    divisionId,
+    isAdmin,
+    search,
+    folderId,
+    unassignedOnly = false
+  }) {
     const conditions = [];
     const params = [];
 
@@ -184,6 +191,8 @@ class Profile {
     if (folderId) {
       conditions.push('p.folder_id = ?');
       params.push(folderId);
+    } else if (unassignedOnly) {
+      conditions.push('p.folder_id IS NULL');
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -197,14 +206,16 @@ class Profile {
     search = '',
     limit = 10,
     offset = 0,
-    folderId = null
+    folderId = null,
+    unassignedOnly = false
   }) {
     const { whereClause, params } = this.buildAccessConditions({
       userId,
       divisionId,
       isAdmin,
       search: search ? String(search) : '',
-      folderId: folderId ? Number(folderId) : null
+      folderId: folderId ? Number(folderId) : null,
+      unassignedOnly
     });
 
     const safeLimit = sanitizeLimit(limit, { defaultValue: 10, min: 1, max: 100 });

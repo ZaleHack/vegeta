@@ -61,7 +61,7 @@ export interface ProfileFolderSummary {
 }
 
 interface ProfileListProps {
-  onCreate?: (folderId: number) => void;
+  onCreate?: (folderId?: number | null) => void;
   onEdit?: (id: number) => void;
   currentUser?: { id: number } | null;
   isAdmin?: boolean;
@@ -103,9 +103,14 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const [showCreateFolderForm, setShowCreateFolderForm] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderError, setNewFolderError] = useState('');
+  const [renamingFolderId, setRenamingFolderId] = useState<number | null>(null);
+  const [renameFolderName, setRenameFolderName] = useState('');
+  const [renameFolderError, setRenameFolderError] = useState('');
+  const [renamingFolder, setRenamingFolder] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const newFolderInputRef = useRef<HTMLInputElement | null>(null);
+  const renameFolderInputRef = useRef<HTMLInputElement | null>(null);
   const [readyFolderId, setReadyFolderId] = useState<number | null>(null);
   const selectedFolderIdRef = useRef<number | null>(null);
   const limit = 6;
@@ -207,6 +212,74 @@ const ProfileList: React.FC<ProfileListProps> = ({
     [loadFolders, newFolderName]
   );
 
+  const startRenamingFolder = useCallback((folder: ProfileFolderSummary) => {
+    setRenamingFolderId(folder.id);
+    setRenameFolderName(folder.name || '');
+    setRenameFolderError('');
+  }, []);
+
+  const cancelRenamingFolder = useCallback(() => {
+    setRenamingFolderId(null);
+    setRenameFolderName('');
+    setRenameFolderError('');
+    setRenamingFolder(false);
+  }, []);
+
+  const handleRenameFolderSubmit = useCallback(
+    async (event?: React.FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+      if (renamingFolderId === null) {
+        return;
+      }
+      const trimmed = renameFolderName.trim();
+      if (!trimmed) {
+        setRenameFolderError('Nom du dossier requis');
+        return;
+      }
+      setRenamingFolder(true);
+      setRenameFolderError('');
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`/api/profile-folders/${renamingFolderId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name: trimmed })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setRenameFolderError(data.error || 'Erreur lors du renommage du dossier');
+          return;
+        }
+        if (data?.folder?.id) {
+          setFolders(prev =>
+            prev.map(f => (f.id === data.folder.id ? { ...f, ...data.folder } : f))
+          );
+          setProfiles(prev =>
+            prev.map(profile =>
+              profile.folder_id === data.folder.id
+                ? { ...profile, folder_name: data.folder.name }
+                : profile
+            )
+          );
+          setSelected(current =>
+            current && current.folder_id === data.folder.id
+              ? { ...current, folder_name: data.folder.name }
+              : current
+          );
+        }
+        cancelRenamingFolder();
+      } catch (_) {
+        setRenameFolderError('Erreur lors du renommage du dossier');
+      } finally {
+        setRenamingFolder(false);
+      }
+    },
+    [cancelRenamingFolder, renamingFolderId, renameFolderName]
+  );
+
   const handleDeleteFolder = useCallback(
     (folder: ProfileFolderSummary) => {
       setConfirmDialog({
@@ -242,6 +315,9 @@ const ProfileList: React.FC<ProfileListProps> = ({
             } else {
               setFolderError('');
             }
+            if (renamingFolderId === folder.id) {
+              cancelRenamingFolder();
+            }
             setSelectedFolderId(current => (current === folder.id ? null : current));
             setProfiles([]);
             setTotal(0);
@@ -253,7 +329,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
         }
       });
     },
-    [loadFolders]
+    [cancelRenamingFolder, loadFolders, renamingFolderId]
   );
 
   const parseFieldCategories = useCallback((profile: ProfileListItem) => {
@@ -402,7 +478,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
       return "Aucun profil ne correspond à votre recherche.";
     }
     if (!selectedFolderId) {
-      return 'Créez un dossier pour ajouter vos fiches.';
+      return 'Aucun profil sans dossier pour le moment.';
     }
     return 'Ce dossier ne contient aucune fiche pour le moment.';
   }, [debouncedQuery, selectedFolderId]);
@@ -417,11 +493,9 @@ const ProfileList: React.FC<ProfileListProps> = ({
     []
   );
 
-  const canCreateProfileNow = Boolean(
-    selectedFolderId && readyFolderId === selectedFolderId && !loading
-  );
-  const showCreateSelectionHint = !selectedFolderId;
-  const showCreateLoadingHint = Boolean(selectedFolderId && !canCreateProfileNow);
+  const canCreateProfileNow = readyFolderId === selectedFolderId && !loading;
+  const showCreateSelectionHint = !selectedFolderId && !loading;
+  const showCreateLoadingHint = loading;
 
   useEffect(() => {
     setPage(prev => Math.min(prev, totalPages));
@@ -447,25 +521,22 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const load = useCallback(async () => {
     const currentFolderId = selectedFolderId;
     try {
-      if (!currentFolderId) {
-        setProfiles([]);
-        setTotal(0);
-        setLoading(false);
-        setReadyFolderId(null);
-        return;
-      }
       setLoading(true);
       setError('');
       setReadyFolderId(null);
       const token = localStorage.getItem('token');
       const params = new URLSearchParams({
         page: String(page),
-        limit: String(limit),
-        folderId: String(currentFolderId)
+        limit: String(limit)
       });
       const trimmedQuery = debouncedQuery.trim();
       if (trimmedQuery) {
         params.set('q', trimmedQuery);
+      }
+      if (currentFolderId) {
+        params.set('folderId', String(currentFolderId));
+      } else {
+        params.set('unassigned', 'true');
       }
       const res = await fetch(`/api/profiles?${params.toString()}`, {
         headers: {
@@ -478,7 +549,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
         setProfiles([]);
         setTotal(0);
         if (selectedFolderIdRef.current === currentFolderId) {
-          setReadyFolderId(currentFolderId);
+          setReadyFolderId(currentFolderId ?? null);
         }
         return;
       }
@@ -489,16 +560,17 @@ const ProfileList: React.FC<ProfileListProps> = ({
         attachments: Array.isArray(profile.attachments) ? profile.attachments : []
       }));
       setProfiles(normalized);
-      setTotal(data.total || 0);
+      const totalCount = typeof data.total === 'number' ? data.total : normalized.length;
+      setTotal(totalCount);
       if (selectedFolderIdRef.current === currentFolderId) {
-        setReadyFolderId(currentFolderId);
+        setReadyFolderId(currentFolderId ?? null);
       }
     } catch (err) {
       setError('Erreur de réseau');
       setProfiles([]);
       setTotal(0);
       if (selectedFolderIdRef.current === currentFolderId) {
-        setReadyFolderId(currentFolderId);
+        setReadyFolderId(currentFolderId ?? null);
       }
     } finally {
       setLoading(false);
@@ -517,6 +589,15 @@ const ProfileList: React.FC<ProfileListProps> = ({
       setNewFolderError('');
     }
   }, [showCreateFolderForm]);
+
+  useEffect(() => {
+    if (renamingFolderId !== null) {
+      renameFolderInputRef.current?.focus();
+    } else {
+      setRenameFolderName('');
+      setRenameFolderError('');
+    }
+  }, [renamingFolderId]);
 
   useEffect(() => {
     if (!folders.length) {
@@ -712,9 +793,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
   };
 
   const handleCreateClick = useCallback(() => {
-    if (!selectedFolderId) return;
     setPage(1);
-    onCreate?.(selectedFolderId);
+    onCreate?.(selectedFolderId ?? null);
   }, [onCreate, selectedFolderId]);
 
   const exportProfile = async (id: number) => {
@@ -912,12 +992,12 @@ const ProfileList: React.FC<ProfileListProps> = ({
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                       {selectedFolder
                         ? `Créez une fiche dans « ${selectedFolder.name} »`
-                        : 'Créez une nouvelle fiche profil'}
+                        : 'Créez une fiche sans dossier'}
                     </h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       {selectedFolder
                         ? 'Ajoutez immédiatement un nouveau profil dans le dossier sélectionné et partagez-le avec votre équipe.'
-                        : 'Sélectionnez un dossier pour activer la création de fiches et les regrouper par thématique.'}
+                        : 'Enregistrez un profil indépendant puis attribuez-lui un dossier plus tard depuis la liste des profils.'}
                     </p>
                   </div>
                 </div>
@@ -934,12 +1014,12 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   {showCreateLoadingHint && (
                     <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/70 bg-white/80 px-4 py-2.5 text-sm font-medium text-slate-600 shadow-inner shadow-blue-100/60 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
                       <Loader2 className="h-4 w-4 animate-spin text-blue-500 dark:text-blue-200" />
-                      Ouverture du dossier…
+                      Chargement…
                     </div>
                   )}
                   {showCreateSelectionHint && (
                     <p className="max-w-xs text-xs text-slate-500 dark:text-slate-400">
-                      Choisissez un dossier dans la liste pour démarrer la création d’une fiche.
+                      Cette fiche sera enregistrée sans dossier. Vous pourrez l’organiser ultérieurement.
                     </p>
                   )}
                 </div>
@@ -981,6 +1061,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
+                  const isRenaming = renamingFolderId === folder.id;
                   const handleSelect = () => {
                     setSelectedFolderId(current => {
                       const next = current === folder.id ? null : folder.id;
@@ -1045,6 +1126,18 @@ const ProfileList: React.FC<ProfileListProps> = ({
                                 type="button"
                                 onClick={event => {
                                   event.stopPropagation();
+                                  if (!isRenaming) {
+                                    startRenamingFolder(folder);
+                                  }
+                                }}
+                                className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
+                              >
+                                <PencilLine className="h-3.5 w-3.5" /> Renommer
+                              </button>
+                              <button
+                                type="button"
+                                onClick={event => {
+                                  event.stopPropagation();
                                   handleDeleteFolder(folder);
                                 }}
                                 className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-rose-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-rose-300 dark:hover:bg-slate-900"
@@ -1054,6 +1147,58 @@ const ProfileList: React.FC<ProfileListProps> = ({
                             </div>
                           )}
                         </div>
+                        {isRenaming && (
+                          <div
+                            className="rounded-2xl border border-blue-200/60 bg-white/80 p-3 shadow-inner shadow-blue-100/50 dark:border-blue-500/40 dark:bg-slate-900/60"
+                            onClick={event => event.stopPropagation()}
+                          >
+                            <form className="space-y-3" onSubmit={handleRenameFolderSubmit}>
+                              <div className="space-y-1">
+                                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                  Nouveau nom du dossier
+                                </label>
+                                <input
+                                  ref={renameFolderInputRef}
+                                  className="w-full rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-medium text-slate-700 focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-300/60 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
+                                  value={renameFolderName}
+                                  onChange={event => setRenameFolderName(event.target.value)}
+                                  placeholder="Nom du dossier"
+                                />
+                                {renameFolderError && (
+                                  <p className="text-xs text-red-600 dark:text-red-400">{renameFolderError}</p>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="submit"
+                                  disabled={renamingFolder}
+                                  className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {renamingFolder ? (
+                                    <>
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Enregistrement...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="h-3.5 w-3.5" /> Enregistrer
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={event => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    cancelRenamingFolder();
+                                  }}
+                                  className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
+                                >
+                                  <X className="h-3.5 w-3.5" /> Annuler
+                                </button>
+                              </div>
+                            </form>
+                          </div>
+                        )}
                         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                           <span className="inline-flex items-center gap-2 rounded-full bg-blue-100/80 px-3 py-1 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
                             <Users className="h-3.5 w-3.5" /> {folder.profiles_count ?? 0}{' '}
@@ -1081,22 +1226,21 @@ const ProfileList: React.FC<ProfileListProps> = ({
           </div>
         </div>
       </div>
-      {selectedFolderId ? (
-        loading ? (
-          <LoadingSpinner />
-        ) : error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm shadow-red-200 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200 dark:shadow-red-900/30">
-            {error}
-          </div>
-        ) : profiles.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 px-6 py-12 text-center text-sm font-medium text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400 dark:shadow-none">
-            {emptyMessage}
-          </div>
-        ) : (
-          <>
-            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3" role="list">
-              {profiles.map(p => {
-                  const photoUrl = buildProtectedUrl(p.photo_path);
+      {loading ? (
+        <LoadingSpinner />
+      ) : error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm shadow-red-200 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200 dark:shadow-red-900/30">
+          {error}
+        </div>
+      ) : profiles.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 px-6 py-12 text-center text-sm font-medium text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400 dark:shadow-none">
+          {emptyMessage}
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3" role="list">
+            {profiles.map(p => {
+                const photoUrl = buildProtectedUrl(p.photo_path);
                 const previewFields = getPreviewFields(p);
                 const displayName = getDisplayName(p);
                 const sharedCount = Array.isArray(p.shared_user_ids) ? p.shared_user_ids.length : 0;

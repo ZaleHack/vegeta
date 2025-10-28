@@ -30,6 +30,29 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.patch('/:id', async (req, res) => {
+  try {
+    const folderId = Number(req.params.id);
+    if (!Number.isInteger(folderId) || folderId <= 0) {
+      return res.status(400).json({ error: 'Identifiant de dossier invalide' });
+    }
+    const { name } = req.body || {};
+    const folder = await service.renameFolder(folderId, name, req.user);
+    res.json({ folder });
+  } catch (error) {
+    if (error.message === 'Nom du dossier requis') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.message === 'Dossier introuvable') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'Accès refusé') {
+      return res.status(403).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     const folderId = Number(req.params.id);
