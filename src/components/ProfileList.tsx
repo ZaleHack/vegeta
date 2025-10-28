@@ -23,6 +23,12 @@ import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 
+const FOLDER_BACKGROUND_GRADIENTS = [
+  'from-blue-500/10 via-indigo-500/10 to-purple-500/10 dark:from-blue-500/20 dark:via-indigo-500/20 dark:to-purple-500/20',
+  'from-emerald-500/10 via-teal-500/10 to-cyan-500/10 dark:from-emerald-500/20 dark:via-teal-500/20 dark:to-cyan-500/20',
+  'from-rose-500/10 via-orange-500/10 to-amber-500/10 dark:from-rose-500/20 dark:via-orange-500/20 dark:to-amber-500/20'
+];
+
 interface ProfileAttachment {
   id: number;
   file_path: string;
@@ -1117,7 +1123,9 @@ const ProfileList: React.FC<ProfileListProps> = ({
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {filteredFolders.map(folder => {
+                {filteredFolders.map((folder, index) => {
+                  const backgroundGradient =
+                    FOLDER_BACKGROUND_GRADIENTS[index % FOLDER_BACKGROUND_GRADIENTS.length];
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
@@ -1150,7 +1158,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                       onDragLeave={event => handleDragLeaveFolder(event, folder.id)}
                       onDrop={event => handleDropOnFolder(event, folder)}
                       aria-dropeffect={draggedId !== null ? 'move' : undefined}
-                      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/60 p-4 shadow-lg shadow-blue-100/50 backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500/60 dark:border-slate-700/60 dark:bg-slate-900/50 dark:shadow-slate-950/50 ${
+                      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/40 p-4 shadow-lg shadow-blue-100/50 backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500/60 dark:border-slate-700/60 dark:bg-slate-900/40 dark:shadow-slate-950/50 ${
                         active
                           ? 'ring-2 ring-blue-500/60'
                           : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-1 hover:ring-blue-400/40'
@@ -1158,6 +1166,9 @@ const ProfileList: React.FC<ProfileListProps> = ({
                         isFolderDropTarget ? 'ring-2 ring-purple-400/60 shadow-2xl shadow-purple-200/50' : ''
                       }`}
                     >
+                      <div
+                        className={`pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-br ${backgroundGradient} opacity-90`}
+                      />
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                       {isFolderDropTarget && (
                         <div className="pointer-events-none absolute inset-1 rounded-[26px] border-2 border-dashed border-purple-400/70 bg-purple-100/20 dark:border-purple-400/60 dark:bg-purple-500/10" />
