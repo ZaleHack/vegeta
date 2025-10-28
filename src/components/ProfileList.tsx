@@ -22,20 +22,10 @@ import {
 import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
+import CreateFolderModal from './CreateFolderModal';
 
-const GOLDEN_ANGLE = 137.508;
-
-const generateFolderGradient = (folderId?: number | null, fallbackIndex = 0) => {
-  const base = Number.isFinite(folderId) ? Number(folderId) : fallbackIndex + 1;
-  const hue = (base * GOLDEN_ANGLE) % 360;
-  const colorStops = [
-    `hsla(${hue.toFixed(2)}, 85%, 65%, 0.45)`,
-    `hsla(${((hue + 25) % 360).toFixed(2)}, 80%, 60%, 0.4)`,
-    `hsla(${((hue + 50) % 360).toFixed(2)}, 75%, 55%, 0.38)`
-  ];
-
-  return `linear-gradient(135deg, ${colorStops.join(', ')})`;
-};
+const generateFolderGradient = () =>
+  'linear-gradient(135deg, rgba(59, 130, 246, 0.8) 0%, rgba(37, 99, 235, 0.78) 48%, rgba(14, 116, 144, 0.75) 100%)';
 
 interface ProfileAttachment {
   id: number;
@@ -183,6 +173,20 @@ const ProfileList: React.FC<ProfileListProps> = ({
     selectedFolderIdRef.current = selectedFolderId;
   }, [selectedFolderId]);
 
+  const closeCreateFolderModal = useCallback(() => {
+    setShowCreateFolderForm(false);
+  }, []);
+
+  const handleNewFolderNameChange = useCallback(
+    (value: string) => {
+      setNewFolderName(value);
+      if (newFolderError) {
+        setNewFolderError('');
+      }
+    },
+    [newFolderError]
+  );
+
   const toggleCreateFolderForm = useCallback(() => {
     setShowCreateFolderForm(prev => !prev);
   }, []);
@@ -218,14 +222,14 @@ const ProfileList: React.FC<ProfileListProps> = ({
         } else if (Array.isArray(updated) && updated.length > 0) {
           setSelectedFolderId(updated[0].id);
         }
-        setShowCreateFolderForm(false);
+        closeCreateFolderModal();
       } catch (_) {
         setNewFolderError('Erreur lors de la création du dossier');
       } finally {
         setCreatingFolder(false);
       }
     },
-    [loadFolders, newFolderName]
+    [closeCreateFolderModal, loadFolders, newFolderName]
   );
 
   const startRenamingFolder = useCallback((folder: ProfileFolderSummary) => {
@@ -1050,58 +1054,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
                 )}
               </div>
             </div>
-            {showCreateFolderForm && (
-            <div className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/70 p-5 shadow-xl shadow-blue-100/60 backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-950/50">
-              <div className="pointer-events-none absolute -top-16 right-8 h-48 w-48 rounded-full bg-blue-400/20 blur-3xl dark:bg-blue-500/20 animate-float-delayed" />
-              <form className="relative flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={handleSubmitNewFolder}>
-                <div className="flex flex-1 items-start gap-3">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-600 ring-1 ring-blue-500/20 dark:bg-blue-500/20 dark:text-blue-200 dark:ring-blue-500/30">
-                    <Sparkles className="h-5 w-5" />
-                  </span>
-                  <div className="flex-1 space-y-3">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-100">Nom du dossier</label>
-                        <span className="text-xs font-medium uppercase tracking-wide text-blue-500/80 dark:text-blue-300/90">Nouveau</span>
-                      </div>
-                      <input
-                        ref={newFolderInputRef}
-                        type="text"
-                        value={newFolderName}
-                        onChange={event => setNewFolderName(event.target.value)}
-                        placeholder="Ex. Dossiers sensibles"
-                        className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-inner shadow-blue-100 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-100 dark:focus:border-blue-400"
-                      />
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Donnez un nom explicite pour identifier facilement les fiches regroupées.
-                    </p>
-                    {newFolderError && (
-                      <p className="text-sm font-medium text-rose-500 dark:text-rose-300">{newFolderError}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 sm:flex-col sm:items-stretch">
-                  <button
-                    type="submit"
-                    disabled={creatingFolder}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {creatingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                    {creatingFolder ? 'Création...' : 'Créer le dossier'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateFolderForm(false)}
-                    disabled={creatingFolder}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/70 bg-white/70 px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-inner shadow-blue-100/60 transition hover:-translate-y-0.5 hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:bg-slate-900"
-                  >
-                    Annuler
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Organisez vos fiches par dossier et partagez-les facilement avec les membres de votre division.
           </p>
@@ -1131,8 +1083,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {filteredFolders.map((folder, index) => {
-                  const backgroundGradient = generateFolderGradient(folder.id, index);
+                {filteredFolders.map(folder => {
+                  const backgroundGradient = generateFolderGradient();
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
@@ -1165,10 +1117,10 @@ const ProfileList: React.FC<ProfileListProps> = ({
                       onDragLeave={event => handleDragLeaveFolder(event, folder.id)}
                       onDrop={event => handleDropOnFolder(event, folder)}
                       aria-dropeffect={draggedId !== null ? 'move' : undefined}
-                      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/40 p-4 shadow-lg shadow-blue-100/50 backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500/60 dark:border-slate-700/60 dark:bg-slate-900/40 dark:shadow-slate-950/50 ${
+                      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-blue-500/30 bg-blue-500/10 p-4 shadow-xl shadow-blue-500/30 backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500/70 dark:border-blue-400/20 dark:bg-blue-950/40 dark:shadow-blue-900/40 ${
                         active
-                          ? 'ring-2 ring-blue-500/60'
-                          : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-1 hover:ring-blue-400/40'
+                          ? 'ring-2 ring-blue-400/70'
+                          : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-1 hover:ring-blue-300/60'
                       } ${
                         isFolderDropTarget ? 'ring-2 ring-purple-400/60 shadow-2xl shadow-purple-200/50' : ''
                       }`}
@@ -1192,8 +1144,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
                               <Folder className="h-5 w-5" />
                             </span>
                             <div>
-                              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{folder.name}</h3>
-                              <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                              <h3 className="text-base font-semibold text-white drop-shadow-sm">{folder.name}</h3>
+                              <p className="text-xs font-medium uppercase tracking-[0.2em] text-blue-100/80">
                                 {active ? 'Dossier sélectionné' : 'Dossier'}
                               </p>
                             </div>
@@ -1289,18 +1241,18 @@ const ProfileList: React.FC<ProfileListProps> = ({
                             </form>
                           </div>
                         )}
-                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-blue-100/80 px-3 py-1 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-white drop-shadow">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1">
                             <Users className="h-3.5 w-3.5" /> {folder.profiles_count ?? 0}{' '}
                             {(folder.profiles_count ?? 0) > 1 ? 'fiches' : 'fiche'}
                           </span>
                           {folder.shared_with_me && (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100/80 px-3 py-1 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
+                            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1">
                               <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
                             </span>
                           )}
                           {folder.is_owner && sharedCount > 0 && (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100/80 px-3 py-1 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1">
                               <Users className="h-3.5 w-3.5" /> Partagé avec {sharedCount}{' '}
                               {sharedCount > 1 ? 'membres' : 'membre'}
                             </span>
@@ -1649,6 +1601,16 @@ const ProfileList: React.FC<ProfileListProps> = ({
           </div>
         </div>
       )}
+      <CreateFolderModal
+        open={showCreateFolderForm}
+        name={newFolderName}
+        error={newFolderError}
+        loading={creatingFolder}
+        onClose={closeCreateFolderModal}
+        onSubmit={handleSubmitNewFolder}
+        onNameChange={handleNewFolderNameChange}
+        inputRef={newFolderInputRef}
+      />
       {confirmDialog && (
         <ConfirmDialog
           open
