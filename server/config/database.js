@@ -729,6 +729,12 @@ class DatabaseManager {
       if (!existingFolderFk) {
         try {
           await query(`
+            UPDATE autres.profiles p
+            LEFT JOIN autres.profile_folders f ON f.id = p.folder_id
+            SET p.folder_id = NULL
+            WHERE p.folder_id IS NOT NULL AND f.id IS NULL
+          `);
+          await query(`
             ALTER TABLE autres.profiles
             ADD CONSTRAINT fk_profiles_folder
             FOREIGN KEY (folder_id) REFERENCES autres.profile_folders(id)
