@@ -30,6 +30,28 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.delete('/:id', async (req, res) => {
+  try {
+    const folderId = Number(req.params.id);
+    if (!Number.isInteger(folderId) || folderId <= 0) {
+      return res.status(400).json({ error: 'Identifiant de dossier invalide' });
+    }
+    await service.deleteFolder(folderId, req.user);
+    res.json({ success: true });
+  } catch (error) {
+    if (error.message === 'Dossier introuvable') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'Accès refusé') {
+      return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Impossible de supprimer un dossier contenant des profils') {
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:id/share', async (req, res) => {
   try {
     const folderId = Number(req.params.id);

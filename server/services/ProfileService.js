@@ -105,6 +105,24 @@ class ProfileService {
     return enriched;
   }
 
+  async deleteFolder(folderId, user) {
+    const id = Number(folderId);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new Error('Dossier introuvable');
+    }
+    const folder = await ProfileFolder.findById(id);
+    if (!folder) {
+      throw new Error('Dossier introuvable');
+    }
+    const isOwner = folder.user_id === user.id;
+    const isAdmin = this._isAdmin(user);
+    if (!isOwner && !isAdmin) {
+      throw new Error('Accès refusé');
+    }
+    await ProfileFolder.delete(folder.id);
+    return { success: true };
+  }
+
   async getFolderShareInfo(folderId, user) {
     const folder = await ProfileFolder.findById(folderId);
     if (!folder) {
