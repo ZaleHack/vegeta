@@ -24,8 +24,10 @@ import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 import CreateFolderModal from './CreateFolderModal';
 
-const generateFolderGradient = () =>
-  'linear-gradient(135deg, rgba(59, 130, 246, 0.8) 0%, rgba(37, 99, 235, 0.78) 48%, rgba(14, 116, 144, 0.75) 100%)';
+const generateFolderGradient = (isDarkMode: boolean) =>
+  isDarkMode
+    ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.6) 0%, rgba(79, 70, 229, 0.55) 48%, rgba(22, 101, 177, 0.5) 100%)'
+    : 'linear-gradient(135deg, rgba(191, 219, 254, 0.95) 0%, rgba(199, 210, 254, 0.92) 48%, rgba(165, 243, 252, 0.9) 100%)';
 
 interface ProfileAttachment {
   id: number;
@@ -118,6 +120,29 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const newFolderInputRef = useRef<HTMLInputElement | null>(null);
   const renameFolderInputRef = useRef<HTMLInputElement | null>(null);
   const [readyFolderId, setReadyFolderId] = useState<number | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(
+    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const root = document.documentElement;
+    const updateMode = () => {
+      setIsDarkMode(root.classList.contains('dark'));
+    };
+
+    updateMode();
+
+    const observer = new MutationObserver(updateMode);
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
   const selectedFolderIdRef = useRef<number | null>(null);
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
@@ -1084,7 +1109,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {filteredFolders.map(folder => {
-                  const backgroundGradient = generateFolderGradient();
+                  const backgroundGradient = generateFolderGradient(isDarkMode);
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
@@ -1117,10 +1142,10 @@ const ProfileList: React.FC<ProfileListProps> = ({
                       onDragLeave={event => handleDragLeaveFolder(event, folder.id)}
                       onDrop={event => handleDropOnFolder(event, folder)}
                       aria-dropeffect={draggedId !== null ? 'move' : undefined}
-                      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-blue-500/30 bg-blue-500/10 p-4 shadow-xl shadow-blue-500/30 backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500/70 dark:border-blue-400/20 dark:bg-blue-950/40 dark:shadow-blue-900/40 ${
+                      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 p-4 shadow-xl shadow-blue-200/40 backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400/70 dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-950/50 ${
                         active
                           ? 'ring-2 ring-blue-400/70'
-                          : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-1 hover:ring-blue-300/60'
+                          : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-1 hover:ring-blue-200/60 dark:hover:ring-blue-500/40'
                       } ${
                         isFolderDropTarget ? 'ring-2 ring-purple-400/60 shadow-2xl shadow-purple-200/50' : ''
                       }`}
