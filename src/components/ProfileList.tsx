@@ -1409,7 +1409,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
             </div>
           </>
         )
-      ) : null}
+      ) : null)}
       {selected && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 px-4 py-8 backdrop-blur-sm">
           <div className="relative w-full max-w-3xl overflow-hidden rounded-[32px] border border-white/20 bg-white/95 shadow-2xl shadow-slate-900/40 dark:border-slate-800 dark:bg-slate-950/95 dark:shadow-slate-950/60">
