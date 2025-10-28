@@ -538,7 +538,10 @@ const ProfileList: React.FC<ProfileListProps> = ({
       setSelectedFolderId(null);
       return;
     }
-    if (!selectedFolderId || !filteredFolders.some(folder => folder.id === selectedFolderId)) {
+    if (!selectedFolderId) {
+      return;
+    }
+    if (!filteredFolders.some(folder => folder.id === selectedFolderId)) {
       setSelectedFolderId(filteredFolders[0].id);
     }
   }, [filteredFolders, folderFilter, focusedFolderId, folders, onFocusedFolderHandled, selectedFolderId]);
@@ -1314,12 +1317,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   <div className="absolute inset-x-8 bottom-[-12px] h-10 rounded-full bg-slate-900/10 blur-xl dark:bg-black/40" />
                 </div>
                 <div className="space-y-4 rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70">
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Créateur</p>
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                      {selected.is_owner ? 'Vous' : selected.owner_login || 'Un membre de votre division'}
-                    </p>
-                  </div>
                   <div className="space-y-2">
                     {selected.email && (
                       <div className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/95 px-3 py-2 text-sm font-medium text-slate-600 shadow-inner shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
