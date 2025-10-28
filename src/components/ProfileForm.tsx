@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 
@@ -23,6 +23,11 @@ interface NewAttachment {
   name: string;
 }
 
+interface FolderOption {
+  id: number;
+  name: string;
+}
+
 interface InitialValues {
   comment?: string;
   extra_fields?: FieldCategory[];
@@ -34,11 +39,12 @@ interface ProfileFormProps {
   initialValues?: InitialValues;
   profileId?: number | null;
   onSaved?: (profileId?: number) => void;
+  initialFolderId?: number | null;
 }
 
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
-const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId, onSaved }) => {
+const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId, onSaved, initialFolderId = null }) => {
   const buildProtectedUrl = (relativePath?: string | null) => {
     if (!relativePath) return null;
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -70,6 +76,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [formError, setFormError] = useState('');
   const [comment, setComment] = useState(initialValues.comment || '');
   const [dragging, setDragging] = useState<{ catIdx: number; fieldIdx: number } | null>(null);
   const [dragOver, setDragOver] = useState<
@@ -82,6 +89,46 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<number[]>([]);
   const [removePhoto, setRemovePhoto] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogOptions | null>(null);
+  const [folders, setFolders] = useState<FolderOption[]>([]);
+  const [foldersLoading, setFoldersLoading] = useState(true);
+  const [folderId, setFolderId] = useState<number | null>(initialFolderId);
+
+  const loadFolders = useCallback(async () => {
+    try {
+      setFoldersLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/profile-folders', {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const list: FolderOption[] = Array.isArray(data.folders)
+          ? data.folders
+              .filter((folder: any) => typeof folder?.id === 'number')
+              .map((folder: any) => ({
+                id: folder.id,
+                name: typeof folder.name === 'string' ? folder.name : `Dossier #${folder.id}`
+              }))
+          : [];
+        setFolders(list);
+        setFolderId(prev => {
+          if (prev && list.some(option => option.id === prev)) {
+            return prev;
+          }
+          return list.length > 0 ? list[0].id : null;
+        });
+      } else {
+        setFolders([]);
+        setFolderId(null);
+      }
+    } catch (_) {
+      setFolders([]);
+    } finally {
+      setFoldersLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setCategories(buildInitialFields());
@@ -96,7 +143,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     setExistingAttachments(initialValues.attachments || []);
     setNewAttachments([]);
     setRemovedAttachmentIds([]);
-  }, [initialValues, profileId]);
+    setFolderId(initialFolderId);
+    setFormError('');
+  }, [initialValues, profileId, initialFolderId]);
+
+  useEffect(() => {
+    loadFolders();
+  }, [loadFolders]);
 
   const addCategory = () =>
     setCategories(prev => [...prev, { title: '', fields: [{ key: '', value: '' }] }]);
@@ -257,6 +310,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!folderId) {
+      setFormError('Sélectionnez un dossier avant d\'enregistrer la fiche.');
+      return;
+    }
+    setFormError('');
     const form = new FormData();
     let email = '';
     let phone = '';
@@ -280,6 +338,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     if (first_name) form.append('first_name', first_name);
     if (last_name) form.append('last_name', last_name);
     form.append('comment', comment);
+    form.append('folder_id', String(folderId));
     form.append('extra_fields', JSON.stringify(formatted));
     if (photo) form.append('photo', photo);
     if (removePhoto && !photo) form.append('remove_photo', 'true');
@@ -334,6 +393,30 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       >
       {message && <div className="text-center text-sm text-green-600">{message}</div>}
       <div className="space-y-8">
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Dossier</label>
+          {foldersLoading ? (
+            <div className="text-sm text-slate-500 dark:text-slate-400">Chargement des dossiers...</div>
+          ) : folders.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-300">
+              Aucun dossier n'est disponible. Créez-en un depuis la liste des profils.
+            </div>
+          ) : (
+            <select
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              value={folderId ?? ''}
+              onChange={e => setFolderId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Sélectionnez un dossier</option>
+              {folders.map(folder => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {formError && <p className="text-sm text-red-600">{formError}</p>}
+        </div>
         {categories.map((cat, cIdx) => {
           const isCategoryTarget = dragOver?.catIdx === cIdx && dragOver?.fieldIdx === 'end';
           return (

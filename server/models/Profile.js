@@ -1,5 +1,5 @@
 import database from '../config/database.js';
-import { ensureUserExists } from '../utils/foreign-key-helpers.js';
+import { ensureUserExists, ensureProfileFolderExists } from '../utils/foreign-key-helpers.js';
 import { sanitizeLimit, sanitizeOffset } from '../utils/number-utils.js';
 import {
   normalizeExtraFields,
@@ -12,11 +12,13 @@ const PROFILES_TABLE = 'autres.profiles';
 
 const PROFILE_BASE_SELECT = `
   SELECT
-    p.*, 
+    p.*,
     u.login AS owner_login,
-    u.division_id AS owner_division_id
+    u.division_id AS owner_division_id,
+    f.name AS folder_name
   FROM autres.profiles p
   LEFT JOIN autres.users u ON p.user_id = u.id
+  LEFT JOIN autres.profile_folders f ON p.folder_id = f.id
 `;
 
 class Profile {
@@ -29,16 +31,23 @@ class Profile {
       email,
       comment = '',
       extra_fields = [],
-      photo_path
+      photo_path,
+      folder_id
     } = data;
     const normalizedUserId = user_id !== undefined && user_id !== null ? await ensureUserExists(user_id) : null;
     if (user_id !== undefined && user_id !== null && !normalizedUserId) {
       throw new Error('Utilisateur introuvable');
     }
+    const normalizedFolderId =
+      folder_id !== undefined && folder_id !== null ? await ensureProfileFolderExists(folder_id) : null;
+    if (folder_id !== undefined && folder_id !== null && !normalizedFolderId) {
+      throw new Error('Dossier introuvable');
+    }
     const result = await database.query(
-      `INSERT INTO autres.profiles (user_id, first_name, last_name, phone, email, comment, extra_fields, photo_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO autres.profiles (user_id, folder_id, first_name, last_name, phone, email, comment, extra_fields, photo_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         normalizedUserId,
+        normalizedFolderId,
         first_name,
         last_name,
         phone,
@@ -51,6 +60,7 @@ class Profile {
     return {
       id: result.insertId,
       user_id: normalizedUserId,
+      folder_id: normalizedFolderId,
       first_name,
       last_name,
       phone,
@@ -97,6 +107,17 @@ class Profile {
       fields.push('photo_path = ?');
       params.push(data.photo_path);
     }
+    if (data.folder_id !== undefined) {
+      const safeFolderId =
+        data.folder_id === null
+          ? null
+          : await ensureProfileFolderExists(data.folder_id);
+      if (data.folder_id !== null && !safeFolderId) {
+        throw new Error('Dossier introuvable');
+      }
+      fields.push('folder_id = ?');
+      params.push(safeFolderId);
+    }
     if (data.user_id !== undefined) {
       const safeUserId =
         data.user_id === null
@@ -121,7 +142,7 @@ class Profile {
     return true;
   }
 
-  static buildAccessConditions({ userId, divisionId, isAdmin, search }) {
+  static buildAccessConditions({ userId, divisionId, isAdmin, search, folderId }) {
     const conditions = [];
     const params = [];
 
@@ -130,7 +151,15 @@ class Profile {
         throw new Error('User id requis');
       }
       conditions.push(
-        '(p.user_id = ? OR EXISTS (SELECT 1 FROM autres.profile_shares ps WHERE ps.profile_id = p.id AND ps.user_id = ?))'
+        `(
+          p.user_id = ?
+          OR (
+            p.folder_id IS NOT NULL AND EXISTS (
+              SELECT 1 FROM autres.profile_folder_shares pfs
+              WHERE pfs.folder_id = p.folder_id AND pfs.user_id = ?
+            )
+          )
+        )`
       );
       params.push(userId, userId);
     }
@@ -139,6 +168,11 @@ class Profile {
       const like = `%${search}%`;
       conditions.push('(p.first_name LIKE ? OR p.last_name LIKE ? OR p.phone LIKE ?)');
       params.push(like, like, like);
+    }
+
+    if (folderId) {
+      conditions.push('p.folder_id = ?');
+      params.push(folderId);
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -151,13 +185,15 @@ class Profile {
     isAdmin = false,
     search = '',
     limit = 10,
-    offset = 0
+    offset = 0,
+    folderId = null
   }) {
     const { whereClause, params } = this.buildAccessConditions({
       userId,
       divisionId,
       isAdmin,
-      search: search ? String(search) : ''
+      search: search ? String(search) : '',
+      folderId: folderId ? Number(folderId) : null
     });
 
     const safeLimit = sanitizeLimit(limit, { defaultValue: 10, min: 1, max: 100 });

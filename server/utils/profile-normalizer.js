@@ -73,7 +73,12 @@ export function normalizeProfileRecord(record) {
   return {
     ...record,
     comment: record.comment ?? '',
-    extra_fields: normalizeExtraFields(record.extra_fields)
+    extra_fields: normalizeExtraFields(record.extra_fields),
+    folder_id:
+      record.folder_id === undefined || record.folder_id === null
+        ? null
+        : Number(record.folder_id),
+    folder_name: record.folder_name ?? null
   };
 }
 

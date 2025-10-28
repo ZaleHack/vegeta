@@ -383,7 +383,8 @@ interface NotificationItem {
   caseId?: number;
   notificationId?: number;
   read?: boolean;
-  profileId?: number;
+  folderId?: number;
+  folderName?: string;
 }
 
 interface DivisionEntry {
@@ -1008,8 +1009,10 @@ const App: React.FC = () => {
     extra_fields?: FieldCategory[];
     photo_path?: string | null;
     attachments?: { id: number; original_name: string | null; file_path: string }[];
+    folder_id?: number | null;
   }>({});
   const [editingProfileId, setEditingProfileId] = useState<number | null>(null);
+  const [profileFormFolderId, setProfileFormFolderId] = useState<number | null>(null);
 
   // États des demandes d'identification
   const [requests, setRequests] = useState<IdentificationRequest[]>([]);
@@ -1224,11 +1227,14 @@ const App: React.FC = () => {
   const [uploadTable, setUploadTable] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
-  const openCreateProfile = (data: {
-    email?: string;
-    comment?: string;
-    extra_fields?: Record<string, string>;
-  }) => {
+  const openCreateProfile = (
+    data: {
+      email?: string;
+      comment?: string;
+      extra_fields?: Record<string, string>;
+    },
+    folderId?: number | null
+  ) => {
     let categories = ensureEditableCategories(
       normalizeProfileExtraFields(data.extra_fields || {})
     );
@@ -1239,8 +1245,10 @@ const App: React.FC = () => {
       comment: data.comment || '',
       extra_fields: categories,
       photo_path: null,
-      attachments: []
+      attachments: [],
+      folder_id: folderId ?? null
     });
+    setProfileFormFolderId(folderId ?? null);
     setEditingProfileId(null);
     setShowProfileForm(true);
     navigateToPage('profiles');
@@ -1275,11 +1283,13 @@ const App: React.FC = () => {
         includeWhenEmpty: Boolean(profile.last_name),
         matchLabels: ['nom', 'last name']
       });
+      setProfileFormFolderId(profile.folder_id ?? null);
       setProfileDefaults({
         comment: profile.comment || '',
         extra_fields: extras,
         photo_path: profile.photo_path || null,
-        attachments: Array.isArray(profile.attachments) ? profile.attachments : []
+        attachments: Array.isArray(profile.attachments) ? profile.attachments : [],
+        folder_id: profile.folder_id ?? null
       });
       setEditingProfileId(id);
       setShowProfileForm(true);
@@ -1445,19 +1455,20 @@ const App: React.FC = () => {
   const [shareMessage, setShareMessage] = useState('');
   const [shareOwnerId, setShareOwnerId] = useState<number | null>(null);
   const [pendingShareCaseId, setPendingShareCaseId] = useState<number | null>(null);
-  const [showProfileShareModal, setShowProfileShareModal] = useState(false);
-  const [profileShareTarget, setProfileShareTarget] = useState<ProfileListItem | null>(null);
-  const [profileShareUsers, setProfileShareUsers] = useState<ProfileShareUser[]>([]);
-  const [profileShareSelectedIds, setProfileShareSelectedIds] = useState<number[]>([]);
-  const [profileShareAll, setProfileShareAll] = useState(false);
-  const [profileShareOwnerId, setProfileShareOwnerId] = useState<number | null>(null);
-  const [profileShareMessage, setProfileShareMessage] = useState('');
-  const [profileShareLoading, setProfileShareLoading] = useState(false);
+  const [showFolderShareModal, setShowFolderShareModal] = useState(false);
+  const [folderShareTarget, setFolderShareTarget] = useState<{ id: number; name: string } | null>(null);
+  const [folderShareUsers, setFolderShareUsers] = useState<ProfileShareUser[]>([]);
+  const [folderShareSelectedIds, setFolderShareSelectedIds] = useState<number[]>([]);
+  const [folderShareAll, setFolderShareAll] = useState(false);
+  const [folderShareOwnerId, setFolderShareOwnerId] = useState<number | null>(null);
+  const [folderShareMessage, setFolderShareMessage] = useState('');
+  const [folderShareLoading, setFolderShareLoading] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogOptions | null>(null);
   const openConfirmDialog = (options: ConfirmDialogOptions) => setConfirmDialog(options);
   const closeConfirmDialog = () => setConfirmDialog(null);
   const [profileListRefreshKey, setProfileListRefreshKey] = useState(0);
   const [highlightedProfileId, setHighlightedProfileId] = useState<number | null>(null);
+  const [highlightedFolderId, setHighlightedFolderId] = useState<number | null>(null);
   const hasFraudSuspiciousNumbers = useMemo(() => {
     if (!fraudResult) return false;
     return fraudResult.imeis.some((entry) =>
@@ -3732,17 +3743,17 @@ useEffect(() => {
     }
   };
 
-  const openProfileShareModal = async (profile: ProfileListItem) => {
-    setProfileShareTarget(profile);
-    setProfileShareMessage('');
-    setProfileShareSelectedIds([]);
-    setProfileShareAll(false);
-    setProfileShareUsers([]);
-    setProfileShareOwnerId(null);
-    setShowProfileShareModal(true);
+  const openFolderShareModal = async (folder: { id: number; name: string }) => {
+    setFolderShareTarget(folder);
+    setFolderShareMessage('');
+    setFolderShareSelectedIds([]);
+    setFolderShareAll(false);
+    setFolderShareUsers([]);
+    setFolderShareOwnerId(null);
+    setShowFolderShareModal(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/profiles/${profile.id}/share`, {
+      const res = await fetch(`/api/profile-folders/${folder.id}/share`, {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       });
       const data: ProfileShareInfo = await res.json();
@@ -3750,83 +3761,83 @@ useEffect(() => {
         const users: ProfileShareUser[] = Array.isArray(data.users) ? data.users : [];
         const recipients: number[] = Array.isArray(data.recipients) ? data.recipients : [];
         const ownerId = typeof data.owner?.id === 'number' ? data.owner.id : null;
-        setProfileShareUsers(users);
-        setProfileShareSelectedIds(recipients);
-        setProfileShareOwnerId(ownerId);
+        setFolderShareUsers(users);
+        setFolderShareSelectedIds(recipients);
+        setFolderShareOwnerId(ownerId);
         const eligibleIds = users.filter((user) => user.id !== ownerId).map((user) => user.id);
-        setProfileShareAll(
+        setFolderShareAll(
           eligibleIds.length > 0 && eligibleIds.every((id) => recipients.includes(id))
         );
       } else {
-        setProfileShareMessage(
+        setFolderShareMessage(
           (data as any)?.error || 'Erreur lors du chargement des informations de partage'
         );
       }
     } catch (error) {
-      console.error('Erreur chargement informations partage profil:', error);
-      setProfileShareMessage('Erreur lors du chargement des informations de partage');
+      console.error('Erreur chargement informations partage dossier:', error);
+      setFolderShareMessage('Erreur lors du chargement des informations de partage');
     }
   };
 
-  const toggleProfileShareUser = (userId: number) => {
-    setProfileShareSelectedIds((prev) => {
+  const toggleFolderShareUser = (userId: number) => {
+    setFolderShareSelectedIds((prev) => {
       if (prev.includes(userId)) {
         return prev.filter((id) => id !== userId);
       }
       return [...prev, userId];
     });
-    setProfileShareAll(false);
+    setFolderShareAll(false);
   };
 
-  const toggleProfileShareAll = () => {
-    const availableIds = profileShareUsers
-      .filter((user) => user.id !== profileShareOwnerId)
+  const toggleFolderShareAll = () => {
+    const availableIds = folderShareUsers
+      .filter((user) => user.id !== folderShareOwnerId)
       .map((user) => user.id);
-    if (profileShareAll) {
-      setProfileShareSelectedIds([]);
-      setProfileShareAll(false);
+    if (folderShareAll) {
+      setFolderShareSelectedIds([]);
+      setFolderShareAll(false);
     } else {
-      setProfileShareSelectedIds(availableIds);
-      setProfileShareAll(true);
+      setFolderShareSelectedIds(availableIds);
+      setFolderShareAll(true);
     }
   };
 
-  const handleSubmitProfileShare = async (e: React.FormEvent) => {
+  const handleSubmitFolderShare = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profileShareTarget) return;
-    setProfileShareLoading(true);
-    setProfileShareMessage('');
+    if (!folderShareTarget) return;
+    setFolderShareLoading(true);
+    setFolderShareMessage('');
     try {
-      const response = await fetch(`/api/profiles/${profileShareTarget.id}/share`, {
+      const response = await fetch(`/api/profile-folders/${folderShareTarget.id}/share`, {
         method: 'POST',
         headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
-          shareAll: profileShareAll,
-          userIds: profileShareAll ? [] : profileShareSelectedIds
+          shareAll: folderShareAll,
+          userIds: folderShareAll ? [] : folderShareSelectedIds
         })
       });
       const data = await response.json();
       if (response.ok) {
-        setProfileShareMessage('Partage mis à jour');
+        setFolderShareMessage('Partage mis à jour');
         const recipients: number[] = Array.isArray(data.recipients) ? data.recipients : [];
-        setProfileShareSelectedIds(recipients);
-        if (profileShareAll) {
-          const availableIds = profileShareUsers
-            .filter((user) => user.id !== profileShareOwnerId)
+        setFolderShareSelectedIds(recipients);
+        if (folderShareAll) {
+          const availableIds = folderShareUsers
+            .filter((user) => user.id !== folderShareOwnerId)
             .map((user) => user.id);
-          setProfileShareAll(
+          setFolderShareAll(
             availableIds.length > 0 && availableIds.every((id) => recipients.includes(id))
           );
         }
         setProfileListRefreshKey((prev) => prev + 1);
       } else {
-        setProfileShareMessage(data.error || 'Erreur lors de la mise à jour du partage');
+        setFolderShareMessage(data.error || 'Erreur lors de la mise à jour du partage');
       }
     } catch (error) {
-      console.error('Erreur partage profil:', error);
-      setProfileShareMessage('Erreur lors de la mise à jour du partage');
+      console.error('Erreur partage dossier:', error);
+      setFolderShareMessage('Erreur lors de la mise à jour du partage');
     } finally {
-      setProfileShareLoading(false);
+      setFolderShareLoading(false);
     }
   };
 
@@ -4125,21 +4136,22 @@ useEffect(() => {
           });
         }
       } else if (notif.type === 'profile_shared' && notif.data) {
-        const profileId = typeof notif.data.profileId === 'number' ? notif.data.profileId : undefined;
-        const profileName = typeof notif.data.profileName === 'string' ? notif.data.profileName : '';
+        const folderId = typeof notif.data.folderId === 'number' ? notif.data.folderId : undefined;
+        const folderName = typeof notif.data.folderName === 'string' ? notif.data.folderName : '';
         const ownerLogin = typeof notif.data.owner === 'string' ? notif.data.owner : '';
-        if (profileId) {
+        if (folderId) {
           items.push({
             id: `profile-share-${notif.id}`,
             notificationId: notif.id,
-            profileId,
+            folderId,
+            folderName,
             status: 'pending',
-            message: 'Nouvelle fiche de profil partagée',
-            description: profileName
+            message: 'Nouveau dossier de profils partagé',
+            description: folderName
               ? ownerLogin
-                ? `"${profileName}" partagé par ${ownerLogin}`
-                : `"${profileName}" est disponible`
-              : 'Une fiche de profil a été partagée avec vous',
+                ? `"${folderName}" partagé par ${ownerLogin}`
+                : `"${folderName}" est disponible`
+              : 'Un dossier de profils a été partagé avec vous',
             type: 'profile_shared',
             read: Boolean(notif.read_at)
           });
@@ -4202,10 +4214,11 @@ useEffect(() => {
         markServerNotificationAsRead(notification.notificationId);
       }
       setShowNotifications(false);
-      if (notification.profileId) {
-        setHighlightedProfileId(notification.profileId);
-        setProfileListRefreshKey((prev) => prev + 1);
+      setHighlightedProfileId(null);
+      if (notification.folderId) {
+        setHighlightedFolderId(notification.folderId);
       }
+      setProfileListRefreshKey((prev) => prev + 1);
       navigateToPage('profiles');
       return;
     }
@@ -7182,7 +7195,14 @@ useEffect(() => {
                 <ProfileForm
                   initialValues={profileDefaults}
                   profileId={editingProfileId || undefined}
-                  onSaved={() => setShowProfileForm(false)}
+                  onSaved={(savedProfileId) => {
+                    setShowProfileForm(false);
+                    setProfileListRefreshKey((prev) => prev + 1);
+                    if (savedProfileId) {
+                      setHighlightedProfileId(savedProfileId);
+                    }
+                  }}
+                  initialFolderId={profileFormFolderId}
                 />
                 <div className="mt-4">
                   <button
@@ -7196,14 +7216,16 @@ useEffect(() => {
             ) : (
               <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
                 <ProfileList
-                  onCreate={() => openCreateProfile({})}
+                  onCreate={folderId => openCreateProfile({}, folderId)}
                   onEdit={openEditProfile}
                   currentUser={currentUser}
                   isAdmin={isAdmin}
-                  onShare={openProfileShareModal}
+                  onShareFolder={openFolderShareModal}
                   refreshKey={profileListRefreshKey}
                   focusedProfileId={highlightedProfileId}
                   onFocusedProfileHandled={() => setHighlightedProfileId(null)}
+                  focusedFolderId={highlightedFolderId}
+                  onFocusedFolderHandled={() => setHighlightedFolderId(null)}
                 />
               </div>
             )}
@@ -8859,56 +8881,53 @@ useEffect(() => {
         </button>
       )}
 
-      {/* Modal de partage de profil */}
-      {showProfileShareModal && profileShareTarget && (
+      {/* Modal de partage de dossier */}
+      {showFolderShareModal && folderShareTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900/95">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  Partager la fiche de profil
+                  Partager le dossier
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {[profileShareTarget.first_name, profileShareTarget.last_name]
-                    .filter(Boolean)
-                    .join(' ')
-                    .trim() || 'Profil sans nom'}
+                  {folderShareTarget.name?.trim() || `Dossier #${folderShareTarget.id}`}
                 </p>
               </div>
               <button
                 onClick={() => {
-                  setShowProfileShareModal(false);
-                  setProfileShareTarget(null);
+                  setShowFolderShareModal(false);
+                  setFolderShareTarget(null);
                 }}
                 className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <form onSubmit={handleSubmitProfileShare} className="space-y-5 px-6 py-5">
+            <form onSubmit={handleSubmitFolderShare} className="space-y-5 px-6 py-5">
               <p className="text-sm text-slate-600 dark:text-slate-300">
-                Sélectionnez les membres de la division pour leur donner accès à cette fiche.
+                Sélectionnez les membres de la division pour leur donner accès à ce dossier.
                 Seuls les utilisateurs actifs apparaissent dans la liste.
               </p>
               <label className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-800/60 dark:text-slate-200">
                 <input
                   type="checkbox"
-                  checked={profileShareAll}
-                  onChange={toggleProfileShareAll}
+                  checked={folderShareAll}
+                  onChange={toggleFolderShareAll}
                   className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
                 Partager avec tous les membres actifs de la division
               </label>
               <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200/80 bg-white/80 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                {profileShareUsers.length === 0 ? (
+                {folderShareUsers.length === 0 ? (
                   <div className="p-4 text-sm text-slate-500 dark:text-slate-300">
                     Aucun utilisateur disponible dans cette division.
                   </div>
                 ) : (
                   <ul className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                    {profileShareUsers.map((member) => {
-                      const disabled = member.id === profileShareOwnerId;
-                      const checked = profileShareAll || profileShareSelectedIds.includes(member.id);
+                    {folderShareUsers.map((member) => {
+                      const disabled = member.id === folderShareOwnerId;
+                      const checked = folderShareAll || folderShareSelectedIds.includes(member.id);
                       return (
                         <li key={member.id} className="flex items-center justify-between px-4 py-3 text-sm">
                           <label className={`flex items-center gap-3 ${disabled ? 'opacity-60' : ''}`}>
@@ -8916,7 +8935,7 @@ useEffect(() => {
                               type="checkbox"
                               disabled={disabled}
                               checked={disabled ? true : checked}
-                              onChange={() => toggleProfileShareUser(member.id)}
+                              onChange={() => toggleFolderShareUser(member.id)}
                               className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                             />
                             <span className="text-slate-700 dark:text-slate-200">{member.login}</span>
@@ -8930,15 +8949,15 @@ useEffect(() => {
                   </ul>
                 )}
               </div>
-              {profileShareMessage && (
-                <p className="text-sm text-emerald-600 dark:text-emerald-400">{profileShareMessage}</p>
+              {folderShareMessage && (
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">{folderShareMessage}</p>
               )}
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => {
-                    setShowProfileShareModal(false);
-                    setProfileShareTarget(null);
+                    setShowFolderShareModal(false);
+                    setFolderShareTarget(null);
                   }}
                   className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
@@ -8946,10 +8965,10 @@ useEffect(() => {
                 </button>
                 <button
                   type="submit"
-                  disabled={profileShareLoading}
+                  disabled={folderShareLoading}
                   className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {profileShareLoading ? 'Enregistrement...' : 'Enregistrer le partage'}
+                  {folderShareLoading ? 'Enregistrement...' : 'Enregistrer le partage'}
                 </button>
               </div>
             </form>
