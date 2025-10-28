@@ -1118,53 +1118,28 @@ const ProfileList: React.FC<ProfileListProps> = ({
             </div>
           )}
           {onCreate && (
-            <div className="relative mt-6 overflow-hidden rounded-3xl border border-blue-200/60 bg-gradient-to-br from-blue-600/80 via-indigo-600/80 to-purple-600/80 p-[1px] shadow-xl shadow-blue-200/50 dark:border-blue-500/50 dark:shadow-blue-900/40">
-              <div className="relative flex flex-col gap-5 rounded-[calc(1.5rem-1px)] bg-white/95 p-6 dark:bg-slate-950/85 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-4">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/40">
-                    <UserPlus className="h-6 w-6" />
-                  </span>
-                  <div className="space-y-2">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-blue-500 dark:bg-blue-500/10 dark:text-blue-200">
-                      Nouvelle fiche
-                    </span>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                      {selectedFolder
-                        ? `Créez une fiche dans « ${selectedFolder.name} »`
-                        : 'Créez une fiche sans dossier'}
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      {selectedFolder
-                        ? 'Ajoutez immédiatement un nouveau profil dans le dossier sélectionné et partagez-le avec votre équipe.'
-                        : 'Enregistrez un profil indépendant puis attribuez-lui un dossier plus tard depuis la liste des profils.'}
-                    </p>
-                  </div>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              {canCreateProfileNow && (
+                <button
+                  type="button"
+                  onClick={handleCreateClick}
+                  className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-400"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Créer une fiche
+                </button>
+              )}
+              {showCreateLoadingHint && (
+                <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500 dark:text-blue-200" />
+                  Chargement…
                 </div>
-                <div className="flex flex-col items-stretch gap-2 sm:items-end">
-                  {canCreateProfileNow && (
-                    <button
-                      type="button"
-                      onClick={handleCreateClick}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl"
-                    >
-                      Créer une fiche
-                    </button>
-                  )}
-                  {showCreateLoadingHint && (
-                    <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/70 bg-white/80 px-4 py-2.5 text-sm font-medium text-slate-600 shadow-inner shadow-blue-100/60 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
-                      <Loader2 className="h-4 w-4 animate-spin text-blue-500 dark:text-blue-200" />
-                      Chargement…
-                    </div>
-                  )}
-                  {showCreateSelectionHint && (
-                    <p className="max-w-xs text-xs text-slate-500 dark:text-slate-400">
-                      Cette fiche sera enregistrée sans dossier. Vous pourrez l’organiser ultérieurement.
-                    </p>
-                  )}
-                </div>
-              </div>
-                <div className="pointer-events-none absolute -right-16 top-0 h-44 w-44 rounded-full bg-white/40 blur-3xl dark:bg-white/10 animate-float-slow" />
-                <div className="pointer-events-none absolute -left-12 -bottom-12 h-52 w-52 rounded-full bg-blue-400/20 blur-3xl dark:bg-blue-500/20 animate-float-delayed" />
+              )}
+              {showCreateSelectionHint && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Cette fiche sera enregistrée sans dossier. Vous pourrez l’organiser ultérieurement.
+                </p>
+              )}
             </div>
           )}
           <p className="text-sm text-slate-500 dark:text-slate-400">
