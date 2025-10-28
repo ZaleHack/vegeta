@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { X, Paperclip, Download, Search, Users, Eye, PencilLine, Trash2, Share2 } from 'lucide-react';
+import { X, Paperclip, Download, Search, Users, Eye, PencilLine, Trash2, Share2, FolderPlus, Folder } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
@@ -28,17 +28,30 @@ export interface ProfileListItem {
   shared_with_me?: boolean;
   shared_user_ids?: number[];
   is_owner?: boolean;
+  folder_id?: number | null;
+  folder_name?: string | null;
+}
+
+export interface ProfileFolderSummary {
+  id: number;
+  name: string;
+  profiles_count?: number;
+  is_owner?: boolean;
+  shared_with_me?: boolean;
+  shared_user_ids?: number[];
 }
 
 interface ProfileListProps {
-  onCreate?: () => void;
+  onCreate?: (folderId: number) => void;
   onEdit?: (id: number) => void;
   currentUser?: { id: number } | null;
   isAdmin?: boolean;
-  onShare?: (profile: ProfileListItem) => void;
+  onShareFolder?: (folder: ProfileFolderSummary) => void;
   refreshKey?: number;
   focusedProfileId?: number | null;
   onFocusedProfileHandled?: () => void;
+  focusedFolderId?: number | null;
+  onFocusedFolderHandled?: () => void;
 }
 
 const ProfileList: React.FC<ProfileListProps> = ({
@@ -46,21 +59,90 @@ const ProfileList: React.FC<ProfileListProps> = ({
   onEdit,
   currentUser,
   isAdmin,
-  onShare,
+  onShareFolder,
   refreshKey = 0,
   focusedProfileId = null,
-  onFocusedProfileHandled
+  onFocusedProfileHandled,
+  focusedFolderId = null,
+  onFocusedFolderHandled
 }) => {
   const [profiles, setProfiles] = useState<ProfileListItem[]>([]);
+  const [folders, setFolders] = useState<ProfileFolderSummary[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<ProfileListItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [foldersLoading, setFoldersLoading] = useState(true);
   const [error, setError] = useState('');
+  const [folderError, setFolderError] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogOptions | null>(null);
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
+
+  const loadFolders = useCallback(async () => {
+    try {
+      setFoldersLoading(true);
+      setFolderError('');
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/profile-folders', {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFolderError(data.error || 'Erreur lors du chargement des dossiers');
+        setFolders([]);
+        return;
+      }
+      const folderList: ProfileFolderSummary[] = Array.isArray(data.folders) ? data.folders : [];
+      setFolders(folderList);
+    } catch (_) {
+      setFolderError('Erreur de réseau');
+      setFolders([]);
+    } finally {
+      setFoldersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFolders();
+  }, [loadFolders, refreshKey]);
+
+  const handleCreateFolder = useCallback(async () => {
+    const name = window.prompt('Nom du dossier');
+    if (!name) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setCreatingFolder(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/profile-folders', {
+        method: 'POST',
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: trimmed })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFolderError(data.error || 'Erreur lors de la création du dossier');
+        return;
+      }
+      await loadFolders();
+      if (data?.folder?.id) {
+        setSelectedFolderId(data.folder.id);
+      }
+    } catch (_) {
+      setFolderError('Erreur lors de la création du dossier');
+    } finally {
+      setCreatingFolder(false);
+    }
+  }, [loadFolders]);
 
   const parseFieldCategories = useCallback((profile: ProfileListItem) => {
     const raw = profile.extra_fields as unknown;
@@ -164,19 +246,18 @@ const ProfileList: React.FC<ProfileListProps> = ({
 
   const canDeleteProfile = useCallback((profile: ProfileListItem) => isOwner(profile), [isOwner]);
 
-  const canShareProfile = useCallback(
-    (profile: ProfileListItem) => Boolean(onShare) && (isAdminUser || isOwner(profile)),
-    [isAdminUser, isOwner, onShare]
-  );
-
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total]);
 
   const emptyMessage = useMemo(() => {
     const trimmed = query.trim();
-    return trimmed
-      ? "Aucun profil ne correspond à votre recherche."
-      : 'Aucune fiche de profil disponible pour le moment.';
-  }, [query]);
+    if (trimmed) {
+      return "Aucun profil ne correspond à votre recherche.";
+    }
+    if (!selectedFolderId) {
+      return 'Créez un dossier pour ajouter vos fiches.';
+    }
+    return 'Ce dossier ne contient aucune fiche pour le moment.';
+  }, [query, selectedFolderId]);
 
   useEffect(() => {
     setPage(prev => Math.min(prev, totalPages));
@@ -184,16 +265,27 @@ const ProfileList: React.FC<ProfileListProps> = ({
 
   useEffect(() => {
     setPage(1);
+  }, [selectedFolderId]);
+
+  useEffect(() => {
+    setPage(1);
   }, [query]);
 
   const load = useCallback(async () => {
     try {
+      if (!selectedFolderId) {
+        setProfiles([]);
+        setTotal(0);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError('');
       const token = localStorage.getItem('token');
       const params = new URLSearchParams({
         page: String(page),
-        limit: String(limit)
+        limit: String(limit),
+        folderId: String(selectedFolderId)
       });
       const trimmedQuery = query.trim();
       if (trimmedQuery) {
@@ -226,16 +318,38 @@ const ProfileList: React.FC<ProfileListProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [query, page]);
+  }, [query, page, selectedFolderId]);
 
   useEffect(() => {
     load();
   }, [load, refreshKey]);
 
   useEffect(() => {
+    if (!folders.length) {
+      setSelectedFolderId(null);
+      return;
+    }
+    if (focusedFolderId) {
+      const match = folders.find(folder => folder.id === focusedFolderId);
+      if (match) {
+        setSelectedFolderId(match.id);
+        onFocusedFolderHandled?.();
+        return;
+      }
+    }
+    if (!selectedFolderId || !folders.some(folder => folder.id === selectedFolderId)) {
+      setSelectedFolderId(folders[0].id);
+    }
+  }, [folders, focusedFolderId, onFocusedFolderHandled, selectedFolderId]);
+
+  useEffect(() => {
     if (!focusedProfileId) return;
     const existing = profiles.find(profile => profile.id === focusedProfileId);
     if (existing) {
+      if (existing.folder_id && existing.folder_id !== selectedFolderId) {
+        setSelectedFolderId(existing.folder_id);
+        return;
+      }
       setSelected(existing);
       onFocusedProfileHandled?.();
       return;
@@ -257,6 +371,9 @@ const ProfileList: React.FC<ProfileListProps> = ({
           ...data.profile,
           attachments: Array.isArray(data.profile.attachments) ? data.profile.attachments : []
         };
+        if (fetchedProfile.folder_id && fetchedProfile.folder_id !== selectedFolderId) {
+          setSelectedFolderId(fetchedProfile.folder_id);
+        }
         setSelected(fetchedProfile);
       } catch (_) {
         // Ignore focus errors
@@ -270,7 +387,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [focusedProfileId, profiles, onFocusedProfileHandled]);
+  }, [focusedProfileId, profiles, onFocusedProfileHandled, selectedFolderId]);
 
   const handleSearch = useCallback(() => {
     if (page !== 1) {
@@ -321,9 +438,10 @@ const ProfileList: React.FC<ProfileListProps> = ({
   };
 
   const handleCreateClick = useCallback(() => {
+    if (!selectedFolderId) return;
     setPage(1);
-    onCreate?.();
-  }, [onCreate]);
+    onCreate?.(selectedFolderId);
+  }, [onCreate, selectedFolderId]);
 
   const exportProfile = async (id: number) => {
     const token = localStorage.getItem('token');
@@ -348,66 +466,152 @@ const ProfileList: React.FC<ProfileListProps> = ({
     <>
       <div className="space-y-6">
       <div className="rounded-3xl bg-gradient-to-br from-blue-50 via-white to-white/60 p-6 shadow-inner shadow-blue-100 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:shadow-slate-900/70">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-slate-200 transition-all focus-within:ring-2 focus-within:ring-blue-500 dark:bg-white/5 dark:ring-slate-700/60 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06)] dark:focus-within:ring-blue-500/60">
-            <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
-            <input
-              className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
-              placeholder="Rechercher par nom, téléphone ou email"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={event => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  handleSearch();
-                }
-              }}
-            />
-            <button
-              type="button"
-              onClick={handleSearch}
-              className="hidden items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-300 transition hover:-translate-y-0.5 hover:bg-blue-700 md:inline-flex"
-            >
-              <Search className="h-4 w-4" />
-              Rechercher
-            </button>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-slate-200 transition-all focus-within:ring-2 focus-within:ring-blue-500 dark:bg-white/5 dark:ring-slate-700/60 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06)] dark:focus-within:ring-blue-500/60">
+              <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+              <input
+                className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
+                placeholder="Rechercher par nom, téléphone ou email"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleSearch();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleSearch}
+                className="hidden items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-300 transition hover:-translate-y-0.5 hover:bg-blue-700 md:inline-flex"
+              >
+                <Search className="h-4 w-4" />
+                Rechercher
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleCreateFolder}
+                disabled={creatingFolder}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-500/40 dark:bg-slate-900/70 dark:text-blue-200 dark:hover:bg-blue-500/10"
+              >
+                <FolderPlus className="h-4 w-4" /> {creatingFolder ? 'Création...' : 'Nouveau dossier'}
+              </button>
+              {onCreate && (
+                <button
+                  type="button"
+                  onClick={handleCreateClick}
+                  disabled={!selectedFolderId}
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl ${
+                    !selectedFolderId ? 'cursor-not-allowed opacity-60' : ''
+                  }`}
+                >
+                  Créer une fiche
+                </button>
+              )}
+            </div>
           </div>
-          {onCreate && (
-            <button
-              type="button"
-              onClick={handleCreateClick}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl"
-            >
-              Créer une fiche
-            </button>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Organisez vos fiches par dossier et partagez-les facilement avec les membres de votre division.
+          </p>
+          <button
+            type="button"
+            onClick={handleSearch}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-300 transition hover:-translate-y-0.5 hover:bg-blue-700 md:hidden"
+          >
+            <Search className="h-4 w-4" />
+            Rechercher
+          </button>
+          {folderError && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700 shadow-inner dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+              {folderError}
+            </div>
           )}
+          <div className="space-y-3">
+            {foldersLoading ? (
+              <div className="flex justify-center py-6">
+                <LoadingSpinner />
+              </div>
+            ) : folders.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-5 py-10 text-center text-sm text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                Créez votre premier dossier pour regrouper vos fiches.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {folders.map(folder => {
+                  const active = folder.id === selectedFolderId;
+                  const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
+                  return (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      onClick={() => setSelectedFolderId(folder.id)}
+                      className={`group relative flex min-w-[220px] flex-1 items-start gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                        active
+                          ? 'border-blue-500 bg-blue-50/80 shadow-lg shadow-blue-200 dark:border-blue-400/60 dark:bg-blue-500/10'
+                          : 'border-slate-200 bg-white/80 shadow-sm hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700/60 dark:bg-slate-900/60'
+                      }`}
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                        <Folder className="h-5 w-5" />
+                      </span>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{folder.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {folder.profiles_count ?? 0} {folder.profiles_count === 1 ? 'fiche' : 'fiches'}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {folder.shared_with_me && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
+                              <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
+                            </span>
+                          )}
+                          {folder.is_owner && sharedCount > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                              <Users className="h-3.5 w-3.5" /> {sharedCount} partage{sharedCount > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {onShareFolder && (isAdminUser || folder.is_owner) && (
+                        <button
+                          type="button"
+                          onClick={event => {
+                            event.stopPropagation();
+                            onShareFolder(folder);
+                          }}
+                          className="inline-flex items-center justify-center rounded-full bg-white/80 p-2 text-indigo-600 shadow-sm transition hover:scale-105 hover:bg-indigo-50 group-hover:-translate-y-0.5 dark:bg-slate-800 dark:text-indigo-200 dark:hover:bg-indigo-500/20"
+                          aria-label={`Partager le dossier ${folder.name}`}
+                        >
+                          <Share2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-          Partagez vos fiches avec les membres actifs de votre division pour faciliter la collaboration.
-        </p>
-        <button
-          type="button"
-          onClick={handleSearch}
-          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-300 transition hover:-translate-y-0.5 hover:bg-blue-700 md:hidden"
-        >
-          <Search className="h-4 w-4" />
-          Rechercher
-        </button>
       </div>
-      {loading ? (
-        <LoadingSpinner />
-      ) : error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm shadow-red-200 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200 dark:shadow-red-900/30">
-          {error}
-        </div>
-      ) : profiles.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 px-6 py-12 text-center text-sm font-medium text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400 dark:shadow-none">
-          {emptyMessage}
-        </div>
-      ) : (
-        <>
-          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {profiles.map(p => {
+      {selectedFolderId ? (
+        loading ? (
+          <LoadingSpinner />
+        ) : error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm shadow-red-200 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200 dark:shadow-red-900/30">
+            {error}
+          </div>
+        ) : profiles.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 px-6 py-12 text-center text-sm font-medium text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400 dark:shadow-none">
+            {emptyMessage}
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+              {profiles.map(p => {
               const photoUrl = buildProtectedUrl(p.photo_path);
               const previewFields = getPreviewFields(p);
               const displayName =
@@ -483,15 +687,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
                     >
                       <Eye className="h-4 w-4" /> Aperçu
                     </button>
-                    {canShareProfile(p) && (
-                      <button
-                        type="button"
-                        onClick={() => onShare?.(p)}
-                        className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-200 dark:hover:bg-indigo-500/20"
-                      >
-                        <Share2 className="h-4 w-4" /> Partager
-                      </button>
-                    )}
                     {canEditProfile(p) && (
                       <button
                         type="button"
@@ -520,24 +715,25 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   </div>
                 </div>
               );
-            })}
-          </div>
-          <div className="border-t border-slate-200/70 pt-4 dark:border-slate-700/60">
-            <div className="flex flex-col gap-3">
-              <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                Page {page} / {totalPages}
-              </span>
-              <PaginationControls
-                currentPage={page}
-                totalPages={totalPages}
-                onPageChange={setPage}
-                onLoadMore={() => setPage(prev => Math.min(prev + 1, totalPages))}
-                canLoadMore={page < totalPages}
-              />
+              })}
             </div>
-          </div>
-        </>
-      )}
+            <div className="border-t border-slate-200/70 pt-4 dark:border-slate-700/60">
+              <div className="flex flex-col gap-3">
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                  Page {page} / {totalPages}
+                </span>
+                <PaginationControls
+                  currentPage={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                  onLoadMore={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                  canLoadMore={page < totalPages}
+                />
+              </div>
+            </div>
+          </>
+        )
+      ) : null}
       {selected && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur">
           <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900 dark:shadow-slate-900/60">

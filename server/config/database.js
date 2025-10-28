@@ -618,9 +618,36 @@ class DatabaseManager {
       `);
 
       await query(`
+        CREATE TABLE IF NOT EXISTS autres.profile_folders (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          name VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_profile_folder_user (user_id),
+          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await query(`
+        CREATE TABLE IF NOT EXISTS autres.profile_folder_shares (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          folder_id INT NOT NULL,
+          user_id INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uniq_profile_folder_user (folder_id, user_id),
+          INDEX idx_profile_folder_share_folder (folder_id),
+          INDEX idx_profile_folder_share_user (user_id),
+          FOREIGN KEY (folder_id) REFERENCES autres.profile_folders(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.profiles (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,
+          folder_id INT DEFAULT NULL,
           first_name VARCHAR(255) DEFAULT NULL,
           last_name VARCHAR(255) DEFAULT NULL,
           phone VARCHAR(50) DEFAULT NULL,
@@ -631,7 +658,9 @@ class DatabaseManager {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           INDEX idx_user_id (user_id),
-          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE
+          INDEX idx_folder_id (folder_id),
+          FOREIGN KEY (user_id) REFERENCES autres.users(id) ON DELETE CASCADE,
+          FOREIGN KEY (folder_id) REFERENCES autres.profile_folders(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
@@ -674,6 +703,43 @@ class DatabaseManager {
         },
         extraFieldsInfo
       );
+
+      const folderColumnInfo = await getColumnInfo('autres.profiles', 'folder_id');
+      await ensureColumnDefinition(
+        'autres.profiles',
+        'folder_id',
+        {
+          type: 'INT',
+          nullable: true,
+          after: 'user_id'
+        },
+        folderColumnInfo
+      );
+
+      const existingFolderFk = await queryOne(
+        `
+          SELECT CONSTRAINT_NAME
+          FROM information_schema.KEY_COLUMN_USAGE
+          WHERE TABLE_SCHEMA = 'autres'
+            AND TABLE_NAME = 'profiles'
+            AND COLUMN_NAME = 'folder_id'
+            AND REFERENCED_TABLE_NAME = 'profile_folders'
+        `
+      );
+      if (!existingFolderFk) {
+        try {
+          await query(`
+            ALTER TABLE autres.profiles
+            ADD CONSTRAINT fk_profiles_folder
+            FOREIGN KEY (folder_id) REFERENCES autres.profile_folders(id)
+            ON DELETE SET NULL
+          `);
+        } catch (error) {
+          if (!String(error?.message || '').includes('Duplicate')) {
+            throw error;
+          }
+        }
+      }
 
       await query(`
         CREATE TABLE IF NOT EXISTS autres.profile_attachments (

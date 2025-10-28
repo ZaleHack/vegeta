@@ -64,7 +64,7 @@ router.post(
   async (req, res) => {
     try {
       const data = parseAttachmentPayload({ ...req.body });
-      const profile = await service.create(data, req.user.id, req.files || {});
+      const profile = await service.create(data, req.user, req.files || {});
       try {
         await UserLog.create({
           user_id: req.user.id,
@@ -83,11 +83,16 @@ router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
+    const folderId = req.query.folderId ? Number(req.query.folderId) : null;
+    if (req.query.folderId && (!Number.isInteger(folderId) || folderId <= 0)) {
+      return res.status(400).json({ error: 'Identifiant de dossier invalide' });
+    }
     const { rows, total } = await service.list(
       req.user,
       req.query.q,
       page,
-      limit
+      limit,
+      folderId
     );
     res.json({ profiles: rows, total });
   } catch (error) {

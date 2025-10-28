@@ -4,7 +4,8 @@ import { fileURLToPath } from 'url';
 import { PassThrough } from 'stream';
 import Profile from '../models/Profile.js';
 import ProfileAttachment from '../models/ProfileAttachment.js';
-import ProfileShare from '../models/ProfileShare.js';
+import ProfileFolder from '../models/ProfileFolder.js';
+import ProfileFolderShare from '../models/ProfileFolderShare.js';
 import Division from '../models/Division.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
@@ -60,6 +61,128 @@ class ProfileService {
     return value ? value.replace(/\\/g, '/') : value;
   }
 
+  async _enrichFolders(folders, user) {
+    if (!Array.isArray(folders) || folders.length === 0) {
+      return [];
+    }
+    const isAdmin = this._isAdmin(user);
+    const folderIds = folders.map(folder => folder.id).filter(Boolean);
+    const shareMap = await ProfileFolderShare.getSharesForFolders(folderIds);
+    return folders.map(folder => {
+      const sharedUserIds = shareMap.get(folder.id) || [];
+      const isOwner = folder.user_id === user.id;
+      const sharedWithMe = !isOwner && sharedUserIds.includes(user.id);
+      return {
+        ...folder,
+        profiles_count: Number(folder.profiles_count || 0),
+        is_owner: isOwner,
+        shared_with_me: sharedWithMe,
+        shared_user_ids: isAdmin || isOwner ? sharedUserIds : undefined
+      };
+    });
+  }
+
+  async listFolders(user, search = '') {
+    const result = await ProfileFolder.findAccessible({
+      userId: user.id,
+      isAdmin: this._isAdmin(user),
+      search: search ? String(search) : '',
+      limit: 200,
+      offset: 0
+    });
+    const folders = await this._enrichFolders(result.rows, user);
+    return { folders, total: result.total };
+  }
+
+  async createFolder(name, user) {
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    if (!trimmedName) {
+      throw new Error('Nom du dossier requis');
+    }
+    const created = await ProfileFolder.create({ user_id: user.id, name: trimmedName });
+    const folder = await ProfileFolder.findById(created.id);
+    const [enriched] = await this._enrichFolders([folder], user);
+    return enriched;
+  }
+
+  async getFolderShareInfo(folderId, user) {
+    const folder = await ProfileFolder.findById(folderId);
+    if (!folder) {
+      throw new Error('Dossier introuvable');
+    }
+    const isOwner = folder.user_id === user.id;
+    const isAdmin = this._isAdmin(user);
+    if (!isOwner && !isAdmin) {
+      throw new Error('Accès refusé');
+    }
+    const owner = await User.findById(folder.user_id);
+    const divisionId = owner?.division_id || null;
+    const divisionUsers = divisionId
+      ? await Division.findUsers(divisionId, { includeInactive: false })
+      : [];
+    const recipients = await ProfileFolderShare.getUserIds(folder.id);
+    return {
+      folder: { id: folder.id, name: folder.name },
+      divisionId,
+      owner: { id: owner?.id, login: owner?.login },
+      users: divisionUsers,
+      recipients
+    };
+  }
+
+  async shareFolder(folderId, user, { userIds = [], shareAll = false } = {}) {
+    const folder = await ProfileFolder.findById(folderId);
+    if (!folder) {
+      throw new Error('Dossier introuvable');
+    }
+    const isOwner = folder.user_id === user.id;
+    const isAdmin = this._isAdmin(user);
+    if (!isOwner && !isAdmin) {
+      throw new Error('Accès refusé');
+    }
+    const owner = await User.findById(folder.user_id);
+    const divisionId = owner?.division_id;
+    if (!divisionId) {
+      throw new Error('Division introuvable pour le propriétaire');
+    }
+    const divisionUsers = await Division.findUsers(divisionId, { includeInactive: false });
+    const allowedIds = divisionUsers
+      .filter(member => member.id !== owner?.id)
+      .map(member => member.id);
+    const targetIds = shareAll
+      ? allowedIds
+      : Array.isArray(userIds)
+        ? userIds
+            .map(id => Number(id))
+            .filter(id => Number.isInteger(id) && id > 0 && allowedIds.includes(id))
+        : [];
+    const { added, removed } = await ProfileFolderShare.replaceShares(folder.id, targetIds);
+
+    if (added.length > 0) {
+      const ownerLogin = owner?.login || '';
+      for (const addedId of added) {
+        const data = {
+          folderId: folder.id,
+          folderName: folder.name,
+          owner: ownerLogin,
+          divisionId
+        };
+        try {
+          await Notification.create({ user_id: addedId, type: 'profile_shared', data });
+        } catch (error) {
+          console.error('Erreur création notification partage dossier profil:', error);
+        }
+      }
+    }
+
+    return {
+      added,
+      removed,
+      recipients: targetIds,
+      folder: { id: folder.id, name: folder.name }
+    };
+  }
+
   resolveStoragePath(storedPath) {
     if (!storedPath) return null;
     const normalized = this.normalizeStoredPath(storedPath).replace(/^[/\\]+/, '');
@@ -103,11 +226,28 @@ class ProfileService {
     toDelete.forEach(att => this.removeStoredFile(att.file_path));
   }
 
-  async create(data, userId, files = {}) {
+  async create(data, user, files = {}) {
+    const ownerId = user?.id;
+    if (!ownerId) {
+      throw new Error('Utilisateur requis');
+    }
     const photoFile = Array.isArray(files.photo) ? files.photo[0] : null;
     const attachmentFiles = Array.isArray(files.attachments) ? files.attachments : [];
+    const folderId = data.folder_id ? Number(data.folder_id) : null;
+    if (!folderId) {
+      throw new Error('Dossier requis');
+    }
+    const folder = await ProfileFolder.findById(folderId);
+    if (!folder) {
+      throw new Error('Dossier introuvable');
+    }
+    const isAdmin = this._isAdmin(user);
+    if (!isAdmin && folder.user_id !== ownerId) {
+      throw new Error('Accès refusé');
+    }
     const profileData = {
-      user_id: userId,
+      user_id: folder.user_id,
+      folder_id: folder.id,
       first_name: data.first_name || null,
       last_name: data.last_name || null,
       phone: data.phone || null,
@@ -181,6 +321,26 @@ class ProfileService {
         ? normalizeExtraFields(data.extra_fields)
         : normalizeExtraFields(existing.extra_fields);
 
+    let targetFolderId = existing.folder_id;
+    if (data.folder_id !== undefined) {
+      const parsedFolderId = Number(data.folder_id);
+      if (!Number.isInteger(parsedFolderId) || parsedFolderId <= 0) {
+        throw new Error('Dossier requis');
+      }
+      const folder = await ProfileFolder.findById(parsedFolderId);
+      if (!folder) {
+        throw new Error('Dossier introuvable');
+      }
+      if (!isAdmin && folder.user_id !== user.id) {
+        throw new Error('Accès refusé');
+      }
+      targetFolderId = folder.id;
+    }
+
+    if (!targetFolderId) {
+      throw new Error('Dossier requis');
+    }
+
     const updateData = {
       first_name: data.first_name ?? existing.first_name,
       last_name: data.last_name ?? existing.last_name,
@@ -188,6 +348,7 @@ class ProfileService {
       email: data.email ?? existing.email,
       comment: data.comment ?? existing.comment ?? '',
       extra_fields: extraFields,
+      folder_id: targetFolderId,
       // Normalize existing paths to use forward slashes to avoid issues on different OSes
       photo_path: photoPath
     };
@@ -231,7 +392,9 @@ class ProfileService {
     if (!profile) return null;
     const isAdmin = this._isAdmin(user);
     if (!isAdmin && profile.user_id !== user.id) {
-      const shared = await ProfileShare.isSharedWithUser(profile.id, user.id);
+      const shared = profile.folder_id
+        ? await ProfileFolderShare.isSharedWithUser(profile.folder_id, user.id)
+        : false;
       if (!shared) {
         return null;
       }
@@ -239,7 +402,7 @@ class ProfileService {
     return this.withAttachments(profile);
   }
 
-  async list(user, search, page = 1, limit = 10) {
+  async list(user, search, page = 1, limit = 10, folderId = null) {
     const offset = (page - 1) * limit;
     const isAdmin = this._isAdmin(user);
     const divisionId =
@@ -252,7 +415,8 @@ class ProfileService {
       isAdmin,
       search,
       limit,
-      offset
+      offset,
+      folderId: folderId ? Number(folderId) : null
     });
     const rows = result.rows.map(row => ({
       ...row,
@@ -262,15 +426,16 @@ class ProfileService {
       return { rows, total: result.total };
     }
     const attachmentsMap = await ProfileAttachment.findByProfileIds(rows.map(row => row.id));
-    const shareMap = await ProfileShare.getSharesForProfiles(rows.map(row => row.id));
+    const folderIds = Array.from(new Set(rows.map(row => row.folder_id).filter(Boolean)));
+    const folderShareMap = await ProfileFolderShare.getSharesForFolders(folderIds);
     const enriched = rows.map(row => {
       const attachments = (attachmentsMap[row.id] || []).map(att => ({
         ...att,
         file_path: this.normalizeStoredPath(att.file_path)
       }));
-      const sharedUserIds = shareMap.get(row.id) || [];
+      const sharedUserIds = row.folder_id ? folderShareMap.get(row.folder_id) || [] : [];
       const isOwner = row.user_id === user.id;
-      const sharedWithMe = !isOwner && sharedUserIds.includes(user.id);
+      const sharedWithMe = !isOwner && row.folder_id ? sharedUserIds.includes(user.id) : false;
       return {
         ...row,
         attachments,
@@ -288,26 +453,11 @@ class ProfileService {
       throw new Error('Profil non trouvé');
     }
 
-    const isOwner = profile.user_id === user.id;
-    const isAdmin = this._isAdmin(user);
-
-    if (!isOwner && !isAdmin) {
-      throw new Error('Accès refusé');
+    if (!profile.folder_id) {
+      throw new Error('Dossier introuvable');
     }
 
-    const owner = await User.findById(profile.user_id);
-    const divisionId = owner?.division_id || null;
-    const divisionUsers = divisionId
-      ? await Division.findUsers(divisionId, { includeInactive: false })
-      : [];
-    const recipients = await ProfileShare.getUserIds(profileId);
-
-    return {
-      divisionId,
-      owner: { id: owner?.id, login: owner?.login },
-      recipients,
-      users: divisionUsers
-    };
+    return this.getFolderShareInfo(profile.folder_id, user);
   }
 
   async shareProfile(profileId, user, { userIds = [], shareAll = false } = {}) {
@@ -316,63 +466,11 @@ class ProfileService {
       throw new Error('Profil non trouvé');
     }
 
-    const isOwner = profile.user_id === user.id;
-    const isAdmin = this._isAdmin(user);
-
-    if (!isOwner && !isAdmin) {
-      throw new Error('Accès refusé');
+    if (!profile.folder_id) {
+      throw new Error('Dossier introuvable');
     }
 
-    const owner = await User.findById(profile.user_id);
-    const divisionId = owner?.division_id;
-
-    if (!divisionId) {
-      throw new Error('Division introuvable pour le propriétaire');
-    }
-
-    const divisionUsers = await Division.findUsers(divisionId, { includeInactive: false });
-    const allowedIds = divisionUsers
-      .filter(member => member.id !== owner?.id)
-      .map(member => member.id);
-
-    const targetIds = shareAll
-      ? allowedIds
-      : Array.isArray(userIds)
-        ? userIds
-            .map(id => Number(id))
-            .filter(id => Number.isInteger(id) && id > 0 && allowedIds.includes(id))
-        : [];
-
-    const { added, removed } = await ProfileShare.replaceShares(profileId, targetIds);
-
-    if (added.length > 0) {
-      const ownerLogin = owner?.login || '';
-      const profileName = [profile.first_name, profile.last_name]
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-      const displayName = profileName || profile.email || profile.phone || `Profil #${profileId}`;
-
-      for (const addedId of added) {
-        const data = {
-          profileId,
-          profileName: displayName,
-          owner: ownerLogin,
-          divisionId
-        };
-        try {
-          await Notification.create({ user_id: addedId, type: 'profile_shared', data });
-        } catch (error) {
-          console.error('Erreur création notification partage profil:', error);
-        }
-      }
-    }
-
-    return {
-      added,
-      removed,
-      recipients: targetIds
-    };
+    return this.shareFolder(profile.folder_id, user, { userIds, shareAll });
   }
 
 

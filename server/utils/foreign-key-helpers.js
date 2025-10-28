@@ -33,6 +33,17 @@ export const ensureProfileExists = async (profileId) => {
   return existing ? existing.id : null;
 };
 
+export const ensureProfileFolderExists = async (folderId) => {
+  if (folderId === undefined || folderId === null) {
+    return null;
+  }
+  const existing = await database.queryOne(
+    'SELECT id FROM autres.profile_folders WHERE id = ? LIMIT 1',
+    [folderId]
+  );
+  return existing ? existing.id : null;
+};
+
 export const filterExistingUserIds = async (userIds = []) => {
   if (!Array.isArray(userIds) || userIds.length === 0) {
     return [];
