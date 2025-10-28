@@ -109,6 +109,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const [renamingFolder, setRenamingFolder] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<number | null>(null);
+  const [movingProfileId, setMovingProfileId] = useState<number | null>(null);
   const newFolderInputRef = useRef<HTMLInputElement | null>(null);
   const renameFolderInputRef = useRef<HTMLInputElement | null>(null);
   const [readyFolderId, setReadyFolderId] = useState<number | null>(null);
@@ -757,7 +759,99 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const handleDragEnd = useCallback(() => {
     setDraggedId(null);
     setDragOverId(null);
+    setDragOverFolderId(null);
   }, []);
+
+  const moveProfileToFolder = useCallback(
+    async (profileId: number, folderId: number | null) => {
+      setMovingProfileId(profileId);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/profiles/${profileId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ folder_id: folderId })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(data.error || 'Impossible de déplacer le profil');
+          return false;
+        }
+        setError('');
+        const updatedProfile: ProfileListItem | null = data?.profile
+          ? {
+              ...data.profile,
+              attachments: Array.isArray(data.profile.attachments)
+                ? data.profile.attachments
+                : []
+            }
+          : null;
+        setSelected(current => {
+          if (!current || current.id !== profileId) {
+            return current;
+          }
+          if (updatedProfile) {
+            return { ...current, ...updatedProfile };
+          }
+          return current;
+        });
+        await Promise.all([load(), loadFolders()]);
+        return true;
+      } catch (_) {
+        setError('Erreur lors du déplacement du profil');
+        return false;
+      } finally {
+        setMovingProfileId(current => (current === profileId ? null : current));
+      }
+    },
+    [load, loadFolders]
+  );
+
+  const handleDragEnterFolder = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, folderId: number) => {
+      if (draggedId === null) {
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      setDragOverFolderId(folderId);
+    },
+    [draggedId]
+  );
+
+  const handleDragLeaveFolder = useCallback(
+    (_event: React.DragEvent<HTMLDivElement>, folderId: number) => {
+      setDragOverFolderId(current => (current === folderId ? null : current));
+    },
+    []
+  );
+
+  const handleDropOnFolder = useCallback(
+    async (event: React.DragEvent<HTMLDivElement>, folder: ProfileFolderSummary) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setDragOverFolderId(null);
+      setDragOverId(null);
+      const rawId = event.dataTransfer.getData('text/plain');
+      const profileId = draggedId ?? Number(rawId);
+      setDraggedId(null);
+      if (!profileId || Number.isNaN(profileId)) {
+        return;
+      }
+      const profile = profiles.find(p => p.id === profileId);
+      if (!profile) {
+        return;
+      }
+      if (profile.folder_id === folder.id) {
+        return;
+      }
+      await moveProfileToFolder(profileId, folder.id);
+    },
+    [draggedId, moveProfileToFolder, profiles]
+  );
 
   const selectedPhotoUrl = selected ? buildProtectedUrl(selected.photo_path) : null;
   const selectedDisplayName = selected ? getDisplayName(selected) : 'Profil sans nom';
@@ -1062,6 +1156,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
                   const isRenaming = renamingFolderId === folder.id;
+                  const isFolderDropTarget = dragOverFolderId === folder.id && draggedId !== null;
                   const handleSelect = () => {
                     setSelectedFolderId(current => {
                       const next = current === folder.id ? null : folder.id;
@@ -1084,13 +1179,23 @@ const ProfileList: React.FC<ProfileListProps> = ({
                       tabIndex={0}
                       onClick={handleSelect}
                       onKeyDown={handleKeyDown}
+                      onDragEnter={event => handleDragEnterFolder(event, folder.id)}
+                      onDragOver={event => handleDragEnterFolder(event, folder.id)}
+                      onDragLeave={event => handleDragLeaveFolder(event, folder.id)}
+                      onDrop={event => handleDropOnFolder(event, folder)}
+                      aria-dropeffect={draggedId !== null ? 'move' : undefined}
                       className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/60 p-4 shadow-lg shadow-blue-100/50 backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500/60 dark:border-slate-700/60 dark:bg-slate-900/50 dark:shadow-slate-950/50 ${
                         active
                           ? 'ring-2 ring-blue-500/60'
                           : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-1 hover:ring-blue-400/40'
+                      } ${
+                        isFolderDropTarget ? 'ring-2 ring-purple-400/60 shadow-2xl shadow-purple-200/50' : ''
                       }`}
                     >
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                      {isFolderDropTarget && (
+                        <div className="pointer-events-none absolute inset-1 rounded-[26px] border-2 border-dashed border-purple-400/70 bg-purple-100/20 dark:border-purple-400/60 dark:bg-purple-500/10" />
+                      )}
                       <div className="relative flex flex-col gap-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
@@ -1250,10 +1355,12 @@ const ProfileList: React.FC<ProfileListProps> = ({
                 const displayedTags = getCategoryTags(p).slice(0, 3);
                 const isDragging = draggedId === p.id;
                 const isDropTarget = dragOverId === p.id && draggedId !== null && draggedId !== p.id;
+                const isMoving = movingProfileId === p.id;
                 const cardClasses = [
                   'group relative flex flex-col overflow-hidden rounded-[28px] border border-white/40 bg-white/60 p-6 shadow-xl shadow-blue-100/60 backdrop-blur-2xl transition-all duration-500 dark:border-slate-700/60 dark:bg-slate-900/50 dark:shadow-slate-950/50',
                   isDragging ? 'scale-[1.02] ring-2 ring-blue-500/60' : 'hover:-translate-y-1 hover:shadow-2xl',
-                  isDropTarget ? 'ring-2 ring-purple-400/60' : ''
+                  isDropTarget ? 'ring-2 ring-purple-400/60' : '',
+                  isMoving ? 'opacity-60 pointer-events-none' : ''
                 ]
                   .filter(Boolean)
                   .join(' ');
@@ -1271,6 +1378,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                     onDrop={handleDropCard}
                     onDragEnd={handleDragEnd}
                     aria-grabbed={isDragging}
+                    aria-busy={isMoving || undefined}
                     aria-label={`Fiche profil ${displayName}`}
                   >
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
