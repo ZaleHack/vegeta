@@ -101,6 +101,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderError, setNewFolderError] = useState('');
   const newFolderInputRef = useRef<HTMLInputElement | null>(null);
+  const [readyFolderId, setReadyFolderId] = useState<number | null>(null);
+  const selectedFolderIdRef = useRef<number | null>(null);
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
   const selectedFolder = useMemo(
@@ -139,6 +141,10 @@ const ProfileList: React.FC<ProfileListProps> = ({
   useEffect(() => {
     loadFolders();
   }, [loadFolders, refreshKey]);
+
+  useEffect(() => {
+    selectedFolderIdRef.current = selectedFolderId;
+  }, [selectedFolderId]);
 
   const toggleCreateFolderForm = useCallback(() => {
     setShowCreateFolderForm(prev => !prev);
@@ -367,6 +373,12 @@ const ProfileList: React.FC<ProfileListProps> = ({
     return 'Ce dossier ne contient aucune fiche pour le moment.';
   }, [query, selectedFolderId]);
 
+  const canCreateProfileNow = Boolean(
+    selectedFolderId && readyFolderId === selectedFolderId && !loading
+  );
+  const showCreateSelectionHint = !selectedFolderId;
+  const showCreateLoadingHint = Boolean(selectedFolderId && !canCreateProfileNow);
+
   useEffect(() => {
     setPage(prev => Math.min(prev, totalPages));
   }, [totalPages]);
@@ -380,20 +392,23 @@ const ProfileList: React.FC<ProfileListProps> = ({
   }, [query]);
 
   const load = useCallback(async () => {
+    const currentFolderId = selectedFolderId;
     try {
-      if (!selectedFolderId) {
+      if (!currentFolderId) {
         setProfiles([]);
         setTotal(0);
         setLoading(false);
+        setReadyFolderId(null);
         return;
       }
       setLoading(true);
       setError('');
+      setReadyFolderId(null);
       const token = localStorage.getItem('token');
       const params = new URLSearchParams({
         page: String(page),
         limit: String(limit),
-        folderId: String(selectedFolderId)
+        folderId: String(currentFolderId)
       });
       const trimmedQuery = query.trim();
       if (trimmedQuery) {
@@ -409,6 +424,9 @@ const ProfileList: React.FC<ProfileListProps> = ({
         setError(data.error || 'Erreur lors du chargement des profils');
         setProfiles([]);
         setTotal(0);
+        if (selectedFolderIdRef.current === currentFolderId) {
+          setReadyFolderId(currentFolderId);
+        }
         return;
       }
       // Ensure the profiles field from the API is always an array and normalize attachments
@@ -419,14 +437,20 @@ const ProfileList: React.FC<ProfileListProps> = ({
       }));
       setProfiles(normalized);
       setTotal(data.total || 0);
+      if (selectedFolderIdRef.current === currentFolderId) {
+        setReadyFolderId(currentFolderId);
+      }
     } catch (err) {
       setError('Erreur de réseau');
       setProfiles([]);
       setTotal(0);
+      if (selectedFolderIdRef.current === currentFolderId) {
+        setReadyFolderId(currentFolderId);
+      }
     } finally {
       setLoading(false);
     }
-  }, [query, page, selectedFolderId]);
+  }, [limit, page, query, selectedFolderId]);
 
   useEffect(() => {
     load();
@@ -709,15 +733,22 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   </div>
                 </div>
                 <div className="flex flex-col items-stretch gap-2 sm:items-end">
-                  <button
-                    type="button"
-                    onClick={handleCreateClick}
-                    disabled={!selectedFolderId}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Créer une fiche
-                  </button>
-                  {!selectedFolderId && (
+                  {canCreateProfileNow && (
+                    <button
+                      type="button"
+                      onClick={handleCreateClick}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl"
+                    >
+                      Créer une fiche
+                    </button>
+                  )}
+                  {showCreateLoadingHint && (
+                    <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-500 dark:text-blue-200" />
+                      Ouverture du dossier…
+                    </div>
+                  )}
+                  {showCreateSelectionHint && (
                     <p className="max-w-xs text-xs text-slate-500 dark:text-slate-400">
                       Choisissez un dossier dans la liste pour démarrer la création d’une fiche.
                     </p>
