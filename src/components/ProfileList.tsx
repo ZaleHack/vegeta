@@ -23,51 +23,6 @@ import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 
-const cn = (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ');
-
-const FOLDER_COLOR_VARIANTS = [
-  {
-    card: 'border-blue-300/80 bg-blue-100/90 dark:border-blue-400/60 dark:bg-blue-500/25',
-    icon: 'from-blue-500 to-indigo-500 dark:from-blue-400 dark:to-indigo-400',
-    ring: 'ring-blue-500/60',
-    hoverRing: 'hover:ring-blue-400/50',
-    focus: 'focus-visible:outline-blue-500/60',
-    label: 'text-blue-600 dark:text-blue-300'
-  },
-  {
-    card: 'border-violet-300/80 bg-violet-100/90 dark:border-violet-400/60 dark:bg-violet-500/25',
-    icon: 'from-violet-500 to-purple-500 dark:from-violet-400 dark:to-purple-400',
-    ring: 'ring-violet-500/60',
-    hoverRing: 'hover:ring-violet-400/50',
-    focus: 'focus-visible:outline-violet-500/60',
-    label: 'text-violet-600 dark:text-violet-300'
-  },
-  {
-    card: 'border-emerald-300/80 bg-emerald-100/90 dark:border-emerald-400/60 dark:bg-emerald-500/25',
-    icon: 'from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400',
-    ring: 'ring-emerald-500/60',
-    hoverRing: 'hover:ring-emerald-400/50',
-    focus: 'focus-visible:outline-emerald-500/60',
-    label: 'text-emerald-600 dark:text-emerald-300'
-  },
-  {
-    card: 'border-amber-300/80 bg-amber-100/90 dark:border-amber-400/60 dark:bg-amber-500/25',
-    icon: 'from-amber-500 to-orange-500 dark:from-amber-400 dark:to-orange-400',
-    ring: 'ring-amber-500/60',
-    hoverRing: 'hover:ring-amber-400/50',
-    focus: 'focus-visible:outline-amber-500/60',
-    label: 'text-amber-600 dark:text-amber-300'
-  },
-  {
-    card: 'border-rose-300/80 bg-rose-100/90 dark:border-rose-400/60 dark:bg-rose-500/25',
-    icon: 'from-rose-500 to-pink-500 dark:from-rose-400 dark:to-pink-400',
-    ring: 'ring-rose-500/60',
-    hoverRing: 'hover:ring-rose-400/50',
-    focus: 'focus-visible:outline-rose-500/60',
-    label: 'text-rose-600 dark:text-rose-300'
-  }
-] as const;
-
 interface ProfileAttachment {
   id: number;
   file_path: string;
@@ -1008,6 +963,27 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   </>
                 )}
               </button>
+              {onCreate && canCreateProfileNow && (
+                <button
+                  type="button"
+                  onClick={handleCreateClick}
+                  className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-400"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Créer une fiche
+                </button>
+              )}
+              {onCreate && showCreateLoadingHint && (
+                <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500 dark:text-blue-200" />
+                  Chargement…
+                </div>
+              )}
+              {onCreate && showCreateSelectionHint && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Cette fiche sera enregistrée sans dossier. Vous pourrez l’organiser ultérieurement.
+                </p>
+              )}
             </div>
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1117,31 +1093,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
               </form>
             </div>
           )}
-          {onCreate && (
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              {canCreateProfileNow && (
-                <button
-                  type="button"
-                  onClick={handleCreateClick}
-                  className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-400"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  Créer une fiche
-                </button>
-              )}
-              {showCreateLoadingHint && (
-                <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500 dark:text-blue-200" />
-                  Chargement…
-                </div>
-              )}
-              {showCreateSelectionHint && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Cette fiche sera enregistrée sans dossier. Vous pourrez l’organiser ultérieurement.
-                </p>
-              )}
-            </div>
-          )}
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Organisez vos fiches par dossier et partagez-les facilement avec les membres de votre division.
           </p>
@@ -1171,13 +1122,12 @@ const ProfileList: React.FC<ProfileListProps> = ({
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {filteredFolders.map((folder, index) => {
+                {filteredFolders.map(folder => {
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
                   const isRenaming = renamingFolderId === folder.id;
                   const isFolderDropTarget = dragOverFolderId === folder.id && draggedId !== null;
-                  const colorVariant = FOLDER_COLOR_VARIANTS[index % FOLDER_COLOR_VARIANTS.length];
                   const handleSelect = () => {
                     setSelectedFolderId(current => {
                       const next = current === folder.id ? null : folder.id;
@@ -1205,14 +1155,13 @@ const ProfileList: React.FC<ProfileListProps> = ({
                       onDragLeave={event => handleDragLeaveFolder(event, folder.id)}
                       onDrop={event => handleDropOnFolder(event, folder)}
                       aria-dropeffect={draggedId !== null ? 'move' : undefined}
-                      className={cn(
-                        'group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border p-4 shadow-lg backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
-                        'hover:-translate-y-1 hover:shadow-2xl',
-                        colorVariant.card,
-                        colorVariant.focus,
-                        active ? cn('ring-2', colorVariant.ring) : cn('hover:ring-1', colorVariant.hoverRing),
-                        isFolderDropTarget && 'ring-2 ring-purple-400/60 shadow-2xl shadow-purple-200/50'
-                      )}
+                      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/60 p-4 shadow-lg shadow-blue-100/50 backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500/60 dark:border-slate-700/60 dark:bg-slate-900/50 dark:shadow-slate-950/50 ${
+                        active
+                          ? 'ring-2 ring-blue-500/60'
+                          : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-1 hover:ring-blue-400/40'
+                      } ${
+                        isFolderDropTarget ? 'ring-2 ring-purple-400/60 shadow-2xl shadow-purple-200/50' : ''
+                      }`}
                     >
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                       {isFolderDropTarget && (
@@ -1222,22 +1171,15 @@ const ProfileList: React.FC<ProfileListProps> = ({
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
                             <span
-                              className={cn(
-                                'flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg',
-                                colorVariant.icon,
-                                active && 'animate-pulse'
-                              )}
+                              className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-400/40 ${
+                                active ? 'animate-pulse' : ''
+                              }`}
                             >
                               <Folder className="h-5 w-5" />
                             </span>
                             <div>
                               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{folder.name}</h3>
-                              <p
-                                className={cn(
-                                  'text-xs font-medium uppercase tracking-[0.2em]',
-                                  colorVariant.label
-                                )}
-                              >
+                              <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
                                 {active ? 'Dossier sélectionné' : 'Dossier'}
                               </p>
                             </div>
