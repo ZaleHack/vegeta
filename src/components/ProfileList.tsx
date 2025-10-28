@@ -23,11 +23,19 @@ import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 
-const FOLDER_BACKGROUND_GRADIENTS = [
-  'from-blue-500/10 via-indigo-500/10 to-purple-500/10 dark:from-blue-500/20 dark:via-indigo-500/20 dark:to-purple-500/20',
-  'from-emerald-500/10 via-teal-500/10 to-cyan-500/10 dark:from-emerald-500/20 dark:via-teal-500/20 dark:to-cyan-500/20',
-  'from-rose-500/10 via-orange-500/10 to-amber-500/10 dark:from-rose-500/20 dark:via-orange-500/20 dark:to-amber-500/20'
-];
+const GOLDEN_ANGLE = 137.508;
+
+const generateFolderGradient = (folderId?: number | null, fallbackIndex = 0) => {
+  const base = Number.isFinite(folderId) ? Number(folderId) : fallbackIndex + 1;
+  const hue = (base * GOLDEN_ANGLE) % 360;
+  const colorStops = [
+    `hsla(${hue.toFixed(2)}, 85%, 65%, 0.45)`,
+    `hsla(${((hue + 25) % 360).toFixed(2)}, 80%, 60%, 0.4)`,
+    `hsla(${((hue + 50) % 360).toFixed(2)}, 75%, 55%, 0.38)`
+  ];
+
+  return `linear-gradient(135deg, ${colorStops.join(', ')})`;
+};
 
 interface ProfileAttachment {
   id: number;
@@ -1124,8 +1132,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {filteredFolders.map((folder, index) => {
-                  const backgroundGradient =
-                    FOLDER_BACKGROUND_GRADIENTS[index % FOLDER_BACKGROUND_GRADIENTS.length];
+                  const backgroundGradient = generateFolderGradient(folder.id, index);
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
@@ -1167,7 +1174,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
                       }`}
                     >
                       <div
-                        className={`pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-br ${backgroundGradient} opacity-90`}
+                        className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-90"
+                        style={{ backgroundImage: backgroundGradient }}
                       />
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                       {isFolderDropTarget && (
