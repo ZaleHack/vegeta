@@ -21,7 +21,6 @@ import {
 import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
-import { pageToPath } from '../features/navigation/usePageNavigation';
 
 interface ProfileAttachment {
   id: number;
@@ -71,7 +70,6 @@ interface ProfileListProps {
   onFocusedProfileHandled?: () => void;
   focusedFolderId?: number | null;
   onFocusedFolderHandled?: () => void;
-  initialFolderId?: number | null;
 }
 
 const ProfileList: React.FC<ProfileListProps> = ({
@@ -84,8 +82,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
   focusedProfileId = null,
   onFocusedProfileHandled,
   focusedFolderId = null,
-  onFocusedFolderHandled,
-  initialFolderId = null
+  onFocusedFolderHandled
 }) => {
   const [profiles, setProfiles] = useState<ProfileListItem[]>([]);
   const [folders, setFolders] = useState<ProfileFolderSummary[]>([]);
@@ -106,7 +103,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const newFolderInputRef = useRef<HTMLInputElement | null>(null);
   const [readyFolderId, setReadyFolderId] = useState<number | null>(null);
   const selectedFolderIdRef = useRef<number | null>(null);
-  const lastInitialFolderIdRef = useRef<number | null>(null);
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
   const selectedFolder = useMemo(
@@ -146,24 +142,9 @@ const ProfileList: React.FC<ProfileListProps> = ({
     loadFolders();
   }, [loadFolders, refreshKey]);
 
-  const openFolderInNewTab = useCallback((folderId: number) => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    const basePath = pageToPath.profiles ?? '/fiches-profil';
-    const url = `${basePath}?folder=${folderId}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }, []);
-
   useEffect(() => {
     selectedFolderIdRef.current = selectedFolderId;
   }, [selectedFolderId]);
-
-  useEffect(() => {
-    if (initialFolderId == null) {
-      lastInitialFolderIdRef.current = null;
-    }
-  }, [initialFolderId]);
 
   const toggleCreateFolderForm = useCallback(() => {
     setShowCreateFolderForm(prev => !prev);
@@ -487,47 +468,20 @@ const ProfileList: React.FC<ProfileListProps> = ({
   useEffect(() => {
     if (!folders.length) {
       setSelectedFolderId(null);
-      lastInitialFolderIdRef.current = null;
       return;
     }
-
     if (focusedFolderId) {
       const match = folders.find(folder => folder.id === focusedFolderId);
       if (match) {
         setSelectedFolderId(match.id);
-        lastInitialFolderIdRef.current = match.id;
-      }
-      onFocusedFolderHandled?.();
-      if (match) {
+        onFocusedFolderHandled?.();
         return;
       }
     }
-
-    if (
-      initialFolderId &&
-      initialFolderId !== selectedFolderId &&
-      initialFolderId !== lastInitialFolderIdRef.current
-    ) {
-      const match = folders.find(folder => folder.id === initialFolderId);
-      if (match) {
-        setSelectedFolderId(match.id);
-        lastInitialFolderIdRef.current = initialFolderId;
-        return;
-      }
-    }
-
     if (!selectedFolderId || !folders.some(folder => folder.id === selectedFolderId)) {
-      const firstFolder = folders[0];
-      setSelectedFolderId(firstFolder.id);
-      lastInitialFolderIdRef.current = firstFolder.id;
+      setSelectedFolderId(folders[0].id);
     }
-  }, [
-    folders,
-    focusedFolderId,
-    initialFolderId,
-    onFocusedFolderHandled,
-    selectedFolderId
-  ]);
+  }, [folders, focusedFolderId, onFocusedFolderHandled, selectedFolderId]);
 
   useEffect(() => {
     if (!focusedProfileId) return;
@@ -836,10 +790,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
-                  const handleSelect = () => {
-                    setSelectedFolderId(folder.id);
-                    openFolderInNewTab(folder.id);
-                  };
+                  const handleSelect = () => setSelectedFolderId(folder.id);
                   const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = event => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
