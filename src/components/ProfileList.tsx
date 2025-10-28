@@ -27,7 +27,7 @@ const cn = (...classes: Array<string | false | null | undefined>) => classes.fil
 
 const FOLDER_COLOR_VARIANTS = [
   {
-    card: 'border-blue-200/70 bg-blue-50/80 dark:border-blue-500/40 dark:bg-blue-500/10',
+    card: 'border-blue-300/80 bg-blue-100/90 dark:border-blue-400/60 dark:bg-blue-500/25',
     icon: 'from-blue-500 to-indigo-500 dark:from-blue-400 dark:to-indigo-400',
     ring: 'ring-blue-500/60',
     hoverRing: 'hover:ring-blue-400/50',
@@ -35,7 +35,7 @@ const FOLDER_COLOR_VARIANTS = [
     label: 'text-blue-600 dark:text-blue-300'
   },
   {
-    card: 'border-violet-200/70 bg-violet-50/80 dark:border-violet-500/40 dark:bg-violet-500/10',
+    card: 'border-violet-300/80 bg-violet-100/90 dark:border-violet-400/60 dark:bg-violet-500/25',
     icon: 'from-violet-500 to-purple-500 dark:from-violet-400 dark:to-purple-400',
     ring: 'ring-violet-500/60',
     hoverRing: 'hover:ring-violet-400/50',
@@ -43,7 +43,7 @@ const FOLDER_COLOR_VARIANTS = [
     label: 'text-violet-600 dark:text-violet-300'
   },
   {
-    card: 'border-emerald-200/70 bg-emerald-50/80 dark:border-emerald-500/40 dark:bg-emerald-500/10',
+    card: 'border-emerald-300/80 bg-emerald-100/90 dark:border-emerald-400/60 dark:bg-emerald-500/25',
     icon: 'from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400',
     ring: 'ring-emerald-500/60',
     hoverRing: 'hover:ring-emerald-400/50',
@@ -51,7 +51,7 @@ const FOLDER_COLOR_VARIANTS = [
     label: 'text-emerald-600 dark:text-emerald-300'
   },
   {
-    card: 'border-amber-200/70 bg-amber-50/80 dark:border-amber-500/40 dark:bg-amber-500/10',
+    card: 'border-amber-300/80 bg-amber-100/90 dark:border-amber-400/60 dark:bg-amber-500/25',
     icon: 'from-amber-500 to-orange-500 dark:from-amber-400 dark:to-orange-400',
     ring: 'ring-amber-500/60',
     hoverRing: 'hover:ring-amber-400/50',
@@ -59,7 +59,7 @@ const FOLDER_COLOR_VARIANTS = [
     label: 'text-amber-600 dark:text-amber-300'
   },
   {
-    card: 'border-rose-200/70 bg-rose-50/80 dark:border-rose-500/40 dark:bg-rose-500/10',
+    card: 'border-rose-300/80 bg-rose-100/90 dark:border-rose-400/60 dark:bg-rose-500/25',
     icon: 'from-rose-500 to-pink-500 dark:from-rose-400 dark:to-pink-400',
     ring: 'ring-rose-500/60',
     hoverRing: 'hover:ring-rose-400/50',
