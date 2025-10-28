@@ -1016,17 +1016,31 @@ const ProfileList: React.FC<ProfileListProps> = ({
                               </p>
                             </div>
                           </div>
-                          {canManage && onShareFolder && (
-                            <button
-                              type="button"
-                              onClick={event => {
-                                event.stopPropagation();
-                                onShareFolder(folder);
-                              }}
-                              className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-blue-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-blue-200 dark:hover:bg-slate-900"
-                            >
-                              <Share2 className="h-3.5 w-3.5" /> Partager
-                            </button>
+                          {canManage && (
+                            <div className="flex items-center gap-2">
+                              {onShareFolder && (
+                                <button
+                                  type="button"
+                                  onClick={event => {
+                                    event.stopPropagation();
+                                    onShareFolder(folder);
+                                  }}
+                                  className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-blue-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-blue-200 dark:hover:bg-slate-900"
+                                >
+                                  <Share2 className="h-3.5 w-3.5" /> Partager
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={event => {
+                                  event.stopPropagation();
+                                  handleDeleteFolder(folder);
+                                }}
+                                className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-rose-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-rose-300 dark:hover:bg-slate-900"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> Supprimer
+                              </button>
+                            </div>
                           )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
