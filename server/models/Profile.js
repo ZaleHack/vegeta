@@ -76,6 +76,17 @@ class Profile {
     return normalizeProfileRecord(row);
   }
 
+  static async findByFolderId(folderId) {
+    if (!folderId) {
+      return [];
+    }
+    const rows = await database.query(
+      `${PROFILE_BASE_SELECT} WHERE p.folder_id = ? ORDER BY p.created_at DESC`,
+      [folderId]
+    );
+    return normalizeProfileRows(rows);
+  }
+
   static async update(id, data) {
     const fields = [];
     const params = [];

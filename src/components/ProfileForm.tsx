@@ -117,7 +117,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
           if (prev && list.some(option => option.id === prev)) {
             return prev;
           }
-          return list.length > 0 ? list[0].id : null;
+          return null;
         });
       } else {
         setFolders([]);

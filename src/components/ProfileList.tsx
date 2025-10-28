@@ -185,7 +185,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
       setConfirmDialog({
         title: 'Supprimer le dossier',
         description:
-          "Supprimer définitivement ce dossier ? Les fiches qu'il contient doivent être déplacées au préalable.",
+          "Supprimer définitivement ce dossier et toutes les fiches qu'il contient ? Cette action est irréversible.",
         confirmLabel: 'Supprimer',
         cancelLabel: 'Annuler',
         tone: 'danger',
@@ -199,12 +199,22 @@ const ProfileList: React.FC<ProfileListProps> = ({
                 Authorization: token ? `Bearer ${token}` : ''
               }
             });
+            const payload = await res.json().catch(() => ({}));
             if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              setFolderError(data.error || 'Impossible de supprimer le dossier');
+              setFolderError(payload.error || 'Impossible de supprimer le dossier');
               return;
             }
-            setFolderError('');
+            if (typeof payload.deletedProfiles === 'number') {
+              setFolderError(
+                payload.deletedProfiles > 0
+                  ? `${payload.deletedProfiles} fiche${payload.deletedProfiles > 1 ? 's' : ''} supprimée${
+                      payload.deletedProfiles > 1 ? 's' : ''
+                    } avec le dossier.`
+                  : ''
+              );
+            } else {
+              setFolderError('');
+            }
             setSelectedFolderId(current => (current === folder.id ? null : current));
             setProfiles([]);
             setTotal(0);
