@@ -80,8 +80,8 @@ const ProfileSummary: React.FC<ProfileSummaryProps> = ({ data }) => {
     <article className={styles.container}>
       <header className={styles.header}>
         <div className={styles.titles}>
-          <h1 className={styles.title}>Synthèse du profil</h1>
-          <h2 className={styles.subtitle}>Fiche profil</h2>
+          <span className={styles.eyebrow}>Profil</span>
+          <h1 className={styles.title}>Résumé</h1>
         </div>
         <button type="button" onClick={handleExport} className={styles.exportButton}>
           Exporter en PDF

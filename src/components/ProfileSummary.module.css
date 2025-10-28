@@ -1,116 +1,134 @@
 :global(body) {
-  background-color: #f3f4f6;
+  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 45%, #ffffff 100%);
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  line-height: 1.4;
-  color: #111827;
+  line-height: 1.5;
+  color: #0f172a;
 }
 
 .container {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 24px;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+  max-width: 880px;
+  margin: 48px auto;
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(6px);
 }
 
 .header {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 32px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 40px;
 }
 
 .titles {
-  flex: 1 1 240px;
+  flex: 1 1 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eyebrow {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  color: #64748b;
 }
 
 .title {
-  font-size: 2rem;
+  font-size: clamp(2rem, 2.4vw + 1.6rem, 2.75rem);
+  font-weight: 600;
   margin: 0;
-}
-
-.subtitle {
-  font-size: 1.25rem;
-  margin: 4px 0 0;
-  color: #4b5563;
-  font-weight: 500;
+  color: #0f172a;
 }
 
 .exportButton {
-  align-self: flex-start;
-  background-color: #111827;
-  color: #ffffff;
-  border: none;
-  padding: 10px 18px;
-  border-radius: 8px;
+  position: relative;
+  align-self: center;
+  background: transparent;
+  color: #0f172a;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  padding: 10px 20px;
+  border-radius: 9999px;
   font-size: 0.95rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s ease-in-out;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .exportButton:hover,
 .exportButton:focus {
-  background-color: #1f2937;
+  transform: translateY(-1px);
+  border-color: rgba(15, 23, 42, 0.32);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
 }
 
 .exportButton:focus {
-  outline: 2px solid #1f2937;
-  outline-offset: 2px;
+  outline: 2px solid rgba(59, 130, 246, 0.3);
+  outline-offset: 3px;
 }
 
 .section {
-  margin-bottom: 32px;
+  margin-bottom: 28px;
+  padding: 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(248, 250, 252, 0.6);
 }
 
 .sectionTitle {
-  font-size: 1.1rem;
-  margin: 0 0 12px;
+  font-size: 1rem;
+  margin: 0 0 18px;
   font-weight: 600;
-  color: #1f2937;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #475569;
 }
 
 .definitionList {
   display: grid;
-  grid-template-columns: minmax(160px, 220px) 1fr;
-  gap: 8px 24px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px 32px;
   margin: 0;
 }
 
 .field {
-  display: contents;
+  display: grid;
+  gap: 6px;
 }
 
 .term {
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: none;
   letter-spacing: 0.02em;
 }
 
 .description {
   margin: 0;
-  color: #111827;
+  color: #0f172a;
+  font-size: 0.95rem;
+  line-height: 1.5;
   word-break: break-word;
 }
 
 @media (max-width: 640px) {
   .container {
+    margin: 24px auto;
+    padding: 24px;
+  }
+
+  .header {
+    margin-bottom: 28px;
+  }
+
+  .section {
     padding: 20px;
-  }
-
-  .definitionList {
-    grid-template-columns: 1fr;
-  }
-
-  .term {
-    font-size: 0.9rem;
-  }
-
-  .description {
-    margin-bottom: 8px;
   }
 }
 
@@ -122,12 +140,13 @@
   .container {
     box-shadow: none;
     border-radius: 0;
+    border: none;
     margin: 0;
     padding: 24mm;
   }
 
   .header {
-    margin-bottom: 24mm;
+    margin-bottom: 18mm;
   }
 
   .exportButton {
