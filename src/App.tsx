@@ -46,7 +46,12 @@ import {
   Scan,
   MapPinOff,
   CheckCircle2,
-  History
+  History,
+  Sparkles,
+  Lightbulb,
+  LayoutGrid,
+  UserPlus,
+  FolderPlus
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
@@ -7185,52 +7190,267 @@ useEffect(() => {
           )}
 
           {currentPage === 'profiles' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               <PageHeader icon={<FileText className="h-6 w-6" />} title="Fiches de profil" />
-            {showProfileForm ? (
-              <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-2xl font-bold text-center text-gray-800">
-                  {editingProfileId ? 'Modifier la fiche de profil' : 'Créer une fiche de profil'}
-                </h2>
-                <ProfileForm
-                  initialValues={profileDefaults}
-                  profileId={editingProfileId || undefined}
-                  onSaved={(savedProfileId) => {
-                    setShowProfileForm(false);
-                    setProfileListRefreshKey((prev) => prev + 1);
-                    if (savedProfileId) {
-                      setHighlightedProfileId(savedProfileId);
-                    }
-                  }}
-                  initialFolderId={profileFormFolderId}
-                />
-                <div className="mt-4">
-                  <button
-                    className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 border border-slate-200 rounded-lg transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-700"
-                    onClick={() => setShowProfileForm(false)}
-                  >
-                    Retour à la liste
-                  </button>
+
+              <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-blue-50/70 to-indigo-100/60 p-8 shadow-xl shadow-blue-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-indigo-950/40 dark:shadow-black/40">
+                <div className="absolute -left-24 bottom-0 h-56 w-56 rounded-full bg-blue-200/40 blur-3xl dark:bg-blue-900/30" />
+                <div className="absolute -right-28 top-0 h-52 w-52 rounded-full bg-purple-200/40 blur-3xl dark:bg-purple-900/30" />
+                <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                  <div className="max-w-2xl space-y-4">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/60 bg-white/85 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-blue-600 shadow-sm shadow-blue-200/50 dark:border-blue-500/40 dark:bg-slate-900/80 dark:text-blue-200">
+                      <Sparkles className="h-4 w-4" />
+                      Nouvel espace profil
+                    </span>
+                    <h2 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+                      Organisez vos fiches en un coup d'œil
+                    </h2>
+                    <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                      Rassemblez les informations clés, regroupez vos fiches par thématique et facilitez le partage avec votre équipe. Cette vue modernisée offre un parcours clair de la création à la consultation.
+                    </p>
+                    <div className="flex flex-wrap gap-3 text-xs font-semibold text-blue-700/80 dark:text-blue-200/80">
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-blue-700 shadow-sm shadow-blue-200/50 dark:bg-slate-900/70 dark:text-blue-200">
+                        <LayoutGrid className="h-4 w-4" />
+                        Dossiers dynamiques
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-blue-700 shadow-sm shadow-blue-200/50 dark:bg-slate-900/70 dark:text-blue-200">
+                        <Share2 className="h-4 w-4" />
+                        Partage sécurisé
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-blue-700 shadow-sm shadow-blue-200/50 dark:bg-slate-900/70 dark:text-blue-200">
+                        <Lightbulb className="h-4 w-4" />
+                        Conseils enrichis
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => (showProfileForm ? setShowProfileForm(false) : openCreateProfile({}))}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-400/40 transition-all hover:-translate-y-0.5 hover:shadow-xl"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      {showProfileForm ? 'Retourner à la liste' : 'Nouvelle fiche de profil'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof document !== 'undefined') {
+                          const target = document.getElementById('profiles-workspace');
+                          target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-blue-200/60 bg-white/80 px-5 py-3 text-sm font-semibold text-blue-600 shadow-sm shadow-blue-200/50 transition hover:border-blue-300 hover:bg-white dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-blue-200 dark:hover:border-slate-600"
+                    >
+                      <FolderPlus className="h-4 w-4" />
+                      Aller à mes dossiers
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-white/95 p-5 shadow-lg shadow-blue-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                  <div className="absolute -right-10 top-0 h-24 w-24 rounded-full bg-blue-200/40 blur-2xl dark:bg-blue-900/40" />
+                  <div className="relative z-10 space-y-3">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                      <FileText className="h-4 w-4" />
+                      Total
+                    </div>
+                    <p className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+                      {numberFormatter.format(profilesTotal)}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-300">
+                      30 derniers jours : {numberFormatter.format(profilesRecent)} fiches créées
+                    </p>
+                  </div>
+                </div>
+                <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-white/95 p-5 shadow-lg shadow-blue-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                  <div className="absolute -left-12 bottom-0 h-24 w-24 rounded-full bg-indigo-200/40 blur-2xl dark:bg-indigo-900/40" />
+                  <div className="relative z-10 space-y-3">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                      <UserPlus className="h-4 w-4" />
+                      Aujourd'hui
+                    </div>
+                    <p className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+                      {numberFormatter.format(profileStats?.today ?? 0)}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-300">
+                      Nouveaux profils ajoutés depuis ce matin
+                    </p>
+                  </div>
+                </div>
+                <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-white/95 p-5 shadow-lg shadow-blue-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                  <div className="absolute -right-12 bottom-0 h-24 w-24 rounded-full bg-purple-200/40 blur-2xl dark:bg-purple-900/40" />
+                  <div className="relative z-10 space-y-4">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-purple-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-purple-600 dark:bg-purple-500/20 dark:text-purple-200">
+                      <BarChart3 className="h-4 w-4" />
+                      Progression
+                    </div>
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                      {profileProgress}% des fiches ont été créées au cours des 30 derniers jours.
+                    </p>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200/60 dark:bg-slate-700/60">
+                      <span
+                        className="block h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"
+                        style={{ width: `${Math.min(100, Math.max(0, profileProgress))}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
-                <ProfileList
-                  onCreate={folderId => openCreateProfile({}, folderId)}
-                  onEdit={openEditProfile}
-                  currentUser={currentUser}
-                  isAdmin={isAdmin}
-                  onShareFolder={openFolderShareModal}
-                  refreshKey={profileListRefreshKey}
-                  focusedProfileId={highlightedProfileId}
-                  onFocusedProfileHandled={() => setHighlightedProfileId(null)}
-                  focusedFolderId={highlightedFolderId}
-                  onFocusedFolderHandled={() => setHighlightedFolderId(null)}
-                />
-              </div>
-            )}
-          </div>
-        )}
+
+              {showProfileForm ? (
+                <div
+                  id="profiles-workspace"
+                  className="grid gap-6 lg:grid-cols-[minmax(0,2fr),minmax(0,1fr)]"
+                >
+                  <div className="relative overflow-hidden rounded-3xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-blue-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                    <div className="absolute -left-20 top-0 h-40 w-40 rounded-full bg-blue-200/30 blur-3xl dark:bg-blue-900/30" />
+                    <div className="absolute -right-24 bottom-0 h-48 w-48 rounded-full bg-indigo-200/30 blur-3xl dark:bg-indigo-900/30" />
+                    <div className="relative z-10 space-y-6">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-blue-500 dark:text-blue-200">
+                            {editingProfileId ? 'Modification' : 'Création'}
+                          </p>
+                          <h3 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                            {editingProfileId ? 'Modifier la fiche de profil' : 'Créer une fiche de profil'}
+                          </h3>
+                          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                            Enregistrez des informations complètes pour améliorer la collaboration entre divisions.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowProfileForm(false)}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/70 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-600 shadow-sm transition hover:bg-white dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200"
+                        >
+                          Retour à la liste
+                        </button>
+                      </div>
+                      <ProfileForm
+                        initialValues={profileDefaults}
+                        profileId={editingProfileId || undefined}
+                        onSaved={(savedProfileId) => {
+                          setShowProfileForm(false);
+                          setProfileListRefreshKey((prev) => prev + 1);
+                          if (savedProfileId) {
+                            setHighlightedProfileId(savedProfileId);
+                          }
+                        }}
+                        initialFolderId={profileFormFolderId}
+                      />
+                    </div>
+                  </div>
+                  <aside
+                    id="profile-side-guide"
+                    className="flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-blue-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70"
+                  >
+                    <div className="space-y-2">
+                      <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Conseils rapides</h4>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        Renseignez chaque champ avec précision pour accélérer les identifications et assurer la conformité.
+                      </p>
+                    </div>
+                    <ul className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                      <li className="flex items-start gap-3">
+                        <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                          <Sparkles className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="font-medium text-slate-800 dark:text-slate-100">Ajoutez des pièces jointes</p>
+                          <p>Importez des documents pertinents pour conserver un historique complet.</p>
+                        </div>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-200">
+                          <Share2 className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="font-medium text-slate-800 dark:text-slate-100">Partagez avec votre division</p>
+                          <p>Déterminez les accès pour diffuser uniquement les informations pertinentes.</p>
+                        </div>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                          <Lightbulb className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="font-medium text-slate-800 dark:text-slate-100">Gardez des notes claires</p>
+                          <p>Utilisez le champ commentaire pour centraliser les informations sensibles.</p>
+                        </div>
+                      </li>
+                    </ul>
+                  </aside>
+                </div>
+              ) : (
+                <div
+                  id="profiles-workspace"
+                  className="grid gap-6 xl:grid-cols-[minmax(0,2.1fr),minmax(0,1fr)]"
+                >
+                  <div className="relative overflow-hidden rounded-3xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-blue-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                    <div className="absolute -left-16 top-0 h-40 w-40 rounded-full bg-blue-200/30 blur-3xl dark:bg-blue-900/30" />
+                    <div className="absolute -right-24 bottom-0 h-48 w-48 rounded-full bg-indigo-200/30 blur-3xl dark:bg-indigo-900/30" />
+                    <div className="relative z-10">
+                      <ProfileList
+                        onCreate={folderId => openCreateProfile({}, folderId)}
+                        onEdit={openEditProfile}
+                        currentUser={currentUser}
+                        isAdmin={isAdmin}
+                        onShareFolder={openFolderShareModal}
+                        refreshKey={profileListRefreshKey}
+                        focusedProfileId={highlightedProfileId}
+                        onFocusedProfileHandled={() => setHighlightedProfileId(null)}
+                        focusedFolderId={highlightedFolderId}
+                        onFocusedFolderHandled={() => setHighlightedFolderId(null)}
+                      />
+                    </div>
+                  </div>
+                  <aside
+                    id="profile-side-guide"
+                    className="flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-blue-200/40 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70"
+                  >
+                    <div className="space-y-2">
+                      <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Boîte à outils</h4>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        Optimisez vos dossiers pour retrouver en quelques secondes la fiche recherchée.
+                      </p>
+                    </div>
+                    <ul className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                      <li className="flex items-start gap-3">
+                        <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                          <LayoutGrid className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="font-medium text-slate-800 dark:text-slate-100">Classez par thématique</p>
+                          <p>Créez un dossier par enquête, zone ou division pour garder une vision claire.</p>
+                        </div>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-200">
+                          <Share2 className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="font-medium text-slate-800 dark:text-slate-100">Partage contrôlé</p>
+                          <p>Invitez uniquement les membres concernés pour sécuriser l'accès aux données.</p>
+                        </div>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                          <Lightbulb className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="font-medium text-slate-800 dark:text-slate-100">Mettez à jour régulièrement</p>
+                          <p>Actualisez les notes et les pièces jointes pour conserver une fiche fiable.</p>
+                        </div>
+                      </li>
+                    </ul>
+                  </aside>
+                </div>
+              )}
+            </div>
+          )}
 
         {currentPage === 'blacklist' && isAdmin && (
           <div className="space-y-6">
