@@ -1469,6 +1469,7 @@ const App: React.FC = () => {
   const [profileListRefreshKey, setProfileListRefreshKey] = useState(0);
   const [highlightedProfileId, setHighlightedProfileId] = useState<number | null>(null);
   const [highlightedFolderId, setHighlightedFolderId] = useState<number | null>(null);
+  const [initialProfileFolderId, setInitialProfileFolderId] = useState<number | null>(null);
   const hasFraudSuspiciousNumbers = useMemo(() => {
     if (!fraudResult) return false;
     return fraudResult.imeis.some((entry) =>
@@ -2209,6 +2210,33 @@ const App: React.FC = () => {
     handleSearch,
     setSearchParams
   ]);
+
+  useEffect(() => {
+    if (currentPage !== 'profiles') {
+      if (initialProfileFolderId !== null) {
+        setInitialProfileFolderId(null);
+      }
+      return;
+    }
+
+    const folderParam = searchParams.get('folder');
+    if (!folderParam) {
+      if (initialProfileFolderId !== null) {
+        setInitialProfileFolderId(null);
+      }
+      return;
+    }
+
+    const parsedFolderId = Number.parseInt(folderParam, 10);
+    if (Number.isNaN(parsedFolderId) || parsedFolderId <= 0) {
+      return;
+    }
+
+    if (parsedFolderId !== initialProfileFolderId) {
+      setInitialProfileFolderId(parsedFolderId);
+      setHighlightedFolderId(parsedFolderId);
+    }
+  }, [currentPage, searchParams, initialProfileFolderId]);
 
   const handleRequestIdentification = async () => {
     try {
@@ -7226,6 +7254,7 @@ useEffect(() => {
                   onFocusedProfileHandled={() => setHighlightedProfileId(null)}
                   focusedFolderId={highlightedFolderId}
                   onFocusedFolderHandled={() => setHighlightedFolderId(null)}
+                  initialFolderId={initialProfileFolderId}
                 />
               </div>
             )}
