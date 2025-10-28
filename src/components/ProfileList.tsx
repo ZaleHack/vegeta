@@ -979,11 +979,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   Chargement…
                 </div>
               )}
-              {onCreate && showCreateSelectionHint && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Cette fiche sera enregistrée sans dossier. Vous pourrez l’organiser ultérieurement.
-                </p>
-              )}
             </div>
             </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
