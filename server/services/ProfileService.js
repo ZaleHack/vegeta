@@ -105,6 +105,28 @@ class ProfileService {
     return enriched;
   }
 
+  async renameFolder(folderId, name, user) {
+    const id = Number(folderId);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new Error('Dossier introuvable');
+    }
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    if (!trimmedName) {
+      throw new Error('Nom du dossier requis');
+    }
+    const existing = await ProfileFolder.findById(id);
+    if (!existing) {
+      throw new Error('Dossier introuvable');
+    }
+    const isAdmin = this._isAdmin(user);
+    if (!isAdmin && existing.user_id !== user.id) {
+      throw new Error('Accès refusé');
+    }
+    const updated = await ProfileFolder.update(id, { name: trimmedName });
+    const [enriched] = await this._enrichFolders([updated], user);
+    return enriched;
+  }
+
   async deleteFolder(folderId, user) {
     const id = Number(folderId);
     if (!Number.isInteger(id) || id <= 0) {
@@ -280,21 +302,36 @@ class ProfileService {
     }
     const photoFile = Array.isArray(files.photo) ? files.photo[0] : null;
     const attachmentFiles = Array.isArray(files.attachments) ? files.attachments : [];
-    const folderId = data.folder_id ? Number(data.folder_id) : null;
-    if (!folderId) {
-      throw new Error('Dossier requis');
-    }
-    const folder = await ProfileFolder.findById(folderId);
-    if (!folder) {
-      throw new Error('Dossier introuvable');
-    }
-    const isAdmin = this._isAdmin(user);
-    if (!isAdmin && folder.user_id !== ownerId) {
-      throw new Error('Accès refusé');
+    const rawFolderId = data.folder_id;
+    const normalizedFolderInput =
+      rawFolderId === undefined || rawFolderId === null
+        ? null
+        : String(rawFolderId).trim();
+    const normalizedFolderValue =
+      normalizedFolderInput &&
+      normalizedFolderInput.toLowerCase() !== 'null' &&
+      normalizedFolderInput.toLowerCase() !== 'undefined'
+        ? normalizedFolderInput
+        : null;
+    let targetFolder = null;
+    if (normalizedFolderValue) {
+      const folderId = Number(normalizedFolderValue);
+      if (!Number.isInteger(folderId) || folderId <= 0) {
+        throw new Error('Identifiant de dossier invalide');
+      }
+      const folder = await ProfileFolder.findById(folderId);
+      if (!folder) {
+        throw new Error('Dossier introuvable');
+      }
+      const isAdmin = this._isAdmin(user);
+      if (!isAdmin && folder.user_id !== ownerId) {
+        throw new Error('Accès refusé');
+      }
+      targetFolder = folder;
     }
     const profileData = {
-      user_id: folder.user_id,
-      folder_id: folder.id,
+      user_id: targetFolder ? targetFolder.user_id : ownerId,
+      folder_id: targetFolder ? targetFolder.id : null,
       first_name: data.first_name || null,
       last_name: data.last_name || null,
       phone: data.phone || null,
@@ -368,24 +405,38 @@ class ProfileService {
         ? normalizeExtraFields(data.extra_fields)
         : normalizeExtraFields(existing.extra_fields);
 
-    let targetFolderId = existing.folder_id;
+    let targetFolderId = existing.folder_id ?? null;
+    let targetOwnerId = existing.user_id ?? user.id;
     if (data.folder_id !== undefined) {
-      const parsedFolderId = Number(data.folder_id);
-      if (!Number.isInteger(parsedFolderId) || parsedFolderId <= 0) {
-        throw new Error('Dossier requis');
+      const rawFolderId = data.folder_id;
+      const normalizedFolderInput =
+        rawFolderId === null || rawFolderId === undefined
+          ? null
+          : String(rawFolderId).trim();
+      const normalizedFolderValue =
+        normalizedFolderInput &&
+        normalizedFolderInput.toLowerCase() !== 'null' &&
+        normalizedFolderInput.toLowerCase() !== 'undefined'
+          ? normalizedFolderInput
+          : null;
+      if (!normalizedFolderValue) {
+        targetFolderId = null;
+        targetOwnerId = existing.user_id ?? user.id;
+      } else {
+        const parsedFolderId = Number(normalizedFolderValue);
+        if (!Number.isInteger(parsedFolderId) || parsedFolderId <= 0) {
+          throw new Error('Identifiant de dossier invalide');
+        }
+        const folder = await ProfileFolder.findById(parsedFolderId);
+        if (!folder) {
+          throw new Error('Dossier introuvable');
+        }
+        if (!isAdmin && folder.user_id !== user.id) {
+          throw new Error('Accès refusé');
+        }
+        targetFolderId = folder.id;
+        targetOwnerId = folder.user_id;
       }
-      const folder = await ProfileFolder.findById(parsedFolderId);
-      if (!folder) {
-        throw new Error('Dossier introuvable');
-      }
-      if (!isAdmin && folder.user_id !== user.id) {
-        throw new Error('Accès refusé');
-      }
-      targetFolderId = folder.id;
-    }
-
-    if (!targetFolderId) {
-      throw new Error('Dossier requis');
     }
 
     const updateData = {
@@ -396,6 +447,7 @@ class ProfileService {
       comment: data.comment ?? existing.comment ?? '',
       extra_fields: extraFields,
       folder_id: targetFolderId,
+      user_id: targetOwnerId,
       // Normalize existing paths to use forward slashes to avoid issues on different OSes
       photo_path: photoPath
     };
@@ -449,7 +501,7 @@ class ProfileService {
     return this.withAttachments(profile);
   }
 
-  async list(user, search, page = 1, limit = 10, folderId = null) {
+  async list(user, search, page = 1, limit = 10, folderId = null, unassignedOnly = false) {
     const offset = (page - 1) * limit;
     const isAdmin = this._isAdmin(user);
     const divisionId =
@@ -463,7 +515,8 @@ class ProfileService {
       search,
       limit,
       offset,
-      folderId: folderId ? Number(folderId) : null
+      folderId: folderId ? Number(folderId) : null,
+      unassignedOnly
     });
     const rows = result.rows.map(row => ({
       ...row,

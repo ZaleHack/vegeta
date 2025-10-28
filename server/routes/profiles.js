@@ -83,16 +83,26 @@ router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const folderId = req.query.folderId ? Number(req.query.folderId) : null;
-    if (req.query.folderId && (!Number.isInteger(folderId) || folderId <= 0)) {
-      return res.status(400).json({ error: 'Identifiant de dossier invalide' });
+    const rawFolderId = req.query.folderId;
+    let folderId = null;
+    if (rawFolderId !== undefined) {
+      const trimmed = String(rawFolderId).trim();
+      if (trimmed) {
+        const parsed = Number(trimmed);
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+          return res.status(400).json({ error: 'Identifiant de dossier invalide' });
+        }
+        folderId = parsed;
+      }
     }
+    const includeUnassigned = req.query.unassigned === 'true' || req.query.unassigned === '1';
     const { rows, total } = await service.list(
       req.user,
       req.query.q,
       page,
       limit,
-      folderId
+      folderId,
+      includeUnassigned
     );
     res.json({ profiles: rows, total });
   } catch (error) {
