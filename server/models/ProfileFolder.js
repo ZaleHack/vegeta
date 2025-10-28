@@ -71,15 +71,16 @@ class ProfileFolder {
     return this.findById(id);
   }
 
-  static async delete(id) {
+  static async delete(id, { ensureEmpty = true } = {}) {
     if (!id) return false;
-    // Profiles referencing the folder should keep a reference until moved; we disallow deletion if profiles exist.
-    const profiles = await database.queryOne(
-      'SELECT COUNT(*) AS count FROM autres.profiles WHERE folder_id = ?',
-      [id]
-    );
-    if (Number(profiles?.count || 0) > 0) {
-      throw new Error('Impossible de supprimer un dossier contenant des profils');
+    if (ensureEmpty) {
+      const profiles = await database.queryOne(
+        'SELECT COUNT(*) AS count FROM autres.profiles WHERE folder_id = ?',
+        [id]
+      );
+      if (Number(profiles?.count || 0) > 0) {
+        throw new Error('Impossible de supprimer un dossier contenant des profils');
+      }
     }
     await database.query('DELETE FROM autres.profile_folder_shares WHERE folder_id = ?', [id]);
     await database.query(`DELETE FROM ${TABLE} WHERE id = ?`, [id]);

@@ -36,8 +36,8 @@ router.delete('/:id', async (req, res) => {
     if (!Number.isInteger(folderId) || folderId <= 0) {
       return res.status(400).json({ error: 'Identifiant de dossier invalide' });
     }
-    await service.deleteFolder(folderId, req.user);
-    res.json({ success: true });
+    const result = await service.deleteFolder(folderId, req.user);
+    res.json(result);
   } catch (error) {
     if (error.message === 'Dossier introuvable') {
       return res.status(404).json({ error: error.message });

@@ -119,8 +119,37 @@ class ProfileService {
     if (!isOwner && !isAdmin) {
       throw new Error('Accès refusé');
     }
-    await ProfileFolder.delete(folder.id);
-    return { success: true };
+    const profiles = await Profile.findByFolderId(folder.id);
+    let deletedProfiles = 0;
+    if (profiles.length > 0) {
+      const profileIds = profiles.map(profile => profile.id).filter(Boolean);
+      const attachmentsMap = await ProfileAttachment.findByProfileIds(profileIds);
+      for (const profile of profiles) {
+        if (profile.photo_path) {
+          this.removeStoredFile(profile.photo_path);
+        }
+        const attachments = Array.isArray(attachmentsMap[profile.id]) ? attachmentsMap[profile.id] : [];
+        if (attachments.length) {
+          attachments.forEach(att => {
+            if (att.file_path) {
+              this.removeStoredFile(att.file_path);
+            }
+          });
+          const attachmentIds = attachments
+            .map(att => Number(att.id))
+            .filter(idValue => Number.isInteger(idValue));
+          if (attachmentIds.length) {
+            await ProfileAttachment.deleteByIds(profile.id, attachmentIds);
+          }
+        }
+        await Profile.delete(profile.id);
+        await this.removeProfileFromSearch(profile.id);
+        deletedProfiles += 1;
+      }
+      statsCache.clear('overview:');
+    }
+    await ProfileFolder.delete(folder.id, { ensureEmpty: false });
+    return { success: true, deletedProfiles };
   }
 
   async getFolderShareInfo(folderId, user) {
