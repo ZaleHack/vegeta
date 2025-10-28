@@ -627,16 +627,20 @@ const ProfileList: React.FC<ProfileListProps> = ({
                 )}
               </button>
               {onCreate && (
-                <button
-                  type="button"
-                  onClick={handleCreateClick}
-                  disabled={!selectedFolderId}
-                  className={`inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl ${
-                    !selectedFolderId ? 'cursor-not-allowed opacity-60' : ''
-                  }`}
-                >
-                  Créer une fiche
-                </button>
+                selectedFolderId ? (
+                  <button
+                    type="button"
+                    onClick={handleCreateClick}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl"
+                  >
+                    Créer une fiche
+                  </button>
+                ) : (
+                  <p className="max-w-xs text-sm text-slate-500 dark:text-slate-300">
+                    Pour créer un profil, cliquez d'abord sur un dossier. Une fois dans le dossier,
+                    le bouton «&nbsp;Créer une fiche&nbsp;» apparaîtra ici.
+                  </p>
+                )
               )}
             </div>
           </div>
