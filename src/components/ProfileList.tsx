@@ -16,7 +16,8 @@ import {
   Loader2,
   Mail,
   Phone,
-  UserPlus
+  UserPlus,
+  Tag
 } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
@@ -88,6 +89,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const [folders, setFolders] = useState<ProfileFolderSummary[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [folderFilter, setFolderFilter] = useState<'all' | 'owned' | 'shared'>('all');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<ProfileListItem | null>(null);
@@ -100,11 +103,24 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const [showCreateFolderForm, setShowCreateFolderForm] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderError, setNewFolderError] = useState('');
+  const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
   const newFolderInputRef = useRef<HTMLInputElement | null>(null);
   const [readyFolderId, setReadyFolderId] = useState<number | null>(null);
   const selectedFolderIdRef = useRef<number | null>(null);
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
+  const filteredFolders = useMemo(() => {
+    if (folderFilter === 'owned') {
+      return folders.filter(folder => Boolean(folder.is_owner));
+    }
+    if (folderFilter === 'shared') {
+      return folders.filter(
+        folder => !folder.is_owner && (folder.shared_with_me || (Array.isArray(folder.shared_user_ids) && folder.shared_user_ids.length > 0))
+      );
+    }
+    return folders;
+  }, [folderFilter, folders]);
   const selectedFolder = useMemo(
     () => (selectedFolderId ? folders.find(folder => folder.id === selectedFolderId) ?? null : null),
     [folders, selectedFolderId]
@@ -332,6 +348,24 @@ const ProfileList: React.FC<ProfileListProps> = ({
     [parseFieldCategories]
   );
 
+  const getCategoryTags = useCallback(
+    (profile: ProfileListItem) => {
+      const categories = parseFieldCategories(profile);
+      const tags = new Set<string>();
+      categories?.forEach((cat: any) => {
+        const title = typeof cat?.title === 'string' ? cat.title.trim() : '';
+        if (title) {
+          tags.add(title);
+        }
+      });
+      if (profile.folder_name) {
+        tags.add(profile.folder_name);
+      }
+      return Array.from(tags);
+    },
+    [parseFieldCategories]
+  );
+
   const getDisplayName = useCallback((profile: ProfileListItem) => {
     const first = typeof profile.first_name === 'string' ? profile.first_name.trim() : '';
     const last = typeof profile.last_name === 'string' ? profile.last_name.trim() : '';
@@ -363,7 +397,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total]);
 
   const emptyMessage = useMemo(() => {
-    const trimmed = query.trim();
+    const trimmed = debouncedQuery.trim();
     if (trimmed) {
       return "Aucun profil ne correspond à votre recherche.";
     }
@@ -371,7 +405,17 @@ const ProfileList: React.FC<ProfileListProps> = ({
       return 'Créez un dossier pour ajouter vos fiches.';
     }
     return 'Ce dossier ne contient aucune fiche pour le moment.';
-  }, [query, selectedFolderId]);
+  }, [debouncedQuery, selectedFolderId]);
+  const activeQueryValue = useMemo(() => debouncedQuery.trim(), [debouncedQuery]);
+  const hasActiveSearch = activeQueryValue.length > 0;
+  const folderFilterOptions: { key: 'all' | 'owned' | 'shared'; label: string }[] = useMemo(
+    () => [
+      { key: 'all', label: 'Tous les dossiers' },
+      { key: 'owned', label: 'Mes dossiers' },
+      { key: 'shared', label: 'Partagés avec moi' }
+    ],
+    []
+  );
 
   const canCreateProfileNow = Boolean(
     selectedFolderId && readyFolderId === selectedFolderId && !loading
@@ -384,12 +428,21 @@ const ProfileList: React.FC<ProfileListProps> = ({
   }, [totalPages]);
 
   useEffect(() => {
+    const handler = window.setTimeout(() => {
+      setDebouncedQuery(query.trim());
+    }, 250);
+    return () => window.clearTimeout(handler);
+  }, [query]);
+
+  useEffect(() => {
     setPage(1);
   }, [selectedFolderId]);
 
   useEffect(() => {
-    setPage(1);
-  }, [query]);
+    if (page !== 1) {
+      setPage(1);
+    }
+  }, [debouncedQuery, page]);
 
   const load = useCallback(async () => {
     const currentFolderId = selectedFolderId;
@@ -410,7 +463,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
         limit: String(limit),
         folderId: String(currentFolderId)
       });
-      const trimmedQuery = query.trim();
+      const trimmedQuery = debouncedQuery.trim();
       if (trimmedQuery) {
         params.set('q', trimmedQuery);
       }
@@ -450,7 +503,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [limit, page, query, selectedFolderId]);
+  }, [debouncedQuery, limit, page, selectedFolderId]);
 
   useEffect(() => {
     load();
@@ -473,15 +526,22 @@ const ProfileList: React.FC<ProfileListProps> = ({
     if (focusedFolderId) {
       const match = folders.find(folder => folder.id === focusedFolderId);
       if (match) {
+        if (folderFilter !== 'all' && !filteredFolders.some(folder => folder.id === focusedFolderId)) {
+          setFolderFilter('all');
+        }
         setSelectedFolderId(match.id);
         onFocusedFolderHandled?.();
         return;
       }
     }
-    if (!selectedFolderId || !folders.some(folder => folder.id === selectedFolderId)) {
-      setSelectedFolderId(folders[0].id);
+    if (!filteredFolders.length) {
+      setSelectedFolderId(null);
+      return;
     }
-  }, [folders, focusedFolderId, onFocusedFolderHandled, selectedFolderId]);
+    if (!selectedFolderId || !filteredFolders.some(folder => folder.id === selectedFolderId)) {
+      setSelectedFolderId(filteredFolders[0].id);
+    }
+  }, [filteredFolders, folderFilter, focusedFolderId, folders, onFocusedFolderHandled, selectedFolderId]);
 
   useEffect(() => {
     if (!focusedProfileId) return;
@@ -531,12 +591,20 @@ const ProfileList: React.FC<ProfileListProps> = ({
   }, [focusedProfileId, profiles, onFocusedProfileHandled, selectedFolderId]);
 
   const handleSearch = useCallback(() => {
+    const normalized = query.trim();
+    if (normalized !== query) {
+      setQuery(normalized);
+    }
+    if (normalized !== debouncedQuery) {
+      setDebouncedQuery(normalized);
+      return;
+    }
     if (page !== 1) {
       setPage(1);
     } else {
       load();
     }
-  }, [load, page]);
+  }, [debouncedQuery, load, page, query]);
 
   const buildProtectedUrl = (relativePath?: string | null) => {
     if (!relativePath) return null;
@@ -546,6 +614,66 @@ const ProfileList: React.FC<ProfileListProps> = ({
     const separator = normalized.includes('?') ? '&' : '?';
     return `${normalized}${separator}token=${encodeURIComponent(token)}`;
   };
+
+  const reorderProfiles = useCallback(
+    (sourceId: number, targetId: number) => {
+      if (sourceId === targetId) {
+        return;
+      }
+      setProfiles(prev => {
+        const sourceIndex = prev.findIndex(profile => profile.id === sourceId);
+        const targetIndex = prev.findIndex(profile => profile.id === targetId);
+        if (sourceIndex === -1 || targetIndex === -1) {
+          return prev;
+        }
+        const updated = [...prev];
+        const [moved] = updated.splice(sourceIndex, 1);
+        updated.splice(targetIndex, 0, moved);
+        return updated;
+      });
+    },
+    [setProfiles]
+  );
+
+  const handleDragStart = useCallback((event: React.DragEvent<HTMLDivElement>, id: number) => {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(id));
+    setDraggedId(id);
+    setDragOverId(null);
+  }, []);
+
+  const handleDragOverCard = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, targetId: number) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      if (draggedId === null || draggedId === targetId) {
+        return;
+      }
+      setDragOverId(targetId);
+      reorderProfiles(draggedId, targetId);
+    },
+    [draggedId, reorderProfiles]
+  );
+
+  const handleDragLeaveCard = useCallback(
+    (_event: React.DragEvent<HTMLDivElement>, targetId: number) => {
+      if (dragOverId === targetId) {
+        setDragOverId(null);
+      }
+    },
+    [dragOverId]
+  );
+
+  const handleDropCard = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragOverId(null);
+    setDraggedId(null);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedId(null);
+    setDragOverId(null);
+  }, []);
 
   const selectedPhotoUrl = selected ? buildProtectedUrl(selected.photo_path) : null;
   const selectedDisplayName = selected ? getDisplayName(selected) : 'Profil sans nom';
@@ -608,41 +736,44 @@ const ProfileList: React.FC<ProfileListProps> = ({
   return (
     <>
       <div className="space-y-6">
-      <div className="rounded-3xl bg-gradient-to-br from-blue-50 via-white to-white/60 p-6 shadow-inner shadow-blue-100 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:shadow-slate-900/70">
-        <div className="space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 ring-1 ring-slate-200 transition-all focus-within:ring-2 focus-within:ring-blue-500 dark:bg-white/5 dark:ring-slate-700/60 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06)] dark:focus-within:ring-blue-500/60">
-              <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
-              <input
-                className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
-                placeholder="Rechercher par nom, téléphone ou email"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                onKeyDown={event => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    handleSearch();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                onClick={handleSearch}
-                className="hidden items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-300 transition hover:-translate-y-0.5 hover:bg-blue-700 md:inline-flex"
-              >
-                <Search className="h-4 w-4" />
-                Rechercher
-              </button>
+        <div className="relative overflow-hidden rounded-[32px] border border-white/50 bg-white/50 p-6 shadow-xl shadow-blue-100/70 backdrop-blur-2xl dark:border-slate-800/60 dark:bg-slate-900/40 dark:shadow-slate-950/60">
+          <div className="pointer-events-none absolute -top-24 right-12 h-56 w-56 rounded-full bg-blue-400/25 blur-3xl dark:bg-blue-500/20 animate-float-slow" />
+          <div className="pointer-events-none absolute -bottom-32 left-0 h-64 w-64 rounded-full bg-purple-400/20 blur-3xl dark:bg-purple-500/20 animate-float-delayed" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-white/5 to-transparent dark:from-white/5" />
+          <div className="relative space-y-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-1 items-center gap-3 rounded-2xl border border-white/60 bg-white/60 px-4 py-3 shadow-inner shadow-blue-100/70 backdrop-blur-xl transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-400/60 dark:border-slate-700/70 dark:bg-slate-900/60 dark:shadow-slate-900/70 dark:focus-within:border-blue-400/60">
+                <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+                <input
+                  className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
+                  placeholder="Rechercher par nom, téléphone ou email"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      handleSearch();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleSearch}
+                  className="hidden items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-2xl md:inline-flex"
+                >
+                  <Search className="h-4 w-4" />
+                  Rechercher
+                </button>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={toggleCreateFolderForm}
                 disabled={creatingFolder}
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 ${
+                className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-all duration-300 hover:-translate-y-0.5 ${
                   showCreateFolderForm
-                    ? 'bg-blue-600 text-white shadow-blue-400/40 hover:bg-blue-700'
-                    : 'border border-blue-200 bg-white text-blue-600 hover:bg-blue-50 dark:border-blue-500/40 dark:bg-slate-900/70 dark:text-blue-200 dark:hover:bg-blue-500/10'
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-400/40 hover:shadow-2xl'
+                    : 'border border-white/70 bg-white/60 text-blue-600 shadow-inner shadow-blue-100/60 hover:bg-white/80 dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-blue-200 dark:hover:bg-slate-900/80'
                 } disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 {showCreateFolderForm ? (
@@ -656,13 +787,68 @@ const ProfileList: React.FC<ProfileListProps> = ({
                 )}
               </button>
             </div>
-          </div>
-          {showCreateFolderForm && (
-            <div className="relative overflow-hidden rounded-3xl border border-blue-200/70 bg-white/95 p-5 shadow-xl shadow-blue-100/60 dark:border-blue-500/40 dark:bg-slate-900/85 dark:shadow-slate-900/50">
-              <div className="pointer-events-none absolute -top-10 right-6 h-40 w-40 rounded-full bg-blue-400/20 blur-3xl" />
+            </div>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-500/80 dark:text-blue-300/80">Filtres</span>
+                <div className="inline-flex items-center gap-1 rounded-2xl border border-white/60 bg-white/50 p-1 shadow-inner shadow-blue-100/60 backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-900/50 dark:shadow-slate-900/70">
+                  {folderFilterOptions.map(option => {
+                    const isActive = folderFilter === option.key;
+                    const iconClass = `${isActive ? 'text-white' : 'text-blue-500 dark:text-blue-200'} h-3.5 w-3.5`;
+                    const icon =
+                      option.key === 'all' ? (
+                        <Folder className={iconClass} />
+                      ) : option.key === 'owned' ? (
+                        <Sparkles className={iconClass} />
+                      ) : (
+                        <Share2 className={iconClass} />
+                      );
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setFolderFilter(option.key)}
+                        aria-pressed={isActive}
+                        className={`inline-flex items-center gap-2 rounded-2xl px-3 py-1.5 text-xs font-semibold transition-all duration-300 ${
+                          isActive
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-400/40'
+                            : 'text-slate-600 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-800/70'
+                        }`}
+                      >
+                        {icon}
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-blue-500 dark:bg-slate-900/60 dark:text-blue-200">
+                  <Sparkles className="h-3.5 w-3.5" /> Recherche instantanée
+                </span>
+                <span
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                    loading
+                      ? 'animate-pulse bg-blue-50/80 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200'
+                      : 'bg-white/60 text-slate-600 shadow-inner shadow-blue-100/60 dark:bg-slate-900/60 dark:text-slate-200'
+                  }`}
+                >
+                  {loading ? 'Chargement…' : `${total} résultat${total > 1 ? 's' : ''}`}
+                </span>
+                {hasActiveSearch && (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white/60 px-3 py-1 text-xs font-semibold text-slate-600 shadow-inner shadow-blue-100/60 dark:bg-slate-900/60 dark:text-slate-200">
+                    <Search className="h-3.5 w-3.5 text-blue-500 dark:text-blue-300" />
+                    « {activeQueryValue} »
+                  </span>
+                )}
+              </div>
+            </div>
+            {showCreateFolderForm && (
+            <div className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/70 p-5 shadow-xl shadow-blue-100/60 backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-950/50">
+              <div className="pointer-events-none absolute -top-16 right-8 h-48 w-48 rounded-full bg-blue-400/20 blur-3xl dark:bg-blue-500/20 animate-float-delayed" />
               <form className="relative flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={handleSubmitNewFolder}>
                 <div className="flex flex-1 items-start gap-3">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20 dark:bg-blue-500/20 dark:text-blue-200 dark:ring-blue-500/30">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-600 ring-1 ring-blue-500/20 dark:bg-blue-500/20 dark:text-blue-200 dark:ring-blue-500/30">
                     <Sparkles className="h-5 w-5" />
                   </span>
                   <div className="flex-1 space-y-3">
@@ -692,7 +878,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   <button
                     type="submit"
                     disabled={creatingFolder}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {creatingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                     {creatingFolder ? 'Création...' : 'Créer le dossier'}
@@ -701,7 +887,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                     type="button"
                     onClick={() => setShowCreateFolderForm(false)}
                     disabled={creatingFolder}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:bg-slate-800"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/70 bg-white/70 px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-inner shadow-blue-100/60 transition hover:-translate-y-0.5 hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:bg-slate-900"
                   >
                     Annuler
                   </button>
@@ -743,7 +929,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                     </button>
                   )}
                   {showCreateLoadingHint && (
-                    <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
+                    <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/70 bg-white/80 px-4 py-2.5 text-sm font-medium text-slate-600 shadow-inner shadow-blue-100/60 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
                       <Loader2 className="h-4 w-4 animate-spin text-blue-500 dark:text-blue-200" />
                       Ouverture du dossier…
                     </div>
@@ -755,8 +941,8 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   )}
                 </div>
               </div>
-              <div className="pointer-events-none absolute -right-16 top-0 h-44 w-44 rounded-full bg-white/40 blur-3xl dark:bg-white/10" />
-              <div className="pointer-events-none absolute -left-12 -bottom-12 h-52 w-52 rounded-full bg-blue-400/20 blur-3xl dark:bg-blue-500/20" />
+                <div className="pointer-events-none absolute -right-16 top-0 h-44 w-44 rounded-full bg-white/40 blur-3xl dark:bg-white/10 animate-float-slow" />
+                <div className="pointer-events-none absolute -left-12 -bottom-12 h-52 w-52 rounded-full bg-blue-400/20 blur-3xl dark:bg-blue-500/20 animate-float-delayed" />
             </div>
           )}
           <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -765,13 +951,13 @@ const ProfileList: React.FC<ProfileListProps> = ({
           <button
             type="button"
             onClick={handleSearch}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-300 transition hover:-translate-y-0.5 hover:bg-blue-700 md:hidden"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl md:hidden"
           >
             <Search className="h-4 w-4" />
             Rechercher
           </button>
           {folderError && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700 shadow-inner dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+            <div className="rounded-2xl border border-amber-200/70 bg-amber-100/80 px-4 py-2 text-sm text-amber-700 shadow-inner shadow-amber-200/60 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-200">
               {folderError}
             </div>
           )}
@@ -780,6 +966,93 @@ const ProfileList: React.FC<ProfileListProps> = ({
               <div className="flex justify-center py-6">
                 <LoadingSpinner />
               </div>
+            ) : filteredFolders.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/60 bg-white/60 px-5 py-10 text-center text-sm text-slate-500 shadow-inner shadow-blue-100/60 dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-400">
+                {folders.length === 0
+                  ? 'Créez votre premier dossier pour regrouper vos fiches.'
+                  : 'Aucun dossier ne correspond à ce filtre.'}
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {filteredFolders.map(folder => {
+                  const active = folder.id === selectedFolderId;
+                  const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
+                  const canManage = isAdminUser || folder.is_owner;
+                  const handleSelect = () => setSelectedFolderId(folder.id);
+                  const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleSelect();
+                    }
+                  };
+                  return (
+                    <div
+                      key={folder.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={handleSelect}
+                      onKeyDown={handleKeyDown}
+                      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/60 p-4 shadow-lg shadow-blue-100/50 backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500/60 dark:border-slate-700/60 dark:bg-slate-900/50 dark:shadow-slate-950/50 ${
+                        active
+                          ? 'ring-2 ring-blue-500/60'
+                          : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-1 hover:ring-blue-400/40'
+                      }`}
+                    >
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                      <div className="relative flex flex-col gap-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-400/40 ${
+                                active ? 'animate-pulse' : ''
+                              }`}
+                            >
+                              <Folder className="h-5 w-5" />
+                            </span>
+                            <div>
+                              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{folder.name}</h3>
+                              <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                                {active ? 'Dossier sélectionné' : 'Dossier'}
+                              </p>
+                            </div>
+                          </div>
+                          {canManage && onShareFolder && (
+                            <button
+                              type="button"
+                              onClick={event => {
+                                event.stopPropagation();
+                                onShareFolder(folder);
+                              }}
+                              className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-blue-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-blue-200 dark:hover:bg-slate-900"
+                            >
+                              <Share2 className="h-3.5 w-3.5" /> Partager
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-blue-100/80 px-3 py-1 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                            <Users className="h-3.5 w-3.5" /> {folder.profiles_count ?? 0}{' '}
+                            {(folder.profiles_count ?? 0) > 1 ? 'fiches' : 'fiche'}
+                          </span>
+                          {folder.shared_with_me && (
+                            <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100/80 px-3 py-1 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
+                              <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
+                            </span>
+                          )}
+                          {folder.is_owner && sharedCount > 0 && (
+                            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100/80 px-3 py-1 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                              <Users className="h-3.5 w-3.5" /> Partagé avec {sharedCount}{' '}
+                              {sharedCount > 1 ? 'membres' : 'membre'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
             ) : folders.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-5 py-10 text-center text-sm text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
                 Créez votre premier dossier pour regrouper vos fiches.
@@ -904,44 +1177,109 @@ const ProfileList: React.FC<ProfileListProps> = ({
           </div>
         ) : (
           <>
-            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3" role="list">
               {profiles.map(p => {
-                const photoUrl = buildProtectedUrl(p.photo_path);
+                  const photoUrl = buildProtectedUrl(p.photo_path);
                 const previewFields = getPreviewFields(p);
                 const displayName = getDisplayName(p);
                 const sharedCount = Array.isArray(p.shared_user_ids) ? p.shared_user_ids.length : 0;
+                const isOwnerProfile = Boolean(p.is_owner);
+                const isSharedWithMe = Boolean(p.shared_with_me);
+                const attachmentsCount = Array.isArray(p.attachments) ? p.attachments.length : 0;
+                const displayedTags = getCategoryTags(p).slice(0, 3);
+                const isDragging = draggedId === p.id;
+                const isDropTarget = dragOverId === p.id && draggedId !== null && draggedId !== p.id;
+                const cardClasses = [
+                  'group relative flex flex-col overflow-hidden rounded-[28px] border border-white/40 bg-white/60 p-6 shadow-xl shadow-blue-100/60 backdrop-blur-2xl transition-all duration-500 dark:border-slate-700/60 dark:bg-slate-900/50 dark:shadow-slate-950/50',
+                  isDragging ? 'scale-[1.02] ring-2 ring-blue-500/60' : 'hover:-translate-y-1 hover:shadow-2xl',
+                  isDropTarget ? 'ring-2 ring-purple-400/60' : ''
+                ]
+                  .filter(Boolean)
+                  .join(' ');
+                const folderLabel = p.folder_name;
+                const commentText = typeof p.comment === 'string' ? p.comment.trim() : '';
                 return (
-                <div
-                  key={p.id}
-                  className="group relative overflow-hidden rounded-3xl bg-white/90 p-6 shadow-lg ring-1 ring-slate-200 transition-all hover:-translate-y-1 hover:shadow-2xl dark:bg-slate-900/70 dark:ring-slate-700"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="relative h-20 w-20 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 shadow-inner shadow-blue-100 ring-2 ring-blue-100 dark:from-slate-800 dark:to-slate-700 dark:shadow-slate-900 dark:ring-slate-700">
-                      {photoUrl ? (
-                        <img src={photoUrl} alt="profil" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-slate-400 dark:text-slate-500">
-                          <Users className="h-8 w-8" />
-                        </div>
-                      )}
+                  <div
+                    key={p.id}
+                    role="listitem"
+                    className={cardClasses}
+                    draggable
+                    onDragStart={event => handleDragStart(event, p.id)}
+                    onDragOver={event => handleDragOverCard(event, p.id)}
+                    onDragLeave={event => handleDragLeaveCard(event, p.id)}
+                    onDrop={handleDropCard}
+                    onDragEnd={handleDragEnd}
+                    aria-grabbed={isDragging}
+                    aria-label={`Fiche profil ${displayName}`}
+                  >
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                    <div className="absolute right-4 top-4 hidden rounded-full bg-white/60 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400 shadow-inner shadow-blue-100/60 dark:bg-slate-900/60 dark:text-slate-500 sm:flex">
+                      Déplacer
                     </div>
-                    <div className="flex-1 space-y-3">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-1">
-                          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{displayName}</h3>
-                          <p className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-                            <Users className="h-4 w-4 text-blue-500 dark:text-blue-400" />
-                            {isOwner(p)
-                              ? 'Créé par vous'
-                              : `Partagé par ${p.owner_login || 'un membre de la division'}`}
-                          </p>
+                    <div className="relative flex flex-col gap-5">
+                      <div className="flex items-start gap-4">
+                        <div className="relative h-20 w-20 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-100/80 to-slate-200/80 shadow-inner shadow-blue-100/60 ring-2 ring-white/70 dark:from-slate-800 dark:to-slate-700 dark:shadow-slate-900/60 dark:ring-slate-700/70">
+                          {photoUrl ? (
+                            <img src={photoUrl} alt="profil" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-400 dark:text-slate-500">
+                              <Users className="h-8 w-8" />
+                            </div>
+                          )}
+                          <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/40 dark:border-slate-700/60" />
+                        </div>
+                        <div className="flex-1 space-y-3">
+                          <div className="space-y-1">
+                            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{displayName}</h3>
+                            <p className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                              <Users className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+                              {isOwnerProfile ? 'Créé par vous' : `Partagé par ${p.owner_login || 'un membre de la division'}`}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                            {folderLabel && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-3 py-1 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                                <Folder className="h-3.5 w-3.5" /> {folderLabel}
+                              </span>
+                            )}
+                            {isSharedWithMe && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-3 py-1 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
+                                <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
+                              </span>
+                            )}
+                            {isOwnerProfile && sharedCount > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
+                                <Users className="h-3.5 w-3.5" /> Partagé avec {sharedCount}{' '}
+                                {sharedCount > 1 ? 'membres' : 'membre'}
+                              </span>
+                            )}
+                            {attachmentsCount > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/5 px-3 py-1 text-slate-600 dark:bg-slate-800/60 dark:text-slate-200">
+                                <Paperclip className="h-3.5 w-3.5" /> {attachmentsCount}{' '}
+                                {attachmentsCount > 1 ? 'pièces jointes' : 'pièce jointe'}
+                              </span>
+                            )}
+                          </div>
+                          {displayedTags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 text-[11px]">
+                              {displayedTags.map(tag => (
+                                <span
+                                  key={tag}
+                                  className="inline-flex items-center gap-1 rounded-full bg-white/60 px-3 py-1 font-semibold uppercase tracking-wide text-blue-500 shadow-inner shadow-blue-100/60 dark:bg-slate-900/60 dark:text-blue-200"
+                                >
+                                  <Tag className="h-3 w-3" />
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <dl className="grid grid-cols-1 gap-2 text-sm text-slate-600 sm:grid-cols-2 dark:text-slate-300">
                         {previewFields.map(field => (
                           <div
                             key={field.label}
-                            className="rounded-2xl bg-slate-50/80 px-3 py-2 shadow-inner shadow-slate-200 dark:bg-slate-800/70 dark:shadow-slate-900"
+                            className="rounded-2xl border border-white/60 bg-white/60 px-3 py-2 shadow-inner shadow-blue-100/60 dark:border-slate-700/60 dark:bg-slate-900/60 dark:shadow-slate-950/40"
                           >
                             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                               {field.label}
@@ -950,64 +1288,48 @@ const ProfileList: React.FC<ProfileListProps> = ({
                           </div>
                         ))}
                       </dl>
-                      {p.comment && (
-                        <p className="rounded-2xl bg-blue-50/70 px-3 py-2 text-sm text-blue-800 shadow-inner dark:bg-blue-500/10 dark:text-blue-200 dark:shadow-blue-900/20">
-                          {p.comment}
+                      {commentText && (
+                        <p className="rounded-2xl border border-white/60 bg-blue-500/10 px-3 py-2 text-sm text-blue-700 shadow-inner shadow-blue-100/60 dark:border-blue-500/30 dark:bg-blue-500/20 dark:text-blue-200">
+                          {commentText}
                         </p>
                       )}
-                      {(p.shared_with_me || (p.is_owner && sharedCount > 0)) && (
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          {p.shared_with_me && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
-                              <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
-                            </span>
-                          )}
-                          {p.is_owner && sharedCount > 0 && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 font-semibold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
-                              <Users className="h-3.5 w-3.5" /> Partagé avec {sharedCount}{' '}
-                              {sharedCount > 1 ? 'membres' : 'membre'}
-                            </span>
-                          )}
-                        </div>
+                    </div>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelected(p)}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      >
+                        <Eye className="h-4 w-4" /> Aperçu
+                      </button>
+                      {canEditProfile(p) && (
+                        <button
+                          type="button"
+                          onClick={() => onEdit?.(p.id)}
+                          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-blue-400/40 transition hover:-translate-y-0.5 hover:shadow-2xl"
+                        >
+                          <PencilLine className="h-4 w-4" /> Modifier
+                        </button>
                       )}
+                      {canDeleteProfile(p) && (
+                        <button
+                          type="button"
+                          onClick={() => remove(p.id)}
+                          className="inline-flex items-center gap-2 rounded-full bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:-translate-y-0.5 hover:bg-red-500/20 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+                        >
+                          <Trash2 className="h-4 w-4" /> Supprimer
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => exportProfile(p.id)}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      >
+                        <Download className="h-4 w-4" /> Exporter
+                      </button>
                     </div>
                   </div>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelected(p)}
-                      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                    >
-                      <Eye className="h-4 w-4" /> Aperçu
-                    </button>
-                    {canEditProfile(p) && (
-                      <button
-                        type="button"
-                        onClick={() => onEdit?.(p.id)}
-                        className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-blue-300 transition hover:-translate-y-0.5 hover:bg-blue-700"
-                      >
-                        <PencilLine className="h-4 w-4" /> Modifier
-                      </button>
-                    )}
-                    {canDeleteProfile(p) && (
-                      <button
-                        type="button"
-                        onClick={() => remove(p.id)}
-                        className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
-                      >
-                        <Trash2 className="h-4 w-4" /> Supprimer
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => exportProfile(p.id)}
-                      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                    >
-                      <Download className="h-4 w-4" /> Exporter
-                    </button>
-                  </div>
-                </div>
-              );
+                );
               })}
             </div>
             <div className="border-t border-slate-200/70 pt-4 dark:border-slate-700/60">
