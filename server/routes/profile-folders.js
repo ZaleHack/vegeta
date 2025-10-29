@@ -26,6 +26,9 @@ router.post('/', async (req, res) => {
     if (error.message === 'Nom du dossier requis') {
       return res.status(400).json({ error: error.message });
     }
+    if (error.message === 'Un dossier avec ce nom existe déjà') {
+      return res.status(409).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -48,6 +51,9 @@ router.patch('/:id', async (req, res) => {
     }
     if (error.message === 'Accès refusé') {
       return res.status(403).json({ error: error.message });
+    }
+    if (error.message === 'Un dossier avec ce nom existe déjà') {
+      return res.status(409).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });
   }

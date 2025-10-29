@@ -30,6 +30,10 @@ class ProfileFolder {
       throw new Error('Utilisateur introuvable');
     }
     const trimmedName = name.trim();
+    const hasConflict = await this.existsWithName({ userId: ownerId, name: trimmedName });
+    if (hasConflict) {
+      throw new Error('Un dossier avec ce nom existe déjà');
+    }
     const result = await database.query(
       `INSERT INTO ${TABLE} (user_id, name) VALUES (?, ?)`,
       [ownerId, trimmedName]
@@ -45,16 +49,13 @@ class ProfileFolder {
 
   static async update(id, data = {}) {
     if (!id) return null;
+    const existing = await this.findById(id);
+    if (!existing) {
+      throw new Error('Dossier introuvable');
+    }
     const fields = [];
     const params = [];
-    if (data.name !== undefined) {
-      const trimmed = typeof data.name === 'string' ? data.name.trim() : '';
-      if (!trimmed) {
-        throw new Error('Nom du dossier requis');
-      }
-      fields.push('name = ?');
-      params.push(trimmed);
-    }
+    let targetOwnerId = existing.user_id;
     if (data.user_id !== undefined) {
       const ownerId = data.user_id === null ? null : await ensureUserExists(data.user_id);
       if (data.user_id !== null && !ownerId) {
@@ -62,9 +63,29 @@ class ProfileFolder {
       }
       fields.push('user_id = ?');
       params.push(ownerId);
+      targetOwnerId = ownerId;
+    }
+    if (data.name !== undefined) {
+      const trimmed = typeof data.name === 'string' ? data.name.trim() : '';
+      if (!trimmed) {
+        throw new Error('Nom du dossier requis');
+      }
+      const ownerForCheck = targetOwnerId ?? existing.user_id;
+      if (ownerForCheck) {
+        const hasConflict = await this.existsWithName({
+          userId: ownerForCheck,
+          name: trimmed,
+          excludeId: id
+        });
+        if (hasConflict) {
+          throw new Error('Un dossier avec ce nom existe déjà');
+        }
+      }
+      fields.push('name = ?');
+      params.push(trimmed);
     }
     if (!fields.length) {
-      return this.findById(id);
+      return existing;
     }
     params.push(id);
     await database.query(`UPDATE ${TABLE} SET ${fields.join(', ')} WHERE id = ?`, params);
@@ -127,6 +148,25 @@ class ProfileFolder {
       })),
       total: Number(totalRow?.count || 0)
     };
+  }
+
+  static async existsWithName({ userId, name, excludeId = null }) {
+    if (!userId || !name) {
+      return false;
+    }
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return false;
+    }
+    const params = [userId, trimmed];
+    let queryText = `SELECT id FROM ${TABLE} WHERE user_id = ? AND LOWER(name) = LOWER(?)`;
+    if (excludeId) {
+      queryText += ' AND id <> ?';
+      params.push(excludeId);
+    }
+    queryText += ' LIMIT 1';
+    const row = await database.queryOne(queryText, params);
+    return Boolean(row);
   }
 }
 

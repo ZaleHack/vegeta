@@ -6,25 +6,29 @@ import UserLog from '../models/UserLog.js';
 const router = express.Router();
 
 // Créer une nouvelle demande d'identification
-  router.post('/', authenticate, async (req, res) => {
-    const { phone } = req.body;
-    if (!phone) {
-      return res.status(400).json({ error: 'Numéro requis' });
+router.post('/', authenticate, async (req, res) => {
+  const rawPhone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : req.body?.phone;
+  if (!rawPhone) {
+    return res.status(400).json({ error: 'Numéro requis' });
+  }
+  try {
+    const existing = await IdentificationRequest.findPendingByUserAndPhone(req.user.id, rawPhone);
+    if (existing) {
+      return res.status(409).json({ error: 'Une demande est déjà en cours pour ce numéro.' });
     }
+    const request = await IdentificationRequest.create({
+      user_id: req.user.id,
+      phone: rawPhone
+    });
     try {
-      const request = await IdentificationRequest.create({
-        user_id: req.user.id,
-        phone
-      });
-      try {
-        await UserLog.create({ user_id: req.user.id, action: 'identification_request', details: JSON.stringify({ request_id: request.id }) });
-      } catch (_) {}
-      res.json(request);
-    } catch (error) {
-      console.error('Erreur création demande:', error);
-      res.status(500).json({ error: 'Erreur serveur' });
-    }
-  });
+      await UserLog.create({ user_id: req.user.id, action: 'identification_request', details: JSON.stringify({ request_id: request.id }) });
+    } catch (_) {}
+    res.json(request);
+  } catch (error) {
+    console.error('Erreur création demande:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
 
 // Liste des demandes
 router.get('/', authenticate, async (req, res) => {
