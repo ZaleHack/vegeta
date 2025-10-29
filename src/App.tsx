@@ -9547,10 +9547,6 @@ useEffect(() => {
       <BulkProfileImportModal
         open={showBulkImportModal}
         onClose={() => setShowBulkImportModal(false)}
-        onCreateProfile={(data) => {
-          setShowBulkImportModal(false);
-          openCreateProfile(data);
-        }}
         runSearch={runSearchForNumber}
       />
 
