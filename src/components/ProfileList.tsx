@@ -951,6 +951,50 @@ const ProfileList: React.FC<ProfileListProps> = ({
     window.URL.revokeObjectURL(url);
   };
 
+  const exportFolder = useCallback(
+    async (folder: ProfileFolderSummary) => {
+      if (!folder?.id) {
+        return;
+      }
+      const token = localStorage.getItem('token');
+      try {
+        setFolderError('');
+        const res = await fetch(`/api/profile-folders/${folder.id}/pdf`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : ''
+          }
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setFolderError(data.error || "Impossible d'exporter le dossier");
+          return;
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const rawName = typeof folder.name === 'string' ? folder.name.trim() : '';
+        const normalized = rawName
+          ? rawName
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/[^a-zA-Z0-9_-]+/g, '-')
+              .replace(/-+/g, '-')
+              .replace(/^-|-$/g, '')
+              .toLowerCase()
+          : '';
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${normalized || `dossier-${folder.id}`}-profils.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } catch (_) {
+        setFolderError("Erreur lors de l'export du dossier");
+      }
+    },
+    [setFolderError]
+  );
+
   return (
     <>
       <div className="space-y-6">
@@ -1111,6 +1155,9 @@ const ProfileList: React.FC<ProfileListProps> = ({
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
+                  const profilesCount = Number(folder.profiles_count ?? 0);
+                  const hasProfiles = Number.isFinite(profilesCount) && profilesCount > 0;
+                  const canExportFolder = hasProfiles && (isAdminUser || folder.is_owner || folder.shared_with_me);
                   const isRenaming = renamingFolderId === folder.id;
                   const isFolderDropTarget = dragOverFolderId === folder.id && draggedId !== null;
                   const handleSelect = () => {
@@ -1173,42 +1220,58 @@ const ProfileList: React.FC<ProfileListProps> = ({
                               </p>
                             </div>
                           </div>
-                          {canManage && (
+                          {(canExportFolder || canManage) && (
                             <div className="flex items-center gap-2">
-                              {onShareFolder && (
+                              {canExportFolder && (
                                 <button
                                   type="button"
                                   onClick={event => {
                                     event.stopPropagation();
-                                    onShareFolder(folder);
+                                    void exportFolder(folder);
                                   }}
-                                  className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-blue-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-blue-200 dark:hover:bg-slate-900"
+                                  className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-emerald-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-emerald-300 dark:hover:bg-slate-900"
                                 >
-                                  <Share2 className="h-3.5 w-3.5" /> Partager
+                                  <Download className="h-3.5 w-3.5" /> Exporter en PDF
                                 </button>
                               )}
-                              <button
-                                type="button"
-                                onClick={event => {
-                                  event.stopPropagation();
-                                  if (!isRenaming) {
-                                    startRenamingFolder(folder);
-                                  }
-                                }}
-                                className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
-                              >
-                                <PencilLine className="h-3.5 w-3.5" /> Renommer
-                              </button>
-                              <button
-                                type="button"
-                                onClick={event => {
-                                  event.stopPropagation();
-                                  handleDeleteFolder(folder);
-                                }}
-                                className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-rose-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-rose-300 dark:hover:bg-slate-900"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" /> Supprimer
-                              </button>
+                              {canManage && (
+                                <>
+                                  {onShareFolder && (
+                                    <button
+                                      type="button"
+                                      onClick={event => {
+                                        event.stopPropagation();
+                                        onShareFolder(folder);
+                                      }}
+                                      className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-blue-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-blue-200 dark:hover:bg-slate-900"
+                                    >
+                                      <Share2 className="h-3.5 w-3.5" /> Partager
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={event => {
+                                      event.stopPropagation();
+                                      if (!isRenaming) {
+                                        startRenamingFolder(folder);
+                                      }
+                                    }}
+                                    className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
+                                  >
+                                    <PencilLine className="h-3.5 w-3.5" /> Renommer
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={event => {
+                                      event.stopPropagation();
+                                      handleDeleteFolder(folder);
+                                    }}
+                                    className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-rose-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-rose-300 dark:hover:bg-slate-900"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" /> Supprimer
+                                  </button>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
