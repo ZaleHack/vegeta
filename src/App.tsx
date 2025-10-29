@@ -71,6 +71,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import StructuredPreviewValue from './components/StructuredPreviewValue';
 import ProfileList, { ProfileListItem } from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
+import BulkProfileImportModal, { BulkProfilePrefillData } from './components/BulkProfileImportModal';
 import CdrMap from './components/CdrMap';
 import LinkDiagram from './components/LinkDiagram';
 import SoraLogo from './components/SoraLogo';
@@ -729,6 +730,7 @@ const App: React.FC = () => {
   const [hasAppliedInitialRoute, setHasAppliedInitialRoute] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'profile'>('list');
   const [showProfileForm, setShowProfileForm] = useState(false);
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [blacklistNumber, setBlacklistNumber] = useState('');
   const [blacklistError, setBlacklistError] = useState('');
@@ -1229,18 +1231,37 @@ const App: React.FC = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const openCreateProfile = (
-    data: {
-      email?: string;
-      comment?: string;
-      extra_fields?: Record<string, string>;
-    },
+    data: BulkProfilePrefillData & {
+      extra_fields?: Record<string, string> | FieldCategory[];
+    } = {},
     folderId?: number | null
   ) => {
-    let categories = ensureEditableCategories(
-      normalizeProfileExtraFields(data.extra_fields || {})
-    );
+    const rawExtra = data.extra_fields;
+    let categories: FieldCategory[];
+    if (Array.isArray(rawExtra)) {
+      categories = ensureEditableCategories(rawExtra);
+    } else {
+      categories = ensureEditableCategories(
+        normalizeProfileExtraFields(rawExtra || {})
+      );
+    }
     if (data.email) {
       categories = upsertField(categories, 'Email', data.email, { matchLabels: ['email'] });
+    }
+    if (data.phone) {
+      categories = upsertField(categories, 'Téléphone', data.phone, {
+        matchLabels: ['téléphone', 'telephone', 'phone']
+      });
+    }
+    if (data.first_name) {
+      categories = upsertField(categories, 'Prénom', data.first_name, {
+        matchLabels: ['prénom', 'prenom', 'first name']
+      });
+    }
+    if (data.last_name) {
+      categories = upsertField(categories, 'Nom', data.last_name, {
+        matchLabels: ['nom', 'last name']
+      });
     }
     setProfileDefaults({
       comment: data.comment || '',
@@ -2175,6 +2196,35 @@ const App: React.FC = () => {
       abortControllerRef.current = null;
     }
   };
+
+  const runSearchForNumber = useCallback(
+    async (number: string) => {
+      const query = number.trim();
+      if (!query) {
+        return [];
+      }
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ query, page: 1, limit: 20 })
+      });
+      let data: SearchResponseFromApi = {
+        hits: [],
+        tables_searched: []
+      };
+      try {
+        data = await response.json();
+      } catch {
+        // Ignore parse errors, handled below
+      }
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de la recherche');
+      }
+      const normalized = normalizeSearchResponse(data);
+      return normalized.hits;
+    },
+    [createAuthHeaders]
+  );
 
   useEffect(() => {
     if (!isAuthenticated || hasAppliedInitialRoute) return;
@@ -7386,6 +7436,14 @@ useEffect(() => {
                         </button>
                         <button
                           type="button"
+                          onClick={() => setShowBulkImportModal(true)}
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-blue-400 hover:text-blue-600 dark:border-slate-600/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
+                        >
+                          <UploadCloud className="h-4 w-4" />
+                          Importer des numéros
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setProfileListRefreshKey((prev) => prev + 1)}
                           className="inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-400 hover:text-slate-800 dark:border-slate-600/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
                         >
@@ -9485,6 +9543,16 @@ useEffect(() => {
           </div>
         </div>
       )}
+
+      <BulkProfileImportModal
+        open={showBulkImportModal}
+        onClose={() => setShowBulkImportModal(false)}
+        onCreateProfile={(data) => {
+          setShowBulkImportModal(false);
+          openCreateProfile(data);
+        }}
+        runSearch={runSearchForNumber}
+      />
 
       {confirmDialog && (
         <ConfirmDialog
