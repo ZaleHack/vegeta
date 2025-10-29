@@ -82,14 +82,29 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+const parseProfileIds = value => {
+  if (!value) {
+    return [];
+  }
+  const raw = Array.isArray(value) ? value : String(value).split(',');
+  const ids = raw
+    .map(entry => Number(String(entry).trim()))
+    .filter(id => Number.isInteger(id) && id > 0);
+  return [...new Set(ids)];
+};
+
 router.get('/:id/pdf', async (req, res) => {
   const folderId = Number(req.params.id);
   if (!Number.isInteger(folderId) || folderId <= 0) {
     return res.status(400).json({ error: 'Identifiant de dossier invalide' });
   }
 
+  const profileIds = parseProfileIds(req.query.profileIds);
+
   try {
-    const { buffer, folder, profileCount } = await service.exportFolderPDF(folderId, req.user);
+    const { buffer, folder, profileCount } = await service.exportFolderPDF(folderId, req.user, {
+      profileIds
+    });
     const rawName = typeof folder?.name === 'string' ? folder.name.trim() : '';
     const normalized = rawName
       ? rawName
@@ -119,8 +134,28 @@ router.get('/:id/pdf', async (req, res) => {
     if (error.message === 'Accès refusé') {
       return res.status(403).json({ error: error.message });
     }
-    if (error.message === 'Aucun profil dans ce dossier') {
+    if (['Aucun profil dans ce dossier', 'Aucun profil sélectionné dans ce dossier'].includes(error.message)) {
       return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/:id/profiles', async (req, res) => {
+  const folderId = Number(req.params.id);
+  if (!Number.isInteger(folderId) || folderId <= 0) {
+    return res.status(400).json({ error: 'Identifiant de dossier invalide' });
+  }
+
+  try {
+    const profiles = await service.getFolderProfiles(folderId, req.user);
+    res.json({ profiles });
+  } catch (error) {
+    if (error.message === 'Dossier introuvable') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'Accès refusé') {
+      return res.status(403).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });
   }
