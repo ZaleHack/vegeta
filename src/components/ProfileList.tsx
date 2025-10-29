@@ -1290,7 +1290,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
                       }`}
                     >
                       <div className="relative flex h-full flex-col gap-4 rounded-[28px] bg-white/95 p-5 dark:bg-slate-950/60">
-                        <span className="absolute inset-x-5 top-0 h-1 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 opacity-80" />
                         <div className="pointer-events-none absolute inset-0 rounded-[28px] bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_65%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.22),transparent_65%)]" />
                         {isFolderDropTarget && (
                           <div className="pointer-events-none absolute inset-0 rounded-[28px] border-2 border-dashed border-purple-400/70 bg-purple-500/10" />
