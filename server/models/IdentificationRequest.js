@@ -5,6 +5,14 @@ import { normalizeExtraFields } from '../utils/profile-normalizer.js';
 import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
 import statsCache from '../services/stats-cache.js';
 
+const normalizePhone = phone => {
+  if (typeof phone !== 'string') {
+    return phone;
+  }
+  const digitsOnly = phone.replace(/\D+/g, '');
+  return digitsOnly.length > 0 ? digitsOnly : phone.trim();
+};
+
 class IdentificationRequest {
   static async create(data) {
     const { user_id, phone } = data;
@@ -13,7 +21,7 @@ class IdentificationRequest {
       console.warn('Demande d\'identification ignorée: utilisateur introuvable', user_id);
       return null;
     }
-    const normalizedPhone = typeof phone === 'string' ? phone.trim() : phone;
+    const normalizedPhone = normalizePhone(phone);
     try {
       const result = await database.query(
         `INSERT INTO autres.identification_requests (user_id, phone, status) VALUES (?, ?, 'pending')`,
@@ -34,10 +42,12 @@ class IdentificationRequest {
     if (!userId || !phone) {
       return null;
     }
-    return database.queryOne(
-      `SELECT * FROM autres.identification_requests WHERE user_id = ? AND phone = ? AND status = 'pending' LIMIT 1`,
-      [userId, phone]
+    const normalizedPhone = normalizePhone(phone);
+    const rows = await database.query(
+      `SELECT * FROM autres.identification_requests WHERE user_id = ? AND status = 'pending'`,
+      [userId]
     );
+    return rows.find(row => normalizePhone(row.phone) === normalizedPhone) ?? null;
   }
 
   static async findAll() {
