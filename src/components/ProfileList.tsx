@@ -17,15 +17,14 @@ import {
   Mail,
   Phone,
   UserPlus,
-  Tag
+  Tag,
+  ListChecks
 } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 import CreateFolderModal from './CreateFolderModal';
-
-const getFolderBackgroundColor = (darkMode: boolean) =>
-  darkMode ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.95)';
+import ExportFolderModal from './ExportFolderModal';
 
 interface ProfileAttachment {
   id: number;
@@ -62,6 +61,13 @@ export interface ProfileFolderSummary {
   is_owner?: boolean;
   shared_with_me?: boolean;
   shared_user_ids?: number[];
+}
+
+interface FolderProfileOption {
+  id: number;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
 }
 
 interface ProfileListProps {
@@ -118,29 +124,14 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const newFolderInputRef = useRef<HTMLInputElement | null>(null);
   const renameFolderInputRef = useRef<HTMLInputElement | null>(null);
   const [readyFolderId, setReadyFolderId] = useState<number | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(
-    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-  );
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportFolderTarget, setExportFolderTarget] = useState<ProfileFolderSummary | null>(null);
+  const [exportProfiles, setExportProfiles] = useState<FolderProfileOption[]>([]);
+  const [exportSelection, setExportSelection] = useState<number[]>([]);
+  const [exportProfilesLoading, setExportProfilesLoading] = useState(false);
+  const [exportProfilesError, setExportProfilesError] = useState('');
+  const [exportingFolder, setExportingFolder] = useState(false);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') {
-      return;
-    }
-
-    const root = document.documentElement;
-    const updateMode = () => {
-      setIsDarkMode(root.classList.contains('dark'));
-    };
-
-    updateMode();
-
-    const observer = new MutationObserver(updateMode);
-    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
   const selectedFolderIdRef = useRef<number | null>(null);
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
@@ -191,6 +182,23 @@ const ProfileList: React.FC<ProfileListProps> = ({
   useEffect(() => {
     loadFolders();
   }, [loadFolders, refreshKey]);
+
+  const resetExportModal = useCallback(() => {
+    setExportFolderTarget(null);
+    setExportProfiles([]);
+    setExportSelection([]);
+    setExportProfilesError('');
+    setExportProfilesLoading(false);
+    setExportingFolder(false);
+  }, []);
+
+  const handleCloseExportModal = useCallback(() => {
+    if (exportingFolder) {
+      return;
+    }
+    setExportModalOpen(false);
+    resetExportModal();
+  }, [exportingFolder, resetExportModal]);
 
   useEffect(() => {
     selectedFolderIdRef.current = selectedFolderId;
@@ -322,6 +330,137 @@ const ProfileList: React.FC<ProfileListProps> = ({
     },
     [cancelRenamingFolder, renamingFolderId, renameFolderName]
   );
+
+  const openExportModalForFolder = useCallback(
+    async (folder: ProfileFolderSummary) => {
+      if (!folder?.id) {
+        return;
+      }
+      setExportFolderTarget(folder);
+      setExportModalOpen(true);
+      setExportProfiles([]);
+      setExportSelection([]);
+      setExportProfilesError('');
+      setExportProfilesLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/profile-folders/${folder.id}/profiles`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : ''
+          }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setExportProfilesError(data.error || "Impossible de charger les profils du dossier.");
+          return;
+        }
+        const rawProfiles = Array.isArray(data.profiles) ? data.profiles : [];
+        const normalized: FolderProfileOption[] = rawProfiles
+          .map((item: any) => {
+            const id = Number(item?.id);
+            if (!Number.isInteger(id) || id <= 0) {
+              return null;
+            }
+            const displayNameRaw = typeof item?.display_name === 'string' ? item.display_name.trim() : '';
+            const email = typeof item?.email === 'string' ? item.email : null;
+            const phone = typeof item?.phone === 'string' ? item.phone : null;
+            return {
+              id,
+              displayName: displayNameRaw || `Profil #${id}`,
+              email,
+              phone
+            };
+          })
+          .filter(Boolean) as FolderProfileOption[];
+        setExportProfiles(normalized);
+        setExportSelection(normalized.map(profile => profile.id));
+        if (!normalized.length) {
+          setExportProfilesError('Aucun profil disponible dans ce dossier.');
+        }
+      } catch (_) {
+        setExportProfilesError("Impossible de charger les profils du dossier.");
+      } finally {
+        setExportProfilesLoading(false);
+      }
+    },
+    []
+  );
+
+  const handleToggleExportProfile = useCallback((id: number) => {
+    setExportSelection(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(existingId => existingId !== id);
+      }
+      return [...prev, id];
+    });
+    setExportProfilesError('');
+  }, []);
+
+  const handleToggleAllExportProfiles = useCallback(() => {
+    setExportSelection(prev => {
+      if (exportProfiles.length > 0 && prev.length === exportProfiles.length) {
+        return [];
+      }
+      return exportProfiles.map(profile => profile.id);
+    });
+    setExportProfilesError('');
+  }, [exportProfiles]);
+
+  const handleConfirmExport = useCallback(async () => {
+    if (!exportFolderTarget?.id) {
+      return;
+    }
+    if (exportSelection.length === 0) {
+      setExportProfilesError('Veuillez sélectionner au moins un profil à exporter.');
+      return;
+    }
+    setExportingFolder(true);
+    setExportProfilesError('');
+    const token = localStorage.getItem('token');
+    const params = new URLSearchParams();
+    if (exportSelection.length > 0) {
+      params.set('profileIds', exportSelection.join(','));
+    }
+    const query = params.toString();
+    const requestUrl = `/api/profile-folders/${exportFolderTarget.id}/pdf${query ? `?${query}` : ''}`;
+    try {
+      const res = await fetch(requestUrl, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : ''
+        }
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        setExportProfilesError(payload.error || "Impossible d'exporter le dossier.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const rawName = typeof exportFolderTarget.name === 'string' ? exportFolderTarget.name.trim() : '';
+      const normalized = rawName
+        ? rawName
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9_-]+/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '')
+            .toLowerCase()
+        : '';
+      link.download = `${normalized || `dossier-${exportFolderTarget.id}`}-profils.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      setExportModalOpen(false);
+      resetExportModal();
+    } catch (_) {
+      setExportProfilesError("Impossible d'exporter le dossier.");
+    } finally {
+      setExportingFolder(false);
+    }
+  }, [exportFolderTarget, exportSelection, resetExportModal]);
 
   const handleDeleteFolder = useCallback(
     (folder: ProfileFolderSummary) => {
@@ -951,50 +1090,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
     window.URL.revokeObjectURL(url);
   };
 
-  const exportFolder = useCallback(
-    async (folder: ProfileFolderSummary) => {
-      if (!folder?.id) {
-        return;
-      }
-      const token = localStorage.getItem('token');
-      try {
-        setFolderError('');
-        const res = await fetch(`/api/profile-folders/${folder.id}/pdf`, {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : ''
-          }
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setFolderError(data.error || "Impossible d'exporter le dossier");
-          return;
-        }
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const rawName = typeof folder.name === 'string' ? folder.name.trim() : '';
-        const normalized = rawName
-          ? rawName
-              .normalize('NFD')
-              .replace(/[\u0300-\u036f]/g, '')
-              .replace(/[^a-zA-Z0-9_-]+/g, '-')
-              .replace(/-+/g, '-')
-              .replace(/^-|-$/g, '')
-              .toLowerCase()
-          : '';
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${normalized || `dossier-${folder.id}`}-profils.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } catch (_) {
-        setFolderError("Erreur lors de l'export du dossier");
-      }
-    },
-    [setFolderError]
-  );
-
   return (
     <>
       <div className="space-y-6">
@@ -1151,7 +1246,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {filteredFolders.map(folder => {
-                  const folderBackgroundColor = getFolderBackgroundColor(isDarkMode);
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
@@ -1187,51 +1281,54 @@ const ProfileList: React.FC<ProfileListProps> = ({
                       onDragLeave={event => handleDragLeaveFolder(event, folder.id)}
                       onDrop={event => handleDropOnFolder(event, folder)}
                       aria-dropeffect={draggedId !== null ? 'move' : undefined}
-                      className={`group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 p-4 shadow-xl shadow-blue-200/40 backdrop-blur-xl transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400/70 dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-950/50 ${
+                      className={`group relative isolate flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-slate-200/70 bg-gradient-to-br from-white/95 via-white/70 to-slate-100/60 p-[1px] shadow-lg shadow-slate-200/40 transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400/70 dark:border-slate-700/60 dark:from-slate-900/85 dark:via-slate-900/60 dark:to-slate-900/40 dark:shadow-slate-950/40 ${
                         active
-                          ? 'ring-2 ring-blue-400/70'
+                          ? 'ring-2 ring-blue-400/70 shadow-2xl shadow-blue-300/40'
                           : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-1 hover:ring-blue-200/60 dark:hover:ring-blue-500/40'
                       } ${
-                        isFolderDropTarget ? 'ring-2 ring-purple-400/60 shadow-2xl shadow-purple-200/50' : ''
+                        isFolderDropTarget ? 'ring-2 ring-purple-400/60 shadow-2xl shadow-purple-200/50 dark:shadow-purple-900/40' : ''
                       }`}
                     >
-                      <div
-                        className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-90"
-                        style={{ backgroundColor: folderBackgroundColor }}
-                      />
-                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                      {isFolderDropTarget && (
-                        <div className="pointer-events-none absolute inset-1 rounded-[26px] border-2 border-dashed border-purple-400/70 bg-purple-100/20 dark:border-purple-400/60 dark:bg-purple-500/10" />
-                      )}
-                      <div className="relative flex flex-col gap-3">
-                        <div className="flex items-start justify-between gap-3">
+                      <div className="relative flex h-full flex-col gap-4 rounded-[28px] bg-white/95 p-5 dark:bg-slate-950/60">
+                        <span className="absolute inset-x-5 top-0 h-1 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 opacity-80" />
+                        <div className="pointer-events-none absolute inset-0 rounded-[28px] bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_65%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.22),transparent_65%)]" />
+                        {isFolderDropTarget && (
+                          <div className="pointer-events-none absolute inset-0 rounded-[28px] border-2 border-dashed border-purple-400/70 bg-purple-500/10" />
+                        )}
+                        <div className="relative flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
                             <span
-                              className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-200 via-amber-300 to-amber-400 text-amber-700 shadow-lg shadow-amber-200/60 ${
-                                active ? 'animate-pulse' : ''
+                              className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/10 via-indigo-500/20 to-purple-500/20 text-blue-600 shadow-inner shadow-blue-500/20 transition dark:text-blue-200 ${
+                                active ? 'ring-2 ring-blue-400/60' : ''
                               }`}
                             >
                               <Folder className="h-5 w-5" />
                             </span>
                             <div>
-                              <h3 className="text-base font-semibold text-slate-800 dark:text-white">{folder.name}</h3>
-                              <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500 dark:text-slate-600">
-                                {active ? 'Dossier sélectionné' : 'Dossier'}
+                              <h3 className="text-base font-semibold text-slate-900 dark:text-white">{folder.name}</h3>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-500">
+                                {active
+                                  ? 'Dossier sélectionné'
+                                  : folder.shared_with_me
+                                  ? 'Partagé avec vous'
+                                  : folder.is_owner
+                                  ? 'Votre dossier'
+                                  : 'Dossier'}
                               </p>
                             </div>
                           </div>
                           {(canExportFolder || canManage) && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               {canExportFolder && (
                                 <button
                                   type="button"
                                   onClick={event => {
                                     event.stopPropagation();
-                                    void exportFolder(folder);
+                                    void openExportModalForFolder(folder);
                                   }}
-                                  className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-emerald-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-emerald-300 dark:hover:bg-slate-900"
+                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-emerald-300/40 transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
                                 >
-                                  <Download className="h-3.5 w-3.5" /> Exporter en PDF
+                                  <ListChecks className="h-3.5 w-3.5" /> Exporter
                                 </button>
                               )}
                               {canManage && (
@@ -1243,7 +1340,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                                         event.stopPropagation();
                                         onShareFolder(folder);
                                       }}
-                                      className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-blue-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-blue-200 dark:hover:bg-slate-900"
+                                      className="inline-flex items-center gap-2 rounded-full border border-blue-100/70 bg-white/80 px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 dark:border-blue-400/40 dark:bg-slate-900/60 dark:text-blue-200"
                                     >
                                       <Share2 className="h-3.5 w-3.5" /> Partager
                                     </button>
@@ -1256,7 +1353,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                                         startRenamingFolder(folder);
                                       }
                                     }}
-                                    className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
+                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/85 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200"
                                   >
                                     <PencilLine className="h-3.5 w-3.5" /> Renommer
                                   </button>
@@ -1266,7 +1363,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                                       event.stopPropagation();
                                       handleDeleteFolder(folder);
                                     }}
-                                    className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-rose-600 shadow-sm transition hover:bg-white dark:bg-slate-900/60 dark:text-rose-300 dark:hover:bg-slate-900"
+                                    className="inline-flex items-center gap-2 rounded-full border border-rose-200/60 bg-rose-100/40 px-3 py-1.5 text-xs font-semibold text-rose-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-200 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200"
                                   >
                                     <Trash2 className="h-3.5 w-3.5" /> Supprimer
                                   </button>
@@ -1327,18 +1424,19 @@ const ProfileList: React.FC<ProfileListProps> = ({
                             </form>
                           </div>
                         )}
-                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-700">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-amber-100/80 px-3 py-1 text-amber-800 shadow-sm">
-                            <Users className="h-3.5 w-3.5" /> {folder.profiles_count ?? 0}{' '}
+                        <div className="relative flex flex-wrap items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-400">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700 shadow-sm shadow-slate-200/60 dark:bg-slate-800/60 dark:text-slate-200">
+                            <Users className="h-3.5 w-3.5 text-blue-500 dark:text-blue-300" />
+                            {folder.profiles_count ?? 0}{' '}
                             {(folder.profiles_count ?? 0) > 1 ? 'fiches' : 'fiche'}
                           </span>
                           {folder.shared_with_me && (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-slate-600 shadow-sm">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100/70 px-3 py-1 text-blue-700 shadow-sm shadow-blue-200/50 dark:bg-blue-500/20 dark:text-blue-200">
                               <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
                             </span>
                           )}
                           {folder.is_owner && sharedCount > 0 && (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-slate-600 shadow-sm">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-600 shadow-sm shadow-slate-200/60 dark:bg-slate-800/60 dark:text-slate-200">
                               <Users className="h-3.5 w-3.5" /> Partagé avec {sharedCount}{' '}
                               {sharedCount > 1 ? 'membres' : 'membre'}
                             </span>
@@ -1693,9 +1791,22 @@ const ProfileList: React.FC<ProfileListProps> = ({
         error={newFolderError}
         loading={creatingFolder}
         onClose={closeCreateFolderModal}
-        onSubmit={handleSubmitNewFolder}
-        onNameChange={handleNewFolderNameChange}
-        inputRef={newFolderInputRef}
+      onSubmit={handleSubmitNewFolder}
+      onNameChange={handleNewFolderNameChange}
+      inputRef={newFolderInputRef}
+    />
+      <ExportFolderModal
+        open={exportModalOpen}
+        folderName={exportFolderTarget?.name || undefined}
+        profiles={exportProfiles}
+        selectedIds={exportSelection}
+        loading={exportProfilesLoading}
+        error={exportProfilesError}
+        exporting={exportingFolder}
+        onClose={handleCloseExportModal}
+        onToggleProfile={handleToggleExportProfile}
+        onToggleAll={handleToggleAllExportProfiles}
+        onConfirm={handleConfirmExport}
       />
       {confirmDialog && (
         <ConfirmDialog

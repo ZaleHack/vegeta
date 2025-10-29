@@ -57,6 +57,24 @@ class ProfileService {
     return user && (user.admin === 1 || user.admin === '1' || user.admin === true);
   }
 
+  _buildProfileDisplayName(profile) {
+    const first = typeof profile.first_name === 'string' ? profile.first_name.trim() : '';
+    const last = typeof profile.last_name === 'string' ? profile.last_name.trim() : '';
+    const combined = [first, last].filter(Boolean).join(' ').trim();
+    if (combined) {
+      return combined;
+    }
+    const email = typeof profile.email === 'string' ? profile.email.trim() : '';
+    if (email) {
+      return email;
+    }
+    const phone = typeof profile.phone === 'string' ? profile.phone.trim() : '';
+    if (phone) {
+      return phone;
+    }
+    return `Profil #${profile.id}`;
+  }
+
   normalizeStoredPath(value) {
     return value ? value.replace(/\\/g, '/') : value;
   }
@@ -573,7 +591,37 @@ class ProfileService {
     return this.shareFolder(profile.folder_id, user, { userIds, shareAll });
   }
 
-  async exportFolderPDF(folderId, user) {
+  async getFolderProfiles(folderId, user) {
+    const id = Number(folderId);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new Error('Identifiant de dossier invalide');
+    }
+
+    const folder = await ProfileFolder.findById(id);
+    if (!folder) {
+      throw new Error('Dossier introuvable');
+    }
+
+    const isAdmin = this._isAdmin(user);
+    const isOwner = folder.user_id === user.id;
+    let sharedWithUser = false;
+    if (!isOwner && !isAdmin) {
+      sharedWithUser = await ProfileFolderShare.isSharedWithUser(folder.id, user.id);
+      if (!sharedWithUser) {
+        throw new Error('Accès refusé');
+      }
+    }
+
+    const profiles = await Profile.findByFolderId(folder.id);
+    return profiles.map(profile => ({
+      id: profile.id,
+      display_name: this._buildProfileDisplayName(profile),
+      email: profile.email,
+      phone: profile.phone
+    }));
+  }
+
+  async exportFolderPDF(folderId, user, { profileIds = [] } = {}) {
     try {
       const id = Number(folderId);
       if (!Number.isInteger(id) || id <= 0) {
@@ -600,7 +648,20 @@ class ProfileService {
         throw new Error('Aucun profil dans ce dossier');
       }
 
-      const profiles = await Promise.all(rawProfiles.map(profile => this.withAttachments(profile)));
+      let selectedProfiles = rawProfiles;
+      if (Array.isArray(profileIds) && profileIds.length > 0) {
+        const allowedIds = new Set(
+          profileIds
+            .map(value => Number(value))
+            .filter(value => Number.isInteger(value) && value > 0)
+        );
+        selectedProfiles = rawProfiles.filter(profile => allowedIds.has(profile.id));
+        if (!selectedProfiles.length) {
+          throw new Error('Aucun profil sélectionné dans ce dossier');
+        }
+      }
+
+      const profiles = await Promise.all(selectedProfiles.map(profile => this.withAttachments(profile)));
       const { default: PDFDocument } = await import('pdfkit');
       const doc = new PDFDocument({ margin: 50, compress: false, autoFirstPage: false });
       const stream = new PassThrough();
@@ -641,6 +702,7 @@ class ProfileService {
           'Dossier introuvable',
           'Accès refusé',
           'Aucun profil dans ce dossier',
+          'Aucun profil sélectionné dans ce dossier',
           'Identifiant de dossier invalide'
         ].includes(error.message)
       ) {
