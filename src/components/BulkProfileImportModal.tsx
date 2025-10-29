@@ -3,6 +3,7 @@ import {
   AlertCircle,
   CheckCircle2,
   FileSpreadsheet,
+  FolderPlus,
   Loader2,
   PlusCircle,
   UploadCloud,
@@ -27,7 +28,14 @@ interface BulkProfileImportModalProps {
   runSearch: (query: string) => Promise<SearchHit[]>;
 }
 
-type ImportStatus = 'pending' | 'searching' | 'creating' | 'created' | 'not_found' | 'error';
+type ImportStatus =
+  | 'pending'
+  | 'searching'
+  | 'creating'
+  | 'created'
+  | 'identified'
+  | 'not_found'
+  | 'error';
 
 interface ImportEntry {
   id: string;
@@ -37,6 +45,13 @@ interface ImportEntry {
   error?: string;
   prefill?: BulkProfilePrefillData;
   profileId?: number;
+  targetFolderId?: number | null;
+  folderName?: string;
+}
+
+interface FolderOption {
+  id: number;
+  name: string;
 }
 
 const sanitizeNumber = (value: string): string => {
@@ -164,7 +179,60 @@ const formatExtraFieldsForSubmission = (prefill: BulkProfilePrefillData) => {
   ];
 };
 
-const autoCreateProfile = async (prefill: BulkProfilePrefillData) => {
+const parseNumericId = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+};
+
+const extractProfileIdFromHit = (hit: SearchHit): number | undefined => {
+  if (!hit) {
+    return undefined;
+  }
+  const directId = parseNumericId((hit as unknown as { id?: unknown }).id);
+  if (directId !== undefined) {
+    return directId;
+  }
+  if (hit.primary_keys && typeof hit.primary_keys === 'object') {
+    const primaryKeys = hit.primary_keys as Record<string, unknown>;
+    const fromKeys =
+      parseNumericId(primaryKeys.id) ||
+      parseNumericId(primaryKeys.ID) ||
+      parseNumericId(primaryKeys.Id);
+    if (fromKeys !== undefined) {
+      return fromKeys;
+    }
+  }
+  if (hit.primary_value !== undefined) {
+    const primaryValue = parseNumericId(hit.primary_value);
+    if (primaryValue !== undefined) {
+      return primaryValue;
+    }
+  }
+  return undefined;
+};
+
+const isProfileHit = (hit: SearchHit): boolean => {
+  if (!hit) {
+    return false;
+  }
+  const tableName = typeof hit.table_name === 'string' ? hit.table_name.toLowerCase() : '';
+  const table = typeof hit.table === 'string' ? hit.table.toLowerCase() : '';
+  return table === 'profiles' || tableName === 'autres.profiles' || table.endsWith('autres.profiles');
+};
+
+const autoCreateProfile = async (prefill: BulkProfilePrefillData, folderId?: number | null) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   const form = new FormData();
   if (prefill.email) form.append('email', prefill.email);
@@ -172,6 +240,9 @@ const autoCreateProfile = async (prefill: BulkProfilePrefillData) => {
   if (prefill.first_name) form.append('first_name', prefill.first_name);
   if (prefill.last_name) form.append('last_name', prefill.last_name);
   if (prefill.comment) form.append('comment', prefill.comment);
+  if (typeof folderId === 'number' && Number.isFinite(folderId)) {
+    form.append('folder_id', String(folderId));
+  }
 
   const extraFields = formatExtraFieldsForSubmission(prefill);
   form.append('extra_fields', JSON.stringify(extraFields));
@@ -208,6 +279,12 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
   const [entries, setEntries] = useState<ImportEntry[]>([]);
   const [error, setError] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [folders, setFolders] = useState<FolderOption[]>([]);
+  const [foldersLoading, setFoldersLoading] = useState(false);
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
+  const [folderError, setFolderError] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -216,8 +293,64 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
       setEntries([]);
       setError('');
       setProcessing(false);
+      setSelectedFolderId(null);
+      setFolderError('');
+      setNewFolderName('');
     }
   }, [open]);
+
+  const loadFolders = useCallback(async () => {
+    try {
+      setFoldersLoading(true);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      const res = await fetch('/api/profile-folders', { headers });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFolders([]);
+        setFolderError(
+          typeof data.error === 'string'
+            ? data.error
+            : 'Impossible de charger les dossiers disponibles.'
+        );
+        return;
+      }
+      const list: FolderOption[] = Array.isArray(data.folders)
+        ? data.folders
+            .filter((folder: any) => typeof folder?.id === 'number')
+            .map((folder: any) => ({
+              id: folder.id,
+              name:
+                typeof folder.name === 'string' && folder.name.trim()
+                  ? folder.name
+                  : `Dossier #${folder.id}`
+            }))
+        : [];
+      setFolders(list);
+      setFolderError('');
+      if (list.length === 0) {
+        setSelectedFolderId(null);
+      } else if (selectedFolderId && !list.some((folder) => folder.id === selectedFolderId)) {
+        setSelectedFolderId(null);
+      }
+    } catch (err) {
+      console.error('Failed to load folders', err);
+      setFolders([]);
+      setFolderError('Impossible de charger les dossiers disponibles.');
+    } finally {
+      setFoldersLoading(false);
+    }
+  }, [selectedFolderId]);
+
+  useEffect(() => {
+    if (open) {
+      setFolderError('');
+      void loadFolders();
+    }
+  }, [open, loadFolders]);
 
   const handleClose = () => {
     if (processing) {
@@ -231,6 +364,61 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
     setFile(selectedFile);
   };
 
+  const folderNameById = useCallback(
+    (id?: number | null) => {
+      if (id === undefined || id === null) {
+        return undefined;
+      }
+      const folder = folders.find((option) => option.id === id);
+      return folder?.name;
+    },
+    [folders]
+  );
+
+  const handleCreateFolder: React.FormEventHandler<HTMLFormElement> = async (event) => {
+    event.preventDefault();
+    const trimmed = newFolderName.trim();
+    if (!trimmed) {
+      setFolderError('Veuillez saisir un nom de dossier.');
+      return;
+    }
+
+    try {
+      setCreatingFolder(true);
+      setFolderError('');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      const res = await fetch('/api/profile-folders', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: trimmed })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFolderError(
+          typeof data.error === 'string'
+            ? data.error
+            : 'Impossible de créer le dossier. Merci de réessayer.'
+        );
+        return;
+      }
+      setNewFolderName('');
+      await loadFolders();
+      const createdId = data.folder && typeof data.folder.id === 'number' ? data.folder.id : null;
+      if (createdId) {
+        setSelectedFolderId(createdId);
+      }
+    } catch (err) {
+      console.error('Failed to create folder', err);
+      setFolderError('Impossible de créer le dossier. Merci de réessayer.');
+    } finally {
+      setCreatingFolder(false);
+    }
+  };
+
   const hasSearchingEntries = useMemo(
     () =>
       entries.some((entry) =>
@@ -241,6 +429,12 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
 
   const handleSubmit = useCallback(async () => {
     setError('');
+    setFolderError('');
+
+    if (!selectedFolderId) {
+      setFolderError('Veuillez sélectionner un dossier pour enregistrer les profils identifiés.');
+      return;
+    }
 
     let numbers: string[] = extractNumbers(manualInput);
 
@@ -267,11 +461,16 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
       return;
     }
 
+    const folderIdForImport = selectedFolderId;
+    const folderNameForImport = folderNameById(folderIdForImport) || undefined;
+
     const initialEntries: ImportEntry[] = uniqueNumbers.map((number, index) => ({
       id: `${Date.now()}-${index}`,
       number,
       status: 'pending',
-      hits: []
+      hits: [],
+      targetFolderId: folderIdForImport,
+      folderName: folderNameForImport
     }));
 
     setEntries(initialEntries);
@@ -305,6 +504,26 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
           continue;
         }
 
+        const profileMatch = hits.find((hit) => isProfileHit(hit));
+        if (profileMatch) {
+          const profileId = extractProfileIdFromHit(profileMatch);
+          setEntries((prev) =>
+            prev.map((item) =>
+              item.id === entry.id
+                ? {
+                    ...item,
+                    status: 'identified',
+                    hits,
+                    prefill: buildPrefillFromHits(entry.number, hits),
+                    profileId,
+                    error: undefined
+                  }
+                : item
+            )
+          );
+          continue;
+        }
+
         const prefill = buildPrefillFromHits(entry.number, hits);
         setEntries((prev) =>
           prev.map((item) =>
@@ -316,12 +535,12 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
                   prefill,
                   error: undefined
                 }
-              : item
+                : item
           )
         );
 
         try {
-          const profileId = await autoCreateProfile(prefill);
+          const profileId = await autoCreateProfile(prefill, folderIdForImport);
 
           setEntries((prev) =>
             prev.map((item) =>
@@ -375,7 +594,7 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
     }
 
     setProcessing(false);
-  }, [file, manualInput, runSearch]);
+  }, [file, manualInput, runSearch, selectedFolderId, folderNameById]);
 
   if (!open) {
     return null;
@@ -408,6 +627,82 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
 
         <div className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
           <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-inner dark:border-slate-700/70 dark:bg-slate-900/70">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Dossier de destination</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Tous les profils identifiés seront enregistrés et suivis dans ce dossier.
+                  </p>
+                </div>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-200">
+                  <FolderPlus className="h-5 w-5" />
+                </span>
+              </div>
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="sr-only" htmlFor="bulk-import-folder">
+                    Dossier cible
+                  </label>
+                  <select
+                    id="bulk-import-folder"
+                    value={selectedFolderId ?? ''}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setSelectedFolderId(value ? Number(value) : null);
+                      setFolderError('');
+                    }}
+                    disabled={processing || foldersLoading}
+                    className="w-full rounded-xl border border-slate-200/70 bg-white/95 px-4 py-2.5 text-sm text-slate-700 shadow-inner focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700/70 dark:bg-slate-900/70 dark:text-slate-100"
+                  >
+                    <option value="">Sélectionnez un dossier</option>
+                    {folders.map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </option>
+                    ))}
+                  </select>
+                  {foldersLoading && (
+                    <p className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement des dossiers…
+                    </p>
+                  )}
+                  {!foldersLoading && folders.length === 0 && (
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      Créez un dossier pour organiser les profils importés.
+                    </p>
+                  )}
+                </div>
+                <form onSubmit={handleCreateFolder} className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="text"
+                    value={newFolderName}
+                    onChange={(event) => {
+                      setNewFolderName(event.target.value);
+                      if (folderError) {
+                        setFolderError('');
+                      }
+                    }}
+                    placeholder="Nouveau dossier (ex. Opération X)"
+                    disabled={processing || creatingFolder}
+                    className="w-full rounded-xl border border-slate-200/70 bg-white/95 px-4 py-2 text-sm text-slate-700 shadow-inner focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700/70 dark:bg-slate-900/70 dark:text-slate-100"
+                  />
+                  <button
+                    type="submit"
+                    disabled={processing || creatingFolder}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-sky-400/40 transition hover:-translate-y-0.5 hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {creatingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderPlus className="h-4 w-4" />}
+                    {creatingFolder ? 'Création…' : 'Créer'}
+                  </button>
+                </form>
+                {folderError && (
+                  <p className="rounded-xl border border-rose-200/70 bg-rose-50/80 px-3 py-2 text-xs font-medium text-rose-700 shadow-inner dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+                    {folderError}
+                  </p>
+                )}
+              </div>
+            </div>
             <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-inner dark:border-slate-700/70 dark:bg-slate-900/70">
               <label className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -492,6 +787,54 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
             </div>
             <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
               {entries.map((entry) => {
+                if (entry.status === 'identified') {
+                  const firstHit = entry.hits[0];
+                  const previewEntries = firstHit?.previewEntries?.slice(0, 6) || [];
+                  return (
+                    <div
+                      key={entry.id}
+                      className="relative overflow-hidden rounded-2xl border border-sky-200/70 bg-sky-50/80 p-4 shadow-lg shadow-sky-200/50 dark:border-sky-500/40 dark:bg-sky-500/10"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-600 dark:text-sky-200">
+                            {entry.number}
+                          </p>
+                          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Profil identifié</h4>
+                          {typeof entry.profileId === 'number' && (
+                            <p className="text-xs font-medium text-sky-700 dark:text-sky-200">
+                              Identifiant du profil : <span className="font-semibold">#{entry.profileId}</span>
+                            </p>
+                          )}
+                          {entry.folderName && (
+                            <p className="text-xs text-slate-500 dark:text-slate-300">
+                              Dossier sélectionné :{' '}
+                              <span className="font-semibold text-slate-700 dark:text-slate-100">{entry.folderName}</span>
+                            </p>
+                          )}
+                        </div>
+                        <CheckCircle2 className="h-5 w-5 text-sky-500" />
+                      </div>
+                      {previewEntries.length > 0 && (
+                        <dl className="mt-4 grid grid-cols-1 gap-3 text-xs text-slate-600 dark:text-slate-300">
+                          {previewEntries.map((entryItem) => (
+                            <div
+                              key={`${entry.id}-${entryItem.key}`}
+                              className="rounded-xl border border-white/80 bg-white/70 p-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70"
+                            >
+                              <dt className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                {entryItem.label}
+                              </dt>
+                              <dd className="mt-1 text-[0.75rem] text-slate-700 dark:text-slate-200">
+                                <StructuredPreviewValue value={entryItem.value} />
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+                    </div>
+                  );
+                }
                 if (entry.status === 'created' && entry.prefill) {
                   const firstHit = entry.hits[0];
                   const previewEntries = firstHit?.previewEntries?.slice(0, 6) || [];
@@ -527,6 +870,12 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, o
                             </div>
                           ))}
                         </dl>
+                      )}
+                      {entry.folderName && (
+                        <p className="mt-3 text-xs text-emerald-700 dark:text-emerald-200">
+                          Dossier sélectionné :{' '}
+                          <span className="font-semibold text-emerald-800 dark:text-emerald-100">{entry.folderName}</span>
+                        </p>
                       )}
                       {typeof entry.profileId === 'number' && (
                         <p className="mt-4 text-xs font-medium text-emerald-700 dark:text-emerald-200">
