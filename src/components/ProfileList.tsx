@@ -24,10 +24,8 @@ import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 import CreateFolderModal from './CreateFolderModal';
 
-const generateFolderGradient = (isDarkMode: boolean) =>
-  isDarkMode
-    ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.6) 0%, rgba(79, 70, 229, 0.55) 48%, rgba(22, 101, 177, 0.5) 100%)'
-    : 'linear-gradient(135deg, rgba(191, 219, 254, 0.95) 0%, rgba(199, 210, 254, 0.92) 48%, rgba(165, 243, 252, 0.9) 100%)';
+const getFolderBackgroundColor = (isDarkMode: boolean) =>
+  isDarkMode ? 'rgba(37, 99, 235, 0.55)' : 'rgba(59, 130, 246, 0.85)';
 
 interface ProfileAttachment {
   id: number;
@@ -1109,7 +1107,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {filteredFolders.map(folder => {
-                  const backgroundGradient = generateFolderGradient(isDarkMode);
+                  const folderBackgroundColor = getFolderBackgroundColor(isDarkMode);
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
@@ -1152,7 +1150,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                     >
                       <div
                         className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-90"
-                        style={{ backgroundImage: backgroundGradient }}
+                        style={{ backgroundColor: folderBackgroundColor }}
                       />
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                       {isFolderDropTarget && (
