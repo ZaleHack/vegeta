@@ -24,11 +24,10 @@ export interface BulkProfilePrefillData {
 interface BulkProfileImportModalProps {
   open: boolean;
   onClose: () => void;
-  onCreateProfile: (data: BulkProfilePrefillData) => void;
   runSearch: (query: string) => Promise<SearchHit[]>;
 }
 
-type ImportStatus = 'pending' | 'searching' | 'success' | 'not_found' | 'error';
+type ImportStatus = 'pending' | 'searching' | 'creating' | 'created' | 'not_found' | 'error';
 
 interface ImportEntry {
   id: string;
@@ -37,6 +36,7 @@ interface ImportEntry {
   hits: SearchHit[];
   error?: string;
   prefill?: BulkProfilePrefillData;
+  profileId?: number;
 }
 
 const sanitizeNumber = (value: string): string => {
@@ -128,12 +128,81 @@ const buildPrefillFromHits = (number: string, hits: SearchHit[]): BulkProfilePre
   };
 };
 
-const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({
-  open,
-  onClose,
-  onCreateProfile,
-  runSearch
-}) => {
+const formatExtraFieldsForSubmission = (prefill: BulkProfilePrefillData) => {
+  const initialEntries = Object.entries(prefill.extra_fields || {}).filter(
+    ([key, value]) => Boolean(key) && typeof value === 'string'
+  );
+
+  const normalizedKeys = new Set(initialEntries.map(([key]) => key.trim().toLowerCase()));
+
+  const ensureField = (label: string, value?: string) => {
+    if (!value) {
+      return;
+    }
+    const normalized = label.trim().toLowerCase();
+    if (normalizedKeys.has(normalized)) {
+      return;
+    }
+    normalizedKeys.add(normalized);
+    initialEntries.push([label, value]);
+  };
+
+  ensureField('Téléphone', prefill.phone);
+  ensureField('Email', prefill.email);
+  ensureField('Prénom', prefill.first_name);
+  ensureField('Nom', prefill.last_name);
+
+  if (!initialEntries.length) {
+    return [];
+  }
+
+  return [
+    {
+      title: "Données d'import",
+      fields: initialEntries.map(([key, value]) => ({ key, value }))
+    }
+  ];
+};
+
+const autoCreateProfile = async (prefill: BulkProfilePrefillData) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const form = new FormData();
+  if (prefill.email) form.append('email', prefill.email);
+  if (prefill.phone) form.append('phone', prefill.phone);
+  if (prefill.first_name) form.append('first_name', prefill.first_name);
+  if (prefill.last_name) form.append('last_name', prefill.last_name);
+  if (prefill.comment) form.append('comment', prefill.comment);
+
+  const extraFields = formatExtraFieldsForSubmission(prefill);
+  form.append('extra_fields', JSON.stringify(extraFields));
+
+  const response = await fetch('/api/profiles', {
+    method: 'POST',
+    headers: {
+      Authorization: token ? `Bearer ${token}` : ''
+    },
+    body: form
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message =
+      data && typeof data.error === 'string'
+        ? data.error
+        : "Erreur lors de la création automatique du profil";
+    throw new Error(message);
+  }
+
+  const profileId =
+    data && typeof data === 'object' && data.profile && typeof data.profile.id === 'number'
+      ? data.profile.id
+      : undefined;
+
+  return profileId;
+};
+
+const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({ open, onClose, runSearch }) => {
   const [manualInput, setManualInput] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [entries, setEntries] = useState<ImportEntry[]>([]);
@@ -163,7 +232,10 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({
   };
 
   const hasSearchingEntries = useMemo(
-    () => entries.some((entry) => entry.status === 'searching' || entry.status === 'pending'),
+    () =>
+      entries.some((entry) =>
+        entry.status === 'searching' || entry.status === 'pending' || entry.status === 'creating'
+      ),
     [entries]
   );
 
@@ -234,19 +306,57 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({
         }
 
         const prefill = buildPrefillFromHits(entry.number, hits);
-
         setEntries((prev) =>
           prev.map((item) =>
             item.id === entry.id
               ? {
                   ...item,
-                  status: 'success',
+                  status: 'creating',
                   hits,
-                  prefill
+                  prefill,
+                  error: undefined
                 }
               : item
           )
         );
+
+        try {
+          const profileId = await autoCreateProfile(prefill);
+
+          setEntries((prev) =>
+            prev.map((item) =>
+              item.id === entry.id
+                ? {
+                    ...item,
+                    status: 'created',
+                    hits,
+                    prefill,
+                    profileId,
+                    error: undefined
+                  }
+                : item
+            )
+          );
+        } catch (creationError) {
+          const message =
+            creationError instanceof Error
+              ? creationError.message
+              : 'Erreur inattendue lors de la création du profil';
+
+          setEntries((prev) =>
+            prev.map((item) =>
+              item.id === entry.id
+                ? {
+                    ...item,
+                    status: 'error',
+                    hits,
+                    prefill,
+                    error: message
+                  }
+                : item
+            )
+          );
+        }
       } catch (err) {
         console.error('Bulk profile import search error', err);
         setEntries((prev) =>
@@ -292,7 +402,7 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({
             Créez plusieurs fiches de profil à partir d'une liste de numéros
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-300">
-            Importez un fichier CSV ou TXT contenant vos numéros, ou saisissez-les manuellement (20 maximum). Chaque numéro est recherché automatiquement et les fiches sont préremplies pour accélérer votre travail.
+            Importez un fichier CSV ou TXT contenant vos numéros, ou saisissez-les manuellement (20 maximum). Chaque numéro est recherché automatiquement et les fiches identifiées sont créées instantanément.
           </p>
         </div>
 
@@ -371,7 +481,7 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({
             <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-inner dark:border-slate-700/70 dark:bg-slate-900/70">
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Progression</h3>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Chaque numéro est analysé via la recherche unifiée. Les fiches identifiées peuvent être personnalisées avant enregistrement.
+                Chaque numéro est analysé via la recherche unifiée. Les fiches identifiées sont créées automatiquement.
               </p>
               {processing || hasSearchingEntries ? <LoadingSpinner /> : null}
               {entries.length === 0 && !processing && (
@@ -382,7 +492,7 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({
             </div>
             <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
               {entries.map((entry) => {
-                if (entry.status === 'success' && entry.prefill) {
+                if (entry.status === 'created' && entry.prefill) {
                   const firstHit = entry.hits[0];
                   const previewEntries = firstHit?.previewEntries?.slice(0, 6) || [];
                   return (
@@ -396,7 +506,7 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({
                             {entry.number}
                           </p>
                           <h4 className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
-                            Profil identifié
+                            Profil créé automatiquement
                           </h4>
                         </div>
                         <CheckCircle2 className="h-5 w-5 text-emerald-500" />
@@ -418,14 +528,11 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({
                           ))}
                         </dl>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => entry.prefill && onCreateProfile(entry.prefill)}
-                        className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-300/50 transition hover:-translate-y-0.5 hover:bg-emerald-600"
-                      >
-                        <PlusCircle className="h-4 w-4" />
-                        Personnaliser la fiche
-                      </button>
+                      {typeof entry.profileId === 'number' && (
+                        <p className="mt-4 text-xs font-medium text-emerald-700 dark:text-emerald-200">
+                          Identifiant du profil : {entry.profileId}
+                        </p>
+                      )}
                     </div>
                   );
                 }
@@ -447,6 +554,25 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({
                   );
                 }
 
+                if (entry.status === 'creating') {
+                  return (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-indigo-200/70 bg-indigo-50/80 p-4 shadow-sm dark:border-indigo-500/40 dark:bg-indigo-500/10"
+                    >
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-600 dark:text-indigo-200">
+                          {entry.number}
+                        </p>
+                        <p className="text-sm text-indigo-700 dark:text-indigo-100">
+                          Création automatique de la fiche…
+                        </p>
+                      </div>
+                      <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
+                    </div>
+                  );
+                }
+
                 if (entry.status === 'not_found') {
                   return (
                     <div
@@ -457,9 +583,7 @@ const BulkProfileImportModal: React.FC<BulkProfileImportModalProps> = ({
                         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-600 dark:text-amber-200">
                           {entry.number}
                         </p>
-                        <p className="text-sm text-amber-700 dark:text-amber-100">
-                          Le profil n'a pas pu être identifié.
-                        </p>
+                        <p className="text-sm text-amber-700 dark:text-amber-100">Non identifié</p>
                       </div>
                     </div>
                   );
