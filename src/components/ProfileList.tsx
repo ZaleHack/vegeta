@@ -117,29 +117,6 @@ const ProfileList: React.FC<ProfileListProps> = ({
   const newFolderInputRef = useRef<HTMLInputElement | null>(null);
   const renameFolderInputRef = useRef<HTMLInputElement | null>(null);
   const [readyFolderId, setReadyFolderId] = useState<number | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(
-    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-  );
-
-  useEffect(() => {
-    if (typeof document === 'undefined') {
-      return;
-    }
-
-    const root = document.documentElement;
-    const updateMode = () => {
-      setIsDarkMode(root.classList.contains('dark'));
-    };
-
-    updateMode();
-
-    const observer = new MutationObserver(updateMode);
-    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
   const selectedFolderIdRef = useRef<number | null>(null);
   const limit = 6;
   const isAdminUser = Boolean(isAdmin);
