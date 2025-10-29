@@ -1167,7 +1167,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                               <Folder className="h-5 w-5" />
                             </span>
                             <div>
-                              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-900">{folder.name}</h3>
+                              <h3 className="text-base font-semibold text-slate-800 dark:text-white">{folder.name}</h3>
                               <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500 dark:text-slate-600">
                                 {active ? 'Dossier sélectionné' : 'Dossier'}
                               </p>
