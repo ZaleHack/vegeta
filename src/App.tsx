@@ -2211,15 +2211,27 @@ const App: React.FC = () => {
   ]);
 
   const handleRequestIdentification = async () => {
+    const normalizedSearchPhone = searchQuery.replace(/\D/g, '');
+    const hasPendingRequest =
+      normalizedSearchPhone.length > 0 &&
+      requests.some((request) => {
+        const requestPhoneDigits = request.phone.replace(/\D/g, '');
+        return request.status !== 'identified' && requestPhoneDigits === normalizedSearchPhone;
+      });
+    if (hasPendingRequest) {
+      notifyError('Une demande est déjà en cours pour ce numéro.');
+      return;
+    }
     try {
       const response = await fetch('/api/requests', {
         method: 'POST',
         headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ phone: searchQuery })
+        body: JSON.stringify({ phone: searchQuery.trim() })
       });
       const data = await response.json();
       if (response.ok) {
         notifySuccess('Demande envoyée');
+        await fetchRequests();
       } else {
         notifyError(data.error || 'Erreur lors de la demande');
       }
@@ -4246,11 +4258,18 @@ useEffect(() => {
   }, [highlightedRequestId]);
 
   const numericSearch = searchQuery.replace(/\D/g, '');
+  const hasPendingRequestForSearch =
+    numericSearch.length > 0 &&
+    requests.some((request) => {
+      const requestPhoneDigits = request.phone.replace(/\D/g, '');
+      return request.status !== 'identified' && requestPhoneDigits === numericSearch;
+    });
   const canRequestIdentification =
     !!searchResults &&
     searchResults.total === 0 &&
     (numericSearch.startsWith('77') || numericSearch.startsWith('78')) &&
-    numericSearch.length >= 9;
+    numericSearch.length >= 9 &&
+    !hasPendingRequestForSearch;
 
   const filteredGendarmerie =
     gendarmerieSearch.trim() === ''
@@ -5429,14 +5448,20 @@ useEffect(() => {
                         <p className="text-gray-500">
                           Essayez avec d'autres termes de recherche ou vérifiez l'orthographe.
                         </p>
-                          {canRequestIdentification && (
-                          <button
-                            onClick={handleRequestIdentification}
-                            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            Demander identification
-                          </button>
-                          )}
+                        {hasPendingRequestForSearch ? (
+                          <p className="mt-4 text-sm font-medium text-amber-600">
+                            Une demande d'identification est déjà en cours pour ce numéro.
+                          </p>
+                        ) : (
+                          canRequestIdentification && (
+                            <button
+                              onClick={handleRequestIdentification}
+                              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              Demander identification
+                            </button>
+                          )
+                        )}
                       </div>
                     ) : viewMode === 'list' ? (
                       <div className="p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700">
@@ -8966,7 +8991,7 @@ useEffect(() => {
                 <button
                   type="submit"
                   disabled={folderShareLoading}
-                  className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-500/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {folderShareLoading ? 'Enregistrement...' : 'Enregistrer le partage'}
                 </button>

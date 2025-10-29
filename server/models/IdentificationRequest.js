@@ -13,13 +13,14 @@ class IdentificationRequest {
       console.warn('Demande d\'identification ignorée: utilisateur introuvable', user_id);
       return null;
     }
+    const normalizedPhone = typeof phone === 'string' ? phone.trim() : phone;
     try {
       const result = await database.query(
         `INSERT INTO autres.identification_requests (user_id, phone, status) VALUES (?, ?, 'pending')`,
-        [safeUserId, phone]
+        [safeUserId, normalizedPhone]
       );
       statsCache.clear('overview:');
-      return { id: result.insertId, user_id: safeUserId, phone, status: 'pending' };
+      return { id: result.insertId, user_id: safeUserId, phone: normalizedPhone, status: 'pending' };
     } catch (error) {
       const handled = await handleMissingUserForeignKey(error);
       if (!handled) {
@@ -27,6 +28,16 @@ class IdentificationRequest {
       }
       return null;
     }
+  }
+
+  static async findPendingByUserAndPhone(userId, phone) {
+    if (!userId || !phone) {
+      return null;
+    }
+    return database.queryOne(
+      `SELECT * FROM autres.identification_requests WHERE user_id = ? AND phone = ? AND status = 'pending' LIMIT 1`,
+      [userId, phone]
+    );
   }
 
   static async findAll() {
