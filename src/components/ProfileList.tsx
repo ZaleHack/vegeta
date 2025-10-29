@@ -24,7 +24,8 @@ import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 import CreateFolderModal from './CreateFolderModal';
 
-const getFolderBackgroundColor = () => 'rgba(255, 255, 255, 0.95)';
+const getFolderBackgroundColor = (darkMode: boolean) =>
+  darkMode ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.95)';
 
 interface ProfileAttachment {
   id: number;
@@ -1106,7 +1107,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {filteredFolders.map(folder => {
-                  const folderBackgroundColor = getFolderBackgroundColor();
+                  const folderBackgroundColor = getFolderBackgroundColor(isDarkMode);
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
