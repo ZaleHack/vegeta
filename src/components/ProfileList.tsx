@@ -24,8 +24,7 @@ import PaginationControls from './PaginationControls';
 import ConfirmDialog, { ConfirmDialogOptions } from './ConfirmDialog';
 import CreateFolderModal from './CreateFolderModal';
 
-const getFolderBackgroundColor = (isDarkMode: boolean) =>
-  isDarkMode ? 'rgba(37, 99, 235, 0.55)' : 'rgba(59, 130, 246, 0.85)';
+const getFolderBackgroundColor = () => 'rgba(255, 255, 255, 0.95)';
 
 interface ProfileAttachment {
   id: number;
@@ -1107,7 +1106,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {filteredFolders.map(folder => {
-                  const folderBackgroundColor = getFolderBackgroundColor(isDarkMode);
+                  const folderBackgroundColor = getFolderBackgroundColor();
                   const active = folder.id === selectedFolderId;
                   const sharedCount = Array.isArray(folder.shared_user_ids) ? folder.shared_user_ids.length : 0;
                   const canManage = isAdminUser || folder.is_owner;
@@ -1160,15 +1159,15 @@ const ProfileList: React.FC<ProfileListProps> = ({
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
                             <span
-                              className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-400/40 ${
+                              className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-200 via-amber-300 to-amber-400 text-amber-700 shadow-lg shadow-amber-200/60 ${
                                 active ? 'animate-pulse' : ''
                               }`}
                             >
                               <Folder className="h-5 w-5" />
                             </span>
                             <div>
-                              <h3 className="text-base font-semibold text-white drop-shadow-sm">{folder.name}</h3>
-                              <p className="text-xs font-medium uppercase tracking-[0.2em] text-blue-100/80">
+                              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-900">{folder.name}</h3>
+                              <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500 dark:text-slate-600">
                                 {active ? 'Dossier sélectionné' : 'Dossier'}
                               </p>
                             </div>
@@ -1264,18 +1263,18 @@ const ProfileList: React.FC<ProfileListProps> = ({
                             </form>
                           </div>
                         )}
-                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-white drop-shadow">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1">
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-700">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-amber-100/80 px-3 py-1 text-amber-800 shadow-sm">
                             <Users className="h-3.5 w-3.5" /> {folder.profiles_count ?? 0}{' '}
                             {(folder.profiles_count ?? 0) > 1 ? 'fiches' : 'fiche'}
                           </span>
                           {folder.shared_with_me && (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1">
+                            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-slate-600 shadow-sm">
                               <Share2 className="h-3.5 w-3.5" /> Partagé avec vous
                             </span>
                           )}
                           {folder.is_owner && sharedCount > 0 && (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1">
+                            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-slate-600 shadow-sm">
                               <Users className="h-3.5 w-3.5" /> Partagé avec {sharedCount}{' '}
                               {sharedCount > 1 ? 'membres' : 'membre'}
                             </span>
