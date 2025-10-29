@@ -7211,52 +7211,208 @@ useEffect(() => {
           )}
 
           {currentPage === 'profiles' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               <PageHeader icon={<FileText className="h-6 w-6" />} title="Fiches de profil" />
-            {showProfileForm ? (
-              <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-2xl font-bold text-center text-gray-800">
-                  {editingProfileId ? 'Modifier la fiche de profil' : 'Créer une fiche de profil'}
-                </h2>
-                <ProfileForm
-                  initialValues={profileDefaults}
-                  profileId={editingProfileId || undefined}
-                  onSaved={(savedProfileId) => {
-                    setShowProfileForm(false);
-                    setProfileListRefreshKey((prev) => prev + 1);
-                    if (savedProfileId) {
-                      setHighlightedProfileId(savedProfileId);
-                    }
-                  }}
-                  initialFolderId={profileFormFolderId}
-                />
-                <div className="mt-4">
-                  <button
-                    className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 border border-slate-200 rounded-lg transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-700"
-                    onClick={() => setShowProfileForm(false)}
-                  >
-                    Retour à la liste
-                  </button>
+
+              <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/90 to-sky-50/50 p-8 shadow-xl shadow-sky-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:from-slate-950/90 dark:via-slate-900/70 dark:to-slate-900/50 dark:shadow-black/40">
+                <div className="pointer-events-none absolute -right-32 top-0 h-64 w-64 rounded-full bg-sky-200/40 blur-3xl dark:bg-sky-900/20" />
+                <div className="pointer-events-none absolute -left-24 bottom-0 h-56 w-56 rounded-full bg-indigo-200/40 blur-3xl dark:bg-indigo-900/30" />
+                <div className="relative z-10 grid gap-10 lg:grid-cols-[1.25fr,0.75fr]">
+                  <div className="space-y-6">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-300">
+                      Espace collaboratif
+                    </span>
+                    <div className="space-y-3">
+                      <h2 className="text-3xl font-bold leading-tight text-slate-900 dark:text-white">
+                        Centralisez, enrichissez et partagez vos fiches en toute fluidité
+                      </h2>
+                      <p className="max-w-2xl text-base text-slate-600 dark:text-slate-300">
+                        Structurez vos dossiers, collaborez avec votre équipe et accédez rapidement aux informations essentielles grâce à une interface modernisée et pensée pour les usages terrain.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => openCreateProfile({})}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/30 transition-transform hover:-translate-y-0.5 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/40 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Nouvelle fiche
+                      </button>
+                      <a
+                        href="#profiles-list"
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-300/70 bg-white/80 px-5 py-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-400 hover:text-slate-800 dark:border-slate-600/70 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
+                      >
+                        Explorer les dossiers
+                        <ArrowRight className="h-4 w-4" />
+                      </a>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {[{
+                        icon: Users,
+                        title: 'Vue unifiée',
+                        description: 'Consolidez les données clés et identifiez vos interlocuteurs en quelques secondes.'
+                      }, {
+                        icon: Shield,
+                        title: 'Accès sécurisé',
+                        description: 'Gérez les droits de consultation et de partage en fonction des équipes et des dossiers.'
+                      }, {
+                        icon: Activity,
+                        title: 'Suivi en continu',
+                        description: 'Capitalisez sur l’historique des échanges et gardez une trace des mises à jour.'
+                      }].map(({ icon: Icon, title, description }) => (
+                        <div
+                          key={title}
+                          className="group relative overflow-hidden rounded-2xl border border-white/70 bg-white/90 p-4 shadow-lg shadow-slate-200/40 transition-transform duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-700/60 dark:bg-slate-900/70"
+                        >
+                          <div className="absolute -right-12 top-0 h-24 w-24 rounded-full bg-sky-100/60 blur-2xl transition-opacity group-hover:opacity-80 dark:bg-sky-900/40" />
+                          <div className="relative z-10 space-y-3">
+                            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900/90 text-white shadow-inner shadow-slate-900/30 dark:bg-white/10">
+                              <Icon className="h-5 w-5" />
+                            </span>
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-300">{description}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-5">
+                    <div className="overflow-hidden rounded-3xl border border-white/70 bg-white/90 p-6 shadow-2xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400 dark:text-slate-500">Checklist intelligente</p>
+                          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Des fiches prêtes pour l’action</h3>
+                          <p className="text-sm text-slate-600 dark:text-slate-300">
+                            Enrichissez vos fiches avec des pièces jointes, des notes et des métadonnées structurées. Chaque dossier conserve une trace des partages et des modifications.
+                          </p>
+                        </div>
+                        <ul className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                          <li className="flex items-center gap-3">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            Modèles prêts à l’emploi pour gagner du temps à la saisie.
+                          </li>
+                          <li className="flex items-center gap-3">
+                            <Clock className="h-4 w-4 text-sky-500" />
+                            Historique des mises à jour accessible à tout moment.
+                          </li>
+                          <li className="flex items-center gap-3">
+                            <Share2 className="h-4 w-4 text-indigo-500" />
+                            Partage sécurisé avec votre division ou des collaborateurs ciblés.
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                    <div className="rounded-3xl border border-dashed border-slate-300/70 bg-white/80 p-5 text-sm text-slate-600 shadow-inner dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-300">
+                      Astuce : créez des dossiers thématiques pour structurer vos investigations et faciliter la mutualisation des connaissances.
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:bg-slate-900/70 dark:border-slate-700/60">
-                <ProfileList
-                  onCreate={folderId => openCreateProfile({}, folderId)}
-                  onEdit={openEditProfile}
-                  currentUser={currentUser}
-                  isAdmin={isAdmin}
-                  onShareFolder={openFolderShareModal}
-                  refreshKey={profileListRefreshKey}
-                  focusedProfileId={highlightedProfileId}
-                  onFocusedProfileHandled={() => setHighlightedProfileId(null)}
-                  focusedFolderId={highlightedFolderId}
-                  onFocusedFolderHandled={() => setHighlightedFolderId(null)}
-                />
-              </div>
-            )}
-          </div>
-        )}
+              </section>
+
+              {showProfileForm ? (
+                <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 p-8 shadow-xl shadow-slate-200/50 dark:border-slate-700/60 dark:bg-slate-900/80">
+                  <div className="pointer-events-none absolute -right-28 top-10 h-56 w-56 rounded-full bg-emerald-200/40 blur-3xl dark:bg-emerald-900/40" />
+                  <div className="pointer-events-none absolute -left-24 bottom-0 h-48 w-48 rounded-full bg-sky-200/30 blur-3xl dark:bg-sky-900/30" />
+                  <div className="relative z-10 space-y-6">
+                    <div className="space-y-2 text-center md:text-left">
+                      <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/60 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-emerald-600 dark:border-emerald-500/40 dark:bg-emerald-500/20 dark:text-emerald-200">
+                        {editingProfileId ? 'Edition en cours' : 'Nouvelle fiche'}
+                      </span>
+                      <h2 className="text-3xl font-bold text-slate-900 dark:text-white">
+                        {editingProfileId ? 'Modifier la fiche de profil' : 'Créer une fiche de profil'}
+                      </h2>
+                      <p className="text-sm text-slate-500 dark:text-slate-300">
+                        Renseignez les informations pertinentes, ajoutez des pièces jointes et catégorisez votre fiche pour la retrouver instantanément.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/70 bg-white/95 p-6 shadow-inner shadow-slate-200/50 dark:border-slate-700/60 dark:bg-slate-900/70">
+                      <ProfileForm
+                        initialValues={profileDefaults}
+                        profileId={editingProfileId || undefined}
+                        onSaved={(savedProfileId) => {
+                          setShowProfileForm(false);
+                          setProfileListRefreshKey((prev) => prev + 1);
+                          if (savedProfileId) {
+                            setHighlightedProfileId(savedProfileId);
+                          }
+                        }}
+                        initialFolderId={profileFormFolderId}
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        Les modifications sont automatiquement versionnées afin de conserver l’historique des actions.
+                      </p>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-400 hover:text-slate-800 dark:border-slate-600/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
+                        onClick={() => setShowProfileForm(false)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Retour à la gestion
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              ) : (
+                <section
+                  id="profiles-list"
+                  className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 p-8 shadow-xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/80"
+                >
+                  <div className="pointer-events-none absolute -right-28 top-10 h-64 w-64 rounded-full bg-sky-200/40 blur-3xl dark:bg-sky-900/30" />
+                  <div className="pointer-events-none absolute -left-32 bottom-0 h-52 w-52 rounded-full bg-indigo-200/40 blur-3xl dark:bg-indigo-900/30" />
+                  <div className="relative z-10 space-y-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="space-y-1">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-300">
+                          Bibliothèque dynamique
+                        </span>
+                        <h3 className="text-2xl font-semibold text-slate-900 dark:text-white">Vos dossiers et fiches</h3>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                          Filtrez vos contacts, retrouvez les partages récents et organisez vos dossiers par thématiques.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openCreateProfile({})}
+                          className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/40 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Nouvelle fiche
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProfileListRefreshKey((prev) => prev + 1)}
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-300/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-400 hover:text-slate-800 dark:border-slate-600/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-white"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Actualiser
+                        </button>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/70 bg-white/95 p-2 shadow-inner shadow-slate-200/50 dark:border-slate-700/60 dark:bg-slate-900/70">
+                      <ProfileList
+                        onCreate={folderId => openCreateProfile({}, folderId)}
+                        onEdit={openEditProfile}
+                        currentUser={currentUser}
+                        isAdmin={isAdmin}
+                        onShareFolder={openFolderShareModal}
+                        refreshKey={profileListRefreshKey}
+                        focusedProfileId={highlightedProfileId}
+                        onFocusedProfileHandled={() => setHighlightedProfileId(null)}
+                        focusedFolderId={highlightedFolderId}
+                        onFocusedFolderHandled={() => setHighlightedFolderId(null)}
+                      />
+                    </div>
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
 
         {currentPage === 'blacklist' && isAdmin && (
           <div className="space-y-6">
