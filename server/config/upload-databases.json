@@ -1,0 +1,128 @@
+[
+  {
+    "id": "esolde.mytable",
+    "name": "esolde - mytable",
+    "description": "Données employés esolde",
+    "owner": "Direction des ressources humaines",
+    "tags": ["RH", "Identité"],
+    "enabled": true,
+    "privacy": {
+      "level": "Restreint",
+      "rules": "Contient des informations nominatives sur les agents esolde. Accès réservé aux cellules RH habilitées."
+    },
+    "updatedAt": null,
+    "updatedBy": null
+  },
+  {
+    "id": "rhpolice.personne_concours",
+    "name": "rhpolice - personne_concours",
+    "description": "Personnels police nationale",
+    "owner": "DGPN",
+    "tags": ["Police", "Concours"],
+    "enabled": true,
+    "privacy": {
+      "level": "Diffusion limitée",
+      "rules": "Comprend les résultats d'épreuves et données personnelles des candidats aux concours police."
+    },
+    "updatedAt": null,
+    "updatedBy": null
+  },
+  {
+    "id": "renseignement.agentfinance",
+    "name": "renseignement - agentfinance",
+    "description": "Agents finances publiques",
+    "owner": "Direction du renseignement",
+    "tags": ["Fiscalité"],
+    "enabled": true,
+    "privacy": {
+      "level": "Secret",
+      "rules": "Les données détaillent des affectations sensibles et doivent être protégées conformément aux directives internes."
+    },
+    "updatedAt": null,
+    "updatedBy": null
+  },
+  {
+    "id": "rhgendarmerie.personne",
+    "name": "rhgendarmerie - personne",
+    "description": "Personnel gendarmerie",
+    "owner": "DGGN",
+    "tags": ["Gendarmerie", "RH"],
+    "enabled": true,
+    "privacy": {
+      "level": "Diffusion restreinte",
+      "rules": "Réservé aux officiers instructeurs gendarmerie. Contient des informations de carrière."
+    },
+    "updatedAt": null,
+    "updatedBy": null
+  },
+  {
+    "id": "permis.tables",
+    "name": "permis - tables",
+    "description": "Permis de conduire",
+    "owner": "Ministère des transports",
+    "tags": ["Transport"],
+    "enabled": true,
+    "privacy": {
+      "level": "Confidentiel",
+      "rules": "Informations personnelles sur les détenteurs de permis. Utilisation limitée aux enquêtes judiciaires."
+    },
+    "updatedAt": null,
+    "updatedBy": null
+  },
+  {
+    "id": "expresso.expresso",
+    "name": "expresso - expresso",
+    "description": "Données Expresso Money",
+    "owner": "Partenaire télécom",
+    "tags": ["Télécom", "Finance"],
+    "enabled": true,
+    "privacy": {
+      "level": "Confidentiel partenaire",
+      "rules": "Accès soumis à l'accord de l'opérateur Expresso et limité aux analystes financiers habilités."
+    },
+    "updatedAt": null,
+    "updatedBy": null
+  },
+  {
+    "id": "elections.dakar",
+    "name": "elections - dakar",
+    "description": "Électeurs région Dakar",
+    "owner": "Commission électorale",
+    "tags": ["Élections"],
+    "enabled": true,
+    "privacy": {
+      "level": "Public encadré",
+      "rules": "Liste électorale soumise à consultation encadrée. Toute extraction doit être tracée."
+    },
+    "updatedAt": null,
+    "updatedBy": null
+  },
+  {
+    "id": "autres.vehicules",
+    "name": "autres - vehicules",
+    "description": "Immatriculations véhicules",
+    "owner": "Ministère de l'intérieur",
+    "tags": ["Véhicules"],
+    "enabled": true,
+    "privacy": {
+      "level": "Diffusion restreinte",
+      "rules": "Données nominatives et plaques d'immatriculation. Usage réservé aux enquêtes."
+    },
+    "updatedAt": null,
+    "updatedBy": null
+  },
+  {
+    "id": "autres.entreprises",
+    "name": "autres - entreprises",
+    "description": "Registre des entreprises",
+    "owner": "Ministère du commerce",
+    "tags": ["Entreprises"],
+    "enabled": true,
+    "privacy": {
+      "level": "Public",
+      "rules": "Informations publiques mais la diffusion doit respecter les conditions d'utilisation du registre national."
+    },
+    "updatedAt": null,
+    "updatedBy": null
+  }
+]
