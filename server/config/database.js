@@ -629,10 +629,13 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      const profileFolderIdInfo = await getColumnInfo('autres.profile_folders', 'id');
+      const profileFolderIdColumnType = (profileFolderIdInfo?.COLUMN_TYPE || 'INT').toUpperCase();
+
       await query(`
         CREATE TABLE IF NOT EXISTS autres.profile_folder_shares (
           id INT AUTO_INCREMENT PRIMARY KEY,
-          folder_id INT NOT NULL,
+          folder_id ${profileFolderIdColumnType} NOT NULL,
           user_id INT NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE KEY uniq_profile_folder_user (folder_id, user_id),
@@ -647,7 +650,7 @@ class DatabaseManager {
         CREATE TABLE IF NOT EXISTS autres.profiles (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,
-          folder_id INT DEFAULT NULL,
+          folder_id ${profileFolderIdColumnType} DEFAULT NULL,
           first_name VARCHAR(255) DEFAULT NULL,
           last_name VARCHAR(255) DEFAULT NULL,
           phone VARCHAR(50) DEFAULT NULL,
@@ -709,7 +712,7 @@ class DatabaseManager {
         'autres.profiles',
         'folder_id',
         {
-          type: 'INT',
+          type: profileFolderIdColumnType,
           nullable: true,
           after: 'user_id'
         },
