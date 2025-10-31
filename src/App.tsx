@@ -1456,6 +1456,7 @@ const App: React.FC = () => {
   }, [totalCasePages]);
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
+  const latestSelectedCaseIdRef = useRef<number | null>(null);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
   const [showMeetingPoints, setShowMeetingPoints] = useState(false);
   const [zoneMode, setZoneMode] = useState(false);
@@ -1533,6 +1534,10 @@ const App: React.FC = () => {
     const alertCount = Array.isArray(globalFraudResult.numbers) ? globalFraudResult.numbers.length : 0;
     return { totalImeis: imeiCount, totalNumbers: numbersCount, alerts: alertCount };
   }, [globalFraudResult]);
+
+  useEffect(() => {
+    latestSelectedCaseIdRef.current = selectedCase?.id ?? null;
+  }, [selectedCase]);
 
   useEffect(() => {
     setFraudResult(null);
@@ -3473,6 +3478,8 @@ useEffect(() => {
   const fetchFraudDetection = async (numbersOverride?: string[]) => {
     if (!selectedCase) return;
 
+    const currentCaseId = selectedCase.id;
+
     const providedNumbers = Array.isArray(numbersOverride) ? numbersOverride : [];
     const dedupedInput = providedNumbers.length > 0
       ? dedupeCdrIdentifiers(providedNumbers)
@@ -3505,17 +3512,25 @@ useEffect(() => {
       );
       const data = await res.json();
       if (res.ok) {
-        setFraudResult(data);
+        if (latestSelectedCaseIdRef.current === currentCaseId) {
+          setFraudResult(data);
+        }
       } else {
-        setFraudResult(null);
-        setFraudError(data.error || 'Erreur lors de la détection de fraude');
+        if (latestSelectedCaseIdRef.current === currentCaseId) {
+          setFraudResult(null);
+          setFraudError(data.error || 'Erreur lors de la détection de fraude');
+        }
       }
     } catch (error) {
       console.error('Erreur détection fraude:', error);
-      setFraudResult(null);
-      setFraudError('Erreur lors de la détection de fraude');
+      if (latestSelectedCaseIdRef.current === currentCaseId) {
+        setFraudResult(null);
+        setFraudError('Erreur lors de la détection de fraude');
+      }
     } finally {
-      setFraudLoading(false);
+      if (latestSelectedCaseIdRef.current === currentCaseId) {
+        setFraudLoading(false);
+      }
     }
   };
 
