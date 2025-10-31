@@ -2696,7 +2696,7 @@ useEffect(() => {
       },
       {
         id: 'operations',
-        title: 'Opérations CDR',
+        title: 'Géolocalisation',
         value: numberFormatter.format(operations?.total ?? 0),
         icon: Activity,
         gradient: 'from-amber-500 via-orange-500 to-red-500',
@@ -4532,7 +4532,7 @@ useEffect(() => {
                   <Activity className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Recherche CDR</h3>
+                  <h3 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Géolocalisation</h3>
                   <p className="text-sm text-slate-500 dark:text-slate-300">Configurez et lancez vos analyses en quelques clics.</p>
                 </div>
               </div>
@@ -5046,7 +5046,7 @@ useEffect(() => {
 
             <button
               onClick={() => navigateToPage('cdr')}
-              title="CDR"
+              title="Géolocalisation"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr'
                   ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
@@ -5054,7 +5054,7 @@ useEffect(() => {
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
               <Clock className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
-              {sidebarOpen && <span className="ml-3">CDR</span>}
+              {sidebarOpen && <span className="ml-3">Géolocalisation</span>}
             </button>
 
             <button
@@ -6109,7 +6109,7 @@ useEffect(() => {
                         <Clock className="h-6 w-6 text-blue-600 dark:text-blue-200" />
                       </div>
                       <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Opérations CDR</h1>
+                        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Géolocalisation</h1>
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                           Une interface repensée pour gérer vos analyses télécoms en toute fluidité.
                         </p>
@@ -8449,7 +8449,7 @@ useEffect(() => {
                           <div className="rounded-2xl border border-gray-100 dark:border-gray-700/60 p-5 bg-gradient-to-br from-amber-50 via-white to-white dark:from-amber-950/30 dark:via-gray-900/60">
                             <div className="flex items-start justify-between gap-4">
                               <div>
-                                <p className="text-sm font-semibold text-amber-600 dark:text-amber-300">Opérations CDR</p>
+                                <p className="text-sm font-semibold text-amber-600 dark:text-amber-300">Géolocalisation</p>
                                 <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">{numberFormatter.format(operationsTotal)}</p>
                                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-amber-700 dark:text-amber-200">
                                   <span className="inline-flex items-center rounded-full bg-white/70 dark:bg-white/10 px-3 py-1">
