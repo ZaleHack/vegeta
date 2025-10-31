@@ -646,6 +646,21 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      const profileFolderShareFolderColumnInfo = await getColumnInfo(
+        'autres.profile_folder_shares',
+        'folder_id'
+      );
+      await ensureColumnDefinition(
+        'autres.profile_folder_shares',
+        'folder_id',
+        {
+          type: profileFolderIdColumnType,
+          nullable: false,
+          after: 'id'
+        },
+        profileFolderShareFolderColumnInfo
+      );
+
       await query(`
         CREATE TABLE IF NOT EXISTS autres.profiles (
           id INT AUTO_INCREMENT PRIMARY KEY,
