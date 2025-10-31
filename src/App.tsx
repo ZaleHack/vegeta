@@ -1482,8 +1482,8 @@ const App: React.FC = () => {
   }, [globalFraudResult]);
 
   useEffect(() => {
-    setFraudResult(null);
-    setFraudError('');
+    setGlobalFraudResult(null);
+    setGlobalFraudError('');
   }, [selectedCase, cdrIdentifiers]);
 
   const normalizeCdrNumber = useCallback((value: string) => {
