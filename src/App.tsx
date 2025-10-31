@@ -4520,7 +4520,7 @@ useEffect(() => {
   }
 
   const renderCdrSearchForm = () => {
-    const showDetectionPanel = !showCdrMap && Boolean(selectedCase);
+    const showDetectionPanel = false;
 
     const combinedSection = (
       <section className="rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/50 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
