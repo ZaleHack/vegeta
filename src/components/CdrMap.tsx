@@ -575,6 +575,7 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
     lat: number;
     lng: number;
     azimut: number;
+    hasAzimut: boolean;
     timestamp: number;
     cellKey: string;
     cgi?: string | null;
@@ -599,13 +600,12 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
   });
 
   pts.forEach((point) => {
-    if (!point.source) return;
-
     const parsedCgi = parseCgi(point.cgi);
-    const azimut = normalizeAzimut(point.azimut);
+    const azimutValue = normalizeAzimut(point.azimut);
+    const hasAzimut = azimutValue !== null;
     const timestamp = parseTimestamp(point.callDate, point.startTime);
 
-    if (azimut === null || Number.isNaN(timestamp)) return;
+    if (Number.isNaN(timestamp)) return;
 
     let lat = Number.parseFloat(point.latitude);
     let lng = Number.parseFloat(point.longitude);
@@ -625,10 +625,14 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
     const cellKey = parsedCgi?.normalized ?? `${lat.toFixed(6)},${lng.toFixed(6)}`;
     if (!cellKey) return;
 
+    const groupingKey = (point.tracked || point.source)?.trim();
+    if (!groupingKey) return;
+
     const event: TriangulationEvent = {
       lat,
       lng,
-      azimut,
+      azimut: hasAzimut ? azimutValue : 0,
+      hasAzimut,
       timestamp,
       cellKey,
       cgi: parsedCgi?.normalized ?? null,
@@ -636,9 +640,9 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
       cgiParts: parsedCgi ?? undefined
     };
 
-    const list = eventsBySource.get(point.source) || [];
+    const list = eventsBySource.get(groupingKey) || [];
     list.push(event);
-    eventsBySource.set(point.source, list);
+    eventsBySource.set(groupingKey, list);
   });
 
   const bucketWindowMs = 3 * 60 * 1000; // 3 minutes
@@ -723,19 +727,61 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
       polygon = createCircle([baryLat, baryLng], 250);
     }
 
-    const cells = events.map((event) => ({
-      position: [event.lat, event.lng] as [number, number],
-      cgi: event.cgi ?? undefined,
-      rawCgi: event.rawCgi ?? undefined,
-      parts: event.cgiParts
-    }));
-    const timestamp = events.reduce((acc, cur) => Math.max(acc, cur.timestamp), 0);
+    return {
+      barycenter: [baryLat, baryLng] as [number, number],
+      polygon
+    };
+  };
+
+  const buildFallbackZone = (events: TriangulationEvent[]) => {
+    if (events.length === 0) {
+      return null;
+    }
+
+    const validEvents = events.filter(
+      (event) => Number.isFinite(event.lat) && Number.isFinite(event.lng)
+    );
+    if (validEvents.length === 0) {
+      return null;
+    }
+
+    const baryLat =
+      validEvents.reduce((acc, cur) => acc + cur.lat, 0) / validEvents.length;
+    const baryLng =
+      validEvents.reduce((acc, cur) => acc + cur.lng, 0) / validEvents.length;
+
+    const coords: Coord[] = validEvents.map((event) => [event.lng, event.lat]);
+
+    if (coords.length >= 3) {
+      const hull = convexHull(coords);
+      const averageDistance =
+        validEvents.reduce(
+          (acc, event) => acc + haversineDistance([baryLat, baryLng], [event.lat, event.lng]),
+          0
+        ) / Math.max(validEvents.length, 1);
+      const bufferDistance = Math.max(150, Math.min(averageDistance / 2, 1500));
+      const buffered = bufferPolygon(hull, [baryLng, baryLat], bufferDistance);
+      return {
+        barycenter: [baryLat, baryLng] as [number, number],
+        polygon: buffered.map(([lng, lat]) => [lat, lng] as [number, number])
+      };
+    }
+
+    if (coords.length === 2) {
+      const distance = haversineDistance(
+        [validEvents[0].lat, validEvents[0].lng],
+        [validEvents[1].lat, validEvents[1].lng]
+      );
+      const radius = Math.max(150, Math.min(distance / 2 + 100, 1500));
+      return {
+        barycenter: [baryLat, baryLng] as [number, number],
+        polygon: createCircle([baryLat, baryLng], radius)
+      };
+    }
 
     return {
       barycenter: [baryLat, baryLng] as [number, number],
-      polygon,
-      cells,
-      timestamp
+      polygon: createCircle([baryLat, baryLng], 250)
     };
   };
 
@@ -765,13 +811,31 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
       });
 
       const uniqueEvents = Array.from(byCgi.values());
-      if (uniqueEvents.length < 2) {
+      if (uniqueEvents.length === 0) {
         return;
       }
 
-      const result = computeIntersections(uniqueEvents);
-      if (result) {
-        zones.push({ ...result, source });
+      const eventsWithAzimut = uniqueEvents.filter((event) => event.hasAzimut);
+      const cells = uniqueEvents.map((event) => ({
+        position: [event.lat, event.lng] as [number, number],
+        cgi: event.cgi ?? undefined,
+        rawCgi: event.rawCgi ?? undefined,
+        parts: event.cgiParts
+      }));
+      const timestamp = uniqueEvents.reduce((acc, cur) => Math.max(acc, cur.timestamp), 0);
+
+      const result =
+        eventsWithAzimut.length >= 2 ? computeIntersections(eventsWithAzimut) : null;
+      const fallback = result ?? buildFallbackZone(uniqueEvents);
+
+      if (fallback) {
+        zones.push({
+          barycenter: fallback.barycenter,
+          polygon: fallback.polygon,
+          cells,
+          timestamp,
+          source
+        });
       }
     });
   });
