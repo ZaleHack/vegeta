@@ -242,14 +242,30 @@ class DatabaseManager {
         `);
       };
 
-      const dropForeignKeyIfExists = async (constraintName) => {
-        if (!constraintName) {
+      const dropForeignKeyIfExists = async (tableName, constraintName) => {
+        if (!tableName || !constraintName) {
           return;
         }
         try {
           await this.pool.execute(`
-            ALTER TABLE autres.users
+            ALTER TABLE ${tableName}
             DROP FOREIGN KEY \`${constraintName}\`
+          `);
+        } catch (error) {
+          if (error.code !== 'ER_CANT_DROP_FIELD_OR_KEY') {
+            throw error;
+          }
+        }
+      };
+
+      const dropIndexIfExists = async (tableName, indexName) => {
+        if (!tableName || !indexName) {
+          return;
+        }
+        try {
+          await this.pool.execute(`
+            ALTER TABLE ${tableName}
+            DROP INDEX \`${indexName}\`
           `);
         } catch (error) {
           if (error.code !== 'ER_CANT_DROP_FIELD_OR_KEY') {
@@ -292,7 +308,7 @@ class DatabaseManager {
         // Drop unexpected constraints to avoid conflicts when recreating
         for (const fk of foreignKeys) {
           if (fk.CONSTRAINT_NAME !== expectedConstraintName || fk.DELETE_RULE !== 'SET NULL') {
-            await dropForeignKeyIfExists(fk.CONSTRAINT_NAME);
+            await dropForeignKeyIfExists('autres.users', fk.CONSTRAINT_NAME);
           }
         }
 
@@ -334,7 +350,7 @@ class DatabaseManager {
               }
               if (error.code === 'ER_ERROR_ON_RENAME' && !retry) {
                 await cleanOrphanedDivisionReferences();
-                await dropForeignKeyIfExists(expectedConstraintName);
+                await dropForeignKeyIfExists('autres.users', expectedConstraintName);
                 return tryAddConstraint(true);
               }
               if (
@@ -650,6 +666,21 @@ class DatabaseManager {
         'autres.profile_folder_shares',
         'folder_id'
       );
+      const existingProfileFolderShareFks = await query(`
+        SELECT CONSTRAINT_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = 'autres'
+          AND TABLE_NAME = 'profile_folder_shares'
+          AND COLUMN_NAME = 'folder_id'
+          AND REFERENCED_TABLE_NAME = 'profile_folders'
+      `);
+
+      for (const fk of existingProfileFolderShareFks) {
+        await dropForeignKeyIfExists('autres.profile_folder_shares', fk.CONSTRAINT_NAME);
+      }
+
+      await dropIndexIfExists('autres.profile_folder_shares', 'idx_profile_folder_share_folder');
+
       await ensureColumnDefinition(
         'autres.profile_folder_shares',
         'folder_id',
@@ -660,6 +691,30 @@ class DatabaseManager {
         },
         profileFolderShareFolderColumnInfo
       );
+
+      try {
+        await query(`
+          ALTER TABLE autres.profile_folder_shares
+          ADD INDEX idx_profile_folder_share_folder (folder_id)
+        `);
+      } catch (error) {
+        if (error.code !== 'ER_DUP_KEYNAME') {
+          throw error;
+        }
+      }
+
+      try {
+        await query(`
+          ALTER TABLE autres.profile_folder_shares
+          ADD CONSTRAINT fk_profile_folder_shares_folder
+          FOREIGN KEY (folder_id) REFERENCES autres.profile_folders(id)
+          ON DELETE CASCADE
+        `);
+      } catch (error) {
+        if (error.code !== 'ER_DUP_KEYNAME' && error.code !== 'ER_CANT_CREATE_TABLE') {
+          throw error;
+        }
+      }
 
       await query(`
         CREATE TABLE IF NOT EXISTS autres.profiles (
