@@ -254,20 +254,12 @@ const getPointColor = (type: string, direction?: string) => {
 const getIcon = (
   type: string,
   direction: string | undefined,
-  colorOverride?: string,
-  options?: { isPositionSignal?: boolean }
+  colorOverride?: string
 ) => {
   const size = 32;
   let inner: React.ReactElement;
-  const isPositionSignal = options?.isPositionSignal;
 
-  const backgroundColor = isPositionSignal
-    ? '#f97316'
-    : colorOverride || getPointColor(type, direction);
-
-  if (isPositionSignal) {
-    inner = <Crosshair size={16} className="text-white" />;
-  } else if (type === 'web') {
+  if (type === 'web') {
     inner = <MapPin size={16} className="text-white" />;
   } else if (type === 'sms') {
     inner = <MessageSquare size={16} className="text-white" />;
@@ -283,17 +275,17 @@ const getIcon = (
   const icon = (
     <div
       style={{
-        backgroundColor,
+        backgroundColor: colorOverride || getPointColor(type, direction),
         borderRadius: '9999px',
         width: size,
         height: size,
         display: 'flex',
         alignItems: 'center',
-      justifyContent: 'center'
-    }}
-  >
-    {inner}
-  </div>
+        justifyContent: 'center'
+      }}
+    >
+      {inner}
+    </div>
   );
 
   return L.divIcon({
@@ -320,78 +312,6 @@ const formatPhoneForDisplay = (value?: string): string => {
   const normalized = normalizePhoneDigits(value);
   if (normalized) return normalized;
   return value?.trim() || 'N/A';
-};
-
-const POSITION_SIGNAL_EXCLUDED_PREFIXES = [
-  '22177',
-  '22178',
-  '22176',
-  '22175',
-  '22172',
-  '221770',
-  '22133'
-];
-
-const extractPhoneDigits = (value?: string): string => {
-  if (!value) return '';
-  return value.replace(/\D/g, '');
-};
-
-const hasExcludedPositionPrefix = (value?: string): boolean => {
-  const digits = extractPhoneDigits(value);
-  if (!digits) return false;
-  return POSITION_SIGNAL_EXCLUDED_PREFIXES.some((prefix) => digits.startsWith(prefix));
-};
-
-const isInternationalNumber = (value?: string): boolean => {
-  const digits = extractPhoneDigits(value);
-  if (!digits) return false;
-  if (digits.startsWith('00')) {
-    const trimmed = digits.replace(/^0+/, '');
-    if (!trimmed) return false;
-    return !trimmed.startsWith('221');
-  }
-  if (digits.startsWith('221')) {
-    return false;
-  }
-  return digits.length > 9;
-};
-
-const getRelatedContactNumbers = (point: Point): string[] => {
-  const candidates = [point.caller, point.callee, point.number].filter(
-    (value): value is string => Boolean(value && value.trim())
-  );
-
-  if (candidates.length === 0) return [];
-
-  const trackedNormalized = normalizePhoneDigits(point.tracked);
-  const seen = new Set<string>();
-
-  return candidates.filter((value) => {
-    const normalized = normalizePhoneDigits(value);
-    if (normalized && trackedNormalized && normalized === trackedNormalized) {
-      return false;
-    }
-
-    const key = value.trim();
-    if (!key || seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
-};
-
-const isPositionSignal = (point: Point): boolean => {
-  if (point.type === 'sms' || point.type === 'web') return false;
-
-  const duration = getPointDurationInSeconds(point);
-  if (duration !== 1) return false;
-
-  const relatedNumbers = getRelatedContactNumbers(point);
-  return relatedNumbers.every(
-    (number) => !hasExcludedPositionPrefix(number) && !isInternationalNumber(number)
-  );
 };
 
 const getArrowIcon = (angle: number) => {
@@ -436,20 +356,17 @@ const getGroupIcon = (
   count: number,
   type: string,
   direction: string | undefined,
-  colorOverride?: string,
-  options?: { isPositionSignalGroup?: boolean }
+  colorOverride?: string
 ) => {
   const size = 32;
-  const isPositionSignalGroup = options?.isPositionSignalGroup;
-  const color = isPositionSignalGroup ? '#f97316' : colorOverride || getPointColor(type, direction);
-  const InnerIcon = isPositionSignalGroup ? Crosshair : Layers;
+  const color = colorOverride || getPointColor(type, direction);
   const icon = (
     <div className="relative">
       <div
         className="w-8 h-8 rounded-full flex items-center justify-center text-white"
         style={{ backgroundColor: color }}
       >
-        <InnerIcon size={16} />
+        <Layers size={16} />
       </div>
       <span className="absolute -top-1 -right-1 bg-gray-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
         {count}
@@ -2206,14 +2123,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       if (events.length === 0) return null;
       if (events.length === 1) {
         const loc = events[0];
-        const positionSignal = isPositionSignal(loc);
         return (
           <Marker
             key={key}
             position={position}
-            icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source), {
-              isPositionSignal: positionSignal
-            })}
+            icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
           >
             <Popup className="cdr-popup">{renderEventPopupContent(loc)}</Popup>
           </Marker>
@@ -2221,7 +2135,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       }
 
       const first = events[0];
-      const isGroupPositionSignal = events.every((evt) => isPositionSignal(evt));
       const uniqueSources = Array.from(
         new Set(
           events
@@ -2238,8 +2151,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             events.length,
             first.type,
             first.direction,
-            resolveSourceColor(first.source),
-            { isPositionSignalGroup: isGroupPositionSignal }
+            resolveSourceColor(first.source)
           )}
         >
           <Popup className="cdr-popup">
@@ -2437,9 +2349,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 parseFloat(loc.latitude),
                 parseFloat(loc.longitude)
               ]}
-              icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source), {
-                isPositionSignal: isPositionSignal(loc)
-              })}
+              icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
             >
               <Popup className="cdr-popup">
                 {renderEventPopupContent(loc)}
