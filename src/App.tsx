@@ -519,6 +519,8 @@ interface CdrPoint {
   imeiCalled?: string;
   source?: string;
   tracked?: string;
+  cgi?: string;
+  azimut?: string;
 }
 
 interface CdrSearchResult {
