@@ -622,7 +622,8 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-    const cellKey = parsedCgi?.normalized ?? `${lat.toFixed(6)},${lng.toFixed(6)}`;
+    const rawCgi = point.cgi?.trim() || null;
+    const cellKey = parsedCgi?.normalized ?? rawCgi ?? `${lat.toFixed(6)},${lng.toFixed(6)}`;
     if (!cellKey) return;
 
     const event: TriangulationEvent = {
@@ -632,7 +633,7 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
       timestamp,
       cellKey,
       cgi: parsedCgi?.normalized ?? null,
-      rawCgi: point.cgi ? point.cgi.trim() : null,
+      rawCgi,
       cgiParts: parsedCgi ?? undefined
     };
 
