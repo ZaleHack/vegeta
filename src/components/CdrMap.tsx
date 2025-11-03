@@ -116,6 +116,7 @@ interface TriangulationCell {
   cgi?: string;
   rawCgi?: string;
   parts?: ParsedCgi;
+  name?: string;
 }
 
 const NO_SOURCE_KEY = '__no_source__';
@@ -505,6 +506,36 @@ const haversineDistance = (a: [number, number], b: [number, number]) => {
   return EARTH_RADIUS * c;
 };
 
+const computeZoneRadius = (
+  polygon: [number, number][],
+  center: [number, number]
+): number => {
+  if (!polygon || polygon.length === 0) {
+    return 0;
+  }
+
+  return polygon.reduce((max, vertex) => {
+    const distance = haversineDistance(vertex, center);
+    return Math.max(max, distance);
+  }, 0);
+};
+
+const formatDistanceMeters = (meters?: number | null) => {
+  if (!meters || !Number.isFinite(meters) || meters <= 0) {
+    return null;
+  }
+
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(2)} km`;
+  }
+
+  if (meters >= 100) {
+    return `${Math.round(meters)} m`;
+  }
+
+  return `${meters.toFixed(0)} m`;
+};
+
 const normalizeAzimut = (value?: string): number | null => {
   if (!value) return null;
   const cleaned = value.replace(/[^0-9+\-.]/g, '').replace(',', '.');
@@ -568,6 +599,7 @@ interface TriangulationZone {
   cells: TriangulationCell[];
   timestamp: number;
   source: string;
+  diameterMeters?: number;
 }
 
 const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
@@ -581,6 +613,7 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
     cgi?: string | null;
     rawCgi?: string | null;
     cgiParts?: ParsedCgi;
+    name?: string;
   };
 
   const eventsBySource = new Map<string, TriangulationEvent[]>();
@@ -637,7 +670,8 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
       cellKey,
       cgi: parsedCgi?.normalized ?? null,
       rawCgi: point.cgi ? point.cgi.trim() : null,
-      cgiParts: parsedCgi ?? undefined
+      cgiParts: parsedCgi ?? undefined,
+      name: point.nom?.trim() || undefined
     };
 
     const list = eventsBySource.get(groupingKey) || [];
@@ -820,7 +854,8 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
         position: [event.lat, event.lng] as [number, number],
         cgi: event.cgi ?? undefined,
         rawCgi: event.rawCgi ?? undefined,
-        parts: event.cgiParts
+        parts: event.cgiParts,
+        name: event.name
       }));
       const timestamp = uniqueEvents.reduce((acc, cur) => Math.max(acc, cur.timestamp), 0);
 
@@ -829,12 +864,14 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
       const fallback = result ?? buildFallbackZone(uniqueEvents);
 
       if (fallback) {
+        const radius = computeZoneRadius(fallback.polygon, fallback.barycenter);
         zones.push({
           barycenter: fallback.barycenter,
           polygon: fallback.polygon,
           cells,
           timestamp,
-          source
+          source,
+          diameterMeters: radius > 0 ? radius * 2 : undefined
         });
       }
     });
@@ -1588,6 +1625,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
   const renderTriangulationPopup = useCallback((zone: TriangulationZone) => {
     const observed = formatDateTime(zone.timestamp);
+    const diameter = formatDistanceMeters(zone.diameterMeters);
     return (
       <div className="relative w-[240px] max-w-[75vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-sm text-slate-700 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/30 via-purple-500/10 to-fuchsia-500/30" aria-hidden />
@@ -1605,17 +1643,24 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               <span className="font-semibold text-slate-700">{observed}</span>
             </div>
           )}
+          {diameter && (
+            <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-sm">
+              <span>Diamètre estimé</span>
+              <span className="font-semibold text-slate-700">{diameter}</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-sm">
             <span className="inline-flex h-2 w-2 rounded-full bg-purple-400" />
-            Basé sur {zone.cells.length} cellule{zone.cells.length > 1 ? 's' : ''} active{zone.cells.length > 1 ? 's' : ''}
+            Basé sur {zone.cells.length} BTS active{zone.cells.length > 1 ? 's' : ''}
           </div>
           {zone.cells.length > 0 && (
             <div className="space-y-2 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 text-xs text-slate-500 shadow-sm backdrop-blur-sm">
-              <p className="text-[10px] uppercase tracking-wide text-purple-500">Cellules impliquées</p>
+              <p className="text-[10px] uppercase tracking-wide text-purple-500">Nom du BTS</p>
               <div className="space-y-2">
                 {zone.cells.map((cell, idx) => {
                   const label = cell.parts?.normalized ?? cell.cgi ?? cell.rawCgi ?? null;
-                  const displayLabel = label ? `CGI ${label}` : `Cellule ${idx + 1}`;
+                  const identifier = label ? `CGI ${label}` : null;
+                  const displayLabel = cell.name || identifier || `Cellule ${idx + 1}`;
                   const rawDifferent =
                     cell.rawCgi && label && cell.rawCgi.trim() !== label ? cell.rawCgi.trim() : null;
                   return (
@@ -1624,6 +1669,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                       className="rounded-xl border border-white/50 bg-white/80 px-3 py-2 text-[11px] text-slate-600 shadow-sm backdrop-blur-sm"
                     >
                       <p className="font-semibold text-slate-700">{displayLabel}</p>
+                      {cell.name && identifier && (
+                        <p className="mt-0.5 text-[10px] text-slate-500">{identifier}</p>
+                      )}
                       {cell.parts && (
                         <p className="mt-0.5 text-[10px] text-slate-500">{formatCgiDetails(cell.parts)}</p>
                       )}
