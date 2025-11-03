@@ -103,6 +103,21 @@ interface GroupedPoint {
   perSource: { source?: string; events: Point[] }[];
 }
 
+type ParsedCgi = {
+  mcc: string;
+  mnc: string;
+  lac: string;
+  ci: string;
+  normalized: string;
+};
+
+interface TriangulationCell {
+  position: [number, number];
+  cgi?: string;
+  rawCgi?: string;
+  parts?: ParsedCgi;
+}
+
 const NO_SOURCE_KEY = '__no_source__';
 
 const computeOffsetPosition = (
@@ -508,10 +523,49 @@ const parseTimestamp = (date: string, time: string) => {
   return Number.isFinite(timestamp) ? timestamp : NaN;
 };
 
+const parseCgi = (value?: string): ParsedCgi | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const numericParts = trimmed.split(/[^0-9]+/).filter(Boolean);
+  if (numericParts.length < 4) {
+    return null;
+  }
+
+  const [rawMcc, rawMnc, rawLac, rawCi] = numericParts.slice(0, 4);
+  if (!rawMcc) {
+    return null;
+  }
+
+  const mcc = rawMcc.slice(-3).padStart(3, '0');
+
+  const mncNumber = Number.parseInt(rawMnc, 10);
+  if (Number.isNaN(mncNumber)) {
+    return null;
+  }
+  const mnc = String(mncNumber).padStart(Math.max(2, Math.min(rawMnc.length, 3)), '0');
+
+  const lacNumber = Number.parseInt(rawLac, 10);
+  const ciNumber = Number.parseInt(rawCi, 10);
+  if (Number.isNaN(lacNumber) || Number.isNaN(ciNumber)) {
+    return null;
+  }
+
+  const lac = String(lacNumber);
+  const ci = String(ciNumber);
+  const normalized = `${mcc}-${mnc}-${lac}-${ci}`;
+
+  return { mcc, mnc, lac, ci, normalized };
+};
+
+const formatCgiDetails = (parts: ParsedCgi) =>
+  `MCC ${parts.mcc} • MNC ${parts.mnc} • LAC ${parts.lac} • CI ${parts.ci}`;
+
 interface TriangulationZone {
   barycenter: [number, number]; // [lat, lng]
   polygon: [number, number][]; // [lat, lng]
-  cells: [number, number][]; // [lat, lng]
+  cells: TriangulationCell[];
   timestamp: number;
   source: string;
 }
@@ -522,25 +576,66 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
     lng: number;
     azimut: number;
     timestamp: number;
-    cgi: string;
+    cellKey: string;
+    cgi?: string | null;
+    rawCgi?: string | null;
+    cgiParts?: ParsedCgi;
   };
 
   const eventsBySource = new Map<string, TriangulationEvent[]>();
+  const coordinatesByCgi = new Map<string, { lat: number; lng: number }>();
+
+  pts.forEach((point) => {
+    const parsedCgi = parseCgi(point.cgi);
+    if (!parsedCgi) return;
+
+    const lat = Number.parseFloat(point.latitude);
+    const lng = Number.parseFloat(point.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    if (!coordinatesByCgi.has(parsedCgi.normalized)) {
+      coordinatesByCgi.set(parsedCgi.normalized, { lat, lng });
+    }
+  });
 
   pts.forEach((point) => {
     if (!point.source) return;
-    const lat = Number.parseFloat(point.latitude);
-    const lng = Number.parseFloat(point.longitude);
+
+    const parsedCgi = parseCgi(point.cgi);
     const azimut = normalizeAzimut(point.azimut);
     const timestamp = parseTimestamp(point.callDate, point.startTime);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
     if (azimut === null || Number.isNaN(timestamp)) return;
 
-    const cgi = (point.cgi || '').trim();
-    const cellKey = cgi || `${lat.toFixed(6)},${lng.toFixed(6)}`;
+    let lat = Number.parseFloat(point.latitude);
+    let lng = Number.parseFloat(point.longitude);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      if (parsedCgi) {
+        const cached = coordinatesByCgi.get(parsedCgi.normalized);
+        if (cached) {
+          lat = cached.lat;
+          lng = cached.lng;
+        }
+      }
+    }
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const cellKey = parsedCgi?.normalized ?? `${lat.toFixed(6)},${lng.toFixed(6)}`;
     if (!cellKey) return;
 
-    const event: TriangulationEvent = { lat, lng, azimut, timestamp, cgi: cellKey };
+    const event: TriangulationEvent = {
+      lat,
+      lng,
+      azimut,
+      timestamp,
+      cellKey,
+      cgi: parsedCgi?.normalized ?? null,
+      rawCgi: point.cgi ? point.cgi.trim() : null,
+      cgiParts: parsedCgi ?? undefined
+    };
+
     const list = eventsBySource.get(point.source) || [];
     list.push(event);
     eventsBySource.set(point.source, list);
@@ -628,7 +723,12 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
       polygon = createCircle([baryLat, baryLng], 250);
     }
 
-    const cells = events.map((event) => [event.lat, event.lng] as [number, number]);
+    const cells = events.map((event) => ({
+      position: [event.lat, event.lng] as [number, number],
+      cgi: event.cgi ?? undefined,
+      rawCgi: event.rawCgi ?? undefined,
+      parts: event.cgiParts
+    }));
     const timestamp = events.reduce((acc, cur) => Math.max(acc, cur.timestamp), 0);
 
     return {
@@ -658,9 +758,9 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
     buckets.forEach((bucketEvents) => {
       const byCgi = new Map<string, TriangulationEvent>();
       bucketEvents.forEach((event) => {
-        const existing = byCgi.get(event.cgi);
+        const existing = byCgi.get(event.cellKey);
         if (!existing || event.timestamp < existing.timestamp) {
-          byCgi.set(event.cgi, event);
+          byCgi.set(event.cellKey, event);
         }
       });
 
@@ -1445,6 +1545,33 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             <span className="inline-flex h-2 w-2 rounded-full bg-purple-400" />
             Basé sur {zone.cells.length} cellule{zone.cells.length > 1 ? 's' : ''} active{zone.cells.length > 1 ? 's' : ''}
           </div>
+          {zone.cells.length > 0 && (
+            <div className="space-y-2 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 text-xs text-slate-500 shadow-sm backdrop-blur-sm">
+              <p className="text-[10px] uppercase tracking-wide text-purple-500">Cellules impliquées</p>
+              <div className="space-y-2">
+                {zone.cells.map((cell, idx) => {
+                  const label = cell.parts?.normalized ?? cell.cgi ?? cell.rawCgi ?? null;
+                  const displayLabel = label ? `CGI ${label}` : `Cellule ${idx + 1}`;
+                  const rawDifferent =
+                    cell.rawCgi && label && cell.rawCgi.trim() !== label ? cell.rawCgi.trim() : null;
+                  return (
+                    <div
+                      key={`tri-popup-cell-${idx}`}
+                      className="rounded-xl border border-white/50 bg-white/80 px-3 py-2 text-[11px] text-slate-600 shadow-sm backdrop-blur-sm"
+                    >
+                      <p className="font-semibold text-slate-700">{displayLabel}</p>
+                      {cell.parts && (
+                        <p className="mt-0.5 text-[10px] text-slate-500">{formatCgiDetails(cell.parts)}</p>
+                      )}
+                      {rawDifferent && (
+                        <p className="mt-0.5 text-[10px] text-slate-400">Original : {rawDifferent}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -2543,10 +2670,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         {triangulationZones.map((zone, idx) => (
           <React.Fragment key={`tri-${idx}`}>
             <Polygon positions={zone.polygon} pathOptions={{ color: '#7e22ce', weight: 2, fillOpacity: 0.2 }} />
-            {zone.cells.map((c, i) => (
+            {zone.cells.map((cell, i) => (
               <CircleMarker
-                key={`tri-cell-${idx}-${i}`}
-                center={c as [number, number]}
+                key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
+                center={cell.position}
                 radius={4}
                 pathOptions={{ color: '#7e22ce' }}
               />
