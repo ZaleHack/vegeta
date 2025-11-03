@@ -415,6 +415,9 @@ const EARTH_RADIUS = 6_378_137;
 const toRadians = (value: number) => (value * Math.PI) / 180;
 const toDegrees = (value: number) => (value * 180) / Math.PI;
 
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
+
 const TRIANGULATION_ARC_ANGLE_DEGREES = 120;
 const TRIANGULATION_HALF_ARC_DEGREES = TRIANGULATION_ARC_ANGLE_DEGREES / 2;
 const TRIANGULATION_BEARING_TOLERANCE = 1; // degrees
@@ -517,6 +520,42 @@ const createCircle = (center: [number, number], radius: number, steps = 32): [nu
       );
     coords.push([(lat2 * 180) / Math.PI, (lng2 * 180) / Math.PI]);
   }
+  return coords;
+};
+
+const createSector = (
+  center: [number, number],
+  radius: number,
+  startBearing: number,
+  endBearing: number,
+  steps = 16
+): [number, number][] => {
+  const [lat, lng] = center;
+  const radLat = (lat * Math.PI) / 180;
+  const radLng = (lng * Math.PI) / 180;
+  const d = radius / EARTH_RADIUS;
+  const coords: [number, number][] = [[lat, lng]];
+
+  const start = normalizeBearing(startBearing);
+  const end = normalizeBearing(endBearing);
+  const sweep = ((end - start + 360) % 360) || 360;
+
+  const segments = Math.max(1, steps);
+  for (let i = 0; i <= segments; i++) {
+    const bearing = normalizeBearing(start + (sweep * i) / segments);
+    const br = (bearing * Math.PI) / 180;
+    const lat2 = Math.asin(
+      Math.sin(radLat) * Math.cos(d) + Math.cos(radLat) * Math.sin(d) * Math.cos(br)
+    );
+    const lng2 =
+      radLng +
+      Math.atan2(
+        Math.sin(br) * Math.sin(d) * Math.cos(radLat),
+        Math.cos(d) - Math.sin(radLat) * Math.sin(lat2)
+      );
+    coords.push([(lat2 * 180) / Math.PI, (lng2 * 180) / Math.PI]);
+  }
+
   return coords;
 };
 
@@ -848,6 +887,8 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
       return null;
     }
 
+    const eventsWithAzimut = validEvents.filter((event) => event.hasAzimut);
+
     const baryLat =
       validEvents.reduce((acc, cur) => acc + cur.lat, 0) / validEvents.length;
     const baryLng =
@@ -867,6 +908,30 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
       return {
         barycenter: [baryLat, baryLng] as [number, number],
         polygon: buffered.map(([lng, lat]) => [lat, lng] as [number, number])
+      };
+    }
+
+    if (eventsWithAzimut.length === 1) {
+      const event = eventsWithAzimut[0];
+      const distances = validEvents
+        .filter((candidate) => candidate !== event)
+        .map((candidate) =>
+          haversineDistance([event.lat, event.lng], [candidate.lat, candidate.lng])
+        );
+      const averageDistance =
+        distances.length > 0
+          ? distances.reduce((acc, cur) => acc + cur, 0) / distances.length
+          : 0;
+      const radius = clamp(averageDistance + 300, 300, 2000);
+
+      return {
+        barycenter: [event.lat, event.lng] as [number, number],
+        polygon: createSector(
+          [event.lat, event.lng],
+          radius,
+          event.azimut - TRIANGULATION_HALF_ARC_DEGREES,
+          event.azimut + TRIANGULATION_HALF_ARC_DEGREES
+        )
       };
     }
 
