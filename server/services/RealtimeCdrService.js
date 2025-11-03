@@ -1138,7 +1138,9 @@ class RealtimeCdrService {
           endTime: formatTimeValue(row.heure_fin_appel),
           duration: formatDuration(row.duree_appel),
           imeiCaller: row.imei_appelant ? String(row.imei_appelant).trim() : undefined,
-          imeiCalled: undefined
+          imeiCalled: undefined,
+          cgi: row.cgi ? String(row.cgi).trim() : undefined,
+          azimut: row.azimut ? String(row.azimut).trim() : undefined
         });
       }
     }

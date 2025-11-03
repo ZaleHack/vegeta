@@ -51,6 +51,8 @@ interface Point {
   imeiCalled?: string;
   source?: string;
   tracked?: string;
+  cgi?: string;
+  azimut?: string;
 }
 
 interface Contact {
@@ -392,6 +394,11 @@ const numberColors = [
   '#f43f5e'
 ];
 
+const EARTH_RADIUS = 6_378_137;
+
+const toRadians = (value: number) => (value * Math.PI) / 180;
+const toDegrees = (value: number) => (value * 180) / Math.PI;
+
 const formatDate = (d: string) => {
   const [year, month, day] = d.split('-');
   return `${day}/${month}/${year}`;
@@ -407,14 +414,6 @@ const formatDateTime = (timestamp: number) => {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${day}/${month}/${year} à ${hours}h${minutes}`;
-};
-
-const getLocationRadius = (nom: string) => {
-  const name = nom.toLowerCase();
-  if (name.includes('urbain')) return 200;
-  if (name.includes('peri')) return 600;
-  if (name.includes('rural')) return 2000;
-  return 1000;
 };
 
 type Coord = [number, number]; // [lng, lat]
@@ -459,7 +458,7 @@ const createCircle = (center: [number, number], radius: number, steps = 32): [nu
   const coords: [number, number][] = [];
   const radLat = (lat * Math.PI) / 180;
   const radLng = (lng * Math.PI) / 180;
-  const d = radius / 6378137; // Earth radius
+  const d = radius / EARTH_RADIUS; // Earth radius
   for (let i = 0; i <= steps; i++) {
     const bearing = (i * 360) / steps;
     const br = (bearing * Math.PI) / 180;
@@ -477,6 +476,38 @@ const createCircle = (center: [number, number], radius: number, steps = 32): [nu
   return coords;
 };
 
+const haversineDistance = (a: [number, number], b: [number, number]) => {
+  const lat1 = toRadians(a[0]);
+  const lon1 = toRadians(a[1]);
+  const lat2 = toRadians(b[0]);
+  const lon2 = toRadians(b[1]);
+  const dLat = lat2 - lat1;
+  const dLon = lon2 - lon1;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLon = Math.sin(dLon / 2);
+  const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLon * sinLon;
+  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  return EARTH_RADIUS * c;
+};
+
+const normalizeAzimut = (value?: string): number | null => {
+  if (!value) return null;
+  const cleaned = value.replace(/[^0-9+\-.]/g, '').replace(',', '.');
+  if (!cleaned) return null;
+  const parsed = Number.parseFloat(cleaned);
+  if (!Number.isFinite(parsed)) return null;
+  const normalized = ((parsed % 360) + 360) % 360;
+  return normalized;
+};
+
+const parseTimestamp = (date: string, time: string) => {
+  if (!date) return NaN;
+  const normalizedTime = time && time.trim() ? time.trim() : '00:00:00';
+  const isoTime = normalizedTime.length === 5 ? `${normalizedTime}:00` : normalizedTime;
+  const timestamp = new Date(`${date}T${isoTime}`).getTime();
+  return Number.isFinite(timestamp) ? timestamp : NaN;
+};
+
 interface TriangulationZone {
   barycenter: [number, number]; // [lat, lng]
   polygon: [number, number][]; // [lat, lng]
@@ -486,34 +517,164 @@ interface TriangulationZone {
 }
 
 const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
-  const bySource: Record<string, Point[]> = {};
-  pts.forEach((p) => {
-    if (!p.source) return;
-    if (!bySource[p.source]) bySource[p.source] = [];
-    bySource[p.source].push(p);
+  type TriangulationEvent = {
+    lat: number;
+    lng: number;
+    azimut: number;
+    timestamp: number;
+    cgi: string;
+  };
+
+  const eventsBySource = new Map<string, TriangulationEvent[]>();
+
+  pts.forEach((point) => {
+    if (!point.source) return;
+    const lat = Number.parseFloat(point.latitude);
+    const lng = Number.parseFloat(point.longitude);
+    const azimut = normalizeAzimut(point.azimut);
+    const timestamp = parseTimestamp(point.callDate, point.startTime);
+    const cgi = (point.cgi || '').trim();
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (azimut === null || Number.isNaN(timestamp)) return;
+    if (!cgi) return;
+
+    const event: TriangulationEvent = { lat, lng, azimut, timestamp, cgi };
+    const list = eventsBySource.get(point.source) || [];
+    list.push(event);
+    eventsBySource.set(point.source, list);
   });
+
+  const bucketWindowMs = 3 * 60 * 1000; // 3 minutes
   const zones: TriangulationZone[] = [];
-  Object.entries(bySource).forEach(([source, list]) => {
-    const locGroups: Record<string, Point[]> = {};
-    list.forEach((p) => {
-      const key = `${p.latitude},${p.longitude}`;
-      if (!locGroups[key]) locGroups[key] = [];
-      locGroups[key].push(p);
+
+  const computeIntersections = (events: TriangulationEvent[]) => {
+    if (events.length < 2) {
+      return null;
+    }
+
+    const reference = events[0];
+    const baseLatRad = toRadians(reference.lat);
+    const baseLngRad = toRadians(reference.lng);
+
+    const project = (lat: number, lng: number) => {
+      const latRad = toRadians(lat);
+      const lngRad = toRadians(lng);
+      const x = EARTH_RADIUS * (lngRad - baseLngRad) * Math.cos(baseLatRad);
+      const y = EARTH_RADIUS * (latRad - baseLatRad);
+      return { x, y };
+    };
+
+    const unproject = (x: number, y: number) => {
+      const latRad = y / EARTH_RADIUS + baseLatRad;
+      const lngRad = x / (EARTH_RADIUS * Math.cos(baseLatRad)) + baseLngRad;
+      return { lat: toDegrees(latRad), lng: toDegrees(lngRad) };
+    };
+
+    const intersections: { lat: number; lng: number }[] = [];
+
+    for (let i = 0; i < events.length; i++) {
+      const a = events[i];
+      const projA = project(a.lat, a.lng);
+      const thetaA = toRadians(a.azimut);
+      const dirA = { x: Math.sin(thetaA), y: Math.cos(thetaA) };
+
+      for (let j = i + 1; j < events.length; j++) {
+        const b = events[j];
+        const projB = project(b.lat, b.lng);
+        const thetaB = toRadians(b.azimut);
+        const dirB = { x: Math.sin(thetaB), y: Math.cos(thetaB) };
+
+        const denom = dirA.x * dirB.y - dirA.y * dirB.x;
+        if (Math.abs(denom) < 1e-6) {
+          continue;
+        }
+
+        const dx = projB.x - projA.x;
+        const dy = projB.y - projA.y;
+        const tA = (dx * dirB.y - dy * dirB.x) / denom;
+        const tB = (dx * dirA.y - dy * dirA.x) / denom;
+
+        if (tA < 0 || tB < 0) {
+          continue;
+        }
+
+        const ix = projA.x + tA * dirA.x;
+        const iy = projA.y + tA * dirA.y;
+        intersections.push(unproject(ix, iy));
+      }
+    }
+
+    if (intersections.length === 0) {
+      return null;
+    }
+
+    const baryLat = intersections.reduce((acc, cur) => acc + cur.lat, 0) / intersections.length;
+    const baryLng = intersections.reduce((acc, cur) => acc + cur.lng, 0) / intersections.length;
+
+    const coords: Coord[] = intersections.map((pt) => [pt.lng, pt.lat]);
+
+    let polygon: [number, number][];
+    if (coords.length >= 3) {
+      const hull = convexHull(coords);
+      const averageDistance =
+        events.reduce((acc, event) => acc + haversineDistance([baryLat, baryLng], [event.lat, event.lng]), 0) /
+        Math.max(events.length, 1);
+      const bufferDistance = Math.max(150, Math.min(averageDistance / 2, 1500));
+      const buffered = bufferPolygon(hull, [baryLng, baryLat], bufferDistance);
+      polygon = buffered.map(([lng, lat]) => [lat, lng]);
+    } else {
+      polygon = createCircle([baryLat, baryLng], 250);
+    }
+
+    const cells = events.map((event) => [event.lat, event.lng] as [number, number]);
+    const timestamp = events.reduce((acc, cur) => Math.max(acc, cur.timestamp), 0);
+
+    return {
+      barycenter: [baryLat, baryLng] as [number, number],
+      polygon,
+      cells,
+      timestamp
+    };
+  };
+
+  eventsBySource.forEach((events, source) => {
+    if (events.length < 2) {
+      return;
+    }
+
+    events.sort((a, b) => a.timestamp - b.timestamp);
+
+    const buckets = new Map<number, TriangulationEvent[]>();
+
+    events.forEach((event) => {
+      const bucketKey = Math.floor(event.timestamp / bucketWindowMs);
+      const bucket = buckets.get(bucketKey) || [];
+      bucket.push(event);
+      buckets.set(bucketKey, bucket);
     });
-    const best = Object.values(locGroups).reduce((a, b) => (b.length > a.length ? b : a), [] as Point[]);
-    if (best.length === 0) return;
-    const lat = parseFloat(best[0].latitude);
-    const lng = parseFloat(best[0].longitude);
-    const radius = getLocationRadius(best[0].nom || '');
-    zones.push({
-      barycenter: [lat, lng],
-      polygon: createCircle([lat, lng], radius),
-      cells: [[lat, lng]],
-      timestamp: new Date(`${best[0].callDate}T${best[0].startTime}`).getTime(),
-      source
+
+    buckets.forEach((bucketEvents) => {
+      const byCgi = new Map<string, TriangulationEvent>();
+      bucketEvents.forEach((event) => {
+        const existing = byCgi.get(event.cgi);
+        if (!existing || event.timestamp < existing.timestamp) {
+          byCgi.set(event.cgi, event);
+        }
+      });
+
+      const uniqueEvents = Array.from(byCgi.values());
+      if (uniqueEvents.length < 2) {
+        return;
+      }
+
+      const result = computeIntersections(uniqueEvents);
+      if (result) {
+        zones.push({ ...result, source });
+      }
     });
   });
-  return zones;
+
+  return zones.sort((a, b) => b.timestamp - a.timestamp);
 };
 
 const MeetingPointMarker: React.FC<{
