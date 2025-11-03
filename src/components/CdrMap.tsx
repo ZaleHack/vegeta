@@ -415,6 +415,34 @@ const EARTH_RADIUS = 6_378_137;
 const toRadians = (value: number) => (value * Math.PI) / 180;
 const toDegrees = (value: number) => (value * 180) / Math.PI;
 
+const TRIANGULATION_ARC_ANGLE_DEGREES = 120;
+const TRIANGULATION_HALF_ARC_DEGREES = TRIANGULATION_ARC_ANGLE_DEGREES / 2;
+const TRIANGULATION_BEARING_TOLERANCE = 1; // degrees
+
+const normalizeBearing = (angle: number) => ((angle % 360) + 360) % 360;
+
+const bearingDifference = (a: number, b: number) => {
+  const diff = normalizeBearing(b) - normalizeBearing(a);
+  return ((diff + 540) % 360) - 180;
+};
+
+const bearingBetweenPoints = (
+  from: [number, number],
+  to: [number, number]
+) => {
+  const [lat1, lng1] = from;
+  const [lat2, lng2] = to;
+  const phi1 = toRadians(lat1);
+  const phi2 = toRadians(lat2);
+  const deltaLambda = toRadians(lng2 - lng1);
+  const y = Math.sin(deltaLambda) * Math.cos(phi2);
+  const x =
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
+  const theta = Math.atan2(y, x);
+  return normalizeBearing(toDegrees(theta));
+};
+
 const formatDate = (d: string) => {
   const [year, month, day] = d.split('-');
   return `${day}/${month}/${year}`;
@@ -706,36 +734,77 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
     };
 
     const intersections: { lat: number; lng: number }[] = [];
+    const directionAngles = events.map((event) => [
+      normalizeBearing(event.azimut),
+      normalizeBearing(event.azimut - TRIANGULATION_HALF_ARC_DEGREES),
+      normalizeBearing(event.azimut + TRIANGULATION_HALF_ARC_DEGREES)
+    ]);
+
+    const isCandidateValid = (candidate: { lat: number; lng: number }) =>
+      events.every((event) => {
+        const bearing = bearingBetweenPoints(
+          [event.lat, event.lng],
+          [candidate.lat, candidate.lng]
+        );
+        const diff = Math.abs(bearingDifference(event.azimut, bearing));
+        return diff <= TRIANGULATION_HALF_ARC_DEGREES + TRIANGULATION_BEARING_TOLERANCE;
+      });
+
+    const addIntersection = (candidate: { lat: number; lng: number }) => {
+      if (!isCandidateValid(candidate)) {
+        return;
+      }
+
+      const isDuplicate = intersections.some((existing) => {
+        const distance = haversineDistance(
+          [existing.lat, existing.lng],
+          [candidate.lat, candidate.lng]
+        );
+        return distance < 10;
+      });
+
+      if (!isDuplicate) {
+        intersections.push(candidate);
+      }
+    };
 
     for (let i = 0; i < events.length; i++) {
       const a = events[i];
       const projA = project(a.lat, a.lng);
-      const thetaA = toRadians(a.azimut);
-      const dirA = { x: Math.sin(thetaA), y: Math.cos(thetaA) };
+      const directionsA = directionAngles[i];
 
       for (let j = i + 1; j < events.length; j++) {
         const b = events[j];
         const projB = project(b.lat, b.lng);
-        const thetaB = toRadians(b.azimut);
-        const dirB = { x: Math.sin(thetaB), y: Math.cos(thetaB) };
+        const directionsB = directionAngles[j];
 
-        const denom = dirA.x * dirB.y - dirA.y * dirB.x;
-        if (Math.abs(denom) < 1e-6) {
-          continue;
-        }
+        directionsA.forEach((angleA) => {
+          const thetaA = toRadians(angleA);
+          const dirA = { x: Math.sin(thetaA), y: Math.cos(thetaA) };
 
-        const dx = projB.x - projA.x;
-        const dy = projB.y - projA.y;
-        const tA = (dx * dirB.y - dy * dirB.x) / denom;
-        const tB = (dx * dirA.y - dy * dirA.x) / denom;
+          directionsB.forEach((angleB) => {
+            const thetaB = toRadians(angleB);
+            const dirB = { x: Math.sin(thetaB), y: Math.cos(thetaB) };
 
-        if (tA < 0 || tB < 0) {
-          continue;
-        }
+            const denom = dirA.x * dirB.y - dirA.y * dirB.x;
+            if (Math.abs(denom) < 1e-6) {
+              return;
+            }
 
-        const ix = projA.x + tA * dirA.x;
-        const iy = projA.y + tA * dirA.y;
-        intersections.push(unproject(ix, iy));
+            const dx = projB.x - projA.x;
+            const dy = projB.y - projA.y;
+            const tA = (dx * dirB.y - dy * dirB.x) / denom;
+            const tB = (dx * dirA.y - dy * dirA.x) / denom;
+
+            if (tA < 0 || tB < 0) {
+              return;
+            }
+
+            const ix = projA.x + tA * dirA.x;
+            const iy = projA.y + tA * dirA.y;
+            addIntersection(unproject(ix, iy));
+          });
+        });
       }
     }
 
