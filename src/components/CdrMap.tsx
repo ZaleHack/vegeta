@@ -492,7 +492,7 @@ const haversineDistance = (a: [number, number], b: [number, number]) => {
 
 const normalizeAzimut = (value?: string): number | null => {
   if (!value) return null;
-  const cleaned = value.replace(/[^0-9+\-.]/g, '').replace(',', '.');
+  const cleaned = value.replace(/,/g, '.').replace(/[^0-9+\-.]/g, '');
   if (!cleaned) return null;
   const parsed = Number.parseFloat(cleaned);
   if (!Number.isFinite(parsed)) return null;
