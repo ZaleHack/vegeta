@@ -533,12 +533,14 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
     const lng = Number.parseFloat(point.longitude);
     const azimut = normalizeAzimut(point.azimut);
     const timestamp = parseTimestamp(point.callDate, point.startTime);
-    const cgi = (point.cgi || '').trim();
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     if (azimut === null || Number.isNaN(timestamp)) return;
-    if (!cgi) return;
 
-    const event: TriangulationEvent = { lat, lng, azimut, timestamp, cgi };
+    const cgi = (point.cgi || '').trim();
+    const cellKey = cgi || `${lat.toFixed(6)},${lng.toFixed(6)}`;
+    if (!cellKey) return;
+
+    const event: TriangulationEvent = { lat, lng, azimut, timestamp, cgi: cellKey };
     const list = eventsBySource.get(point.source) || [];
     list.push(event);
     eventsBySource.set(point.source, list);
