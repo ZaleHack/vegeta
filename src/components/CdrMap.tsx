@@ -1508,12 +1508,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     const diameter = formatDistanceMeters(zone.diameterMeters);
     return (
       <div className="relative w-[240px] max-w-[75vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-sm text-slate-700 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/30 via-purple-500/10 to-fuchsia-500/30" aria-hidden />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-red-500/30 via-rose-500/10 to-orange-500/30" aria-hidden />
         <div className="pointer-events-none absolute inset-0 bg-white/75" aria-hidden />
         <div className="relative space-y-3 px-4 py-4">
           <div className="rounded-2xl border border-white/60 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-sm">
-            <p className="text-[10px] uppercase tracking-wide text-purple-500">Numéro localisé</p>
-            <p className="text-sm font-semibold text-purple-600">
+            <p className="text-[10px] uppercase tracking-wide text-red-500">Numéro localisé</p>
+            <p className="text-sm font-semibold text-red-600">
               {formatPhoneForDisplay(zone.source)}
             </p>
           </div>
@@ -1530,12 +1530,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             </div>
           )}
           <div className="flex items-center gap-2 rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-sm">
-            <span className="inline-flex h-2 w-2 rounded-full bg-purple-400" />
+            <span className="inline-flex h-2 w-2 rounded-full bg-red-400" />
             Basé sur {zone.cells.length} BTS active{zone.cells.length > 1 ? 's' : ''}
           </div>
           {zone.cells.length > 0 && (
             <div className="space-y-2 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 text-xs text-slate-500 shadow-sm backdrop-blur-sm">
-              <p className="text-[10px] uppercase tracking-wide text-purple-500">Nom du BTS</p>
+              <p className="text-[10px] uppercase tracking-wide text-red-500 font-semibold">Nom du BTS</p>
               <div className="space-y-2">
                 {zone.cells.map((cell, idx) => {
                   const label = cell.parts?.normalized ?? cell.cgi ?? cell.rawCgi ?? null;
@@ -2443,12 +2443,12 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
                     <MapPin className="h-4 w-4 text-slate-500" />
                   </span>
-                  <div className="flex-1">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Localisation</p>
-                    <p className="text-sm font-semibold leading-snug text-slate-800">
-                      {first.nom || 'Localisation'}
-                    </p>
-                  </div>
+                <div className="flex-1">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Localisation</p>
+                  <p className="text-sm font-bold leading-snug text-slate-800">
+                    {first.nom || 'Localisation'}
+                  </p>
+                </div>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
                   <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
@@ -2468,10 +2468,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   ))}
                 </div>
               </div>
-              <div className="overflow-x-auto pb-1">
-                <div className="flex items-stretch gap-2">
+              <div className="max-h-64 overflow-y-auto pr-1">
+                <div className="flex flex-col gap-2">
                   {events.map((loc, i) => (
-                    <div key={i} className="flex-shrink-0">
+                    <div key={i} className="w-full">
                       {renderEventPopupContent(loc, { compact: true, showLocation: false })}
                     </div>
                   ))}
@@ -2663,16 +2663,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         ))}
         {triangulationZones.map((zone, idx) => (
           <React.Fragment key={`tri-${idx}`}>
-            <Polygon positions={zone.polygon} pathOptions={{ color: '#7e22ce', weight: 2, fillOpacity: 0.2 }} />
+            <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
             {zone.cells.map((cell, i) => (
               <CircleMarker
                 key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
                 center={cell.position}
                 radius={4}
-                pathOptions={{ color: '#7e22ce' }}
+                pathOptions={{ color: '#dc2626' }}
               />
             ))}
-            <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#7e22ce')}>
+            <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#dc2626')}>
               <Popup className="cdr-popup">
                 {renderTriangulationPopup(zone)}
               </Popup>
@@ -2855,7 +2855,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <span>Position</span>
               </li>
               <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#7e22ce' }}>
+                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
                   <MapPin className="w-4 h-4 text-white" />
                 </span>
                 <span className="font-semibold text-red-600">Localisation approximative</span>
