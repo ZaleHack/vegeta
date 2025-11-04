@@ -294,7 +294,8 @@
   display: flex;
   align-items: baseline;
   gap: 0.35rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
 
 .cdr-popup-card__detail-label {
@@ -303,6 +304,7 @@
   color: #0f172a;
   letter-spacing: normal;
   text-transform: none;
+  white-space: nowrap;
 }
 
 .cdr-popup-card__detail-label::after {
@@ -312,7 +314,8 @@
 .cdr-popup-card__detail-value {
   font-size: 0.875rem;
   color: #0f172a;
-  word-break: break-word;
+  word-break: normal;
+  white-space: nowrap;
 }
 
 .cdr-popup-card--compact .cdr-popup-card__main-number-value {
