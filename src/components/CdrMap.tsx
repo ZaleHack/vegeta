@@ -2827,7 +2827,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         )}
 
         <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
-          <div className="pointer-events-auto max-h-full overflow-y-auto overflow-x-hidden bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
+          <div className="pointer-events-auto max-h-full overflow-y-auto overflow-x-hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg p-4 text-sm text-gray-700 dark:text-gray-100">
             <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
             <ul className="space-y-2">
               <li className="flex items-center space-x-2">
@@ -2858,7 +2858,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
                   <MapPin className="w-4 h-4 text-white" />
                 </span>
-                <span className="font-semibold text-red-600 dark:text-white">Localisation approximative</span>
+                <span className="font-semibold text-red-600 dark:text-red-300">Localisation approximative</span>
               </li>
               {showSimilar ? (
                 similarNumbers.map((n) => (
