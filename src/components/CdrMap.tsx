@@ -1157,7 +1157,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
 
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
-      const { compact = false, showLocation = true } = options;
+      const { compact = false } = options;
       const callerNumber = point.caller || point.number;
       const calleeNumber = point.callee;
 
@@ -1241,16 +1241,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 {calleeButton && (
                   <span className="cdr-popup-card__action-button">{calleeButton}</span>
                 )}
-              </div>
-            </div>
-          )}
-
-          {showLocation && (
-            <div className="cdr-popup-card__section cdr-popup-card__section--location">
-              <span className="cdr-popup-card__section-label">Lieu</span>
-              <div className="cdr-popup-card__section-value cdr-popup-card__location">
-                <span className="cdr-popup-card__location-name">{point.nom || 'Localisation'}</span>
-                <span className="cdr-popup-card__location-type">{eventTypeBase}</span>
               </div>
             </div>
           )}
