@@ -1164,9 +1164,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       const callerButton = renderIdentifyButton(callerNumber);
       const calleeButton = renderIdentifyButton(calleeNumber);
 
-      const textSize = compact ? 'text-xs' : 'text-sm';
-      const headingSize = compact ? 'text-sm' : 'text-base';
-
       const startParts: string[] = [];
       if (point.callDate) startParts.push(formatDate(point.callDate));
       if (point.startTime) startParts.push(point.startTime);
@@ -1180,11 +1177,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       }
       if (point.endTime) endParts.push(point.endTime);
       const endLabel = endParts.join(' ');
-
-      const dateValue =
-        startLabel || endLabel
-          ? [`Début : ${startLabel || 'N/A'}`, `Fin : ${endLabel || 'N/A'}`].join(' / ')
-          : 'N/A';
 
       const durationValue = formatPointDuration(point) ?? 'N/A';
       const imsiValue = point.imsiCaller?.trim() || 'N/A';
@@ -1214,48 +1206,61 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         : eventTypeBase;
 
       const infoItems = [
-        { label: "Date de l'événement", value: dateValue },
-        { label: "Durée de l'événement", value: durationValue },
-        { label: 'Identifiant abonné (IMSI)', value: imsiValue },
-        { label: "Identifiant d'équipement (IMEI)", value: imeiValue },
-        { label: 'Coordonnées', value: coordsValue },
+        { label: "Type d'événement", value: eventTypeValue },
+        { label: 'Début', value: startLabel || 'N/A' },
+        { label: 'Fin', value: endLabel || 'N/A' },
+        { label: 'Durée', value: durationValue },
         { label: 'Identifiant de la cellule', value: cellValue },
-        { label: "Type d'événement", value: eventTypeValue }
+        { label: 'Coordonnées GPS', value: coordsValue },
+        { label: 'Identifiant abonné (IMSI)', value: imsiValue },
+        { label: "Identifiant d'équipement (IMEI)", value: imeiValue }
       ];
 
       return (
         <div
-          className={`space-y-3 rounded-lg border border-slate-200 bg-white text-slate-900 shadow-md ${compact ? 'p-3 text-xs' : 'p-4 text-sm'}`}
+          className={`cdr-popup-card ${compact ? 'cdr-popup-card--compact' : ''}`.trim()}
         >
-          {showLocation && (
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                {eventTypeBase}
-              </p>
-              <p className={`${headingSize} font-semibold`}>{point.nom || 'Localisation'}</p>
+          <div className="cdr-popup-card__header">
+            <div className="cdr-popup-card__main-number">
+              <span className="cdr-popup-card__main-number-label">Numéro principal</span>
+              <span className="cdr-popup-card__main-number-value">
+                {formatPhoneForDisplay(callerNumber)}
+              </span>
             </div>
-          )}
-          <div className="space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <p className={textSize}>
-                <span className="font-semibold">Numéro téléphone :</span>{' '}
-                <span className="font-bold">{formatPhoneForDisplay(callerNumber)}</span>
-              </p>
-              {callerButton && <span className="shrink-0">{callerButton}</span>}
-            </div>
-            <div className="flex items-start justify-between gap-2">
-              <p className={textSize}>
-                <span className="font-semibold">Numéro appelé :</span>{' '}
-                {formatPhoneForDisplay(calleeNumber)}
-              </p>
-              {calleeButton && <span className="shrink-0">{calleeButton}</span>}
+            <div className="cdr-popup-card__header-actions">
+              <span className="cdr-popup-card__hint">Clic droit pour copier</span>
+              {callerButton && <span className="cdr-popup-card__action-button">{callerButton}</span>}
             </div>
           </div>
-          <div className="space-y-1">
+
+          {calleeNumber && (
+            <div className="cdr-popup-card__section">
+              <span className="cdr-popup-card__section-label">Numéro associé</span>
+              <div className="cdr-popup-card__section-value">
+                <span>{formatPhoneForDisplay(calleeNumber)}</span>
+                {calleeButton && (
+                  <span className="cdr-popup-card__action-button">{calleeButton}</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {showLocation && (
+            <div className="cdr-popup-card__section cdr-popup-card__section--location">
+              <span className="cdr-popup-card__section-label">Lieu</span>
+              <div className="cdr-popup-card__section-value cdr-popup-card__location">
+                <span className="cdr-popup-card__location-name">{point.nom || 'Localisation'}</span>
+                <span className="cdr-popup-card__location-type">{eventTypeBase}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="cdr-popup-card__details">
             {infoItems.map((item) => (
-              <p key={item.label} className={textSize}>
-                <span className="font-semibold">{item.label} :</span> {item.value}
-              </p>
+              <div key={item.label} className="cdr-popup-card__detail-item">
+                <span className="cdr-popup-card__detail-label">{item.label}</span>
+                <span className="cdr-popup-card__detail-value">{item.value}</span>
+              </div>
             ))}
           </div>
         </div>
