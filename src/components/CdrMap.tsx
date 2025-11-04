@@ -1196,9 +1196,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             <span className="cdr-popup-card__main-number-value">
               {formatPhoneForDisplay(callerNumber)}
             </span>
-            <div className="cdr-popup-card__header-actions">
-              <span className="cdr-popup-card__hint">Clic droit pour copier</span>
-            </div>
           </div>
           <div className="cdr-popup-card__details">
             {detailItems.map((item) => (
