@@ -295,6 +295,7 @@
   align-items: baseline;
   gap: 0.35rem;
   flex-wrap: nowrap;
+  min-width: 0;
   overflow-x: auto;
 }
 
