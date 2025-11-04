@@ -1158,11 +1158,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
       const { compact = false, showLocation = true } = options;
-      const callerNumber = point.caller || point.number;
-      const calleeNumber = point.callee;
+      const isIncomingCall = point.direction === 'incoming';
+      const localizedNumber = isIncomingCall
+        ? point.callee || point.number
+        : point.caller || point.number;
+      const otherParticipantNumber = isIncomingCall
+        ? point.caller || point.number
+        : point.callee;
 
-      const callerButton = renderIdentifyButton(callerNumber);
-      const calleeButton = renderIdentifyButton(calleeNumber);
+      const localizedButton = renderIdentifyButton(localizedNumber);
+      const otherParticipantButton = renderIdentifyButton(otherParticipantNumber);
 
       const textSize = compact ? 'text-xs' : 'text-sm';
       const headingSize = compact ? 'text-sm' : 'text-base';
@@ -1239,16 +1244,18 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             <div className="flex items-start justify-between gap-2">
               <p className={textSize}>
                 <span className="font-semibold">Numéro téléphone :</span>{' '}
-                <span className="font-bold">{formatPhoneForDisplay(callerNumber)}</span>
+                <span className="font-bold">{formatPhoneForDisplay(localizedNumber)}</span>
               </p>
-              {callerButton && <span className="shrink-0">{callerButton}</span>}
+              {localizedButton && <span className="shrink-0">{localizedButton}</span>}
             </div>
             <div className="flex items-start justify-between gap-2">
               <p className={textSize}>
                 <span className="font-semibold">Numéro appelé :</span>{' '}
-                {formatPhoneForDisplay(calleeNumber)}
+                {formatPhoneForDisplay(otherParticipantNumber)}
               </p>
-              {calleeButton && <span className="shrink-0">{calleeButton}</span>}
+              {otherParticipantButton && (
+                <span className="shrink-0">{otherParticipantButton}</span>
+              )}
             </div>
           </div>
           <div className="space-y-1">
