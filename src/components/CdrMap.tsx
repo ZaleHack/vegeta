@@ -30,7 +30,6 @@ import {
   Plus,
   Minus
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -47,6 +46,7 @@ interface Point {
   startTime: string;
   endTime: string;
   duration?: string;
+  imsiCaller?: string;
   imeiCaller?: string;
   imeiCalled?: string;
   source?: string;
@@ -139,17 +139,6 @@ const computeOffsetPosition = (
   const lngOffset = (distanceMeters * Math.sin(angle)) / (111_320 * denominator);
 
   return [lat + latOffset, lng + lngOffset];
-};
-
-type EventVisuals = {
-  label: string;
-  gradient: string;
-  icon: LucideIcon;
-  accentText: string;
-  badgeClass: string;
-  participantContainer: string;
-  participantIconClass: string;
-  pill?: string;
 };
 
 interface Props {
@@ -1156,7 +1145,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             event.stopPropagation();
             handleIdentifyNumber(normalized);
           }}
-          className="inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-sm backdrop-blur-sm transition hover:border-slate-300 hover:bg-white focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-300 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-900 dark:focus:ring-slate-600"
+          className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
         >
           Identifier
         </button>
@@ -1165,307 +1154,114 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     [handleIdentifyNumber]
   );
 
-  const getEventVisuals = useCallback(
-    (point: Point): EventVisuals => {
-      if (point.type === 'web') {
-        return {
-          label: 'Position',
-          gradient:
-            'from-rose-500/35 via-orange-500/10 to-amber-500/30 dark:from-rose-500/25 dark:via-orange-500/10 dark:to-amber-500/25',
-          icon: MapPin,
-          accentText: 'text-rose-600 dark:text-rose-300',
-          badgeClass:
-            'bg-white/40 text-rose-600 ring-1 ring-inset ring-rose-400/30 backdrop-blur-sm dark:bg-slate-900/70 dark:text-rose-200 dark:ring-rose-400/40',
-          participantContainer:
-            'border border-white/60 bg-white/70 ring-1 ring-inset ring-rose-400/15 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:ring-rose-400/30 dark:shadow-black/30',
-          participantIconClass:
-            'bg-rose-500/15 text-rose-600 ring-1 ring-rose-500/20 dark:bg-rose-500/20 dark:text-rose-200 dark:ring-rose-500/30'
-        };
-      }
-      if (point.type === 'sms') {
-        return {
-          label: 'SMS',
-          gradient:
-            'from-emerald-500/30 via-green-500/10 to-lime-500/30 dark:from-emerald-500/20 dark:via-green-500/10 dark:to-lime-500/20',
-          icon: MessageSquare,
-          accentText: 'text-emerald-600 dark:text-emerald-300',
-          badgeClass:
-            'bg-white/40 text-emerald-600 ring-1 ring-inset ring-emerald-400/30 backdrop-blur-sm dark:bg-slate-900/70 dark:text-emerald-200 dark:ring-emerald-400/40',
-          participantContainer:
-            'border border-white/60 bg-white/70 ring-1 ring-inset ring-emerald-400/20 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:ring-emerald-400/30 dark:shadow-black/30',
-          participantIconClass:
-            'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/20 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-emerald-500/30'
-        };
-      }
-      if (point.direction === 'outgoing') {
-        return {
-          label: 'Appel',
-          pill: 'Sortant',
-          gradient:
-            'from-sky-500/35 via-indigo-500/10 to-blue-600/30 dark:from-sky-500/25 dark:via-indigo-500/10 dark:to-blue-500/25',
-          icon: PhoneOutgoing,
-          accentText: 'text-blue-600 dark:text-blue-300',
-          badgeClass:
-            'bg-white/40 text-blue-600 ring-1 ring-inset ring-blue-400/30 backdrop-blur-sm dark:bg-slate-900/70 dark:text-blue-200 dark:ring-blue-500/40',
-          participantContainer:
-            'border border-white/60 bg-white/70 ring-1 ring-inset ring-blue-400/20 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:ring-blue-500/40 dark:shadow-black/30',
-          participantIconClass:
-            'bg-blue-500/15 text-blue-600 ring-1 ring-blue-500/20 dark:bg-blue-500/20 dark:text-blue-200 dark:ring-blue-500/40'
-        };
-      }
-      return {
-        label: 'Appel',
-        pill: 'Entrant',
-        gradient:
-          'from-indigo-500/30 via-purple-500/10 to-violet-600/30 dark:from-indigo-500/25 dark:via-purple-500/10 dark:to-violet-500/25',
-        icon: PhoneIncoming,
-        accentText: 'text-indigo-600 dark:text-indigo-300',
-        badgeClass:
-          'bg-white/40 text-indigo-600 ring-1 ring-inset ring-indigo-400/30 backdrop-blur-sm dark:bg-slate-900/70 dark:text-indigo-200 dark:ring-indigo-500/40',
-        participantContainer:
-          'border border-white/60 bg-white/70 ring-1 ring-inset ring-indigo-400/20 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:ring-indigo-500/40 dark:shadow-black/30',
-        participantIconClass:
-          'bg-indigo-500/15 text-indigo-600 ring-1 ring-indigo-500/20 dark:bg-indigo-500/20 dark:text-indigo-200 dark:ring-indigo-500/40'
-      };
-    },
-    []
-  );
 
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
       const { compact = false, showLocation = true } = options;
-      const visuals = getEventVisuals(point);
-      const Icon = visuals.icon;
+      const callerNumber = point.caller || point.number;
+      const calleeNumber = point.callee;
 
-      const participants: JSX.Element[] = [];
-      const addParticipant = (label: string, value: string | undefined, IconComponent: LucideIcon) => {
-        if (!value) return;
-        const button = renderIdentifyButton(value);
-        participants.push(
-          <div
-            key={`${label}-${value}`}
-            className={`flex items-center justify-between rounded-2xl ${visuals.participantContainer} ${
-              compact ? 'gap-2 px-3 py-2' : 'gap-2.5 px-3.5 py-2.5'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <span
-                className={`flex ${compact ? 'h-8 w-8' : 'h-9 w-9'} items-center justify-center rounded-xl shadow-inner ${visuals.participantIconClass}`}
-              >
-                <IconComponent className={`h-4 w-4 ${visuals.accentText}`} />
-              </span>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-400">{label}</p>
-                <p
-                  className={`font-semibold text-slate-700 dark:text-slate-100 ${
-                    compact ? 'text-xs' : 'text-[13px]'
-                  }`}
-                >
-                  {formatPhoneForDisplay(value)}
-                </p>
-              </div>
-            </div>
-            {button && <span className="shrink-0">{button}</span>}
-          </div>
-        );
-      };
+      const callerButton = renderIdentifyButton(callerNumber);
+      const calleeButton = renderIdentifyButton(calleeNumber);
 
-      const trackedNormalized = normalizePhoneDigits(point.tracked);
-      const addedParticipants = new Set<string>();
-      const registerParticipant = (value?: string, icon?: LucideIcon) => {
-        if (!value) return;
-        const normalized = normalizePhoneDigits(value);
-        if (normalized && trackedNormalized && normalized === trackedNormalized) {
-          return;
-        }
-        const key = normalized || value.trim();
-        if (!key || addedParticipants.has(key)) {
-          return;
-        }
-        addedParticipants.add(key);
-        addParticipant('Contact', value, icon ?? PhoneIncoming);
-      };
+      const textSize = compact ? 'text-xs' : 'text-sm';
+      const headingSize = compact ? 'text-sm' : 'text-base';
 
-      if (point.type === 'sms') {
-        registerParticipant(point.caller, MessageSquare);
-        registerParticipant(point.callee, MessageSquare);
-        if (addedParticipants.size === 0) {
-          registerParticipant(point.number, MessageSquare);
-        }
-      } else if (point.type !== 'web') {
-        const direction = (point.direction || '').toLowerCase();
-        const callIcon =
-          direction === 'incoming'
-            ? PhoneIncoming
-            : direction === 'outgoing'
-              ? PhoneOutgoing
-              : PhoneOutgoing;
-        registerParticipant(point.caller, callIcon);
-        registerParticipant(point.callee, callIcon);
-        if (addedParticipants.size === 0) {
-          registerParticipant(point.number, callIcon);
-        }
+      const startParts: string[] = [];
+      if (point.callDate) startParts.push(formatDate(point.callDate));
+      if (point.startTime) startParts.push(point.startTime);
+      const startLabel = startParts.join(' ');
+
+      const endParts: string[] = [];
+      if (point.endDate) {
+        endParts.push(formatDate(point.endDate));
+      } else if (point.callDate) {
+        endParts.push(formatDate(point.callDate));
       }
+      if (point.endTime) endParts.push(point.endTime);
+      const endLabel = endParts.join(' ');
 
-      const details: { label: string; value?: React.ReactNode }[] = [];
-      const formattedDuration = formatPointDuration(point) ?? point.duration ?? undefined;
-      const pushCombinedDate = () => {
-        const parts: string[] = [];
-        if (point.callDate) {
-          parts.push(formatDate(point.callDate));
-        }
-        if (point.startTime) {
-          parts.push(point.startTime);
-        }
-        if (parts.length > 0) {
-          details.push({ label: 'Date & heure', value: parts.join(' • ') });
-        }
-      };
+      const dateValue =
+        startLabel || endLabel
+          ? [`Début : ${startLabel || 'N/A'}`, `Fin : ${endLabel || 'N/A'}`].join(' / ')
+          : 'N/A';
 
-      if (point.type === 'web') {
-        if (point.callDate) {
-          details.push({ label: 'Date', value: formatDate(point.callDate) });
-        }
-        if (point.endDate && point.endDate !== point.callDate) {
-          details.push({ label: 'Date fin', value: formatDate(point.endDate) });
-        }
-        if (point.startTime) {
-          details.push({ label: 'Début', value: point.startTime });
-        }
-        if (point.endTime) {
-          details.push({ label: 'Fin', value: point.endTime });
-        }
-        if (formattedDuration) {
-          details.push({ label: 'Durée', value: formattedDuration });
-        }
-      } else if (point.type === 'sms') {
-        pushCombinedDate();
-      } else {
-        pushCombinedDate();
-        if (formattedDuration) {
-          details.push({ label: 'Durée', value: formattedDuration });
-        }
-      }
-      if (point.source) {
-        const trackedNormalized = normalizePhoneDigits(point.tracked);
-        const sourceNormalized = normalizePhoneDigits(point.source);
-        const label = point.type === 'web' ? 'Numéro localisé' : 'Numéro appelant localisé';
-        const shouldShowLocationOwner =
-          !point.tracked || trackedNormalized !== sourceNormalized || point.type === 'web';
-        if (shouldShowLocationOwner) {
-          details.push({ label, value: formatPhoneForDisplay(point.source) });
-        }
-      }
+      const durationValue = formatPointDuration(point) ?? 'N/A';
+      const imsiValue = point.imsiCaller?.trim() || 'N/A';
+      const imeiValue = point.imeiCaller?.trim() || 'N/A';
+      const coordsValue =
+        point.latitude && point.longitude ? `${point.latitude}, ${point.longitude}` : 'N/A';
 
-      const filteredDetails = details.filter(
-        (item) => item.value !== undefined && item.value !== null && item.value !== ''
-      );
+      const cellParts: string[] = [];
+      if (point.cgi) cellParts.push(point.cgi);
+      if (point.nom) cellParts.push(point.nom);
+      const cellValue = cellParts.length > 0 ? cellParts.join(' • ') : 'N/A';
 
-      const detailGrid =
-        filteredDetails.length > 0 ? (
-          <div
-            className={`grid ${filteredDetails.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} ${
-              compact ? 'gap-2' : 'gap-2.5'
-            }`}
-          >
-            {filteredDetails.map((item, index) => {
-              const spanTwoColumns =
-                filteredDetails.length % 2 === 1 &&
-                index === filteredDetails.length - 1 &&
-                filteredDetails.length !== 1;
-              return (
-                <div
-                  key={`${item.label}-${index}`}
-                  className={`rounded-2xl border border-white/60 bg-white/75 px-3 py-2 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:shadow-black/20 ${
-                    spanTwoColumns ? 'col-span-2' : ''
-                  }`}
-                >
-                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-400">{item.label}</p>
-                  <p
-                    className={`mt-0.5 font-semibold text-slate-700 dark:text-slate-100 ${
-                      compact ? 'text-xs' : 'text-[13px]'
-                    }`}
-                  >
-                    {item.value}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        ) : null;
+      const eventTypeBase =
+        point.type === 'web'
+          ? 'Position'
+          : point.type === 'sms'
+            ? 'SMS'
+            : 'Appel';
+      const directionLabel =
+        point.direction && point.type !== 'web'
+          ? point.direction === 'outgoing'
+            ? 'Sortant'
+            : 'Entrant'
+          : '';
+      const eventTypeValue = directionLabel
+        ? `${eventTypeBase} (${directionLabel})`
+        : eventTypeBase;
 
-      if (compact) {
-        return (
-          <div className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/75 px-3 py-3 text-sm text-slate-600 shadow-lg backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200 dark:shadow-black/40">
-            <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${visuals.gradient}`} aria-hidden />
-            <div className="pointer-events-none absolute inset-0 bg-white/70 dark:bg-slate-950/30" aria-hidden />
-            <div className="relative flex items-center gap-3">
-              <span
-                className={`flex ${compact ? 'h-9 w-9' : 'h-10 w-10'} items-center justify-center rounded-2xl shadow-inner ${visuals.participantIconClass}`}
-              >
-                <Icon className={`h-4 w-4 ${visuals.accentText}`} />
-              </span>
-              <div className="flex flex-col">
-                <span className={`text-xs font-semibold ${visuals.accentText}`}>{visuals.label}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {point.callDate ? formatDate(point.callDate) : ''}
-                  {point.startTime ? ` • ${point.startTime}` : ''}
-                </span>
-              </div>
-              {visuals.pill && (
-                <span
-                  className={`ml-auto inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${visuals.badgeClass}`}
-                >
-                  {visuals.pill}
-                </span>
-              )}
-            </div>
-            {participants.length > 0 && <div className="relative mt-3 space-y-2">{participants}</div>}
-            {detailGrid && <div className="relative mt-3">{detailGrid}</div>}
-          </div>
-        );
-      }
+      const infoItems = [
+        { label: "Date de l'événement", value: dateValue },
+        { label: "Durée de l'événement", value: durationValue },
+        { label: 'Identifiant abonné (IMSI)', value: imsiValue },
+        { label: "Identifiant d'équipement (IMEI)", value: imeiValue },
+        { label: 'Coordonnées', value: coordsValue },
+        { label: 'Identifiant de la cellule', value: cellValue },
+        { label: "Type d'événement", value: eventTypeValue }
+      ];
 
       return (
-        <div className="relative w-[280px] max-w-[80vw] overflow-hidden rounded-3xl border border-white/60 bg-white/80 text-[13px] text-slate-600 shadow-[0_30px_60px_-28px_rgba(15,23,42,0.45)] backdrop-blur-2xl dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200 dark:shadow-[0_30px_60px_-28px_rgba(2,6,23,0.75)]">
-          <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${visuals.gradient}`} aria-hidden />
-          <div className="pointer-events-none absolute inset-0 bg-white/75 dark:bg-slate-950/30" aria-hidden />
-          <div className="relative flex items-start gap-3 px-4 pt-4">
-            <span
-              className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-inner ${visuals.participantIconClass}`}
-            >
-              <Icon className={`h-5 w-5 ${visuals.accentText}`} />
-            </span>
-            <div className="flex-1 space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{visuals.label}</p>
-                {visuals.pill && (
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${visuals.badgeClass}`}
-                  >
-                    {visuals.pill}
-                  </span>
-                )}
-              </div>
-              {showLocation && (
-                <p className="text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
-                  {point.nom || 'Localisation'}
-                </p>
-              )}
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {point.callDate ? formatDate(point.callDate) : ''}
-                {point.startTime ? ` • ${point.startTime}` : ''}
+        <div
+          className={`space-y-3 rounded-lg border border-slate-200 bg-white text-slate-900 shadow-md ${compact ? 'p-3 text-xs' : 'p-4 text-sm'}`}
+        >
+          {showLocation && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                {eventTypeBase}
               </p>
+              <p className={`${headingSize} font-semibold`}>{point.nom || 'Localisation'}</p>
+            </div>
+          )}
+          <div className="space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <p className={textSize}>
+                <span className="font-semibold">Numéro téléphone :</span>{' '}
+                <span className="font-bold">{formatPhoneForDisplay(callerNumber)}</span>
+              </p>
+              {callerButton && <span className="shrink-0">{callerButton}</span>}
+            </div>
+            <div className="flex items-start justify-between gap-2">
+              <p className={textSize}>
+                <span className="font-semibold">Numéro appelé :</span>{' '}
+                {formatPhoneForDisplay(calleeNumber)}
+              </p>
+              {calleeButton && <span className="shrink-0">{calleeButton}</span>}
             </div>
           </div>
-          <div className="relative space-y-2 px-4 pb-4 pt-3">
-            {participants.length > 0 && <div className="space-y-2">{participants}</div>}
-            {detailGrid}
+          <div className="space-y-1">
+            {infoItems.map((item) => (
+              <p key={item.label} className={textSize}>
+                <span className="font-semibold">{item.label} :</span> {item.value}
+              </p>
+            ))}
           </div>
         </div>
       );
     },
-    [getEventVisuals, renderIdentifyButton]
+    [renderIdentifyButton]
   );
 
   const closeInfoPanels = useCallback(() => {
@@ -3110,7 +2906,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#7e22ce' }}>
                   <MapPin className="w-4 h-4 text-white" />
                 </span>
-                <span>Localisation approximative</span>
+                <span className="font-semibold text-red-600">Localisation approximative</span>
               </li>
               {showSimilar ? (
                 similarNumbers.map((n) => (

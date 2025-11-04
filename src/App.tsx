@@ -515,6 +515,7 @@ interface CdrPoint {
   startTime: string;
   endTime: string;
   duration?: string;
+  imsiCaller?: string;
   imeiCaller?: string;
   imeiCalled?: string;
   source?: string;
