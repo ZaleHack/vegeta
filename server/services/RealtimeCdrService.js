@@ -1137,6 +1137,7 @@ class RealtimeCdrService {
           startTime: formatTimeValue(row.heure_debut_appel),
           endTime: formatTimeValue(row.heure_fin_appel),
           duration: formatDuration(row.duree_appel),
+          imsiCaller: row.imsi_appelant ? String(row.imsi_appelant).trim() : undefined,
           imeiCaller: row.imei_appelant ? String(row.imei_appelant).trim() : undefined,
           imeiCalled: undefined,
           cgi: row.cgi ? String(row.cgi).trim() : undefined,
