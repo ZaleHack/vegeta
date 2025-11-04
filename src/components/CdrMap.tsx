@@ -1177,8 +1177,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         { label: 'Durée', value: durationValue },
         { label: 'Identifiant de la cellule', value: cellValue },
         { label: 'Coordonnées GPS', value: coordsValue },
-        { label: 'IMSI', value: imsiValue },
-        { label: 'IMEI', value: imeiValue }
+        { label: 'Identifiant abonné (IMSI)', value: imsiValue },
+        { label: "Identifiant d'équipement (IMEI)", value: imeiValue }
       ];
 
       const detailItems = [
@@ -2855,7 +2855,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
                   <MapPin className="w-4 h-4 text-white" />
                 </span>
-                <span className="font-semibold text-red-600">Localisation approximative</span>
+                <span className="font-semibold text-red-600 dark:text-white">Localisation approximative</span>
               </li>
               {showSimilar ? (
                 similarNumbers.map((n) => (
