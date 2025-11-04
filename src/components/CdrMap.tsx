@@ -1123,46 +1123,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
   const [activeMeetingNumber, setActiveMeetingNumber] = useState<string | null>(null);
   const [isSatellite, setIsSatellite] = useState(false);
-  const handleIdentifyNumber = useCallback((value: string) => {
-    if (typeof window === 'undefined') return;
-    const normalized = normalizePhoneDigits(value);
-    if (!normalized) return;
-    const baseUrl = `${window.location.origin}${window.location.pathname}`;
-    const url = new URL(baseUrl);
-    url.searchParams.set('page', 'search');
-    url.searchParams.set('query', normalized);
-    window.open(url.toString(), '_blank', 'noopener,noreferrer');
-  }, []);
-
-  const renderIdentifyButton = useCallback(
-    (value?: string) => {
-      const normalized = normalizePhoneDigits(value);
-      if (!normalized) return null;
-      return (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            handleIdentifyNumber(normalized);
-          }}
-          className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-        >
-          Identifier
-        </button>
-      );
-    },
-    [handleIdentifyNumber]
-  );
-
-
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
       const { compact = false } = options;
       const callerNumber = point.caller || point.number;
       const calleeNumber = point.callee;
-
-      const callerButton = renderIdentifyButton(callerNumber);
-      const calleeButton = renderIdentifyButton(calleeNumber);
 
       const startParts: string[] = [];
       if (point.callDate) startParts.push(formatDate(point.callDate));
@@ -1216,37 +1181,27 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         { label: "Identifiant d'équipement (IMEI)", value: imeiValue }
       ];
 
+      const detailItems = [
+        ...(calleeNumber
+          ? [{ label: 'Numéro associé', value: formatPhoneForDisplay(calleeNumber) }]
+          : []),
+        ...infoItems
+      ];
+
       return (
         <div
           className={`cdr-popup-card ${compact ? 'cdr-popup-card--compact' : ''}`.trim()}
         >
           <div className="cdr-popup-card__header">
-            <div className="cdr-popup-card__main-number">
-              <span className="cdr-popup-card__main-number-label">Numéro principal</span>
-              <span className="cdr-popup-card__main-number-value">
-                {formatPhoneForDisplay(callerNumber)}
-              </span>
-            </div>
+            <span className="cdr-popup-card__main-number-value">
+              {formatPhoneForDisplay(callerNumber)}
+            </span>
             <div className="cdr-popup-card__header-actions">
               <span className="cdr-popup-card__hint">Clic droit pour copier</span>
-              {callerButton && <span className="cdr-popup-card__action-button">{callerButton}</span>}
             </div>
           </div>
-
-          {calleeNumber && (
-            <div className="cdr-popup-card__section">
-              <span className="cdr-popup-card__section-label">Numéro associé</span>
-              <div className="cdr-popup-card__section-value">
-                <span>{formatPhoneForDisplay(calleeNumber)}</span>
-                {calleeButton && (
-                  <span className="cdr-popup-card__action-button">{calleeButton}</span>
-                )}
-              </div>
-            </div>
-          )}
-
           <div className="cdr-popup-card__details">
-            {infoItems.map((item) => (
+            {detailItems.map((item) => (
               <div key={item.label} className="cdr-popup-card__detail-item">
                 <span className="cdr-popup-card__detail-label">{item.label}</span>
                 <span className="cdr-popup-card__detail-value">{item.value}</span>
@@ -1256,7 +1211,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         </div>
       );
     },
-    [renderIdentifyButton]
+    []
   );
 
   const closeInfoPanels = useCallback(() => {
@@ -2482,7 +2437,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           )}
         >
           <Popup className="cdr-popup">
-            <div className="w-[260px] space-y-2.5">
+            <div className="space-y-2.5 w-[360px] max-w-[90vw]">
               <div className="rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-sm">
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
@@ -2513,12 +2468,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   ))}
                 </div>
               </div>
-              <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
-                {events.map((loc, i) => (
-                  <div key={i}>
-                    {renderEventPopupContent(loc, { compact: true, showLocation: false })}
-                  </div>
-                ))}
+              <div className="overflow-x-auto pb-1">
+                <div className="flex items-stretch gap-2">
+                  {events.map((loc, i) => (
+                    <div key={i} className="flex-shrink-0">
+                      {renderEventPopupContent(loc, { compact: true, showLocation: false })}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </Popup>
