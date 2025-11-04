@@ -292,10 +292,10 @@
 
 .cdr-popup-card__detail-item {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 0.35rem;
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  overflow: visible;
 }
 
 .cdr-popup-card__detail-label {
@@ -314,8 +314,8 @@
 .cdr-popup-card__detail-value {
   font-size: 0.875rem;
   color: #0f172a;
-  word-break: normal;
-  white-space: nowrap;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .cdr-popup-card--compact .cdr-popup-card__main-number-value {
