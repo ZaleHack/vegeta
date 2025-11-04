@@ -2468,7 +2468,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                   ))}
                 </div>
               </div>
-              <div className="max-h-64 overflow-y-auto pr-1">
+              <div className="max-h-64 overflow-y-auto overflow-x-hidden pr-1">
                 <div className="flex flex-col gap-2">
                   {events.map((loc, i) => (
                     <div key={i} className="w-full">
@@ -2827,7 +2827,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         )}
 
         <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
-          <div className="pointer-events-auto max-h-full overflow-y-auto bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
+          <div className="pointer-events-auto max-h-full overflow-y-auto overflow-x-hidden bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
             <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
             <ul className="space-y-2">
               <li className="flex items-center space-x-2">
@@ -2858,7 +2858,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
                 <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
                   <MapPin className="w-4 h-4 text-white" />
                 </span>
-                <span className="font-semibold text-red-600">Localisation approximative</span>
+                <span className="font-semibold text-red-600 dark:text-white">Localisation approximative</span>
               </li>
               {showSimilar ? (
                 similarNumbers.map((n) => (
