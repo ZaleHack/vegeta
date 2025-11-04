@@ -237,16 +237,16 @@
   box-shadow: 0 26px 60px -40px rgba(15, 23, 42, 0.55);
   font-size: 0.875rem;
   line-height: 1.45;
-  width: min(26rem, 100%);
-  max-width: min(26rem, 80vw);
+  width: min(32rem, 100%);
+  max-width: min(32rem, 88vw);
 }
 
 .cdr-popup-card--compact {
   gap: 0.75rem;
   padding: 0.875rem;
   font-size: 0.8125rem;
-  width: min(24rem, 100%);
-  max-width: min(24rem, 78vw);
+  width: min(30rem, 100%);
+  max-width: min(30rem, 86vw);
 }
 
 .cdr-popup-card__header {
@@ -286,7 +286,7 @@
 @media (max-width: 640px) {
   .cdr-popup-card,
   .cdr-popup-card--compact {
-    max-width: min(24rem, 90vw);
+    max-width: min(30rem, 94vw);
   }
 }
 
