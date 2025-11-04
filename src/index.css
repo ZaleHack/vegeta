@@ -249,23 +249,9 @@
 
 .cdr-popup-card__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-}
-
-.cdr-popup-card__main-number {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.cdr-popup-card__main-number-label {
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: #64748b;
 }
 
 .cdr-popup-card__main-number-value {
@@ -286,32 +272,6 @@
   font-size: 0.6875rem;
   color: #94a3b8;
   white-space: nowrap;
-}
-
-.cdr-popup-card__action-button {
-  display: inline-flex;
-}
-
-.cdr-popup-card__section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.cdr-popup-card__section-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #475569;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.cdr-popup-card__section-value {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  font-weight: 500;
 }
 
 
@@ -357,7 +317,6 @@
   font-size: 1rem;
 }
 
-.cdr-popup-card--compact .cdr-popup-card__section-value,
 .cdr-popup-card--compact .cdr-popup-card__detail-value {
   font-size: 0.8125rem;
 }
@@ -374,7 +333,6 @@
   color: #f1f5f9;
 }
 
-.dark .cdr-popup-card__section-label,
 .dark .cdr-popup-card__detail-label {
   color: #f1f5f9;
 }
