@@ -21,8 +21,7 @@ const TABLE_EXCLUSIONS = [
   'users',
   'users_log',
   'user_sessions',
-  'search_logs',
-  'cdr_temps_reel'
+  'search_logs'
 ].reduce((set, entry) => {
   const normalized = entry.toLowerCase();
   set.add(normalized);
