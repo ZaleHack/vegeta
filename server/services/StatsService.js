@@ -7,7 +7,7 @@ import baseCatalog from '../config/tables-catalog.js';
 import statsCache from './stats-cache.js';
 
 const EXCLUDED_DATA_TABLES = new Set(
-  ['autres.cdr_realtime', 'cdr_realtime'].map((name) => name.toLowerCase())
+  ['autres.cdr_temps_reel', 'cdr_temps_reel'].map((name) => name.toLowerCase())
 );
 
 /**

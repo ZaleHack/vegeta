@@ -14,6 +14,27 @@ const EMPTY_RESULT = {
 const REALTIME_INDEX = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
 const MAX_BATCH_SIZE = 5000;
 
+const BTS_LOCATION_JOIN = `
+  LEFT JOIN (
+    SELECT
+      cgi,
+      MAX(longitude) AS longitude,
+      MAX(latitude) AS latitude,
+      MAX(azimut) AS azimut,
+      MAX(nom_bts) AS nom_bts
+    FROM (
+      SELECT CGI AS cgi, LONGITUDE AS longitude, LATITUDE AS latitude, AZIMUT AS azimut, NOM_BTS AS nom_bts FROM bts_orange.\`2g\`
+      UNION ALL
+      SELECT CGI, LONGITUDE, LATITUDE, AZIMUT, NOM_BTS FROM bts_orange.\`3g\`
+      UNION ALL
+      SELECT CGI, LONGITUDE, LATITUDE, AZIMUT, NOM_BTS FROM bts_orange.\`4g\`
+      UNION ALL
+      SELECT CGI, LONGITUDE, LATITUDE, AZIMUT, NOM_BTS FROM bts_orange.\`5g\`
+    ) AS bts_union
+    GROUP BY cgi
+  ) AS bts ON bts.cgi = cdr.cgi
+`;
+
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number(value);
   if (Number.isFinite(parsed) && parsed > 0) {
@@ -423,7 +444,7 @@ class RealtimeCdrService {
     const variantList = Array.from(identifierVariants);
     if (variantList.length > 0) {
       const numberConditions = variantList.map(
-        () => '(numero_appelant = ? OR numero_appele = ?)'
+        () => '(cdr.numero_appelant = ? OR cdr.numero_appele = ?)'
       );
       conditions.push(`(${numberConditions.join(' OR ')})`);
       variantList.forEach((variant) => {
@@ -432,20 +453,20 @@ class RealtimeCdrService {
     }
 
     if (filters.startDate) {
-      conditions.push('date_debut_appel >= ?');
+      conditions.push('cdr.date_debut >= ?');
       params.push(filters.startDate);
     }
     if (filters.endDate) {
-      conditions.push('date_debut_appel <= ?');
+      conditions.push('cdr.date_debut <= ?');
       params.push(filters.endDate);
     }
 
     if (filters.startTimeBound) {
-      conditions.push('heure_debut_appel >= ?');
+      conditions.push('cdr.heure_debut >= ?');
       params.push(filters.startTimeBound);
     }
     if (filters.endTimeBound) {
-      conditions.push('heure_debut_appel <= ?');
+      conditions.push('cdr.heure_debut <= ?');
       params.push(filters.endTimeBound);
     }
 
@@ -455,27 +476,34 @@ class RealtimeCdrService {
 
     const sql = `
       SELECT
-        id,
-        type_appel,
-        date_debut_appel,
-        date_fin_appel,
-        heure_debut_appel,
-        heure_fin_appel,
-        duree_appel,
-        numero_appelant,
-        imei_appelant,
-        numero_appele,
-        imsi_appelant,
-        cgi,
-        longitude,
-        latitude,
-        azimut,
-        nom_bts,
-        source_file,
-        inserted_at
-      FROM autres.cdr_realtime
+        cdr.id,
+        cdr.seq_number,
+        cdr.type_appel,
+        cdr.statut_appel,
+        cdr.cause_liberation,
+        cdr.facturation,
+        cdr.date_debut AS date_debut_appel,
+        cdr.date_fin AS date_fin_appel,
+        cdr.heure_debut AS heure_debut_appel,
+        cdr.heure_fin AS heure_fin_appel,
+        cdr.duree_sec AS duree_appel,
+        cdr.numero_appelant,
+        cdr.imei_appelant,
+        cdr.numero_appele,
+        cdr.imsi_appelant,
+        cdr.cgi,
+        bts.longitude,
+        bts.latitude,
+        bts.azimut,
+        bts.nom_bts,
+        cdr.route_reseau,
+        cdr.device_id,
+        cdr.fichier_source AS source_file,
+        cdr.inserted_at
+      FROM autres.cdr_temps_reel AS cdr
+      ${BTS_LOCATION_JOIN}
       ${whereClause}
-      ORDER BY date_debut_appel ASC, heure_debut_appel ASC, id ASC
+      ORDER BY cdr.date_debut ASC, cdr.heure_debut ASC, cdr.id ASC
       LIMIT ?
     `;
 
@@ -534,7 +562,11 @@ class RealtimeCdrService {
         const source = hit._source || {};
         return {
           id: source.record_id ?? hit._id,
+          seq_number: source.seq_number ?? null,
           type_appel: source.type_appel ?? null,
+          statut_appel: source.statut_appel ?? null,
+          cause_liberation: source.cause_liberation ?? null,
+          facturation: source.facturation ?? null,
           date_debut_appel: source.date_debut_appel ?? null,
           date_fin_appel: source.date_fin_appel ?? null,
           heure_debut_appel: source.heure_debut_appel ?? null,
@@ -550,6 +582,8 @@ class RealtimeCdrService {
           latitude: source.latitude ?? null,
           azimut: source.azimut ?? null,
           nom_bts: source.nom_bts ?? null,
+          route_reseau: source.route_reseau ?? null,
+          device_id: source.device_id ?? null,
           source_file: source.source_file ?? null,
           inserted_at: source.inserted_at ?? null
         };
@@ -581,7 +615,11 @@ class RealtimeCdrService {
           mappings: {
             properties: {
               record_id: { type: 'long' },
+              seq_number: { type: 'long' },
               type_appel: { type: 'keyword' },
+              statut_appel: { type: 'keyword' },
+              cause_liberation: { type: 'keyword' },
+              facturation: { type: 'keyword' },
               event_type: { type: 'keyword' },
               date_debut_appel: { type: 'date' },
               date_fin_appel: { type: 'date' },
@@ -605,6 +643,8 @@ class RealtimeCdrService {
               latitude: { type: 'double' },
               azimut: { type: 'keyword' },
               nom_bts: { type: 'keyword' },
+              route_reseau: { type: 'keyword' },
+              device_id: { type: 'keyword' },
               source_file: { type: 'keyword' },
               inserted_at: { type: 'date' },
               call_timestamp: { type: 'date' },
@@ -677,27 +717,34 @@ class RealtimeCdrService {
     return database.query(
       `
         SELECT
-          id,
-          type_appel,
-          date_debut_appel,
-          date_fin_appel,
-          heure_debut_appel,
-          heure_fin_appel,
-          duree_appel,
-          numero_appelant,
-          imei_appelant,
-          numero_appele,
-          imsi_appelant,
-          cgi,
-          longitude,
-          latitude,
-          azimut,
-          nom_bts,
-          source_file,
-          inserted_at
-        FROM autres.cdr_realtime
-        WHERE id > ?
-        ORDER BY id ASC
+          cdr.id,
+          cdr.seq_number,
+          cdr.type_appel,
+          cdr.statut_appel,
+          cdr.cause_liberation,
+          cdr.facturation,
+          cdr.date_debut AS date_debut_appel,
+          cdr.date_fin AS date_fin_appel,
+          cdr.heure_debut AS heure_debut_appel,
+          cdr.heure_fin AS heure_fin_appel,
+          cdr.duree_sec AS duree_appel,
+          cdr.numero_appelant,
+          cdr.imei_appelant,
+          cdr.numero_appele,
+          cdr.imsi_appelant,
+          cdr.cgi,
+          bts.longitude,
+          bts.latitude,
+          bts.azimut,
+          bts.nom_bts,
+          cdr.route_reseau,
+          cdr.device_id,
+          cdr.fichier_source AS source_file,
+          cdr.inserted_at
+        FROM autres.cdr_temps_reel AS cdr
+        ${BTS_LOCATION_JOIN}
+        WHERE cdr.id > ?
+        ORDER BY cdr.id ASC
         LIMIT ?
       `,
       [startId, effectiveLimit]
@@ -1029,7 +1076,11 @@ class RealtimeCdrService {
 
     return {
       record_id: row.id,
+      seq_number: toNullableNumber(row.seq_number),
       type_appel: normalizeString(row.type_appel),
+      statut_appel: normalizeString(row.statut_appel),
+      cause_liberation: normalizeString(row.cause_liberation),
+      facturation: normalizeString(row.facturation),
       event_type: resolveEventType(row.type_appel),
       date_debut_appel: dateStart,
       date_fin_appel: dateEnd,
@@ -1053,6 +1104,8 @@ class RealtimeCdrService {
       latitude: toNullableNumber(row.latitude),
       azimut: normalizeString(row.azimut),
       nom_bts: normalizeString(row.nom_bts),
+      route_reseau: normalizeString(row.route_reseau),
+      device_id: normalizeString(row.device_id),
       source_file: normalizeString(row.source_file),
       inserted_at: normalizeDateTimeInput(row.inserted_at),
       call_timestamp: buildCallTimestampValue(dateStart, startTime),
@@ -1141,7 +1194,18 @@ class RealtimeCdrService {
           imeiCaller: row.imei_appelant ? String(row.imei_appelant).trim() : undefined,
           imeiCalled: undefined,
           cgi: row.cgi ? String(row.cgi).trim() : undefined,
-          azimut: row.azimut ? String(row.azimut).trim() : undefined
+          azimut: row.azimut ? String(row.azimut).trim() : undefined,
+          seqNumber:
+            row.seq_number !== null && row.seq_number !== undefined
+              ? String(row.seq_number)
+              : undefined,
+          statutAppel: row.statut_appel ? String(row.statut_appel).trim() : undefined,
+          causeLiberation: row.cause_liberation
+            ? String(row.cause_liberation).trim()
+            : undefined,
+          facturation: row.facturation ? String(row.facturation).trim() : undefined,
+          routeReseau: row.route_reseau ? String(row.route_reseau).trim() : undefined,
+          deviceId: row.device_id ? String(row.device_id).trim() : undefined
         });
       }
     }
