@@ -902,37 +902,46 @@ export default {
     theme: 'telecom'
   },
 
-  'autres.cdr_realtime': {
-    display: 'cdr_realtime',
+  'autres.cdr_temps_reel': {
+    display: 'cdr_temps_reel',
     database: 'autres',
     searchable: [
       'type_appel',
+      'statut_appel',
+      'cause_liberation',
+      'facturation',
+      'date_debut',
+      'date_fin',
+      'heure_debut',
+      'heure_fin',
       'numero_appelant',
       'numero_appele',
       'imei_appelant',
       'imsi_appelant',
       'cgi',
-      'nom_bts',
-      'source_file'
+      'route_reseau',
+      'device_id',
+      'fichier_source'
     ],
     preview: [
       'type_appel',
       'numero_appelant',
       'numero_appele',
-      'date_debut_appel',
-      'heure_debut_appel',
-      'nom_bts'
+      'date_debut',
+      'heure_debut',
+      'route_reseau'
     ],
     filters: {
       type_appel: 'string',
-      date_debut_appel: 'date',
-      date_fin_appel: 'date',
-      heure_debut_appel: 'string',
-      heure_fin_appel: 'string',
+      statut_appel: 'string',
+      cause_liberation: 'string',
+      date_debut: 'date',
+      date_fin: 'date',
+      heure_debut: 'string',
+      heure_fin: 'string',
       numero_appelant: 'string',
       numero_appele: 'string',
-      longitude: 'number',
-      latitude: 'number'
+      route_reseau: 'string'
     },
     theme: 'telecom',
     sync: {

@@ -7,10 +7,10 @@ SELECT
     c.imsi_appelant AS imsi,
     COUNT(DISTINCT c.imei_appelant) AS distinct_imeis,
     GROUP_CONCAT(DISTINCT c.imei_appelant ORDER BY c.imei_appelant SEPARATOR ', ') AS imei_list,
-    MIN(STR_TO_DATE(CONCAT(c.date_debut_appel, ' ', c.heure_debut_appel), '%Y-%m-%d %H:%i:%s')) AS first_usage,
-    MAX(STR_TO_DATE(CONCAT(c.date_debut_appel, ' ', c.heure_debut_appel), '%Y-%m-%d %H:%i:%s')) AS last_usage,
+    MIN(STR_TO_DATE(CONCAT(c.date_debut, ' ', c.heure_debut), '%Y-%m-%d %H:%i:%s')) AS first_usage,
+    MAX(STR_TO_DATE(CONCAT(c.date_debut, ' ', c.heure_debut), '%Y-%m-%d %H:%i:%s')) AS last_usage,
     COUNT(*) AS occurrence_count
-FROM cdr_realtime AS c
+FROM cdr_temps_reel AS c
 WHERE c.inserted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
 GROUP BY c.imsi_appelant
 HAVING COUNT(DISTINCT c.imei_appelant) > 1
@@ -21,10 +21,10 @@ SELECT
     c.imei_appelant AS imei,
     COUNT(DISTINCT c.numero_appelant) AS distinct_msisdns,
     GROUP_CONCAT(DISTINCT c.numero_appelant ORDER BY c.numero_appelant SEPARATOR ', ') AS msisdn_list,
-    MIN(STR_TO_DATE(CONCAT(c.date_debut_appel, ' ', c.heure_debut_appel), '%Y-%m-%d %H:%i:%s')) AS first_usage,
-    MAX(STR_TO_DATE(CONCAT(c.date_debut_appel, ' ', c.heure_debut_appel), '%Y-%m-%d %H:%i:%s')) AS last_usage,
+    MIN(STR_TO_DATE(CONCAT(c.date_debut, ' ', c.heure_debut), '%Y-%m-%d %H:%i:%s')) AS first_usage,
+    MAX(STR_TO_DATE(CONCAT(c.date_debut, ' ', c.heure_debut), '%Y-%m-%d %H:%i:%s')) AS last_usage,
     COUNT(*) AS occurrence_count
-FROM cdr_realtime AS c
+FROM cdr_temps_reel AS c
 WHERE c.inserted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
 GROUP BY c.imei_appelant
 HAVING COUNT(DISTINCT c.numero_appelant) > 1
@@ -35,10 +35,10 @@ SELECT
     c.imsi_appelant AS imsi,
     COUNT(DISTINCT c.numero_appelant) AS distinct_msisdns,
     GROUP_CONCAT(DISTINCT c.numero_appelant ORDER BY c.numero_appelant SEPARATOR ', ') AS msisdn_list,
-    MIN(STR_TO_DATE(CONCAT(c.date_debut_appel, ' ', c.heure_debut_appel), '%Y-%m-%d %H:%i:%s')) AS first_usage,
-    MAX(STR_TO_DATE(CONCAT(c.date_debut_appel, ' ', c.heure_debut_appel), '%Y-%m-%d %H:%i:%s')) AS last_usage,
+    MIN(STR_TO_DATE(CONCAT(c.date_debut, ' ', c.heure_debut), '%Y-%m-%d %H:%i:%s')) AS first_usage,
+    MAX(STR_TO_DATE(CONCAT(c.date_debut, ' ', c.heure_debut), '%Y-%m-%d %H:%i:%s')) AS last_usage,
     COUNT(*) AS occurrence_count
-FROM cdr_realtime AS c
+FROM cdr_temps_reel AS c
 WHERE c.inserted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
 GROUP BY c.imsi_appelant
 HAVING COUNT(DISTINCT c.numero_appelant) > 1
@@ -51,26 +51,44 @@ ORDER BY COUNT(DISTINCT c.numero_appelant) DESC, occurrence_count DESC;
 SELECT
     c.id,
     c.type_appel,
-    c.date_debut_appel,
-    c.heure_debut_appel,
-    c.date_fin_appel,
-    c.heure_fin_appel,
-    c.duree_appel,
+    c.date_debut,
+    c.heure_debut,
+    c.date_fin,
+    c.heure_fin,
+    c.duree_sec,
     c.numero_appelant,
     c.imsi_appelant,
     c.imei_appelant,
     c.numero_appele,
     c.cgi,
-    c.longitude,
-    c.latitude,
-    c.azimut,
-    c.nom_bts,
+    b.longitude,
+    b.latitude,
+    b.azimut,
+    b.nom_bts,
     c.inserted_at
-FROM cdr_realtime AS c
+FROM cdr_temps_reel AS c
+LEFT JOIN (
+    SELECT
+        base.cgi,
+        MAX(base.longitude) AS longitude,
+        MAX(base.latitude) AS latitude,
+        MAX(base.azimut) AS azimut,
+        MAX(base.nom_bts) AS nom_bts
+    FROM (
+        SELECT CGI AS cgi, LONGITUDE AS longitude, LATITUDE AS latitude, AZIMUT AS azimut, NOM_BTS AS nom_bts FROM bts_orange.`2g`
+        UNION ALL
+        SELECT CGI, LONGITUDE, LATITUDE, AZIMUT, NOM_BTS FROM bts_orange.`3g`
+        UNION ALL
+        SELECT CGI, LONGITUDE, LATITUDE, AZIMUT, NOM_BTS FROM bts_orange.`4g`
+        UNION ALL
+        SELECT CGI, LONGITUDE, LATITUDE, AZIMUT, NOM_BTS FROM bts_orange.`5g`
+    ) AS base
+    GROUP BY base.cgi
+) AS b ON b.cgi = c.cgi
 WHERE c.inserted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
   AND (
         ( @target_imsi IS NOT NULL AND c.imsi_appelant = @target_imsi )
      OR ( @target_imei IS NOT NULL AND c.imei_appelant = @target_imei )
       )
-ORDER BY STR_TO_DATE(CONCAT(c.date_debut_appel, ' ', c.heure_debut_appel), '%Y-%m-%d %H:%i:%s') ASC,
+ORDER BY STR_TO_DATE(CONCAT(c.date_debut, ' ', c.heure_debut), '%Y-%m-%d %H:%i:%s') ASC,
          c.id ASC;
