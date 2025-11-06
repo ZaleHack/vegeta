@@ -284,6 +284,17 @@ class RealtimeCdrService {
     return `\`${identifier.replace(/`/g, '``')}\``;
   }
 
+  #normalizeCgiExpression(column) {
+    if (typeof column !== 'string') {
+      return 'NULL';
+    }
+    const expr = column.trim();
+    if (!expr) {
+      return 'NULL';
+    }
+    return `LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${expr}, ' ', ''), '-', ''), '_', ''), '.', ''), '/', ''))`;
+  }
+
   #formatTableReference(schema, table) {
     const sanitizedTable = this.#sanitizeIdentifier(table);
     if (!sanitizedTable) {
@@ -432,10 +443,13 @@ class RealtimeCdrService {
 
         const unionQuery = unionParts.join('\n          UNION ALL\n          ');
 
+        const normalizedBtsCgi = this.#normalizeCgiExpression('bts_union.cgi');
+        const normalizedCdrCgi = this.#normalizeCgiExpression('cdr.cgi');
+
         return `
       LEFT JOIN (
         SELECT
-          cgi,
+          ${normalizedBtsCgi} AS normalized_cgi,
           MAX(longitude) AS longitude,
           MAX(latitude) AS latitude,
           MAX(azimut) AS azimut,
@@ -443,8 +457,9 @@ class RealtimeCdrService {
         FROM (
           ${unionQuery}
         ) AS bts_union
-        GROUP BY cgi
-      ) AS bts ON bts.cgi = cdr.cgi
+        WHERE ${normalizedBtsCgi} IS NOT NULL AND ${normalizedBtsCgi} <> ''
+        GROUP BY normalized_cgi
+      ) AS bts ON bts.normalized_cgi = ${normalizedCdrCgi}
     `;
       } catch (error) {
         console.error('Erreur lors de la préparation des données de localisation BTS:', error);
