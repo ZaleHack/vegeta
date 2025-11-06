@@ -42,6 +42,12 @@ const BTS_LOCATION_JOIN = `
   ) AS bts ON bts.cgi = cdr.cgi
 `;
 
+const CDR_TABLE_CANDIDATES = [
+  { schema: 'autres', table: 'cdr_temps_reel' },
+  { schema: null, table: 'cdr_temps_reel' },
+  { schema: null, table: 'autres_cdr_temps_reel' }
+];
+
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number(value);
   if (Number.isFinite(parsed) && parsed > 0) {
@@ -265,6 +271,9 @@ class RealtimeCdrService {
     this.lastIndexedId = 0;
     this.indexing = false;
     this.indexTimer = null;
+    this.tableName = null;
+    this.tableNamePromise = null;
+    this.tableLookupLogged = false;
 
     this.initializationPromise = this.elasticEnabled && this.autoStart
       ? this.#initializeElasticsearch().catch((error) => {
@@ -273,6 +282,93 @@ class RealtimeCdrService {
           return false;
         })
       : null;
+  }
+
+  #sanitizeIdentifier(identifier) {
+    if (typeof identifier !== 'string') {
+      return '';
+    }
+    return identifier.replace(/[^A-Za-z0-9_\$]/g, '');
+  }
+
+  #quoteIdentifier(identifier) {
+    if (!identifier) {
+      return '';
+    }
+    return `\`${identifier.replace(/`/g, '``')}\``;
+  }
+
+  #formatTableReference(schema, table) {
+    const sanitizedTable = this.#sanitizeIdentifier(table);
+    if (!sanitizedTable) {
+      throw new Error('Nom de table CDR temps réel invalide.');
+    }
+    const quotedTable = this.#quoteIdentifier(sanitizedTable);
+    if (!schema) {
+      return quotedTable;
+    }
+    const sanitizedSchema = this.#sanitizeIdentifier(schema);
+    if (!sanitizedSchema) {
+      return quotedTable;
+    }
+    return `${this.#quoteIdentifier(sanitizedSchema)}.${quotedTable}`;
+  }
+
+  async #checkTableExists(schema, table) {
+    const sanitizedTable = this.#sanitizeIdentifier(table);
+    if (!sanitizedTable) {
+      return false;
+    }
+
+    const sanitizedSchema = schema ? this.#sanitizeIdentifier(schema) : null;
+    const sql = sanitizedSchema
+      ? `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`
+      : `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`;
+
+    const params = sanitizedSchema
+      ? [sanitizedSchema, sanitizedTable]
+      : [sanitizedTable];
+
+    try {
+      const result = await database.queryOne(sql, params);
+      return Number(result?.count || 0) > 0;
+    } catch (error) {
+      console.error('Erreur lors de la vérification de la table CDR temps réel:', error);
+      return false;
+    }
+  }
+
+  async #resolveTableName() {
+    if (this.tableName) {
+      return this.tableName;
+    }
+    if (this.tableNamePromise) {
+      return this.tableNamePromise;
+    }
+
+    this.tableNamePromise = (async () => {
+      for (const candidate of CDR_TABLE_CANDIDATES) {
+        const exists = await this.#checkTableExists(candidate.schema, candidate.table);
+        if (exists) {
+          const formatted = this.#formatTableReference(candidate.schema, candidate.table);
+          this.tableName = formatted;
+          return formatted;
+        }
+      }
+
+      if (!this.tableLookupLogged) {
+        console.warn(
+          "⚠️ Table CDR temps réel introuvable via les candidats configurés. Utilisation du nom par défaut 'cdr_temps_reel'."
+        );
+        this.tableLookupLogged = true;
+      }
+
+      const fallback = this.#formatTableReference(null, 'cdr_temps_reel');
+      this.tableName = fallback;
+      return fallback;
+    })();
+
+    return this.tableNamePromise;
   }
 
   async #initializeElasticsearch() {
@@ -400,6 +496,8 @@ class RealtimeCdrService {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+    const tableName = await this.#resolveTableName();
+
     const sql = `
       SELECT
         cdr.id,
@@ -426,7 +524,7 @@ class RealtimeCdrService {
         cdr.device_id,
         cdr.fichier_source AS source_file,
         cdr.inserted_at
-      FROM autres.cdr_temps_reel AS cdr
+      FROM ${tableName} AS cdr
       ${BTS_LOCATION_JOIN}
       ${whereClause}
       ORDER BY cdr.date_debut ASC, cdr.heure_debut ASC, cdr.id ASC
@@ -640,6 +738,8 @@ class RealtimeCdrService {
 
     const effectiveLimit = this.#resolveBatchSize(limit);
 
+    const tableName = await this.#resolveTableName();
+
     return database.query(
       `
         SELECT
@@ -667,7 +767,7 @@ class RealtimeCdrService {
           cdr.device_id,
           cdr.fichier_source AS source_file,
           cdr.inserted_at
-        FROM autres.cdr_temps_reel AS cdr
+        FROM ${tableName} AS cdr
         ${BTS_LOCATION_JOIN}
         WHERE cdr.id > ?
         ORDER BY cdr.id ASC
