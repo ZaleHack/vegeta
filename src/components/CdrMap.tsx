@@ -53,7 +53,6 @@ interface Point {
   tracked?: string;
   cgi?: string;
   azimut?: string;
-  technology?: string;
 }
 
 interface Contact {
@@ -74,7 +73,6 @@ interface LocationStat {
   count: number;
   lastDate?: string;
   lastTime?: string;
-  technology?: string;
 }
 
 interface LocationMarker extends LocationStat {
@@ -612,25 +610,6 @@ const parseTimestamp = (date: string, time: string) => {
   return Number.isFinite(timestamp) ? timestamp : NaN;
 };
 
-const parseCoordinate = (value?: string | number | null): number | null => {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const normalized = trimmed.replace(/\s+/g, '').replace(/,/g, '.');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
 const parseCgi = (value?: string): ParsedCgi | null => {
   if (!value) return null;
   const trimmed = value.trim();
@@ -700,9 +679,9 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
     const parsedCgi = parseCgi(point.cgi);
     if (!parsedCgi) return;
 
-    const lat = parseCoordinate(point.latitude);
-    const lng = parseCoordinate(point.longitude);
-    if (lat === null || lng === null) return;
+    const lat = Number.parseFloat(point.latitude);
+    const lng = Number.parseFloat(point.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
     if (!coordinatesByCgi.has(parsedCgi.normalized)) {
       coordinatesByCgi.set(parsedCgi.normalized, { lat, lng });
@@ -717,10 +696,10 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
 
     if (Number.isNaN(timestamp)) return;
 
-    let lat = parseCoordinate(point.latitude);
-    let lng = parseCoordinate(point.longitude);
+    let lat = Number.parseFloat(point.latitude);
+    let lng = Number.parseFloat(point.longitude);
 
-    if (lat === null || lng === null) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       if (parsedCgi) {
         const cached = coordinatesByCgi.get(parsedCgi.normalized);
         if (cached) {
@@ -730,7 +709,7 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
       }
     }
 
-    if (lat === null || lng === null) return;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
     const cellKey = parsedCgi?.normalized ?? `${lat.toFixed(6)},${lng.toFixed(6)}`;
     if (!cellKey) return;
@@ -1118,16 +1097,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   );
 
   const referencePoints = callerPoints.length > 0 ? callerPoints : points;
-  const center = useMemo<[number, number]>(() => {
-    for (const point of referencePoints) {
-      const lat = parseCoordinate(point.latitude);
-      const lng = parseCoordinate(point.longitude);
-      if (lat !== null && lng !== null) {
-        return [lat, lng];
-      }
-    }
-    return [0, 0];
-  }, [referencePoints]);
+  const first = referencePoints[0];
+  const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const mapRef = useRef<L.Map | null>(null);
 
   const handleZoomIn = () => {
@@ -1178,8 +1149,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       const coordsValue =
         point.latitude && point.longitude ? `${point.latitude}, ${point.longitude}` : 'N/A';
 
-      const technologyValue = point.technology ? point.technology.toUpperCase() : 'N/A';
-
       const cellParts: string[] = [];
       if (point.cgi) cellParts.push(point.cgi);
       if (point.nom) cellParts.push(point.nom);
@@ -1208,7 +1177,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         { label: 'Durée', value: durationValue },
         { label: 'Identifiant de la cellule', value: cellValue },
         { label: 'Coordonnées GPS', value: coordsValue },
-        { label: 'Technologie radio', value: technologyValue },
         { label: 'Identifiant abonné (IMSI)', value: imsiValue },
         { label: "Identifiant d'équipement (IMEI)", value: imeiValue }
       ];
@@ -1360,9 +1328,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   const isPointWithinZone = useCallback(
     (point: Point) => {
       if (!zoneShape || zoneShape.length < 3) return true;
-      const lat = parseCoordinate(point.latitude);
-      const lng = parseCoordinate(point.longitude);
-      if (lat === null || lng === null) return false;
+      const lat = parseFloat(point.latitude);
+      const lng = parseFloat(point.longitude);
+      if (isNaN(lat) || isNaN(lng)) return false;
       return pointInPolygon(L.latLng(lat, lng), zoneShape);
     },
     [zoneShape]
@@ -1494,11 +1462,6 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {loc.latitude}, {loc.longitude}
               </p>
-              {loc.technology && (
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
-                  Technologie&nbsp;: {loc.technology}
-                </p>
-              )}
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-3 text-slate-700 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:shadow-black/40">
               <span className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-400">Occurrences</span>
@@ -1639,9 +1602,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           return true;
         }
 
-        const lat = parseCoordinate(point.latitude);
-        const lng = parseCoordinate(point.longitude);
-        if (lat === null || lng === null) {
+        const lat = parseFloat(point.latitude);
+        const lng = parseFloat(point.longitude);
+        if (isNaN(lat) || isNaN(lng)) {
           return true;
         }
 
@@ -1748,13 +1711,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           nom: p.nom,
           count: 0,
           lastDate: p.callDate,
-          lastTime: p.startTime,
-          technology: p.technology
+          lastTime: p.startTime
         };
       loc.count += 1;
-      if (!loc.technology && p.technology) {
-        loc.technology = p.technology;
-      }
       const current = new Date(`${p.callDate}T${p.startTime}`);
       const prev = loc.lastDate && loc.lastTime ? new Date(`${loc.lastDate}T${loc.lastTime}`) : null;
       if (!prev || current > prev) {
@@ -1776,13 +1735,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           nom: p.nom,
           count: 0,
           lastDate: p.callDate,
-          lastTime: p.startTime,
-          technology: p.technology
+          lastTime: p.startTime
         };
       loc.count += 1;
-      if (!loc.technology && p.technology) {
-        loc.technology = p.technology;
-      }
       const current = new Date(`${p.callDate}T${p.startTime}`);
       const prev = loc.lastDate && loc.lastTime ? new Date(`${loc.lastDate}T${loc.lastTime}`) : null;
       if (!prev || current > prev) {
@@ -1806,11 +1761,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total);
 
-    const allLocations = Array.from(locationMap.values()).filter((loc) => {
-      const lat = parseCoordinate(loc.latitude);
-      const lng = parseCoordinate(loc.longitude);
-      return lat !== null && lng !== null;
-    });
+    const allLocations = Array.from(locationMap.values()).filter(
+      (loc) =>
+        !isNaN(parseFloat(loc.latitude)) && !isNaN(parseFloat(loc.longitude))
+    );
 
     const locations: LocationStat[] = allLocations
       .slice()
@@ -1874,13 +1828,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             nom: p.nom,
             count: 0,
             lastDate: p.callDate,
-            lastTime: p.startTime,
-            technology: p.technology
+            lastTime: p.startTime
           };
         loc.count += 1;
-        if (!loc.technology && p.technology) {
-          loc.technology = p.technology;
-        }
         const current = new Date(`${p.callDate}T${p.startTime}`);
         const prev =
           loc.lastDate && loc.lastTime
@@ -1894,11 +1844,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       });
       const markers: LocationMarker[] = [];
       perSource.forEach((map, src) => {
-        const all = Array.from(map.values()).filter((loc) => {
-          const lat = parseCoordinate(loc.latitude);
-          const lng = parseCoordinate(loc.longitude);
-          return lat !== null && lng !== null;
-        });
+        const all = Array.from(map.values()).filter(
+          (loc) =>
+            !isNaN(parseFloat(loc.latitude)) && !isNaN(parseFloat(loc.longitude))
+        );
         const sorted =
           activeInfo === 'popular'
             ? all.sort((a, b) => b.count - a.count)
@@ -1936,13 +1885,10 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         const radius = 0.0003;
         group.forEach((m, idx) => {
           const angle = idx * angleStep;
-          const baseLat = parseCoordinate(m.latitude);
-          const baseLng = parseCoordinate(m.longitude);
-          if (baseLat === null || baseLng === null) {
-            return;
-          }
-          const lat = baseLat + radius * Math.cos(angle);
-          const lng = baseLng + radius * Math.sin(angle);
+          const lat =
+            parseFloat(m.latitude) + radius * Math.cos(angle);
+          const lng =
+            parseFloat(m.longitude) + radius * Math.sin(angle);
           adjusted.push({ ...m, latitude: lat.toString(), longitude: lng.toString() });
         });
       });
@@ -1971,13 +1917,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       const radius = 0.0003;
       group.forEach((m, idx) => {
         const angle = idx * angleStep;
-        const baseLat = parseCoordinate(m.latitude);
-        const baseLng = parseCoordinate(m.longitude);
-        if (baseLat === null || baseLng === null) {
-          return;
-        }
-        const lat = baseLat + radius * Math.cos(angle);
-        const lng = baseLng + radius * Math.sin(angle);
+        const lat = parseFloat(m.latitude) + radius * Math.cos(angle);
+        const lng = parseFloat(m.longitude) + radius * Math.sin(angle);
         adjusted.push({ ...m, latitude: lat.toString(), longitude: lng.toString() });
       });
     });
@@ -2001,16 +1942,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       const dateB = new Date(`${b.callDate}T${b.startTime}`);
       return dateA.getTime() - dateB.getTime();
     });
-    return sorted
-      .map((p) => {
-        const lat = parseCoordinate(p.latitude);
-        const lng = parseCoordinate(p.longitude);
-        if (lat === null || lng === null) {
-          return null;
-        }
-        return [lat, lng] as [number, number];
-      })
-      .filter((value): value is [number, number] => value !== null);
+    return sorted.map((p) => [parseFloat(p.latitude), parseFloat(p.longitude)] as [number, number]);
   }, [displayedPoints, showRoute]);
 
   const interpolatedRoute = useMemo(() => {
@@ -2060,11 +1992,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       for (let i = 1; i < pts.length; i++) {
         const a = pts[i - 1];
         const b = pts[i];
-        const lat1 = parseCoordinate(a.latitude);
-        const lng1 = parseCoordinate(a.longitude);
-        const lat2 = parseCoordinate(b.latitude);
-        const lng2 = parseCoordinate(b.longitude);
-        if (lat1 === null || lng1 === null || lat2 === null || lng2 === null) continue;
+        const lat1 = parseFloat(a.latitude);
+        const lng1 = parseFloat(a.longitude);
+        const lat2 = parseFloat(b.latitude);
+        const lng2 = parseFloat(b.longitude);
+        if (isNaN(lat1) || isNaN(lng1) || isNaN(lat2) || isNaN(lng2)) continue;
         const key = `${lat1},${lng1}|${lat2},${lng2}`;
         const seg =
           segmentMap.get(key) || {
@@ -2126,14 +2058,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         seg.positions.map((pos) => pos.join(','))
       )
     );
-    return similarPoints.filter((p) => {
-      const lat = parseCoordinate(p.latitude);
-      const lng = parseCoordinate(p.longitude);
-      if (lat === null || lng === null) {
-        return false;
-      }
-      return coords.has(`${lat},${lng}`);
-    });
+    return similarPoints.filter((p) =>
+      coords.has(`${parseFloat(p.latitude)},${parseFloat(p.longitude)}`)
+    );
   }, [similarSegments, similarPoints]);
 
   const [carIndex, setCarIndex] = useState(0);
@@ -2258,14 +2185,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     >();
     displayedPoints.forEach((p) => {
       if (!p.source) return;
-      const lat = parseCoordinate(p.latitude);
-      const lng = parseCoordinate(p.longitude);
-      if (lat === null || lng === null) return;
-      const key = `${lat},${lng}`;
+      const key = `${p.latitude},${p.longitude}`;
       if (!locationMap.has(key)) {
         locationMap.set(key, {
-          lat,
-          lng,
+          lat: parseFloat(p.latitude),
+          lng: parseFloat(p.longitude),
           nom: p.nom,
           events: []
         });
@@ -2447,9 +2371,9 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     >();
 
     displayedPoints.forEach((p) => {
-      const lat = parseCoordinate(p.latitude);
-      const lng = parseCoordinate(p.longitude);
-      if (lat === null || lng === null) return;
+      const lat = parseFloat(p.latitude);
+      const lng = parseFloat(p.longitude);
+      if (isNaN(lat) || isNaN(lng)) return;
       const key = `${lat},${lng}`;
       let group = groups.get(key);
       if (!group) {
@@ -2699,52 +2623,41 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             )
           )}
         {showSimilar &&
-          (showOthers ? similarPoints : connectorPoints).map((loc, idx) => {
-            const lat = parseCoordinate(loc.latitude);
-            const lng = parseCoordinate(loc.longitude);
-            if (lat === null || lng === null) {
-              return null;
-            }
-            return (
-              <Marker
-                key={`similar-point-${idx}`}
-                position={[lat, lng]}
-                icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
-              >
-                <Popup className="cdr-popup">
-                  {renderEventPopupContent(loc)}
-                </Popup>
-              </Marker>
-            );
-          })}
-        {locationMarkers.map((loc, idx) => {
-          const lat = parseCoordinate(loc.latitude);
-          const lng = parseCoordinate(loc.longitude);
-          if (lat === null || lng === null) {
-            return null;
-          }
-          return (
+          (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
             <Marker
-              key={`stat-${idx}`}
-              position={[lat, lng]}
-              icon={createLabelIcon(
-                String(loc.count),
-                selectedSource === null &&
-                  sourceNumbers.length > 1 &&
-                  (activeInfo === 'recent' || activeInfo === 'popular')
-                  ? colorMap.get(loc.source || '') || '#f97316'
-                  : activeInfo === 'popular'
-                  ? '#9333ea'
-                  : '#f97316'
-              )}
-              zIndexOffset={1000}
+              key={`similar-point-${idx}`}
+              position={[
+                parseFloat(loc.latitude),
+                parseFloat(loc.longitude)
+              ]}
+              icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
             >
               <Popup className="cdr-popup">
-                {renderLocationStatPopup(loc)}
+                {renderEventPopupContent(loc)}
               </Popup>
             </Marker>
-          );
-        })}
+            ))}
+        {locationMarkers.map((loc, idx) => (
+          <Marker
+            key={`stat-${idx}`}
+            position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
+            icon={createLabelIcon(
+              String(loc.count),
+              selectedSource === null &&
+              sourceNumbers.length > 1 &&
+              (activeInfo === 'recent' || activeInfo === 'popular')
+                ? colorMap.get(loc.source || '') || '#f97316'
+                : activeInfo === 'popular'
+                ? '#9333ea'
+                : '#f97316'
+            )}
+            zIndexOffset={1000}
+          >
+            <Popup className="cdr-popup">
+              {renderLocationStatPopup(loc)}
+            </Popup>
+          </Marker>
+        ))}
         {triangulationZones.map((zone, idx) => (
           <React.Fragment key={`tri-${idx}`}>
             <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />

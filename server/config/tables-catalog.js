@@ -902,93 +902,37 @@ export default {
     theme: 'telecom'
   },
 
-  'autres.cdr_temps_reel': {
-    display: 'cdr_temps_reel',
+  'autres.cdr_realtime': {
+    display: 'cdr_realtime',
     database: 'autres',
     searchable: [
       'type_appel',
-      'statut_appel',
-      'cause_liberation',
-      'facturation',
-      'date_debut',
-      'date_fin',
-      'heure_debut',
-      'heure_fin',
       'numero_appelant',
       'numero_appele',
       'imei_appelant',
       'imsi_appelant',
       'cgi',
-      'route_reseau',
-      'device_id',
-      'fichier_source'
+      'nom_bts',
+      'source_file'
     ],
     preview: [
       'type_appel',
       'numero_appelant',
       'numero_appele',
-      'date_debut',
-      'heure_debut',
-      'route_reseau'
+      'date_debut_appel',
+      'heure_debut_appel',
+      'nom_bts'
     ],
     filters: {
       type_appel: 'string',
-      statut_appel: 'string',
-      cause_liberation: 'string',
-      date_debut: 'date',
-      date_fin: 'date',
-      heure_debut: 'string',
-      heure_fin: 'string',
+      date_debut_appel: 'date',
+      date_fin_appel: 'date',
+      heure_debut_appel: 'string',
+      heure_fin_appel: 'string',
       numero_appelant: 'string',
       numero_appele: 'string',
-      route_reseau: 'string'
-    },
-    theme: 'telecom',
-    sync: {
-      disabled: true
-    }
-  },
-
-  'bts_orange.cdr_temps_reel': {
-    display: 'cdr_temps_reel',
-    database: 'bts_orange',
-    searchable: [
-      'type_appel',
-      'statut_appel',
-      'cause_liberation',
-      'facturation',
-      'date_debut',
-      'date_fin',
-      'heure_debut',
-      'heure_fin',
-      'numero_appelant',
-      'numero_appele',
-      'imei_appelant',
-      'imsi_appelant',
-      'cgi',
-      'route_reseau',
-      'device_id',
-      'fichier_source'
-    ],
-    preview: [
-      'type_appel',
-      'numero_appelant',
-      'numero_appele',
-      'date_debut',
-      'heure_debut',
-      'route_reseau'
-    ],
-    filters: {
-      type_appel: 'string',
-      statut_appel: 'string',
-      cause_liberation: 'string',
-      date_debut: 'date',
-      date_fin: 'date',
-      heure_debut: 'string',
-      heure_fin: 'string',
-      numero_appelant: 'string',
-      numero_appele: 'string',
-      route_reseau: 'string'
+      longitude: 'number',
+      latitude: 'number'
     },
     theme: 'telecom',
     sync: {
