@@ -1233,12 +1233,38 @@ const App: React.FC = () => {
   const [uploadTable, setUploadTable] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
+  const parseFolderId = (value: unknown): number | null => {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    if (typeof value === 'number') {
+      return Number.isInteger(value) && Number.isFinite(value) && value > 0 ? value : null;
+    }
+    if (typeof value === 'bigint') {
+      if (value <= 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
+        return null;
+      }
+      const numeric = Number(value);
+      return Number.isInteger(numeric) && Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+      const parsed = Number(trimmed);
+      return Number.isInteger(parsed) && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
+    return null;
+  };
+
   const openCreateProfile = (
     data: BulkProfilePrefillData & {
       extra_fields?: Record<string, string> | FieldCategory[];
     } = {},
-    folderId?: number | null
+    folderId?: number | string | null
   ) => {
+    const normalizedFolderId = parseFolderId(folderId);
     const rawExtra = data.extra_fields;
     let categories: FieldCategory[];
     if (Array.isArray(rawExtra)) {
@@ -1271,9 +1297,9 @@ const App: React.FC = () => {
       extra_fields: categories,
       photo_path: null,
       attachments: [],
-      folder_id: folderId ?? null
+      folder_id: normalizedFolderId
     });
-    setProfileFormFolderId(folderId ?? null);
+    setProfileFormFolderId(normalizedFolderId);
     setEditingProfileId(null);
     setShowProfileForm(true);
     navigateToPage('profiles');
@@ -1308,13 +1334,14 @@ const App: React.FC = () => {
         includeWhenEmpty: Boolean(profile.last_name),
         matchLabels: ['nom', 'last name']
       });
-      setProfileFormFolderId(profile.folder_id ?? null);
+      const normalizedFolderId = parseFolderId(profile.folder_id);
+      setProfileFormFolderId(normalizedFolderId);
       setProfileDefaults({
         comment: profile.comment || '',
         extra_fields: extras,
         photo_path: profile.photo_path || null,
         attachments: Array.isArray(profile.attachments) ? profile.attachments : [],
-        folder_id: profile.folder_id ?? null
+        folder_id: normalizedFolderId
       });
       setEditingProfileId(id);
       setShowProfileForm(true);
