@@ -19,6 +19,7 @@ const EXCLUDED_SEARCH_TABLES = new Set(
     'autres.search_logs',
     'autres.search_sync_events',
     'autres.cdr_temps_reel',
+    'bts_orange.cdr_temps_reel',
     'autres.upload_history',
     'autres.users',
     'autres.users_log',

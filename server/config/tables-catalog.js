@@ -949,6 +949,53 @@ export default {
     }
   },
 
+  'bts_orange.cdr_temps_reel': {
+    display: 'cdr_temps_reel',
+    database: 'bts_orange',
+    searchable: [
+      'type_appel',
+      'statut_appel',
+      'cause_liberation',
+      'facturation',
+      'date_debut',
+      'date_fin',
+      'heure_debut',
+      'heure_fin',
+      'numero_appelant',
+      'numero_appele',
+      'imei_appelant',
+      'imsi_appelant',
+      'cgi',
+      'route_reseau',
+      'device_id',
+      'fichier_source'
+    ],
+    preview: [
+      'type_appel',
+      'numero_appelant',
+      'numero_appele',
+      'date_debut',
+      'heure_debut',
+      'route_reseau'
+    ],
+    filters: {
+      type_appel: 'string',
+      statut_appel: 'string',
+      cause_liberation: 'string',
+      date_debut: 'date',
+      date_fin: 'date',
+      heure_debut: 'string',
+      heure_fin: 'string',
+      numero_appelant: 'string',
+      numero_appele: 'string',
+      route_reseau: 'string'
+    },
+    theme: 'telecom',
+    sync: {
+      disabled: true
+    }
+  },
+
   'autres.fichemilitaire': {
     display: 'fichemilitaire',
     database: 'autres',
