@@ -1,6 +1,6 @@
 # Enrichissement des CDR avec les coordonnées radio
 
-Cette note décrit deux approches pour enrichir la table `cdr_temps_reel` avec les colonnes `longitude`, `latitude` et `azimut` en se basant sur la valeur de `cgi`.
+Cette note décrit deux approches pour enrichir la table `cdr_temps_reel` avec les colonnes `longitude`, `latitude`, `azimut` et `nom_bts` en se basant sur la valeur de `cgi`.
 
 ## 1. Mise à jour SQL massive
 
@@ -12,7 +12,8 @@ WITH source AS (
         c.id,
         COALESCE(r2.longitude, r3.longitude, r4.longitude, r5.longitude) AS longitude,
         COALESCE(r2.latitude,  r3.latitude,  r4.latitude,  r5.latitude ) AS latitude,
-        COALESCE(r2.azimut,    r3.azimut,    r4.azimut,    r5.azimut   ) AS azimut
+        COALESCE(r2.azimut,    r3.azimut,    r4.azimut,    r5.azimut   ) AS azimut,
+        COALESCE(r2.nom_bts,   r3.nom_bts,   r4.nom_bts,   r5.nom_bts  ) AS nom_bts
     FROM cdr_temps_reel c
     LEFT JOIN radio_2g r2 ON c.cgi = r2.cgi
     LEFT JOIN radio_3g r3 ON c.cgi = r3.cgi AND r2.cgi IS NULL
@@ -23,16 +24,18 @@ UPDATE cdr_temps_reel AS c
 SET
     longitude = s.longitude,
     latitude  = s.latitude,
-    azimut    = s.azimut
+    azimut    = s.azimut,
+    nom_bts   = s.nom_bts
 FROM source AS s
 WHERE c.id = s.id
-  AND (s.longitude IS NOT NULL OR s.latitude IS NOT NULL OR s.azimut IS NOT NULL);
+  AND (s.longitude IS NOT NULL OR s.latitude IS NOT NULL OR s.azimut IS NOT NULL OR s.nom_bts IS NOT NULL);
 ```
 
 ### Remarques
 - La clause `COALESCE` permet de sélectionner les coordonnées provenant de la première table où le `cgi` est trouvé.
 - Les conditions supplémentaires dans les jointures (`AND r2.cgi IS NULL`, etc.) empêchent de récupérer les coordonnées d'une technologie supérieure lorsque le `cgi` existe déjà dans une technologie inférieure.
-- Ajouter `WHERE c.longitude IS NULL` permet d'éviter une écriture inutile des lignes déjà enrichies.
+- Ajouter une condition `WHERE c.longitude IS NULL OR c.nom_bts IS NULL` permet d'éviter une écriture inutile des lignes déjà enrichies.
+- Étendre la requête pour inclure `nom_bts` permet de compléter également l'identifiant du site lorsqu'il est disponible dans les tables radio.
 
 ## 2. Enrichissement Python en temps réel
 
