@@ -43,6 +43,16 @@ const hasBodyToLog = (req) => {
   return Object.keys(req.body).length > 0;
 };
 
+const hasQueryToLog = (req) => {
+  if (!req.query) {
+    return false;
+  }
+  if (typeof req.query !== 'object') {
+    return false;
+  }
+  return Object.keys(req.query).length > 0;
+};
+
 export const requestLogger = (req, res, next) => {
   const start = process.hrtime.bigint();
   const { method, originalUrl } = req;
@@ -69,8 +79,8 @@ export const requestLogger = (req, res, next) => {
 
     console.log(parts.join(' '));
 
-    if (Object.keys(req.query || {}).length > 0) {
-      console.log('  query:', JSON.stringify(req.query));
+    if (hasQueryToLog(req)) {
+      console.log('  query:', JSON.stringify(redactObject(req.query)));
     }
 
     if (hasBodyToLog(req)) {
