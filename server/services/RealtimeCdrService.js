@@ -53,6 +53,9 @@ const sanitizeNumber = (value) => {
   return text;
 };
 
+const buildNormalizedCgiSql = (column) =>
+  `LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(${column}), '-', ''), ':', ''), ' ', ''), '.', ''), ';', ''))`;
+
 const normalizePhoneNumber = (value) => {
   const sanitized = sanitizeNumber(value);
   if (!sanitized) {
@@ -453,6 +456,12 @@ class RealtimeCdrService {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+    const normalizedCgiSql = buildNormalizedCgiSql('c.cgi');
+    const join2gCondition = `${buildNormalizedCgiSql('r2.CGI')} = ${normalizedCgiSql}`;
+    const join3gCondition = `${buildNormalizedCgiSql('r3.CGI')} = ${normalizedCgiSql}`;
+    const join4gCondition = `${buildNormalizedCgiSql('r4.CGI')} = ${normalizedCgiSql}`;
+    const join5gCondition = `${buildNormalizedCgiSql('r5.CGI')} = ${normalizedCgiSql}`;
+
     const sql = `
       SELECT
         c.id,
@@ -470,15 +479,20 @@ class RealtimeCdrService {
         COALESCE(r2.LONGITUDE, r3.LONGITUDE, r4.LONGITUDE, r5.LONGITUDE) AS longitude,
         COALESCE(r2.LATITUDE, r3.LATITUDE, r4.LATITUDE, r5.LATITUDE) AS latitude,
         COALESCE(r2.AZIMUT, r3.AZIMUT, r4.AZIMUT, r5.AZIMUT) AS azimut,
-        COALESCE(r2.NOM_BTS, r3.NOM_BTS, r4.NOM_BTS, r5.NOM_BTS) AS nom_bts,
+        COALESCE(
+          NULLIF(TRIM(r2.NOM_BTS), ''),
+          NULLIF(TRIM(r3.NOM_BTS), ''),
+          NULLIF(TRIM(r4.NOM_BTS), ''),
+          NULLIF(TRIM(r5.NOM_BTS), '')
+        ) AS nom_bts,
         c.fichier_source AS source_file,
         c.inserted_at
       FROM autres.cdr_temps_reel AS c
-      LEFT JOIN bts_orange.\`2g\` AS r2 ON r2.CGI = c.cgi
-      LEFT JOIN bts_orange.\`3g\` AS r3 ON r3.CGI = c.cgi AND r2.CGI IS NULL
-      LEFT JOIN bts_orange.\`4g\` AS r4 ON r4.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL
+      LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
+      LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND r2.CGI IS NULL
+      LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL
       LEFT JOIN bts_orange.\`5g\` AS r5
-        ON r5.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
+        ON ${join5gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
       ${whereClause}
       ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
       LIMIT ?
@@ -679,6 +693,12 @@ class RealtimeCdrService {
 
     const effectiveLimit = this.#resolveBatchSize(limit);
 
+    const normalizedCgiSql = buildNormalizedCgiSql('c.cgi');
+    const join2gCondition = `${buildNormalizedCgiSql('r2.CGI')} = ${normalizedCgiSql}`;
+    const join3gCondition = `${buildNormalizedCgiSql('r3.CGI')} = ${normalizedCgiSql}`;
+    const join4gCondition = `${buildNormalizedCgiSql('r4.CGI')} = ${normalizedCgiSql}`;
+    const join5gCondition = `${buildNormalizedCgiSql('r5.CGI')} = ${normalizedCgiSql}`;
+
     return database.query(
       `
         SELECT
@@ -697,15 +717,20 @@ class RealtimeCdrService {
           COALESCE(r2.LONGITUDE, r3.LONGITUDE, r4.LONGITUDE, r5.LONGITUDE) AS longitude,
           COALESCE(r2.LATITUDE, r3.LATITUDE, r4.LATITUDE, r5.LATITUDE) AS latitude,
           COALESCE(r2.AZIMUT, r3.AZIMUT, r4.AZIMUT, r5.AZIMUT) AS azimut,
-          COALESCE(r2.NOM_BTS, r3.NOM_BTS, r4.NOM_BTS, r5.NOM_BTS) AS nom_bts,
+          COALESCE(
+            NULLIF(TRIM(r2.NOM_BTS), ''),
+            NULLIF(TRIM(r3.NOM_BTS), ''),
+            NULLIF(TRIM(r4.NOM_BTS), ''),
+            NULLIF(TRIM(r5.NOM_BTS), '')
+          ) AS nom_bts,
           c.fichier_source AS source_file,
           c.inserted_at
         FROM autres.cdr_temps_reel AS c
-        LEFT JOIN bts_orange.\`2g\` AS r2 ON r2.CGI = c.cgi
-        LEFT JOIN bts_orange.\`3g\` AS r3 ON r3.CGI = c.cgi AND r2.CGI IS NULL
-        LEFT JOIN bts_orange.\`4g\` AS r4 ON r4.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL
+        LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
+        LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND r2.CGI IS NULL
+        LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL
         LEFT JOIN bts_orange.\`5g\` AS r5
-          ON r5.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
+          ON ${join5gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
         WHERE c.id > ?
         ORDER BY c.id ASC
         LIMIT ?
