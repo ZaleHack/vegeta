@@ -476,10 +476,11 @@ class RealtimeCdrService {
         c.numero_appele,
         c.imsi_appelant,
         c.cgi,
-        COALESCE(r2.LONGITUDE, r3.LONGITUDE, r4.LONGITUDE, r5.LONGITUDE) AS longitude,
-        COALESCE(r2.LATITUDE, r3.LATITUDE, r4.LATITUDE, r5.LATITUDE) AS latitude,
-        COALESCE(r2.AZIMUT, r3.AZIMUT, r4.AZIMUT, r5.AZIMUT) AS azimut,
+        COALESCE(c.longitude, r2.LONGITUDE, r3.LONGITUDE, r4.LONGITUDE, r5.LONGITUDE) AS longitude,
+        COALESCE(c.latitude, r2.LATITUDE, r3.LATITUDE, r4.LATITUDE, r5.LATITUDE) AS latitude,
+        COALESCE(c.azimut, r2.AZIMUT, r3.AZIMUT, r4.AZIMUT, r5.AZIMUT) AS azimut,
         COALESCE(
+          NULLIF(TRIM(c.nom_bts), ''),
           NULLIF(TRIM(r2.NOM_BTS), ''),
           NULLIF(TRIM(r3.NOM_BTS), ''),
           NULLIF(TRIM(r4.NOM_BTS), ''),
@@ -714,10 +715,11 @@ class RealtimeCdrService {
           c.numero_appele,
           c.imsi_appelant,
           c.cgi,
-          COALESCE(r2.LONGITUDE, r3.LONGITUDE, r4.LONGITUDE, r5.LONGITUDE) AS longitude,
-          COALESCE(r2.LATITUDE, r3.LATITUDE, r4.LATITUDE, r5.LATITUDE) AS latitude,
-          COALESCE(r2.AZIMUT, r3.AZIMUT, r4.AZIMUT, r5.AZIMUT) AS azimut,
+          COALESCE(c.longitude, r2.LONGITUDE, r3.LONGITUDE, r4.LONGITUDE, r5.LONGITUDE) AS longitude,
+          COALESCE(c.latitude, r2.LATITUDE, r3.LATITUDE, r4.LATITUDE, r5.LATITUDE) AS latitude,
+          COALESCE(c.azimut, r2.AZIMUT, r3.AZIMUT, r4.AZIMUT, r5.AZIMUT) AS azimut,
           COALESCE(
+            NULLIF(TRIM(c.nom_bts), ''),
             NULLIF(TRIM(r2.NOM_BTS), ''),
             NULLIF(TRIM(r3.NOM_BTS), ''),
             NULLIF(TRIM(r4.NOM_BTS), ''),
@@ -737,6 +739,210 @@ class RealtimeCdrService {
       `,
       [startId, effectiveLimit]
     );
+  }
+
+  async #fetchMissingCoordinateRows(afterId, limit) {
+    const numericAfterId = Number(afterId);
+    const startId = Number.isFinite(numericAfterId)
+      ? Math.max(0, Math.floor(numericAfterId))
+      : 0;
+
+    const effectiveLimit = Math.max(1, this.#resolveBatchSize(limit));
+
+    const normalizedCgiSql = buildNormalizedCgiSql('c.cgi');
+    const join2gCondition = `${buildNormalizedCgiSql('r2.CGI')} = ${normalizedCgiSql}`;
+    const join3gCondition = `${buildNormalizedCgiSql('r3.CGI')} = ${normalizedCgiSql}`;
+    const join4gCondition = `${buildNormalizedCgiSql('r4.CGI')} = ${normalizedCgiSql}`;
+    const join5gCondition = `${buildNormalizedCgiSql('r5.CGI')} = ${normalizedCgiSql}`;
+
+    return database.query(
+      `
+        SELECT
+          c.id,
+          c.cgi,
+          c.longitude AS existing_longitude,
+          c.latitude AS existing_latitude,
+          c.azimut AS existing_azimut,
+          c.nom_bts AS existing_nom_bts,
+          COALESCE(r2.LONGITUDE, r3.LONGITUDE, r4.LONGITUDE, r5.LONGITUDE) AS resolved_longitude,
+          COALESCE(r2.LATITUDE, r3.LATITUDE, r4.LATITUDE, r5.LATITUDE) AS resolved_latitude,
+          COALESCE(r2.AZIMUT, r3.AZIMUT, r4.AZIMUT, r5.AZIMUT) AS resolved_azimut,
+          COALESCE(
+            NULLIF(TRIM(r2.NOM_BTS), ''),
+            NULLIF(TRIM(r3.NOM_BTS), ''),
+            NULLIF(TRIM(r4.NOM_BTS), ''),
+            NULLIF(TRIM(r5.NOM_BTS), '')
+          ) AS resolved_nom_bts
+        FROM autres.cdr_temps_reel AS c
+        LEFT JOIN bts_orange.`2g` AS r2 ON ${join2gCondition}
+        LEFT JOIN bts_orange.`3g` AS r3 ON ${join3gCondition} AND r2.CGI IS NULL
+        LEFT JOIN bts_orange.`4g` AS r4 ON ${join4gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL
+        LEFT JOIN bts_orange.`5g` AS r5
+          ON ${join5gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
+        WHERE c.id > ?
+          AND (c.longitude IS NULL OR c.latitude IS NULL OR c.azimut IS NULL OR c.nom_bts IS NULL)
+        ORDER BY c.id ASC
+        LIMIT ?
+      `,
+      [startId, effectiveLimit]
+    );
+  }
+
+  #prepareCoordinateUpdate(row) {
+    if (!row || typeof row !== 'object') {
+      return null;
+    }
+
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) {
+      return null;
+    }
+
+    const existingLongitude = toNullableNumber(row.existing_longitude);
+    const resolvedLongitude = toNullableNumber(row.resolved_longitude);
+    const longitude = existingLongitude ?? resolvedLongitude ?? null;
+
+    const existingLatitude = toNullableNumber(row.existing_latitude);
+    const resolvedLatitude = toNullableNumber(row.resolved_latitude);
+    const latitude = existingLatitude ?? resolvedLatitude ?? null;
+
+    const existingAzimut = normalizeString(row.existing_azimut);
+    const resolvedAzimut = normalizeString(row.resolved_azimut);
+    const azimut = existingAzimut ?? resolvedAzimut ?? null;
+
+    const existingNomBts = normalizeString(row.existing_nom_bts);
+    const resolvedNomBts = normalizeString(row.resolved_nom_bts);
+    const nomBts = existingNomBts ?? resolvedNomBts ?? null;
+
+    const needsLongitude = existingLongitude === null && resolvedLongitude !== null;
+    const needsLatitude = existingLatitude === null && resolvedLatitude !== null;
+    const needsAzimut = existingAzimut === null && resolvedAzimut !== null;
+    const needsNomBts = existingNomBts === null && resolvedNomBts !== null;
+
+    if (!needsLongitude && !needsLatitude && !needsAzimut && !needsNomBts) {
+      return null;
+    }
+
+    return {
+      id: Math.floor(id),
+      longitude,
+      latitude,
+      azimut,
+      nom_bts: nomBts
+    };
+  }
+
+  async #applyCoordinateUpdates(updates) {
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return 0;
+    }
+
+    const placeholders = updates.map(() => '(?, ?, ?, ?, ?)').join(', ');
+    const sql = `
+      INSERT INTO autres.cdr_temps_reel (id, longitude, latitude, azimut, nom_bts)
+      VALUES ${placeholders}
+      ON DUPLICATE KEY UPDATE
+        longitude = VALUES(longitude),
+        latitude = VALUES(latitude),
+        azimut = VALUES(azimut),
+        nom_bts = VALUES(nom_bts)
+    `;
+
+    const params = [];
+    for (const item of updates) {
+      params.push(item.id, item.longitude, item.latitude, item.azimut, item.nom_bts);
+    }
+
+    await database.query(sql, params);
+    return updates.length;
+  }
+
+  async enrichMissingCoordinates(options = {}) {
+    const {
+      batchSize = null,
+      limit = null,
+      dryRun = false,
+      onBatchComplete = null
+    } = options;
+
+    const totalLimit = Number(limit);
+    const maxRows = Number.isFinite(totalLimit) && totalLimit > 0 ? Math.floor(totalLimit) : null;
+    const effectiveBatchSize = this.#resolveBatchSize(batchSize);
+
+    let remaining = maxRows;
+    let lastId = 0;
+    let batches = 0;
+    let scanned = 0;
+    let candidateTotal = 0;
+    let appliedTotal = 0;
+
+    let continueProcessing = true;
+
+    while (continueProcessing) {
+      const batchLimit = remaining !== null ? Math.min(remaining, effectiveBatchSize) : effectiveBatchSize;
+      if (!Number.isFinite(batchLimit) || batchLimit <= 0) {
+        break;
+      }
+
+      const rows = await this.#fetchMissingCoordinateRows(lastId, batchLimit);
+      if (!Array.isArray(rows) || rows.length === 0) {
+        break;
+      }
+
+      batches += 1;
+      scanned += rows.length;
+      lastId = rows[rows.length - 1].id;
+
+      const updates = rows
+        .map((row) => this.#prepareCoordinateUpdate(row))
+        .filter((row) => row !== null);
+
+      const candidates = updates.length;
+      candidateTotal += candidates;
+
+      let applied = 0;
+      if (!dryRun && candidates > 0) {
+        applied = await this.#applyCoordinateUpdates(updates);
+        appliedTotal += applied;
+      }
+
+      if (typeof onBatchComplete === 'function') {
+        try {
+          await onBatchComplete({
+            batch: batches,
+            fetched: rows.length,
+            candidates,
+            updated: dryRun ? 0 : applied,
+            lastId
+          });
+        } catch (callbackError) {
+          console.error(
+            'Erreur lors de la notification de progression de l\'enrichissement CDR temps réel:',
+            callbackError
+          );
+        }
+      }
+
+      if (remaining !== null) {
+        remaining -= rows.length;
+        if (remaining <= 0) {
+          continueProcessing = false;
+        }
+      }
+
+      if (rows.length < batchLimit) {
+        break;
+      }
+    }
+
+    return {
+      scanned,
+      candidates: candidateTotal,
+      updated: dryRun ? candidateTotal : appliedTotal,
+      lastId,
+      batches,
+      dryRun: Boolean(dryRun)
+    };
   }
 
   async #resetElasticsearchIndex() {
