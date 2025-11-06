@@ -500,7 +500,6 @@ interface CdrLocation {
   longitude: string;
   nom: string;
   count: number;
-  technology?: string;
 }
 
 interface CdrPoint {
@@ -523,7 +522,6 @@ interface CdrPoint {
   tracked?: string;
   cgi?: string;
   azimut?: string;
-  technology?: string;
 }
 
 interface CdrSearchResult {
@@ -3306,7 +3304,7 @@ useEffect(() => {
 
   const fetchCdrData = async (identifiersOverride?: string[]) => {
     const ids = dedupeCdrIdentifiers(identifiersOverride ?? cdrIdentifiers).filter(
-      (identifier) => Boolean(identifier)
+      (identifier) => identifier && !identifier.startsWith('2214')
     );
 
     if (ids.length === 0) {
@@ -3342,7 +3340,9 @@ useEffect(() => {
         });
         const data = await res.json();
         if (res.ok) {
-          const filtered = Array.isArray(data.path) ? data.path : [];
+          const filtered = Array.isArray(data.path)
+            ? data.path.filter((p: CdrPoint) => !String(p.number || '').startsWith('2214'))
+            : [];
           filtered.forEach((p: CdrPoint) => {
             const caller = (p.caller || '').trim();
             const locationOwner = p.type === 'web' ? id : caller || id;
@@ -3433,13 +3433,9 @@ useEffect(() => {
           latitude: p.latitude,
           longitude: p.longitude,
           nom: p.nom,
-          count: 0,
-          technology: p.technology
+          count: 0
         };
         loc.count += 1;
-        if (!loc.technology && p.technology) {
-          loc.technology = p.technology;
-        }
         locationsMap.set(key, loc);
       });
 

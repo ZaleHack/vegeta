@@ -174,28 +174,6 @@ class DatabaseManager {
         );
       };
 
-      const ensureTableEngine = async (tableName, engine = 'InnoDB') => {
-        const [schemaName, ...rawTableParts] = tableName.split('.');
-        const tableId = rawTableParts.join('.');
-
-        if (!schemaName || !tableId) {
-          throw new Error(`Table name invalide: ${tableName}`);
-        }
-
-        const tableInfo = await queryOne(
-          `
-            SELECT ENGINE
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-          `,
-          [schemaName, tableId]
-        );
-
-        if (tableInfo && tableInfo.ENGINE && tableInfo.ENGINE.toUpperCase() !== engine.toUpperCase()) {
-          await query(`ALTER TABLE ${tableName} ENGINE=${engine}`);
-        }
-      };
-
       const ensureColumnDefinition = async (tableName, columnName, definition, existingInfo = null) => {
         const columnInfo = existingInfo || (await getColumnInfo(tableName, columnName));
         const columnDefinition = buildColumnDefinition(definition);
@@ -740,9 +718,6 @@ class DatabaseManager {
         },
         folderColumnInfo
       );
-
-      await ensureTableEngine('autres.profile_folders');
-      await ensureTableEngine('autres.profiles');
 
       const existingFolderFk = await queryOne(
         `
