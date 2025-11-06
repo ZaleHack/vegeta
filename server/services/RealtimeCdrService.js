@@ -23,6 +23,99 @@ const MAX_BATCH_SIZE = 5000;
 
 const BTS_LOCATION_TABLES = ['2g', '3g', '4g', '5g'];
 
+const BTS_COLUMN_ALIASES = {
+  cgi: [
+    'cgi',
+    'cgi_appelant',
+    'cell_global_identity',
+    'cell_global_id',
+    'cellid',
+    'cell_id',
+    'lac_ci',
+    'eci',
+    'ecgi',
+    'e_cgi',
+    'enodebcellid',
+    'cgi_id',
+    'c_g_i'
+  ],
+  longitude: [
+    'longitude',
+    'longitude_decimal',
+    'longitude_dec',
+    'longitude_deg',
+    'longitude_degre',
+    'long_dec',
+    'long_deg',
+    'long_degre',
+    'long_dd',
+    'lon',
+    'lng',
+    'coordx',
+    'coord_x',
+    'x_coord',
+    'xcoord',
+    'x_wgs84',
+    'x_wgs_84'
+  ],
+  latitude: [
+    'latitude',
+    'latitude_decimal',
+    'latitude_dec',
+    'latitude_deg',
+    'latitude_degre',
+    'lat_dec',
+    'lat_deg',
+    'lat_degre',
+    'lat_dd',
+    'lat',
+    'coordy',
+    'coord_y',
+    'y_coord',
+    'ycoord',
+    'y_wgs84',
+    'y_wgs_84'
+  ],
+  azimut: [
+    'azimut',
+    'azimuth',
+    'azimut_deg',
+    'azimuth_deg',
+    'azim',
+    'azi',
+    'orientation',
+    'bearing',
+    'direction'
+  ],
+  nom_bts: [
+    'nom_bts',
+    'nom bts',
+    'nombts',
+    'nom_site',
+    'nom site',
+    'nom',
+    'site',
+    'site_name',
+    'site name',
+    'designation',
+    'label',
+    'station',
+    'station_name',
+    'station name',
+    'cell_name',
+    'cellname',
+    'bts_name'
+  ]
+};
+
+const BTS_COLUMN_FALLBACK_PATTERNS = {
+  cgi: ['cgi', 'ecgi', 'eci', 'cell_global', 'cellid'],
+  longitude: ['longitude', 'coordx', 'x_coord', 'x_wgs'],
+  latitude: ['latitude', 'coordy', 'y_coord', 'y_wgs'],
+  azimut: ['azimut', 'azimuth', 'orientation', 'bearing'],
+  nom_bts: ['nom_bts', 'nom_site', 'site', 'station', 'cell_name']
+};
+
 const CDR_TABLE_CANDIDATES = [
   { schema: 'bts_orange', table: 'cdr_temps_reel' },
   { schema: 'autres', table: 'cdr_temps_reel' },
@@ -271,6 +364,8 @@ class RealtimeCdrService {
     this.btsJoinClause = undefined;
     this.btsJoinPromise = null;
     this.btsJoinMissingLogged = false;
+    this.btsTableColumnCache = new Map();
+    this.btsColumnWarningLogged = new Set();
 
     this.initializationPromise = this.elasticEnabled && this.autoStart
       ? this.#initializeElasticsearch().catch((error) => {
@@ -311,6 +406,179 @@ class RealtimeCdrService {
     }, expr);
 
     return `LOWER(${sanitized})`;
+  }
+
+  #normalizeColumnKey(value) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    const text = String(value)
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+
+    return text;
+  }
+
+  #getBtsTableCacheKey(schema, table) {
+    const schemaKey = schema ? this.#normalizeColumnKey(schema) : 'default';
+    const tableKey = this.#normalizeColumnKey(table);
+    return `${schemaKey || 'default'}:${tableKey}`;
+  }
+
+  #formatBtsTableLabel(schema, table) {
+    const schemaLabel = schema ? String(schema).trim() : '';
+    const tableLabel = String(table || '').trim();
+    return schemaLabel ? `${schemaLabel}.${tableLabel}` : tableLabel;
+  }
+
+  #warnOnceForBtsTable(schema, table, message) {
+    const key = `${this.#getBtsTableCacheKey(schema, table)}:${message}`;
+    if (this.btsColumnWarningLogged.has(key)) {
+      return;
+    }
+    this.btsColumnWarningLogged.add(key);
+    console.warn(message);
+  }
+
+  async #resolveBtsTableColumns(schema, table) {
+    const cacheKey = this.#getBtsTableCacheKey(schema, table);
+    if (this.btsTableColumnCache.has(cacheKey)) {
+      return this.btsTableColumnCache.get(cacheKey);
+    }
+
+    const sanitizedTable = this.#sanitizeIdentifier(table);
+    if (!sanitizedTable) {
+      this.btsTableColumnCache.set(cacheKey, null);
+      return null;
+    }
+
+    const sanitizedSchema = schema ? this.#sanitizeIdentifier(schema) : null;
+    const sql = sanitizedSchema
+      ? `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE LOWER(TABLE_SCHEMA) = LOWER(?) AND LOWER(TABLE_NAME) = LOWER(?)`
+      : `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?)`;
+    const params = sanitizedSchema ? [sanitizedSchema, sanitizedTable] : [sanitizedTable];
+
+    let rows;
+    try {
+      rows = await database.query(sql, params);
+    } catch (error) {
+      console.error('Erreur récupération colonnes BTS:', error);
+      this.btsTableColumnCache.set(cacheKey, null);
+      return null;
+    }
+
+    const columnNames = Array.isArray(rows)
+      ? rows
+          .map((row) => row.COLUMN_NAME || row.column_name || row.Column_name || null)
+          .filter((name) => typeof name === 'string' && name.trim().length > 0)
+          .map((name) => name.trim())
+      : [];
+
+    if (!columnNames.length) {
+      this.btsTableColumnCache.set(cacheKey, null);
+      return null;
+    }
+
+    const normalizedColumns = [];
+    const seenOriginal = new Set();
+    for (const name of columnNames) {
+      if (seenOriginal.has(name)) {
+        continue;
+      }
+      seenOriginal.add(name);
+      normalizedColumns.push({ original: name, normalized: this.#normalizeColumnKey(name) });
+    }
+
+    const lookup = new Map();
+    for (const { original, normalized } of normalizedColumns) {
+      if (normalized && !lookup.has(normalized)) {
+        lookup.set(normalized, original);
+      }
+    }
+
+    const findColumn = (aliases = [], patterns = []) => {
+      for (const alias of aliases) {
+        const key = this.#normalizeColumnKey(alias);
+        if (key && lookup.has(key)) {
+          return lookup.get(key);
+        }
+      }
+
+      for (const pattern of patterns) {
+        const patternKey = this.#normalizeColumnKey(pattern);
+        if (!patternKey) {
+          continue;
+        }
+        const match = normalizedColumns.find((column) => column.normalized && column.normalized.includes(patternKey));
+        if (match) {
+          return match.original;
+        }
+      }
+
+      return null;
+    };
+
+    const cgiColumn = findColumn(BTS_COLUMN_ALIASES.cgi, BTS_COLUMN_FALLBACK_PATTERNS.cgi);
+    if (!cgiColumn) {
+      this.#warnOnceForBtsTable(
+        schema,
+        table,
+        `⚠️ Table ${this.#formatBtsTableLabel(schema, table)} ignorée : colonne CGI introuvable.`
+      );
+      this.btsTableColumnCache.set(cacheKey, null);
+      return null;
+    }
+
+    const longitudeColumn = findColumn(
+      BTS_COLUMN_ALIASES.longitude,
+      BTS_COLUMN_FALLBACK_PATTERNS.longitude
+    );
+    const latitudeColumn = findColumn(
+      BTS_COLUMN_ALIASES.latitude,
+      BTS_COLUMN_FALLBACK_PATTERNS.latitude
+    );
+    const azimutColumn = findColumn(BTS_COLUMN_ALIASES.azimut, BTS_COLUMN_FALLBACK_PATTERNS.azimut);
+    const nomBtsColumn = findColumn(BTS_COLUMN_ALIASES.nom_bts, BTS_COLUMN_FALLBACK_PATTERNS.nom_bts);
+
+    if (!longitudeColumn || !latitudeColumn) {
+      this.#warnOnceForBtsTable(
+        schema,
+        table,
+        `⚠️ Table ${this.#formatBtsTableLabel(schema, table)} : colonnes longitude/latitude partiellement manquantes.`
+      );
+    }
+
+    if (!azimutColumn) {
+      this.#warnOnceForBtsTable(
+        schema,
+        table,
+        `ℹ️ Table ${this.#formatBtsTableLabel(schema, table)} : colonne azimut introuvable.`
+      );
+    }
+
+    if (!nomBtsColumn) {
+      this.#warnOnceForBtsTable(
+        schema,
+        table,
+        `ℹ️ Table ${this.#formatBtsTableLabel(schema, table)} : colonne nom de site introuvable.`
+      );
+    }
+
+    const resolvedColumns = {
+      cgi: cgiColumn,
+      longitude: longitudeColumn,
+      latitude: latitudeColumn,
+      azimut: azimutColumn,
+      nom_bts: nomBtsColumn
+    };
+
+    this.btsTableColumnCache.set(cacheKey, resolvedColumns);
+    return resolvedColumns;
   }
 
   #formatTableReference(schema, table) {
@@ -465,10 +733,42 @@ class RealtimeCdrService {
           return '';
         }
 
-        const unionParts = tables.map(({ schema, table }) => {
+        const unionParts = [];
+        for (const { schema, table } of tables) {
+          const columns = await this.#resolveBtsTableColumns(schema, table);
+          if (!columns) {
+            continue;
+          }
+
           const tableRef = this.#formatTableReference(schema, table);
-          return `SELECT CGI AS cgi, LONGITUDE AS longitude, LATITUDE AS latitude, AZIMUT AS azimut, NOM_BTS AS nom_bts FROM ${tableRef}`;
-        });
+          const selectParts = [
+            `${this.#quoteIdentifier(columns.cgi)} AS cgi`,
+            columns.longitude
+              ? `${this.#quoteIdentifier(columns.longitude)} AS longitude`
+              : 'NULL AS longitude',
+            columns.latitude
+              ? `${this.#quoteIdentifier(columns.latitude)} AS latitude`
+              : 'NULL AS latitude',
+            columns.azimut
+              ? `${this.#quoteIdentifier(columns.azimut)} AS azimut`
+              : 'NULL AS azimut',
+            columns.nom_bts
+              ? `${this.#quoteIdentifier(columns.nom_bts)} AS nom_bts`
+              : 'NULL AS nom_bts'
+          ];
+
+          unionParts.push(`SELECT ${selectParts.join(', ')} FROM ${tableRef}`);
+        }
+
+        if (!unionParts.length) {
+          if (!this.btsJoinMissingLogged) {
+            console.warn(
+              '⚠️ Colonnes CGI/coordonnées introuvables dans les tables BTS. Les champs de localisation resteront vides.'
+            );
+            this.btsJoinMissingLogged = true;
+          }
+          return '';
+        }
 
         const unionQuery = unionParts.join('\n          UNION ALL\n          ');
 
