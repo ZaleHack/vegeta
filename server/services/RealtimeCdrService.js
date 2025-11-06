@@ -105,7 +105,18 @@ const toNullableNumber = (value) => {
   if (value === null || value === undefined || value === '') {
     return null;
   }
-  const num = Number(value);
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+
+  const normalized = text.replace(/\s+/g, '').replace(/,/g, '.');
+  const num = Number(normalized);
   return Number.isFinite(num) ? num : null;
 };
 
@@ -292,7 +303,14 @@ class RealtimeCdrService {
     if (!expr) {
       return 'NULL';
     }
-    return `LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${expr}, ' ', ''), '-', ''), '_', ''), '.', ''), '/', ''))`;
+
+    const replacements = [' ', '-', '_', '.', '/', ':', ';', ',', '#', '(', ')', '[', ']', '{', '}'];
+    const sanitized = replacements.reduce((acc, char) => {
+      const escaped = char.replace(/\\/g, '\\\\').replace(/'/g, "''");
+      return `REPLACE(${acc}, '${escaped}', '')`;
+    }, expr);
+
+    return `LOWER(${sanitized})`;
   }
 
   #formatTableReference(schema, table) {
