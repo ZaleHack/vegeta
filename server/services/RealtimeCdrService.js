@@ -423,7 +423,7 @@ class RealtimeCdrService {
     const variantList = Array.from(identifierVariants);
     if (variantList.length > 0) {
       const numberConditions = variantList.map(
-        () => '(numero_appelant = ? OR numero_appele = ?)'
+        () => '(c.numero_appelant = ? OR c.numero_appele = ?)'
       );
       conditions.push(`(${numberConditions.join(' OR ')})`);
       variantList.forEach((variant) => {
@@ -432,20 +432,20 @@ class RealtimeCdrService {
     }
 
     if (filters.startDate) {
-      conditions.push('date_debut_appel >= ?');
+      conditions.push('c.date_debut >= ?');
       params.push(filters.startDate);
     }
     if (filters.endDate) {
-      conditions.push('date_debut_appel <= ?');
+      conditions.push('c.date_debut <= ?');
       params.push(filters.endDate);
     }
 
     if (filters.startTimeBound) {
-      conditions.push('heure_debut_appel >= ?');
+      conditions.push('c.heure_debut >= ?');
       params.push(filters.startTimeBound);
     }
     if (filters.endTimeBound) {
-      conditions.push('heure_debut_appel <= ?');
+      conditions.push('c.heure_debut <= ?');
       params.push(filters.endTimeBound);
     }
 
@@ -455,27 +455,32 @@ class RealtimeCdrService {
 
     const sql = `
       SELECT
-        id,
-        type_appel,
-        date_debut_appel,
-        date_fin_appel,
-        heure_debut_appel,
-        heure_fin_appel,
-        duree_appel,
-        numero_appelant,
-        imei_appelant,
-        numero_appele,
-        imsi_appelant,
-        cgi,
-        longitude,
-        latitude,
-        azimut,
-        nom_bts,
-        source_file,
-        inserted_at
-      FROM autres.cdr_realtime
+        c.id,
+        c.type_appel,
+        c.date_debut AS date_debut_appel,
+        c.date_fin AS date_fin_appel,
+        c.heure_debut AS heure_debut_appel,
+        c.heure_fin AS heure_fin_appel,
+        c.duree_sec AS duree_appel,
+        c.numero_appelant,
+        c.imei_appelant,
+        c.numero_appele,
+        c.imsi_appelant,
+        c.cgi,
+        COALESCE(r2.LONGITUDE, r3.LONGITUDE, r4.LONGITUDE, r5.LONGITUDE) AS longitude,
+        COALESCE(r2.LATITUDE, r3.LATITUDE, r4.LATITUDE, r5.LATITUDE) AS latitude,
+        COALESCE(r2.AZIMUT, r3.AZIMUT, r4.AZIMUT, r5.AZIMUT) AS azimut,
+        COALESCE(r2.NOM_BTS, r3.NOM_BTS, r4.NOM_BTS, r5.NOM_BTS) AS nom_bts,
+        c.fichier_source AS source_file,
+        c.inserted_at
+      FROM autres.cdr_temps_reel AS c
+      LEFT JOIN bts_orange.`2g` AS r2 ON r2.CGI = c.cgi
+      LEFT JOIN bts_orange.`3g` AS r3 ON r3.CGI = c.cgi AND r2.CGI IS NULL
+      LEFT JOIN bts_orange.`4g` AS r4 ON r4.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL
+      LEFT JOIN bts_orange.`5g` AS r5
+        ON r5.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
       ${whereClause}
-      ORDER BY date_debut_appel ASC, heure_debut_appel ASC, id ASC
+      ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
       LIMIT ?
     `;
 
@@ -677,27 +682,32 @@ class RealtimeCdrService {
     return database.query(
       `
         SELECT
-          id,
-          type_appel,
-          date_debut_appel,
-          date_fin_appel,
-          heure_debut_appel,
-          heure_fin_appel,
-          duree_appel,
-          numero_appelant,
-          imei_appelant,
-          numero_appele,
-          imsi_appelant,
-          cgi,
-          longitude,
-          latitude,
-          azimut,
-          nom_bts,
-          source_file,
-          inserted_at
-        FROM autres.cdr_realtime
-        WHERE id > ?
-        ORDER BY id ASC
+          c.id,
+          c.type_appel,
+          c.date_debut AS date_debut_appel,
+          c.date_fin AS date_fin_appel,
+          c.heure_debut AS heure_debut_appel,
+          c.heure_fin AS heure_fin_appel,
+          c.duree_sec AS duree_appel,
+          c.numero_appelant,
+          c.imei_appelant,
+          c.numero_appele,
+          c.imsi_appelant,
+          c.cgi,
+          COALESCE(r2.LONGITUDE, r3.LONGITUDE, r4.LONGITUDE, r5.LONGITUDE) AS longitude,
+          COALESCE(r2.LATITUDE, r3.LATITUDE, r4.LATITUDE, r5.LATITUDE) AS latitude,
+          COALESCE(r2.AZIMUT, r3.AZIMUT, r4.AZIMUT, r5.AZIMUT) AS azimut,
+          COALESCE(r2.NOM_BTS, r3.NOM_BTS, r4.NOM_BTS, r5.NOM_BTS) AS nom_bts,
+          c.fichier_source AS source_file,
+          c.inserted_at
+        FROM autres.cdr_temps_reel AS c
+        LEFT JOIN bts_orange.`2g` AS r2 ON r2.CGI = c.cgi
+        LEFT JOIN bts_orange.`3g` AS r3 ON r3.CGI = c.cgi AND r2.CGI IS NULL
+        LEFT JOIN bts_orange.`4g` AS r4 ON r4.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL
+        LEFT JOIN bts_orange.`5g` AS r5
+          ON r5.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
+        WHERE c.id > ?
+        ORDER BY c.id ASC
         LIMIT ?
       `,
       [startId, effectiveLimit]
