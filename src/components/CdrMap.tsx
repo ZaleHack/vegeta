@@ -53,6 +53,7 @@ interface Point {
   tracked?: string;
   cgi?: string;
   azimut?: string;
+  technology?: string;
 }
 
 interface Contact {
@@ -73,6 +74,7 @@ interface LocationStat {
   count: number;
   lastDate?: string;
   lastTime?: string;
+  technology?: string;
 }
 
 interface LocationMarker extends LocationStat {
@@ -1149,6 +1151,8 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
       const coordsValue =
         point.latitude && point.longitude ? `${point.latitude}, ${point.longitude}` : 'N/A';
 
+      const technologyValue = point.technology ? point.technology.toUpperCase() : 'N/A';
+
       const cellParts: string[] = [];
       if (point.cgi) cellParts.push(point.cgi);
       if (point.nom) cellParts.push(point.nom);
@@ -1177,6 +1181,7 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         { label: 'Durée', value: durationValue },
         { label: 'Identifiant de la cellule', value: cellValue },
         { label: 'Coordonnées GPS', value: coordsValue },
+        { label: 'Technologie radio', value: technologyValue },
         { label: 'Identifiant abonné (IMSI)', value: imsiValue },
         { label: "Identifiant d'équipement (IMEI)", value: imeiValue }
       ];
@@ -1462,6 +1467,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {loc.latitude}, {loc.longitude}
               </p>
+              {loc.technology && (
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
+                  Technologie&nbsp;: {loc.technology}
+                </p>
+              )}
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-3 text-slate-700 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:shadow-black/40">
               <span className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-400">Occurrences</span>
@@ -1711,9 +1721,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           nom: p.nom,
           count: 0,
           lastDate: p.callDate,
-          lastTime: p.startTime
+          lastTime: p.startTime,
+          technology: p.technology
         };
       loc.count += 1;
+      if (!loc.technology && p.technology) {
+        loc.technology = p.technology;
+      }
       const current = new Date(`${p.callDate}T${p.startTime}`);
       const prev = loc.lastDate && loc.lastTime ? new Date(`${loc.lastDate}T${loc.lastTime}`) : null;
       if (!prev || current > prev) {
@@ -1735,9 +1749,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
           nom: p.nom,
           count: 0,
           lastDate: p.callDate,
-          lastTime: p.startTime
+          lastTime: p.startTime,
+          technology: p.technology
         };
       loc.count += 1;
+      if (!loc.technology && p.technology) {
+        loc.technology = p.technology;
+      }
       const current = new Date(`${p.callDate}T${p.startTime}`);
       const prev = loc.lastDate && loc.lastTime ? new Date(`${loc.lastDate}T${loc.lastTime}`) : null;
       if (!prev || current > prev) {
@@ -1828,9 +1846,13 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
             nom: p.nom,
             count: 0,
             lastDate: p.callDate,
-            lastTime: p.startTime
+            lastTime: p.startTime,
+            technology: p.technology
           };
         loc.count += 1;
+        if (!loc.technology && p.technology) {
+          loc.technology = p.technology;
+        }
         const current = new Date(`${p.callDate}T${p.startTime}`);
         const prev =
           loc.lastDate && loc.lastTime
