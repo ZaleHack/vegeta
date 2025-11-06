@@ -503,6 +503,174 @@ class RealtimeCdrService {
     return this.btsJoinPromise;
   }
 
+  async enrichMissingCoordinates(options = {}) {
+    const {
+      batchSize: rawBatchSize = null,
+      limit: rawLimit = null,
+      dryRun = false,
+      onBatchComplete = null
+    } = options;
+
+    const batchSize = parsePositiveInteger(rawBatchSize, 1000);
+    const limit = rawLimit !== null && rawLimit !== undefined ? parsePositiveInteger(rawLimit, null) : null;
+
+    const tableName = await this.#resolveTableName();
+    const joinClause = await this.#resolveBtsJoinClause();
+
+    if (!joinClause) {
+      if (!this.btsJoinMissingLogged) {
+        console.warn(
+          '⚠️ Impossible d\'enrichir les CDR temps réel : aucune table radio 2G/3G/4G/5G trouvée.'
+        );
+        this.btsJoinMissingLogged = true;
+      }
+      return {
+        updated: 0,
+        scanned: 0,
+        batches: 0,
+        lastId: 0,
+        dryRun: Boolean(dryRun)
+      };
+    }
+
+    let lastId = 0;
+    let scanned = 0;
+    let updated = 0;
+    let batches = 0;
+
+    const buildCaseExpression = (rows, column) => {
+      const parts = [];
+      const params = [];
+      const ids = [];
+
+      for (const row of rows) {
+        const value = row[column];
+        if (value === null || value === undefined) {
+          continue;
+        }
+        parts.push(' WHEN ? THEN ?');
+        params.push(row.id, value);
+        ids.push(row.id);
+      }
+
+      if (!parts.length) {
+        return null;
+      }
+
+      return {
+        column,
+        expression: `CASE id${parts.join('')} ELSE ${column} END`,
+        params,
+        ids
+      };
+    };
+
+    while (true) {
+      const remaining = limit !== null ? limit - updated : null;
+      if (remaining !== null && remaining <= 0) {
+        break;
+      }
+
+      const currentBatchSize = remaining !== null ? Math.min(batchSize, remaining) : batchSize;
+      if (!currentBatchSize || currentBatchSize <= 0) {
+        break;
+      }
+
+      const rows = await database.query(
+        `
+          SELECT
+            cdr.id AS id,
+            bts.longitude AS bts_longitude,
+            bts.latitude AS bts_latitude,
+            bts.azimut AS bts_azimut
+          FROM ${tableName} AS cdr
+          ${joinClause}
+          WHERE cdr.id > ?
+            AND (cdr.longitude IS NULL OR cdr.latitude IS NULL OR cdr.azimut IS NULL)
+            AND (bts.longitude IS NOT NULL OR bts.latitude IS NOT NULL OR bts.azimut IS NOT NULL)
+          ORDER BY cdr.id
+          LIMIT ${currentBatchSize}
+        `,
+        [lastId]
+      );
+
+      if (!rows.length) {
+        break;
+      }
+
+      batches += 1;
+      scanned += rows.length;
+
+      const updatableRows = rows
+        .map((row) => ({
+          id: Number(row.id),
+          longitude: toNullableNumber(row.bts_longitude),
+          latitude: toNullableNumber(row.bts_latitude),
+          azimut: toNullableNumber(row.bts_azimut)
+        }))
+        .filter((row) => Number.isFinite(row.id) && (row.longitude !== null || row.latitude !== null || row.azimut !== null));
+
+      const expressions = ['longitude', 'latitude', 'azimut']
+        .map((column) => buildCaseExpression(updatableRows, column))
+        .filter(Boolean);
+
+      let batchUpdated = 0;
+      if (expressions.length) {
+        const ids = Array.from(
+          new Set(
+            expressions.flatMap((expr) => expr.ids.filter((id) => Number.isFinite(id)))
+          )
+        ).sort((a, b) => a - b);
+
+        if (ids.length) {
+          const updateSql = `
+            UPDATE ${tableName}
+            SET ${expressions.map((expr) => `${expr.column} = ${expr.expression}`).join(', ')}
+            WHERE id IN (${ids.map(() => '?').join(', ')})
+          `;
+          const params = expressions.flatMap((expr) => expr.params).concat(ids);
+
+          if (!dryRun) {
+            await database.transaction(async ({ query }) => {
+              await query(updateSql, params);
+            });
+          }
+
+          batchUpdated = ids.length;
+          updated += batchUpdated;
+        }
+      }
+
+      const lastRow = rows[rows.length - 1];
+      const resolvedLastId = Number(lastRow?.id);
+      if (Number.isFinite(resolvedLastId) && resolvedLastId > lastId) {
+        lastId = resolvedLastId;
+      }
+
+      if (typeof onBatchComplete === 'function') {
+        try {
+          await onBatchComplete({
+            batch: batches,
+            fetched: rows.length,
+            candidates: updatableRows.length,
+            updated: batchUpdated,
+            lastId
+          });
+        } catch (callbackError) {
+          console.error('Erreur callback enrichissement CDR temps réel:', callbackError);
+        }
+      }
+    }
+
+    return {
+      updated,
+      scanned,
+      batches,
+      lastId,
+      dryRun: Boolean(dryRun)
+    };
+  }
+
   async #initializeElasticsearch() {
     const ensured = await this.#ensureElasticsearchIndex();
     if (!ensured) {
