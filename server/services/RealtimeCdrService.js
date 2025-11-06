@@ -474,10 +474,10 @@ class RealtimeCdrService {
         c.fichier_source AS source_file,
         c.inserted_at
       FROM autres.cdr_temps_reel AS c
-      LEFT JOIN bts_orange.`2g` AS r2 ON r2.CGI = c.cgi
-      LEFT JOIN bts_orange.`3g` AS r3 ON r3.CGI = c.cgi AND r2.CGI IS NULL
-      LEFT JOIN bts_orange.`4g` AS r4 ON r4.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL
-      LEFT JOIN bts_orange.`5g` AS r5
+      LEFT JOIN bts_orange.\`2g\` AS r2 ON r2.CGI = c.cgi
+      LEFT JOIN bts_orange.\`3g\` AS r3 ON r3.CGI = c.cgi AND r2.CGI IS NULL
+      LEFT JOIN bts_orange.\`4g\` AS r4 ON r4.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL
+      LEFT JOIN bts_orange.\`5g\` AS r5
         ON r5.CGI = c.cgi AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
       ${whereClause}
       ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
