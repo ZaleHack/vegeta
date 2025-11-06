@@ -774,10 +774,10 @@ class RealtimeCdrService {
             NULLIF(TRIM(r5.NOM_BTS), '')
           ) AS resolved_nom_bts
         FROM autres.cdr_temps_reel AS c
-        LEFT JOIN bts_orange.`2g` AS r2 ON ${join2gCondition}
-        LEFT JOIN bts_orange.`3g` AS r3 ON ${join3gCondition} AND r2.CGI IS NULL
-        LEFT JOIN bts_orange.`4g` AS r4 ON ${join4gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL
-        LEFT JOIN bts_orange.`5g` AS r5
+        LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
+        LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND r2.CGI IS NULL
+        LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL
+        LEFT JOIN bts_orange.\`5g\` AS r5
           ON ${join5gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
         WHERE c.id > ?
           AND (c.longitude IS NULL OR c.latitude IS NULL OR c.azimut IS NULL OR c.nom_bts IS NULL)
