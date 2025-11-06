@@ -31,6 +31,7 @@ import notificationsRoutes from './routes/notifications.js';
 import fraudRoutes from './routes/fraud.js';
 import { authenticate } from './middleware/auth.js';
 import { payloadEncryptionMiddleware } from './middleware/payloadEncryption.js';
+import requestLogger from './middleware/requestLogger.js';
 import {
   ensureEnvironment,
   resolveAllowedOrigins,
@@ -113,6 +114,7 @@ app.use(enforceCors);
 
 app.use(payloadEncryptionMiddleware);
 app.use(express.urlencoded({ extended: true, limit: '200mb' }));
+app.use(requestLogger);
 
 const uploadsPath = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsPath)) {
