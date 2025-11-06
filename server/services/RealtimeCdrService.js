@@ -43,6 +43,7 @@ const BTS_LOCATION_JOIN = `
 `;
 
 const CDR_TABLE_CANDIDATES = [
+  { schema: 'bts_orange', table: 'cdr_temps_reel' },
   { schema: 'autres', table: 'cdr_temps_reel' },
   { schema: null, table: 'cdr_temps_reel' },
   { schema: null, table: 'autres_cdr_temps_reel' }
