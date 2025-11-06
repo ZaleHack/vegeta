@@ -333,8 +333,10 @@ class RealtimeCdrService {
       }
     }
 
+    let rowsFromElasticsearch = null;
+
     if (this.elasticEnabled && this.indexReady) {
-      const rowsFromElasticsearch = await this.#searchElasticsearch(
+      rowsFromElasticsearch = await this.#searchElasticsearch(
         Array.from(identifierVariants),
         {
           startDate,
@@ -345,7 +347,7 @@ class RealtimeCdrService {
         }
       );
 
-      if (Array.isArray(rowsFromElasticsearch)) {
+      if (Array.isArray(rowsFromElasticsearch) && rowsFromElasticsearch.length > 0) {
         return this.#buildResult(rowsFromElasticsearch, identifierVariants);
       }
     }
@@ -357,6 +359,7 @@ class RealtimeCdrService {
       endTimeBound,
       limit: limitValue
     });
+
     return this.#buildResult(rows, identifierVariants);
   }
 
