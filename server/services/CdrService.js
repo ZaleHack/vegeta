@@ -558,9 +558,24 @@ class CdrService {
       }
       const locationValue = (record.nom_localisation || '').trim();
       if (!locationValue) {
+        console.log(
+          '[matchesLocation] Ignoring record without localisation',
+          {
+            expected: location,
+            recordId: record.id || record.identifiant_appel || null
+          }
+        );
         return false;
       }
-      return locationValue === location;
+      const isMatch = locationValue === location;
+      if (!isMatch) {
+        console.log('[matchesLocation] Localisation mismatch', {
+          expected: location,
+          received: locationValue,
+          recordId: record.id || record.identifiant_appel || null
+        });
+      }
+      return isMatch;
     };
 
     const filteredRecords = records.filter(
