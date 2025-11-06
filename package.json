@@ -9,6 +9,7 @@
     "server": "node server/app.js",
     "init-db": "node server/scripts/init-database.js",
     "sync": "node server/scripts/sync-all.js",
+    "cdr:enrich": "node server/scripts/enrich-realtime-cdr.js",
     "create-indexes": "node server/scripts/create-search-indexes.js",
     "search:bootstrap": "npm run create-indexes && npm run sync",
     "build": "tsc && vite build",

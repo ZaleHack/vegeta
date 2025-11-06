@@ -50,3 +50,24 @@ Le module [`server/scripts/cdr_enrichment.py`](../server/scripts/cdr_enrichment.
 - Pré-charger les cellules les plus sollicitées pour minimiser les latences au démarrage.
 - Adapter la requête `INSERT`/`UPDATE` à la structure exacte de `cdr_temps_reel`.
 - Surveiller les temps de réponse de la base : si nécessaire, déporter les tables radio dans Redis ou un cache local partagé.
+
+## 3. Script Node.js prêt à l'emploi
+
+Le script [`server/scripts/enrich-realtime-cdr.js`](../server/scripts/enrich-realtime-cdr.js) offre une troisième option clé en
+main, directement intégrée à la plateforme Node.js. Il s'appuie sur la méthode `RealtimeCdrService.enrichMissingCoordinates`
+qui réutilise la logique de détection automatique des tables 2G/3G/4G/5G.
+
+```bash
+npm run cdr:enrich -- --batch-size=2000 --limit=10000
+```
+
+### Points forts
+- Détection automatique des tables radio disponibles (y compris avec les schémas `bts_orange` ou `autres`).
+- Mise à jour par lots avec gestion d'un mode `--dry-run` pour simuler l'enrichissement sans écrire en base.
+- Journalisation détaillée (`--quiet` pour la réduire) indiquant le nombre de lignes enrichies et le dernier identifiant traité.
+
+### Paramètres utiles
+- `--batch-size=` pour contrôler la taille des lots (défaut : 1000).
+- `--limit=` pour borner le nombre de lignes mises à jour.
+- `--dry-run` pour vérifier la correspondance CGI → coordonnées sans modifier `cdr_temps_reel`.
+- `--quiet` pour limiter la sortie console au résumé final.
