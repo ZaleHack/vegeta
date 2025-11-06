@@ -766,6 +766,7 @@ class RealtimeCdrService {
 
         const technologyPriority = ['5G', '4G', '3G', '2G'];
         const technologyDetails = new Map();
+        const technologyAliasCounters = new Map();
 
         for (const { schema, table } of tables) {
           const columns = await this.#resolveBtsTableColumns(schema, table);
@@ -779,11 +780,12 @@ class RealtimeCdrService {
             continue;
           }
 
-          if (technologyDetails.has(technologyLabel)) {
-            continue;
-          }
-
-          const alias = `bts_${technologyLabel.toLowerCase()}`;
+          const currentIndex = technologyAliasCounters.get(technologyLabel) ?? 0;
+          const alias =
+            currentIndex === 0
+              ? `bts_${technologyLabel.toLowerCase()}`
+              : `bts_${technologyLabel.toLowerCase()}_${currentIndex}`;
+          technologyAliasCounters.set(technologyLabel, currentIndex + 1);
           const quotedCgi = `${alias}.${this.#quoteIdentifier(columns.cgi)}`;
           const normalizedBtsCgi = this.#normalizeCgiExpression(quotedCgi);
           const normalizedCdrCgi = this.#normalizeCgiExpression('cdr.cgi');
@@ -799,7 +801,8 @@ class RealtimeCdrService {
             return `${alias}.${this.#quoteIdentifier(columnName)}`;
           };
 
-          technologyDetails.set(technologyLabel, {
+          const details = technologyDetails.get(technologyLabel) ?? [];
+          details.push({
             joinClause,
             expressions: {
               longitude: fieldExpr(columns.longitude),
@@ -809,6 +812,7 @@ class RealtimeCdrService {
               cgi: quotedCgi
             }
           });
+          technologyDetails.set(technologyLabel, details);
         }
 
         const joinClauses = [];
@@ -816,11 +820,13 @@ class RealtimeCdrService {
 
         for (const technology of technologyPriority) {
           const details = technologyDetails.get(technology);
-          if (!details) {
+          if (!details || !details.length) {
             continue;
           }
-          joinClauses.push(details.joinClause);
-          expressionsByTechnology.set(technology, details.expressions);
+          for (const detail of details) {
+            joinClauses.push(detail.joinClause);
+          }
+          expressionsByTechnology.set(technology, details.map((detail) => detail.expressions));
         }
 
         if (!joinClauses.length) {
@@ -836,15 +842,17 @@ class RealtimeCdrService {
         const buildCoalesceExpression = (field) => {
           const expressions = [];
           for (const technology of technologyPriority) {
-            const techExpressions = expressionsByTechnology.get(technology);
-            if (!techExpressions) {
+            const techExpressionsList = expressionsByTechnology.get(technology);
+            if (!techExpressionsList) {
               continue;
             }
-            const expr = techExpressions[field];
-            if (!expr || expr === 'NULL') {
-              continue;
+            for (const techExpressions of techExpressionsList) {
+              const expr = techExpressions[field];
+              if (!expr || expr === 'NULL') {
+                continue;
+              }
+              expressions.push(expr);
             }
-            expressions.push(expr);
           }
 
           if (!expressions.length) {
@@ -860,13 +868,18 @@ class RealtimeCdrService {
 
         const technologyExpressions = [];
         for (const technology of technologyPriority) {
-          const techExpressions = expressionsByTechnology.get(technology);
-          if (!techExpressions || !techExpressions.cgi || techExpressions.cgi === 'NULL') {
+          const techExpressionsList = expressionsByTechnology.get(technology);
+          if (!techExpressionsList) {
             continue;
           }
-          technologyExpressions.push(
-            `CASE WHEN ${techExpressions.cgi} IS NOT NULL AND ${techExpressions.cgi} <> '' THEN '${technology}' END`
-          );
+          for (const techExpressions of techExpressionsList) {
+            if (!techExpressions.cgi || techExpressions.cgi === 'NULL') {
+              continue;
+            }
+            technologyExpressions.push(
+              `CASE WHEN ${techExpressions.cgi} IS NOT NULL AND ${techExpressions.cgi} <> '' THEN '${technology}' END`
+            );
+          }
         }
 
         const technologyExpression = technologyExpressions.length
