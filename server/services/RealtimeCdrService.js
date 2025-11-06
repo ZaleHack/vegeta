@@ -21,26 +21,7 @@ const EMPTY_RESULT = {
 const REALTIME_INDEX = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
 const MAX_BATCH_SIZE = 5000;
 
-const BTS_LOCATION_JOIN = `
-  LEFT JOIN (
-    SELECT
-      cgi,
-      MAX(longitude) AS longitude,
-      MAX(latitude) AS latitude,
-      MAX(azimut) AS azimut,
-      MAX(nom_bts) AS nom_bts
-    FROM (
-      SELECT CGI AS cgi, LONGITUDE AS longitude, LATITUDE AS latitude, AZIMUT AS azimut, NOM_BTS AS nom_bts FROM bts_orange.\`2g\`
-      UNION ALL
-      SELECT CGI, LONGITUDE, LATITUDE, AZIMUT, NOM_BTS FROM bts_orange.\`3g\`
-      UNION ALL
-      SELECT CGI, LONGITUDE, LATITUDE, AZIMUT, NOM_BTS FROM bts_orange.\`4g\`
-      UNION ALL
-      SELECT CGI, LONGITUDE, LATITUDE, AZIMUT, NOM_BTS FROM bts_orange.\`5g\`
-    ) AS bts_union
-    GROUP BY cgi
-  ) AS bts ON bts.cgi = cdr.cgi
-`;
+const BTS_LOCATION_TABLES = ['2g', '3g', '4g', '5g'];
 
 const CDR_TABLE_CANDIDATES = [
   { schema: 'bts_orange', table: 'cdr_temps_reel' },
@@ -275,6 +256,10 @@ class RealtimeCdrService {
     this.tableName = null;
     this.tableNamePromise = null;
     this.tableLookupLogged = false;
+    this.tableSchema = null;
+    this.btsJoinClause = undefined;
+    this.btsJoinPromise = null;
+    this.btsJoinMissingLogged = false;
 
     this.initializationPromise = this.elasticEnabled && this.autoStart
       ? this.#initializeElasticsearch().catch((error) => {
@@ -352,6 +337,7 @@ class RealtimeCdrService {
         const exists = await this.#checkTableExists(candidate.schema, candidate.table);
         if (exists) {
           const formatted = this.#formatTableReference(candidate.schema, candidate.table);
+          this.tableSchema = candidate.schema ? this.#sanitizeIdentifier(candidate.schema) || null : null;
           this.tableName = formatted;
           return formatted;
         }
@@ -365,11 +351,112 @@ class RealtimeCdrService {
       }
 
       const fallback = this.#formatTableReference(null, 'cdr_temps_reel');
+      this.tableSchema = null;
       this.tableName = fallback;
       return fallback;
     })();
 
     return this.tableNamePromise;
+  }
+
+  async #findBtsLocationTables() {
+    const schemaCandidates = [];
+    if (this.tableSchema) {
+      schemaCandidates.push(this.tableSchema);
+    }
+    schemaCandidates.push('bts_orange', 'autres', null);
+
+    const uniqueSchemas = [];
+    const seenSchemas = new Set();
+    for (const schema of schemaCandidates) {
+      const sanitizedSchema = schema ? this.#sanitizeIdentifier(schema) : null;
+      const key = sanitizedSchema || 'default';
+      if (seenSchemas.has(key)) {
+        continue;
+      }
+      seenSchemas.add(key);
+      uniqueSchemas.push(sanitizedSchema);
+    }
+
+    const tables = [];
+    const seenTables = new Set();
+    for (const schema of uniqueSchemas) {
+      for (const tableName of BTS_LOCATION_TABLES) {
+        const sanitizedTable = this.#sanitizeIdentifier(tableName);
+        if (!sanitizedTable) {
+          continue;
+        }
+        const cacheKey = `${schema || 'default'}:${sanitizedTable}`;
+        if (seenTables.has(cacheKey)) {
+          continue;
+        }
+        const exists = await this.#checkTableExists(schema, sanitizedTable);
+        if (exists) {
+          seenTables.add(cacheKey);
+          tables.push({ schema, table: sanitizedTable });
+        }
+      }
+    }
+
+    return tables;
+  }
+
+  async #resolveBtsJoinClause() {
+    await this.#resolveTableName();
+
+    if (typeof this.btsJoinClause === 'string') {
+      return this.btsJoinClause;
+    }
+
+    if (this.btsJoinPromise) {
+      return this.btsJoinPromise;
+    }
+
+    this.btsJoinPromise = (async () => {
+      try {
+        const tables = await this.#findBtsLocationTables();
+        if (!tables.length) {
+          if (!this.btsJoinMissingLogged) {
+            console.warn(
+              '⚠️ Tables 2G/3G/4G/5G introuvables pour enrichir les CDR temps réel. Les champs de localisation resteront vides.'
+            );
+            this.btsJoinMissingLogged = true;
+          }
+          return '';
+        }
+
+        const unionParts = tables.map(({ schema, table }) => {
+          const tableRef = this.#formatTableReference(schema, table);
+          return `SELECT CGI AS cgi, LONGITUDE AS longitude, LATITUDE AS latitude, AZIMUT AS azimut, NOM_BTS AS nom_bts FROM ${tableRef}`;
+        });
+
+        const unionQuery = unionParts.join('\n          UNION ALL\n          ');
+
+        return `
+      LEFT JOIN (
+        SELECT
+          cgi,
+          MAX(longitude) AS longitude,
+          MAX(latitude) AS latitude,
+          MAX(azimut) AS azimut,
+          MAX(nom_bts) AS nom_bts
+        FROM (
+          ${unionQuery}
+        ) AS bts_union
+        GROUP BY cgi
+      ) AS bts ON bts.cgi = cdr.cgi
+    `;
+      } catch (error) {
+        console.error('Erreur lors de la préparation des données de localisation BTS:', error);
+        return '';
+      }
+    })().then((clause) => {
+      this.btsJoinClause = clause;
+      this.btsJoinPromise = null;
+      return clause;
+    });
+
+    return this.btsJoinPromise;
   }
 
   async #initializeElasticsearch() {
@@ -498,6 +585,7 @@ class RealtimeCdrService {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const tableName = await this.#resolveTableName();
+    const btsJoin = await this.#resolveBtsJoinClause();
 
     const sql = `
       SELECT
@@ -526,7 +614,7 @@ class RealtimeCdrService {
         cdr.fichier_source AS source_file,
         cdr.inserted_at
       FROM ${tableName} AS cdr
-      ${BTS_LOCATION_JOIN}
+      ${btsJoin}
       ${whereClause}
       ORDER BY cdr.date_debut ASC, cdr.heure_debut ASC, cdr.id ASC
       LIMIT ?
@@ -741,6 +829,8 @@ class RealtimeCdrService {
 
     const tableName = await this.#resolveTableName();
 
+    const btsJoin = await this.#resolveBtsJoinClause();
+
     return database.query(
       `
         SELECT
@@ -769,7 +859,7 @@ class RealtimeCdrService {
           cdr.fichier_source AS source_file,
           cdr.inserted_at
         FROM ${tableName} AS cdr
-        ${BTS_LOCATION_JOIN}
+        ${btsJoin}
         WHERE cdr.id > ?
         ORDER BY cdr.id ASC
         LIMIT ?
