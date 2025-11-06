@@ -3304,7 +3304,7 @@ useEffect(() => {
 
   const fetchCdrData = async (identifiersOverride?: string[]) => {
     const ids = dedupeCdrIdentifiers(identifiersOverride ?? cdrIdentifiers).filter(
-      (identifier) => identifier && !identifier.startsWith('2214')
+      (identifier) => Boolean(identifier)
     );
 
     if (ids.length === 0) {
@@ -3340,9 +3340,7 @@ useEffect(() => {
         });
         const data = await res.json();
         if (res.ok) {
-          const filtered = Array.isArray(data.path)
-            ? data.path.filter((p: CdrPoint) => !String(p.number || '').startsWith('2214'))
-            : [];
+          const filtered = Array.isArray(data.path) ? data.path : [];
           filtered.forEach((p: CdrPoint) => {
             const caller = (p.caller || '').trim();
             const locationOwner = p.type === 'web' ? id : caller || id;
