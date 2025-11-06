@@ -367,7 +367,7 @@ class RealtimeCdrService {
     this.tableNamePromise = null;
     this.tableLookupLogged = false;
     this.tableSchema = null;
-    this.btsJoinClause = undefined;
+    this.btsJoinConfig = undefined;
     this.btsJoinPromise = null;
     this.btsJoinMissingLogged = false;
     this.btsTableColumnCache = new Map();
@@ -729,11 +729,11 @@ class RealtimeCdrService {
     return tables;
   }
 
-  async #resolveBtsJoinClause() {
+  async #resolveBtsJoinConfig() {
     await this.#resolveTableName();
 
-    if (typeof this.btsJoinClause === 'string') {
-      return this.btsJoinClause;
+    if (this.btsJoinConfig) {
+      return this.btsJoinConfig;
     }
 
     if (this.btsJoinPromise) {
@@ -741,6 +741,17 @@ class RealtimeCdrService {
     }
 
     this.btsJoinPromise = (async () => {
+      const defaultConfig = {
+        joinClause: '',
+        selectExpressions: {
+          longitude: 'NULL',
+          latitude: 'NULL',
+          azimut: 'NULL',
+          nom_bts: 'NULL',
+          technology: 'NULL'
+        }
+      };
+
       try {
         const tables = await this.#findBtsLocationTables();
         if (!tables.length) {
@@ -750,10 +761,12 @@ class RealtimeCdrService {
             );
             this.btsJoinMissingLogged = true;
           }
-          return '';
+          return defaultConfig;
         }
 
-        const unionParts = [];
+        const technologyPriority = ['5G', '4G', '3G', '2G'];
+        const technologyDetails = new Map();
+
         for (const { schema, table } of tables) {
           const columns = await this.#resolveBtsTableColumns(schema, table);
           if (!columns) {
@@ -762,67 +775,124 @@ class RealtimeCdrService {
 
           const tableRef = this.#formatTableReference(schema, table);
           const technologyLabel = this.#inferTechnologyFromTable(table);
-          const selectParts = [
-            `${this.#quoteIdentifier(columns.cgi)} AS cgi`,
-            columns.longitude
-              ? `${this.#quoteIdentifier(columns.longitude)} AS longitude`
-              : 'NULL AS longitude',
-            columns.latitude
-              ? `${this.#quoteIdentifier(columns.latitude)} AS latitude`
-              : 'NULL AS latitude',
-            columns.azimut
-              ? `${this.#quoteIdentifier(columns.azimut)} AS azimut`
-              : 'NULL AS azimut',
-            columns.nom_bts
-              ? `${this.#quoteIdentifier(columns.nom_bts)} AS nom_bts`
-              : 'NULL AS nom_bts',
-            technologyLabel
-              ? `'${technologyLabel}' AS technology`
-              : 'NULL AS technology'
-          ];
+          if (!technologyLabel || !technologyPriority.includes(technologyLabel)) {
+            continue;
+          }
 
-          unionParts.push(`SELECT ${selectParts.join(', ')} FROM ${tableRef}`);
+          if (technologyDetails.has(technologyLabel)) {
+            continue;
+          }
+
+          const alias = `bts_${technologyLabel.toLowerCase()}`;
+          const quotedCgi = `${alias}.${this.#quoteIdentifier(columns.cgi)}`;
+          const normalizedBtsCgi = this.#normalizeCgiExpression(quotedCgi);
+          const normalizedCdrCgi = this.#normalizeCgiExpression('cdr.cgi');
+
+          const joinClause = `
+      LEFT JOIN ${tableRef} AS ${alias} ON ${normalizedBtsCgi} = ${normalizedCdrCgi}
+    `;
+
+          const fieldExpr = (columnName) => {
+            if (!columnName) {
+              return 'NULL';
+            }
+            return `${alias}.${this.#quoteIdentifier(columnName)}`;
+          };
+
+          technologyDetails.set(technologyLabel, {
+            joinClause,
+            expressions: {
+              longitude: fieldExpr(columns.longitude),
+              latitude: fieldExpr(columns.latitude),
+              azimut: fieldExpr(columns.azimut),
+              nom_bts: fieldExpr(columns.nom_bts),
+              cgi: quotedCgi
+            }
+          });
         }
 
-        if (!unionParts.length) {
+        const joinClauses = [];
+        const expressionsByTechnology = new Map();
+
+        for (const technology of technologyPriority) {
+          const details = technologyDetails.get(technology);
+          if (!details) {
+            continue;
+          }
+          joinClauses.push(details.joinClause);
+          expressionsByTechnology.set(technology, details.expressions);
+        }
+
+        if (!joinClauses.length) {
           if (!this.btsJoinMissingLogged) {
             console.warn(
               '⚠️ Colonnes CGI/coordonnées introuvables dans les tables BTS. Les champs de localisation resteront vides.'
             );
             this.btsJoinMissingLogged = true;
           }
-          return '';
+          return defaultConfig;
         }
 
-        const unionQuery = unionParts.join('\n          UNION ALL\n          ');
+        const buildCoalesceExpression = (field) => {
+          const expressions = [];
+          for (const technology of technologyPriority) {
+            const techExpressions = expressionsByTechnology.get(technology);
+            if (!techExpressions) {
+              continue;
+            }
+            const expr = techExpressions[field];
+            if (!expr || expr === 'NULL') {
+              continue;
+            }
+            expressions.push(expr);
+          }
 
-        const normalizedBtsCgi = this.#normalizeCgiExpression('bts_union.cgi');
-        const normalizedCdrCgi = this.#normalizeCgiExpression('cdr.cgi');
+          if (!expressions.length) {
+            return 'NULL';
+          }
 
-        return `
-      LEFT JOIN (
-        SELECT
-          ${normalizedBtsCgi} AS normalized_cgi,
-          MAX(longitude) AS longitude,
-          MAX(latitude) AS latitude,
-          MAX(azimut) AS azimut,
-          MAX(nom_bts) AS nom_bts,
-          MAX(technology) AS technology
-        FROM (
-          ${unionQuery}
-        ) AS bts_union
-        WHERE ${normalizedBtsCgi} IS NOT NULL AND ${normalizedBtsCgi} <> ''
-        GROUP BY normalized_cgi
-      ) AS bts ON bts.normalized_cgi = ${normalizedCdrCgi}
-    `;
+          if (expressions.length === 1) {
+            return expressions[0];
+          }
+
+          return `COALESCE(${expressions.join(', ')})`;
+        };
+
+        const technologyExpressions = [];
+        for (const technology of technologyPriority) {
+          const techExpressions = expressionsByTechnology.get(technology);
+          if (!techExpressions || !techExpressions.cgi || techExpressions.cgi === 'NULL') {
+            continue;
+          }
+          technologyExpressions.push(
+            `CASE WHEN ${techExpressions.cgi} IS NOT NULL AND ${techExpressions.cgi} <> '' THEN '${technology}' END`
+          );
+        }
+
+        const technologyExpression = technologyExpressions.length
+          ? technologyExpressions.length === 1
+            ? technologyExpressions[0]
+            : `COALESCE(${technologyExpressions.join(', ')})`
+          : 'NULL';
+
+        return {
+          joinClause: joinClauses.join('\n'),
+          selectExpressions: {
+            longitude: buildCoalesceExpression('longitude'),
+            latitude: buildCoalesceExpression('latitude'),
+            azimut: buildCoalesceExpression('azimut'),
+            nom_bts: buildCoalesceExpression('nom_bts'),
+            technology: technologyExpression
+          }
+        };
       } catch (error) {
         console.error('Erreur lors de la préparation des données de localisation BTS:', error);
-        return '';
+        return defaultConfig;
       }
-    })().then((clause) => {
-      this.btsJoinClause = clause;
+    })().then((config) => {
+      this.btsJoinConfig = config;
       this.btsJoinPromise = null;
-      return clause;
+      return config;
     });
 
     return this.btsJoinPromise;
@@ -840,7 +910,7 @@ class RealtimeCdrService {
     const limit = rawLimit !== null && rawLimit !== undefined ? parsePositiveInteger(rawLimit, null) : null;
 
     const tableName = await this.#resolveTableName();
-    const joinClause = await this.#resolveBtsJoinClause();
+    const { joinClause, selectExpressions } = await this.#resolveBtsJoinConfig();
 
     if (!joinClause) {
       if (!this.btsJoinMissingLogged) {
@@ -905,14 +975,14 @@ class RealtimeCdrService {
         `
           SELECT
             cdr.id AS id,
-            bts.longitude AS bts_longitude,
-            bts.latitude AS bts_latitude,
-            bts.azimut AS bts_azimut
+            ${selectExpressions.longitude} AS bts_longitude,
+            ${selectExpressions.latitude} AS bts_latitude,
+            ${selectExpressions.azimut} AS bts_azimut
           FROM ${tableName} AS cdr
           ${joinClause}
           WHERE cdr.id > ?
             AND (cdr.longitude IS NULL OR cdr.latitude IS NULL OR cdr.azimut IS NULL)
-            AND (bts.longitude IS NOT NULL OR bts.latitude IS NOT NULL OR bts.azimut IS NOT NULL)
+            AND (${selectExpressions.longitude} IS NOT NULL OR ${selectExpressions.latitude} IS NOT NULL OR ${selectExpressions.azimut} IS NOT NULL)
           ORDER BY cdr.id
           LIMIT ${currentBatchSize}
         `,
@@ -1122,7 +1192,7 @@ class RealtimeCdrService {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const tableName = await this.#resolveTableName();
-    const btsJoin = await this.#resolveBtsJoinClause();
+    const { joinClause, selectExpressions } = await this.#resolveBtsJoinConfig();
 
     const sql = `
       SELECT
@@ -1142,17 +1212,17 @@ class RealtimeCdrService {
         cdr.numero_appele,
         cdr.imsi_appelant,
         cdr.cgi,
-        bts.longitude,
-        bts.latitude,
-        bts.azimut,
-        bts.nom_bts,
-        bts.technology,
+        ${selectExpressions.longitude} AS longitude,
+        ${selectExpressions.latitude} AS latitude,
+        ${selectExpressions.azimut} AS azimut,
+        ${selectExpressions.nom_bts} AS nom_bts,
+        ${selectExpressions.technology} AS technology,
         cdr.route_reseau,
         cdr.device_id,
         cdr.fichier_source AS source_file,
         cdr.inserted_at
       FROM ${tableName} AS cdr
-      ${btsJoin}
+      ${joinClause}
       ${whereClause}
       ORDER BY cdr.date_debut ASC, cdr.heure_debut ASC, cdr.id ASC
       LIMIT ?
@@ -1367,7 +1437,7 @@ class RealtimeCdrService {
 
     const tableName = await this.#resolveTableName();
 
-    const btsJoin = await this.#resolveBtsJoinClause();
+    const { joinClause, selectExpressions } = await this.#resolveBtsJoinConfig();
 
     return database.query(
       `
@@ -1388,16 +1458,16 @@ class RealtimeCdrService {
           cdr.numero_appele,
           cdr.imsi_appelant,
           cdr.cgi,
-          bts.longitude,
-          bts.latitude,
-          bts.azimut,
-          bts.nom_bts,
+          ${selectExpressions.longitude} AS longitude,
+          ${selectExpressions.latitude} AS latitude,
+          ${selectExpressions.azimut} AS azimut,
+          ${selectExpressions.nom_bts} AS nom_bts,
           cdr.route_reseau,
           cdr.device_id,
           cdr.fichier_source AS source_file,
           cdr.inserted_at
         FROM ${tableName} AS cdr
-        ${btsJoin}
+        ${joinClause}
         WHERE cdr.id > ?
         ORDER BY cdr.id ASC
         LIMIT ?
