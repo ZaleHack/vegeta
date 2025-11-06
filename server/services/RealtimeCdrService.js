@@ -459,6 +459,26 @@ class RealtimeCdrService {
     return this.btsJoinPromise;
   }
 
+  #resolveBtsSelectColumns(btsJoinClause) {
+    const hasJoin = typeof btsJoinClause === 'string' && btsJoinClause.trim().length > 0;
+
+    if (hasJoin) {
+      return {
+        longitude: 'bts.longitude AS longitude',
+        latitude: 'bts.latitude AS latitude',
+        azimut: 'bts.azimut AS azimut',
+        nomBts: 'bts.nom_bts AS nom_bts'
+      };
+    }
+
+    return {
+      longitude: 'NULL AS longitude',
+      latitude: 'NULL AS latitude',
+      azimut: 'NULL AS azimut',
+      nomBts: 'NULL AS nom_bts'
+    };
+  }
+
   async #initializeElasticsearch() {
     const ensured = await this.#ensureElasticsearchIndex();
     if (!ensured) {
@@ -586,6 +606,7 @@ class RealtimeCdrService {
 
     const tableName = await this.#resolveTableName();
     const btsJoin = await this.#resolveBtsJoinClause();
+    const btsColumns = this.#resolveBtsSelectColumns(btsJoin);
 
     const sql = `
       SELECT
@@ -605,10 +626,10 @@ class RealtimeCdrService {
         cdr.numero_appele,
         cdr.imsi_appelant,
         cdr.cgi,
-        bts.longitude,
-        bts.latitude,
-        bts.azimut,
-        bts.nom_bts,
+        ${btsColumns.longitude},
+        ${btsColumns.latitude},
+        ${btsColumns.azimut},
+        ${btsColumns.nomBts},
         cdr.route_reseau,
         cdr.device_id,
         cdr.fichier_source AS source_file,
@@ -830,6 +851,7 @@ class RealtimeCdrService {
     const tableName = await this.#resolveTableName();
 
     const btsJoin = await this.#resolveBtsJoinClause();
+    const btsColumns = this.#resolveBtsSelectColumns(btsJoin);
 
     return database.query(
       `
@@ -850,10 +872,10 @@ class RealtimeCdrService {
           cdr.numero_appele,
           cdr.imsi_appelant,
           cdr.cgi,
-          bts.longitude,
-          bts.latitude,
-          bts.azimut,
-          bts.nom_bts,
+          ${btsColumns.longitude},
+          ${btsColumns.latitude},
+          ${btsColumns.azimut},
+          ${btsColumns.nomBts},
           cdr.route_reseau,
           cdr.device_id,
           cdr.fichier_source AS source_file,
