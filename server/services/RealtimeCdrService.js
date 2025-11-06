@@ -42,7 +42,60 @@ const BTS_LOCATION_JOIN = `
   ) AS bts ON bts.cgi = cdr.cgi
 `;
 
+const parseTableReference = (value) => {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const [schema, ...tableParts] = trimmed.split('.');
+  if (tableParts.length === 0) {
+    return { schema: null, table: schema };
+  }
+
+  const table = tableParts.join('.').trim();
+  const normalizedSchema = schema.trim();
+
+  return table
+    ? { schema: normalizedSchema ? normalizedSchema : null, table }
+    : null;
+};
+
+const envTableCandidates = (() => {
+  const values = [];
+  const single = process.env.REALTIME_CDR_TABLE;
+  if (single) {
+    values.push(single);
+  }
+
+  const list = process.env.REALTIME_CDR_TABLE_CANDIDATES;
+  if (list) {
+    values.push(...list.split(','));
+  }
+
+  const seen = new Set();
+  return values
+    .map((item) => parseTableReference(item))
+    .filter((candidate) => {
+      if (!candidate) {
+        return false;
+      }
+
+      const key = `${candidate.schema || 'default'}:${candidate.table}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+})();
+
 const CDR_TABLE_CANDIDATES = [
+  ...envTableCandidates,
   { schema: 'bts_orange', table: 'cdr_temps_reel' },
   { schema: 'autres', table: 'cdr_temps_reel' },
   { schema: null, table: 'cdr_temps_reel' },
