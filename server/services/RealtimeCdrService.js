@@ -209,7 +209,13 @@ const toNullableNumber = (value) => {
   }
 
   const normalized = text.replace(/\s+/g, '').replace(/,/g, '.');
-  const num = Number(normalized);
+  let num = Number(normalized);
+
+  if (!Number.isFinite(num)) {
+    const match = normalized.match(/-?\d+(?:\.\d+)?/);
+    num = match ? Number(match[0]) : Number.NaN;
+  }
+
   return Number.isFinite(num) ? num : null;
 };
 
@@ -434,6 +440,20 @@ class RealtimeCdrService {
     const schemaLabel = schema ? String(schema).trim() : '';
     const tableLabel = String(table || '').trim();
     return schemaLabel ? `${schemaLabel}.${tableLabel}` : tableLabel;
+  }
+
+  #inferTechnologyFromTable(table) {
+    const key = this.#normalizeColumnKey(table);
+    if (!key) {
+      return null;
+    }
+
+    if (key.includes('5g')) return '5G';
+    if (key.includes('4g') || key.includes('lte')) return '4G';
+    if (key.includes('3g') || key.includes('umts')) return '3G';
+    if (key.includes('2g') || key.includes('gsm')) return '2G';
+
+    return null;
   }
 
   #warnOnceForBtsTable(schema, table, message) {
@@ -741,6 +761,7 @@ class RealtimeCdrService {
           }
 
           const tableRef = this.#formatTableReference(schema, table);
+          const technologyLabel = this.#inferTechnologyFromTable(table);
           const selectParts = [
             `${this.#quoteIdentifier(columns.cgi)} AS cgi`,
             columns.longitude
@@ -754,7 +775,10 @@ class RealtimeCdrService {
               : 'NULL AS azimut',
             columns.nom_bts
               ? `${this.#quoteIdentifier(columns.nom_bts)} AS nom_bts`
-              : 'NULL AS nom_bts'
+              : 'NULL AS nom_bts',
+            technologyLabel
+              ? `'${technologyLabel}' AS technology`
+              : 'NULL AS technology'
           ];
 
           unionParts.push(`SELECT ${selectParts.join(', ')} FROM ${tableRef}`);
@@ -782,7 +806,8 @@ class RealtimeCdrService {
           MAX(longitude) AS longitude,
           MAX(latitude) AS latitude,
           MAX(azimut) AS azimut,
-          MAX(nom_bts) AS nom_bts
+          MAX(nom_bts) AS nom_bts,
+          MAX(technology) AS technology
         FROM (
           ${unionQuery}
         ) AS bts_union
@@ -1121,6 +1146,7 @@ class RealtimeCdrService {
         bts.latitude,
         bts.azimut,
         bts.nom_bts,
+        bts.technology,
         cdr.route_reseau,
         cdr.device_id,
         cdr.fichier_source AS source_file,
@@ -1733,6 +1759,7 @@ class RealtimeCdrService {
       latitude: toNullableNumber(row.latitude),
       azimut: normalizeString(row.azimut),
       nom_bts: normalizeString(row.nom_bts),
+      technology: normalizeString(row.technology),
       route_reseau: normalizeString(row.route_reseau),
       device_id: normalizeString(row.device_id),
       source_file: normalizeString(row.source_file),
@@ -1792,6 +1819,7 @@ class RealtimeCdrService {
 
       const latitude = row.latitude !== null && row.latitude !== undefined ? String(row.latitude) : '';
       const longitude = row.longitude !== null && row.longitude !== undefined ? String(row.longitude) : '';
+      const technology = row.technology ? String(row.technology).trim() : '';
 
       if (latitude && longitude) {
         const locationName = row.nom_bts ? String(row.nom_bts).trim() : '';
@@ -1800,9 +1828,13 @@ class RealtimeCdrService {
           latitude,
           longitude,
           nom: locationName,
-          count: 0
+          count: 0,
+          technology: technology || undefined
         };
         locationEntry.count += 1;
+        if (technology && !locationEntry.technology) {
+          locationEntry.technology = technology;
+        }
         locationsMap.set(key, locationEntry);
 
         path.push({
@@ -1824,6 +1856,7 @@ class RealtimeCdrService {
           imeiCalled: undefined,
           cgi: row.cgi ? String(row.cgi).trim() : undefined,
           azimut: row.azimut ? String(row.azimut).trim() : undefined,
+          technology: technology || undefined,
           seqNumber:
             row.seq_number !== null && row.seq_number !== undefined
               ? String(row.seq_number)

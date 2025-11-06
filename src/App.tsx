@@ -500,6 +500,7 @@ interface CdrLocation {
   longitude: string;
   nom: string;
   count: number;
+  technology?: string;
 }
 
 interface CdrPoint {
@@ -522,6 +523,7 @@ interface CdrPoint {
   tracked?: string;
   cgi?: string;
   azimut?: string;
+  technology?: string;
 }
 
 interface CdrSearchResult {
@@ -3431,9 +3433,13 @@ useEffect(() => {
           latitude: p.latitude,
           longitude: p.longitude,
           nom: p.nom,
-          count: 0
+          count: 0,
+          technology: p.technology
         };
         loc.count += 1;
+        if (!loc.technology && p.technology) {
+          loc.technology = p.technology;
+        }
         locationsMap.set(key, loc);
       });
 
