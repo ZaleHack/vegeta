@@ -977,12 +977,18 @@ class RealtimeCdrService {
             cdr.id AS id,
             ${selectExpressions.longitude} AS bts_longitude,
             ${selectExpressions.latitude} AS bts_latitude,
-            ${selectExpressions.azimut} AS bts_azimut
+            ${selectExpressions.azimut} AS bts_azimut,
+            ${selectExpressions.nom_bts} AS bts_nom_bts
           FROM ${tableName} AS cdr
           ${joinClause}
           WHERE cdr.id > ?
-            AND (cdr.longitude IS NULL OR cdr.latitude IS NULL OR cdr.azimut IS NULL)
-            AND (${selectExpressions.longitude} IS NOT NULL OR ${selectExpressions.latitude} IS NOT NULL OR ${selectExpressions.azimut} IS NOT NULL)
+            AND (cdr.longitude IS NULL OR cdr.latitude IS NULL OR cdr.azimut IS NULL OR cdr.nom_bts IS NULL)
+            AND (
+              ${selectExpressions.longitude} IS NOT NULL
+              OR ${selectExpressions.latitude} IS NOT NULL
+              OR ${selectExpressions.azimut} IS NOT NULL
+              OR ${selectExpressions.nom_bts} IS NOT NULL
+            )
           ORDER BY cdr.id
           LIMIT ${currentBatchSize}
         `,
@@ -1001,11 +1007,16 @@ class RealtimeCdrService {
           id: Number(row.id),
           longitude: toNullableNumber(row.bts_longitude),
           latitude: toNullableNumber(row.bts_latitude),
-          azimut: toNullableNumber(row.bts_azimut)
+          azimut: toNullableNumber(row.bts_azimut),
+          nom_bts: normalizeString(row.bts_nom_bts)
         }))
-        .filter((row) => Number.isFinite(row.id) && (row.longitude !== null || row.latitude !== null || row.azimut !== null));
+        .filter(
+          (row) =>
+            Number.isFinite(row.id) &&
+            (row.longitude !== null || row.latitude !== null || row.azimut !== null || row.nom_bts !== null)
+        );
 
-      const expressions = ['longitude', 'latitude', 'azimut']
+      const expressions = ['longitude', 'latitude', 'azimut', 'nom_bts']
         .map((column) => buildCaseExpression(updatableRows, column))
         .filter(Boolean);
 
