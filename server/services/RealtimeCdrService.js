@@ -1,6 +1,13 @@
 import database from '../config/database.js';
 import client from '../config/elasticsearch.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
+import {
+  sanitizeNumber,
+  normalizePhoneNumber,
+  buildIdentifierVariants,
+  matchesIdentifier,
+  normalizeForOutput
+} from './phoneUtils.js';
 
 const EMPTY_RESULT = {
   total: 0,
@@ -54,90 +61,6 @@ const INDEX_POLL_INTERVAL = Math.max(
 
 const isConnectionError = (error) =>
   error?.name === 'ConnectionError' || error?.meta?.statusCode === 0;
-
-const sanitizeNumber = (value) => {
-  if (value === null || value === undefined) {
-    return '';
-  }
-  let text = String(value).trim();
-  if (!text) {
-    return '';
-  }
-  text = text.replace(/\s+/g, '');
-  if (text.startsWith('+')) {
-    text = text.slice(1);
-  }
-  while (text.startsWith('00')) {
-    text = text.slice(2);
-  }
-  text = text.replace(/[^0-9]/g, '');
-  return text;
-};
-
-const normalizePhoneNumber = (value) => {
-  const sanitized = sanitizeNumber(value);
-  if (!sanitized) {
-    return '';
-  }
-  if (sanitized.startsWith('221')) {
-    return sanitized;
-  }
-  const trimmed = sanitized.replace(/^0+/, '');
-  return trimmed ? `221${trimmed}` : '';
-};
-
-const buildIdentifierVariants = (value) => {
-  const variants = new Set();
-  const sanitized = sanitizeNumber(value);
-  if (!sanitized) {
-    return variants;
-  }
-  variants.add(sanitized);
-  const normalized = normalizePhoneNumber(sanitized);
-  if (normalized) {
-    variants.add(normalized);
-    if (normalized.startsWith('221')) {
-      const local = normalized.slice(3);
-      if (local) {
-        variants.add(local);
-      }
-    }
-  }
-  return variants;
-};
-
-const matchesIdentifier = (identifierSet, value) => {
-  if (!value) {
-    return false;
-  }
-  const sanitized = sanitizeNumber(value);
-  if (!sanitized) {
-    return false;
-  }
-  if (identifierSet.has(sanitized)) {
-    return true;
-  }
-  const normalized = normalizePhoneNumber(sanitized);
-  if (normalized && identifierSet.has(normalized)) {
-    return true;
-  }
-  if (normalized.startsWith('221')) {
-    const local = normalized.slice(3);
-    if (identifierSet.has(local)) {
-      return true;
-    }
-  }
-  return false;
-};
-
-const normalizeForOutput = (value) => {
-  const sanitized = sanitizeNumber(value);
-  if (!sanitized) {
-    return '';
-  }
-  const normalized = normalizePhoneNumber(sanitized);
-  return normalized || sanitized;
-};
 
 const normalizeTimeBound = (value) => {
   if (!value) {
@@ -1234,5 +1157,5 @@ class RealtimeCdrService {
 
 const realtimeCdrService = new RealtimeCdrService();
 
-export { RealtimeCdrService };
+export { RealtimeCdrService, buildIdentifierVariants };
 export default realtimeCdrService;
