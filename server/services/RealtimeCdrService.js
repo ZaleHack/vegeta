@@ -314,13 +314,13 @@ class RealtimeCdrService {
   async #checkTableExists(schema, table) {
     const sanitizedTable = this.#sanitizeIdentifier(table);
     if (!sanitizedTable) {
-      return false;
+      return null;
     }
 
     const sanitizedSchema = schema ? this.#sanitizeIdentifier(schema) : null;
     const sql = sanitizedSchema
-      ? `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`
-      : `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`;
+      ? `SELECT TABLE_SCHEMA AS table_schema, TABLE_NAME AS table_name FROM information_schema.TABLES WHERE LOWER(TABLE_SCHEMA) = LOWER(?) AND LOWER(TABLE_NAME) = LOWER(?) LIMIT 1`
+      : `SELECT TABLE_SCHEMA AS table_schema, TABLE_NAME AS table_name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?) LIMIT 1`;
 
     const params = sanitizedSchema
       ? [sanitizedSchema, sanitizedTable]
@@ -328,10 +328,20 @@ class RealtimeCdrService {
 
     try {
       const result = await database.queryOne(sql, params);
-      return Number(result?.count || 0) > 0;
+      const resolvedTable = this.#sanitizeIdentifier(result?.table_name);
+      if (!resolvedTable) {
+        return null;
+      }
+      const resolvedSchema = result?.table_schema
+        ? this.#sanitizeIdentifier(result.table_schema)
+        : sanitizedSchema;
+      return {
+        schema: resolvedSchema || null,
+        table: resolvedTable
+      };
     } catch (error) {
       console.error('Erreur lors de la vérification de la table CDR temps réel:', error);
-      return false;
+      return null;
     }
   }
 
@@ -345,10 +355,10 @@ class RealtimeCdrService {
 
     this.tableNamePromise = (async () => {
       for (const candidate of CDR_TABLE_CANDIDATES) {
-        const exists = await this.#checkTableExists(candidate.schema, candidate.table);
-        if (exists) {
-          const formatted = this.#formatTableReference(candidate.schema, candidate.table);
-          this.tableSchema = candidate.schema ? this.#sanitizeIdentifier(candidate.schema) || null : null;
+        const resolved = await this.#checkTableExists(candidate.schema, candidate.table);
+        if (resolved) {
+          const formatted = this.#formatTableReference(resolved.schema, resolved.table);
+          this.tableSchema = resolved.schema || null;
           this.tableName = formatted;
           return formatted;
         }
@@ -397,14 +407,15 @@ class RealtimeCdrService {
         if (!sanitizedTable) {
           continue;
         }
-        const cacheKey = `${schema || 'default'}:${sanitizedTable}`;
-        if (seenTables.has(cacheKey)) {
-          continue;
-        }
-        const exists = await this.#checkTableExists(schema, sanitizedTable);
-        if (exists) {
-          seenTables.add(cacheKey);
-          tables.push({ schema, table: sanitizedTable });
+        const resolved = await this.#checkTableExists(schema, sanitizedTable);
+        if (resolved) {
+          const resolvedSchema = resolved.schema ?? schema;
+          const resolvedKey = `${resolvedSchema || 'default'}:${resolved.table}`;
+          if (seenTables.has(resolvedKey)) {
+            continue;
+          }
+          seenTables.add(resolvedKey);
+          tables.push({ schema: resolvedSchema, table: resolved.table });
         }
       }
     }
