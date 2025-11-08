@@ -486,32 +486,28 @@ class RealtimeCdrService {
         c.imsi_appelant,
         c.cgi,
         COALESCE(
-          ${sanitizeColumnForSelection('c.longitude')},
-          r2.LONGITUDE,
-          r3.LONGITUDE,
-          r4.LONGITUDE,
-          r5.LONGITUDE
+          ${sanitizeColumnForSelection('r2.LONGITUDE')},
+          ${sanitizeColumnForSelection('r3.LONGITUDE')},
+          ${sanitizeColumnForSelection('r4.LONGITUDE')},
+          ${sanitizeColumnForSelection('r5.LONGITUDE')}
         ) AS longitude,
         COALESCE(
-          ${sanitizeColumnForSelection('c.latitude')},
-          r2.LATITUDE,
-          r3.LATITUDE,
-          r4.LATITUDE,
-          r5.LATITUDE
+          ${sanitizeColumnForSelection('r2.LATITUDE')},
+          ${sanitizeColumnForSelection('r3.LATITUDE')},
+          ${sanitizeColumnForSelection('r4.LATITUDE')},
+          ${sanitizeColumnForSelection('r5.LATITUDE')}
         ) AS latitude,
         COALESCE(
-          ${sanitizeColumnForSelection('c.azimut')},
-          r2.AZIMUT,
-          r3.AZIMUT,
-          r4.AZIMUT,
-          r5.AZIMUT
+          ${sanitizeColumnForSelection('r2.AZIMUT')},
+          ${sanitizeColumnForSelection('r3.AZIMUT')},
+          ${sanitizeColumnForSelection('r4.AZIMUT')},
+          ${sanitizeColumnForSelection('r5.AZIMUT')}
         ) AS azimut,
         COALESCE(
-          ${sanitizeColumnForSelection('c.nom_bts')},
-          NULLIF(TRIM(r2.NOM_BTS), ''),
-          NULLIF(TRIM(r3.NOM_BTS), ''),
-          NULLIF(TRIM(r4.NOM_BTS), ''),
-          NULLIF(TRIM(r5.NOM_BTS), '')
+          ${sanitizeColumnForSelection('r2.NOM_BTS')},
+          ${sanitizeColumnForSelection('r3.NOM_BTS')},
+          ${sanitizeColumnForSelection('r4.NOM_BTS')},
+          ${sanitizeColumnForSelection('r5.NOM_BTS')}
         ) AS nom_bts,
         c.fichier_source AS source_file,
         c.inserted_at
