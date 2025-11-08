@@ -4,6 +4,10 @@ import { fileURLToPath } from 'url';
 
 import database from '../config/database.js';
 import baseCatalog from '../config/tables-catalog.js';
+import {
+  getRealtimeCdrTableIdentifiers,
+  REALTIME_CDR_TABLE_METADATA
+} from '../config/realtime-table.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +33,23 @@ const TABLE_EXCLUSIONS = [
   set.add(`autres.${normalized}`);
   return set;
 }, new Set());
+
+const realtimeTableExclusions = getRealtimeCdrTableIdentifiers();
+const realtimeSchema = REALTIME_CDR_TABLE_METADATA.schema;
+const realtimeTable = REALTIME_CDR_TABLE_METADATA.table;
+
+if (realtimeSchema && realtimeTable) {
+  realtimeTableExclusions.add(`${realtimeSchema}.${realtimeTable}`.toLowerCase());
+}
+
+for (const identifier of realtimeTableExclusions) {
+  TABLE_EXCLUSIONS.add(identifier);
+  const [, withoutSchema = identifier] = identifier.split('.');
+  if (withoutSchema) {
+    TABLE_EXCLUSIONS.add(withoutSchema);
+    TABLE_EXCLUSIONS.add(`autres.${withoutSchema}`);
+  }
+}
 
 const TEXT_TYPES = new Set(['text', 'mediumtext', 'longtext', 'tinytext']);
 const BLOB_TYPES = new Set(['blob', 'mediumblob', 'longblob', 'tinyblob']);

@@ -1,3 +1,9 @@
+import { REALTIME_CDR_TABLE_METADATA } from './realtime-table.js';
+
+const REALTIME_TABLE_KEY = REALTIME_CDR_TABLE_METADATA.raw;
+const REALTIME_TABLE_DISPLAY = REALTIME_CDR_TABLE_METADATA.table || 'cdr_temps_reel';
+const REALTIME_TABLE_DATABASE = REALTIME_CDR_TABLE_METADATA.schema || 'autres';
+
 export default {
   'autres.profiles': {
     display: 'profiles',
@@ -902,9 +908,9 @@ export default {
     theme: 'telecom'
   },
 
-  'autres.cdr_temps_reel': {
-    display: 'cdr_temps_reel',
-    database: 'autres',
+  [REALTIME_TABLE_KEY]: {
+    display: REALTIME_TABLE_DISPLAY,
+    database: REALTIME_TABLE_DATABASE,
     searchable: [
       'type_appel',
       'numero_appelant',
