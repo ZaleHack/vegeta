@@ -5,6 +5,50 @@ let cachedBase64Key: string | null = null;
 let base64KeyPromise: Promise<string> | null = null;
 let originalFetch: typeof fetch | null = null;
 
+let requestCounter = 0;
+
+const now = () =>
+  typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+
+const snapshotHeaders = (headers: Headers) => {
+  const record: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    record[key] = value;
+  });
+  return record;
+};
+
+const logRequestLifecycle = async <T extends Response>(
+  request: Request,
+  fetchPromise: Promise<T>
+): Promise<T> => {
+  const id = ++requestCounter;
+  const method = request.method?.toUpperCase() ?? 'GET';
+  const url = request.url;
+  const start = now();
+  const headers = snapshotHeaders(request.headers);
+
+  console.info(`[API][${id}] ${method} ${url}`, {
+    headers,
+    encrypted: headers['x-encrypted'] === 'aes-gcm'
+  });
+
+  try {
+    const response = await fetchPromise;
+    const duration = Math.round(now() - start);
+    console.info(
+      `[API][${id}] ${method} ${url} -> ${response.status} ${response.statusText} (${duration}ms)`
+    );
+    return response;
+  } catch (error) {
+    const duration = Math.round(now() - start);
+    console.error(`[API][${id}] ${method} ${url} -> FAILED (${duration}ms)`, error);
+    throw error;
+  }
+};
+
 const textEncoder = new TextEncoder();
 
 const isWebCryptoAvailable = (): boolean =>
@@ -209,13 +253,13 @@ export const setupEncryptedFetch = () => {
       headers.has('X-Encrypted') ||
       !contentType.startsWith('application/json')
     ) {
-      return callOriginalFetch();
+      return logRequestLifecycle(request, callOriginalFetch());
     }
 
     try {
       const bodyText = await request.clone().text();
       if (!bodyText) {
-        return callOriginalFetch();
+        return logRequestLifecycle(request, callOriginalFetch());
       }
 
       const encryptedPayload = await encryptJsonPayload(bodyText);
@@ -231,7 +275,7 @@ export const setupEncryptedFetch = () => {
       });
 
       const fetchImplementation = originalFetch ?? nativeFetch;
-      return fetchImplementation(encryptedRequest);
+      return logRequestLifecycle(encryptedRequest, fetchImplementation(encryptedRequest));
     } catch (error) {
       console.error('Échec du chiffrement du payload JSON :', error);
       throw error;
