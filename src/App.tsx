@@ -589,18 +589,27 @@ const normalizeCoordinateField = (value: unknown): string | null => {
   if (value === null || value === undefined) {
     return null;
   }
+
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value.toString() : null;
   }
-  const text = String(value).trim();
-  if (!text) {
+
+  const raw = String(value).trim();
+  if (!raw) {
     return null;
   }
-  const sanitized = text.replace(',', '.');
+
+  const match = raw.match(/[-+]?\d+(?:[.,]\d+)?/);
+  if (!match) {
+    return null;
+  }
+
+  const sanitized = match[0].replace(/,/g, '.');
   const parsed = Number.parseFloat(sanitized);
   if (!Number.isFinite(parsed)) {
     return null;
   }
+
   return parsed.toString();
 };
 
