@@ -1096,7 +1096,11 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     [points]
   );
 
-  const referencePoints = callerPoints.length > 0 ? callerPoints : points;
+  const referencePoints = useMemo(
+    () => (callerPoints.length > 0 ? callerPoints : points),
+    [callerPoints, points]
+  );
+
   const first = referencePoints[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const mapRef = useRef<L.Map | null>(null);
@@ -1216,15 +1220,16 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
     setActiveInfo(null);
   }, []);
 
-  const sourceNumbers = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          callerPoints.map((p) => p.source).filter((n): n is string => Boolean(n))
-        )
-      ),
-    [callerPoints]
-  );
+  const sourceNumbers = useMemo(() => {
+    const numbers = new Set<string>();
+    referencePoints.forEach((point) => {
+      const rawSource = point.source || point.tracked;
+      if (rawSource) {
+        numbers.add(rawSource);
+      }
+    });
+    return Array.from(numbers);
+  }, [referencePoints]);
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
     sourceNumbers.forEach((n, i) => map.set(n, numberColors[i % numberColors.length]));
@@ -1337,14 +1342,14 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
   );
 
   const displayedPoints = useMemo(() => {
-    let filtered = callerPoints;
+    let filtered = referencePoints;
     if (selectedSource) {
       filtered = filtered.filter((p) => p.source === selectedSource);
-    } else {
+    } else if (visibleSources.size > 0) {
       filtered = filtered.filter((p) => !p.source || visibleSources.has(p.source));
     }
     return filtered.filter(isPointWithinZone);
-  }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
+  }, [referencePoints, selectedSource, visibleSources, isPointWithinZone]);
 
   const contactPoints = useMemo(() => {
     const matchesVisible = (raw?: string): boolean => {
