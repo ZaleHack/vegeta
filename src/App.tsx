@@ -599,7 +599,7 @@ const normalizeCoordinateField = (value: unknown): string | null => {
     return null;
   }
 
-  const match = raw.match(/[-+]?\d+(?:[.,]\d+)?/);
+  const match = raw.match(/[-+]?(?:\d+(?:[.,]\d*)?|[.,]\d+)/);
   if (!match) {
     return null;
   }
