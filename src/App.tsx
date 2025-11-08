@@ -569,11 +569,21 @@ const NOM_FIELD_CANDIDATES = ['nom', 'Nom', 'NOM', 'nom_bts', 'Nom_BTS', 'NOM_BT
 
 const AZIMUT_FIELD_CANDIDATES = ['azimut', 'Azimut', 'AZIMUT', 'azimuth', 'Azimuth', 'AZIMUTH'];
 
+const sanitizeFieldKey = (key: string): string => {
+  return key
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toLowerCase();
+};
+
 const getFirstDefinedValue = (source: unknown, keys: string[]): unknown => {
   if (!source || typeof source !== 'object') {
     return undefined;
   }
+
   const record = source as Record<string, unknown>;
+
   for (const key of keys) {
     if (Object.prototype.hasOwnProperty.call(record, key)) {
       const value = record[key];
@@ -582,6 +592,25 @@ const getFirstDefinedValue = (source: unknown, keys: string[]): unknown => {
       }
     }
   }
+
+  const normalizedKeys = new Map<string, string>();
+  for (const existingKey of Object.keys(record)) {
+    const sanitized = sanitizeFieldKey(existingKey);
+    if (!normalizedKeys.has(sanitized)) {
+      normalizedKeys.set(sanitized, existingKey);
+    }
+  }
+
+  for (const candidate of keys) {
+    const normalizedCandidate = sanitizeFieldKey(candidate);
+    const actualKey = normalizedKeys.get(normalizedCandidate);
+    if (!actualKey) continue;
+    const value = record[actualKey];
+    if (value !== null && value !== undefined && value !== '') {
+      return value;
+    }
+  }
+
   return undefined;
 };
 
