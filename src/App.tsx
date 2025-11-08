@@ -533,6 +533,191 @@ interface CdrSearchResult {
   path: CdrPoint[];
 }
 
+const LATITUDE_FIELD_CANDIDATES = [
+  'latitude',
+  'Latitude',
+  'LATITUDE',
+  'lat',
+  'Lat',
+  'LAT',
+  'lat_bts',
+  'LAT_BTS',
+  'latitude_bts',
+  'Latitude_BTS'
+];
+
+const LONGITUDE_FIELD_CANDIDATES = [
+  'longitude',
+  'Longitude',
+  'LONGITUDE',
+  'long',
+  'Long',
+  'LONG',
+  'lon',
+  'Lon',
+  'LON',
+  'lng',
+  'Lng',
+  'LNG',
+  'long_bts',
+  'LONG_BTS',
+  'longitude_bts',
+  'Longitude_BTS'
+];
+
+const NOM_FIELD_CANDIDATES = ['nom', 'Nom', 'NOM', 'nom_bts', 'Nom_BTS', 'NOM_BTS'];
+
+const AZIMUT_FIELD_CANDIDATES = ['azimut', 'Azimut', 'AZIMUT', 'azimuth', 'Azimuth', 'AZIMUTH'];
+
+const getFirstDefinedValue = (source: unknown, keys: string[]): unknown => {
+  if (!source || typeof source !== 'object') {
+    return undefined;
+  }
+  const record = source as Record<string, unknown>;
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      const value = record[key];
+      if (value !== null && value !== undefined && value !== '') {
+        return value;
+      }
+    }
+  }
+  return undefined;
+};
+
+const normalizeCoordinateField = (value: unknown): string | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value.toString() : null;
+  }
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+  const sanitized = text.replace(',', '.');
+  const parsed = Number.parseFloat(sanitized);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return parsed.toString();
+};
+
+const normalizeOptionalTextField = (value: unknown): string | undefined => {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  const text = String(value).trim();
+  return text || undefined;
+};
+
+const normalizeTextField = (value: unknown, fallback = ''): string => {
+  return normalizeOptionalTextField(value) ?? fallback;
+};
+
+const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | null => {
+  if (!point || typeof point !== 'object') {
+    return null;
+  }
+
+  const latitude = normalizeCoordinateField(
+    getFirstDefinedValue(point, LATITUDE_FIELD_CANDIDATES)
+  );
+  const longitude = normalizeCoordinateField(
+    getFirstDefinedValue(point, LONGITUDE_FIELD_CANDIDATES)
+  );
+
+  if (!latitude || !longitude) {
+    return null;
+  }
+
+  const record = point as Record<string, unknown>;
+  const caller = normalizeOptionalTextField(record.caller);
+
+  const normalized: CdrPoint = {
+    latitude,
+    longitude,
+    nom: normalizeTextField(getFirstDefinedValue(point, NOM_FIELD_CANDIDATES), ''),
+    type: normalizeTextField(record.type, ''),
+    direction: normalizeTextField(record.direction, ''),
+    number: normalizeOptionalTextField(record.number),
+    caller,
+    callee: normalizeOptionalTextField(record.callee),
+    callDate: normalizeTextField(record.callDate, ''),
+    startTime: normalizeTextField(record.startTime, ''),
+    endTime: normalizeTextField(record.endTime, ''),
+    duration: normalizeOptionalTextField(record.duration),
+    imsiCaller: normalizeOptionalTextField(record.imsiCaller),
+    imeiCaller: normalizeOptionalTextField(record.imeiCaller),
+    imeiCalled: normalizeOptionalTextField(record.imeiCalled),
+    source: undefined,
+    tracked: trackedId,
+    cgi: normalizeOptionalTextField(record.cgi),
+    azimut: normalizeOptionalTextField(getFirstDefinedValue(point, AZIMUT_FIELD_CANDIDATES))
+  };
+
+  const endDate = normalizeOptionalTextField(record.endDate);
+  if (endDate) {
+    normalized.endDate = endDate;
+  }
+
+  if (!normalized.callDate) {
+    const fallbackDate = normalizeOptionalTextField(
+      record.date_debut_appel ?? record.date
+    );
+    if (fallbackDate) {
+      normalized.callDate = fallbackDate;
+    }
+  }
+
+  if (!normalized.startTime) {
+    const fallbackStart = normalizeOptionalTextField(
+      record.start_time ?? record.heure_debut_appel
+    );
+    if (fallbackStart) {
+      normalized.startTime = fallbackStart;
+    }
+  }
+
+  if (!normalized.endTime) {
+    const fallbackEnd = normalizeOptionalTextField(
+      record.end_time ?? record.heure_fin_appel
+    );
+    if (fallbackEnd) {
+      normalized.endTime = fallbackEnd;
+    }
+  }
+
+  const explicitSource = normalizeOptionalTextField(record.source);
+  if (explicitSource) {
+    normalized.source = explicitSource;
+  } else {
+    normalized.source = normalized.type === 'web' ? trackedId : caller || trackedId;
+  }
+
+  const explicitTracked = normalizeOptionalTextField(record.tracked);
+  if (explicitTracked) {
+    normalized.tracked = explicitTracked;
+  }
+
+  if (!normalized.direction) {
+    const fallbackDirection = normalizeOptionalTextField(record.sens);
+    if (fallbackDirection) {
+      normalized.direction = fallbackDirection;
+    }
+  }
+
+  if (!normalized.type) {
+    const fallbackType = normalizeOptionalTextField(record.event_type);
+    if (fallbackType) {
+      normalized.type = fallbackType;
+    }
+  }
+
+  return normalized;
+};
+
 interface CdrCase {
   id: number;
   name: string;
@@ -3340,16 +3525,19 @@ useEffect(() => {
         });
         const data = await res.json();
         if (res.ok) {
-          const filtered = Array.isArray(data.path)
-            ? data.path.filter((p: CdrPoint) => !String(p.number || '').startsWith('2214'))
-            : [];
-          filtered.forEach((p: CdrPoint) => {
-            const caller = (p.caller || '').trim();
-            const locationOwner = p.type === 'web' ? id : caller || id;
-            p.source = locationOwner;
-            p.tracked = id;
+          const rawPath = Array.isArray(data.path) ? data.path : [];
+          const filtered = rawPath.filter((rawPoint: unknown) => {
+            if (!rawPoint || typeof rawPoint !== 'object') {
+              return true;
+            }
+            const record = rawPoint as Record<string, unknown>;
+            const candidate = normalizeOptionalTextField(record.number);
+            return !candidate || !candidate.startsWith('2214');
           });
-          allPaths.push(...filtered);
+          const normalizedPoints = filtered
+            .map((rawPoint: unknown) => normalizeCdrPointFields(rawPoint, id))
+            .filter((point): point is CdrPoint => Boolean(point));
+          allPaths.push(...normalizedPoints);
         } else {
           setCdrError(data.error || 'Erreur lors de la recherche');
         }
