@@ -5,10 +5,30 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import statsCache from './stats-cache.js';
+import {
+  getRealtimeCdrTableIdentifiers,
+  REALTIME_CDR_TABLE_METADATA
+} from '../config/realtime-table.js';
 
 const EXCLUDED_DATA_TABLES = new Set(
   ['autres.cdr_temps_reel', 'cdr_temps_reel'].map((name) => name.toLowerCase())
 );
+
+const realtimeDataExclusions = getRealtimeCdrTableIdentifiers();
+const realtimeSchema = REALTIME_CDR_TABLE_METADATA.schema;
+const realtimeTable = REALTIME_CDR_TABLE_METADATA.table;
+
+if (realtimeSchema && realtimeTable) {
+  realtimeDataExclusions.add(`${realtimeSchema}.${realtimeTable}`.toLowerCase());
+}
+
+for (const identifier of realtimeDataExclusions) {
+  EXCLUDED_DATA_TABLES.add(identifier);
+  const [, withoutSchema = identifier] = identifier.split('.');
+  if (withoutSchema) {
+    EXCLUDED_DATA_TABLES.add(withoutSchema);
+  }
+}
 
 /**
  * Service de génération de statistiques basées sur les journaux de recherche

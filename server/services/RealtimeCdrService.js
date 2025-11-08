@@ -1,6 +1,7 @@
 import database from '../config/database.js';
 import client from '../config/elasticsearch.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
+import { REALTIME_CDR_TABLE_SQL } from '../config/realtime-table.js';
 
 const EMPTY_RESULT = {
   total: 0,
@@ -496,7 +497,7 @@ class RealtimeCdrService {
               ${sanitizeColumnForSelection('r4.AZIMUT')},
               ${sanitizeColumnForSelection('r5.AZIMUT')}
             ) AS resolved_azimut
-          FROM autres.cdr_temps_reel AS c
+          FROM ${REALTIME_CDR_TABLE_SQL} AS c
           LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
           LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r2')}
           LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')}
@@ -543,7 +544,7 @@ class RealtimeCdrService {
         for (const candidate of candidates) {
           const result = await database.query(
             `
-              UPDATE autres.cdr_temps_reel
+              UPDATE ${REALTIME_CDR_TABLE_SQL}
               SET
                 longitude = IFNULL(longitude, ?),
                 latitude  = IFNULL(latitude, ?),
@@ -677,7 +678,7 @@ class RealtimeCdrService {
         ) AS nom_bts,
         c.fichier_source AS source_file,
         c.inserted_at
-      FROM autres.cdr_temps_reel AS c
+      FROM ${REALTIME_CDR_TABLE_SQL} AS c
       LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
       LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r2')}
       LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')}
@@ -930,7 +931,7 @@ class RealtimeCdrService {
           ) AS nom_bts,
           c.fichier_source AS source_file,
           c.inserted_at
-        FROM autres.cdr_temps_reel AS c
+        FROM ${REALTIME_CDR_TABLE_SQL} AS c
         LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
         LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r2')}
         LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')}

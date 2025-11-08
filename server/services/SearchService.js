@@ -4,6 +4,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import InMemoryCache from '../utils/cache.js';
+import {
+  getRealtimeCdrTableIdentifiers,
+  REALTIME_CDR_TABLE_METADATA
+} from '../config/realtime-table.js';
 
 const MISSING_TABLE_ERROR_CODES = ['ER_NO_SUCH_TABLE', 'ER_BAD_TABLE_ERROR'];
 
@@ -41,6 +45,22 @@ const EXCLUDED_SEARCH_TABLES = new Set(
     'user_sessions'
   ].map((name) => name.toLowerCase())
 );
+
+const realtimeExclusions = getRealtimeCdrTableIdentifiers();
+const realtimeSchema = REALTIME_CDR_TABLE_METADATA.schema;
+const realtimeTable = REALTIME_CDR_TABLE_METADATA.table;
+
+if (realtimeSchema && realtimeTable) {
+  realtimeExclusions.add(`${realtimeSchema}.${realtimeTable}`.toLowerCase());
+}
+
+for (const entry of realtimeExclusions) {
+  EXCLUDED_SEARCH_TABLES.add(entry);
+  const [, withoutSchema = entry] = entry.split('.');
+  if (withoutSchema) {
+    EXCLUDED_SEARCH_TABLES.add(withoutSchema);
+  }
+}
 
 const UNIQUE_SEARCH_FIELDS = new Set(
   [
