@@ -446,6 +446,57 @@ class RealtimeCdrService {
     const join3gCondition = `${buildNormalizedCgiSql('r3.CGI')} = ${normalizedCgiSql}`;
     const join4gCondition = `${buildNormalizedCgiSql('r4.CGI')} = ${normalizedCgiSql}`;
     const join5gCondition = `${buildNormalizedCgiSql('r5.CGI')} = ${normalizedCgiSql}`;
+    const sanitizedColumns = {
+      r2: {
+        longitude: sanitizeColumnForSelection('r2.LONGITUDE'),
+        latitude: sanitizeColumnForSelection('r2.LATITUDE'),
+        azimut: sanitizeColumnForSelection('r2.AZIMUT')
+      },
+      r3: {
+        longitude: sanitizeColumnForSelection('r3.LONGITUDE'),
+        latitude: sanitizeColumnForSelection('r3.LATITUDE'),
+        azimut: sanitizeColumnForSelection('r3.AZIMUT')
+      },
+      r4: {
+        longitude: sanitizeColumnForSelection('r4.LONGITUDE'),
+        latitude: sanitizeColumnForSelection('r4.LATITUDE'),
+        azimut: sanitizeColumnForSelection('r4.AZIMUT')
+      },
+      r5: {
+        longitude: sanitizeColumnForSelection('r5.LONGITUDE'),
+        latitude: sanitizeColumnForSelection('r5.LATITUDE'),
+        azimut: sanitizeColumnForSelection('r5.AZIMUT')
+      }
+    };
+    const buildFallbackCondition = (longitudeExpr, latitudeExpr, azimutExpr) => `(
+      (${longitudeExpr}) IS NULL
+      OR (${latitudeExpr}) IS NULL
+      OR (${azimutExpr}) IS NULL
+    )`;
+    const resolvedLongitudeThroughR2 = sanitizedColumns.r2.longitude;
+    const resolvedLatitudeThroughR2 = sanitizedColumns.r2.latitude;
+    const resolvedAzimutThroughR2 = sanitizedColumns.r2.azimut;
+    const needsFallbackAfterR2 = buildFallbackCondition(
+      resolvedLongitudeThroughR2,
+      resolvedLatitudeThroughR2,
+      resolvedAzimutThroughR2
+    );
+    const resolvedLongitudeThroughR3 = `COALESCE(${resolvedLongitudeThroughR2}, ${sanitizedColumns.r3.longitude})`;
+    const resolvedLatitudeThroughR3 = `COALESCE(${resolvedLatitudeThroughR2}, ${sanitizedColumns.r3.latitude})`;
+    const resolvedAzimutThroughR3 = `COALESCE(${resolvedAzimutThroughR2}, ${sanitizedColumns.r3.azimut})`;
+    const needsFallbackAfterR3 = buildFallbackCondition(
+      resolvedLongitudeThroughR3,
+      resolvedLatitudeThroughR3,
+      resolvedAzimutThroughR3
+    );
+    const resolvedLongitudeThroughR4 = `COALESCE(${resolvedLongitudeThroughR3}, ${sanitizedColumns.r4.longitude})`;
+    const resolvedLatitudeThroughR4 = `COALESCE(${resolvedLatitudeThroughR3}, ${sanitizedColumns.r4.latitude})`;
+    const resolvedAzimutThroughR4 = `COALESCE(${resolvedAzimutThroughR3}, ${sanitizedColumns.r4.azimut})`;
+    const needsFallbackAfterR4 = buildFallbackCondition(
+      resolvedLongitudeThroughR4,
+      resolvedLatitudeThroughR4,
+      resolvedAzimutThroughR4
+    );
 
     let totalUpdated = 0;
     let totalScanned = 0;
@@ -467,29 +518,29 @@ class RealtimeCdrService {
           SELECT
             c.id,
             COALESCE(
-              ${sanitizeColumnForSelection('r2.LONGITUDE')},
-              ${sanitizeColumnForSelection('r3.LONGITUDE')},
-              ${sanitizeColumnForSelection('r4.LONGITUDE')},
-              ${sanitizeColumnForSelection('r5.LONGITUDE')}
+              ${sanitizedColumns.r2.longitude},
+              ${sanitizedColumns.r3.longitude},
+              ${sanitizedColumns.r4.longitude},
+              ${sanitizedColumns.r5.longitude}
             ) AS resolved_longitude,
             COALESCE(
-              ${sanitizeColumnForSelection('r2.LATITUDE')},
-              ${sanitizeColumnForSelection('r3.LATITUDE')},
-              ${sanitizeColumnForSelection('r4.LATITUDE')},
-              ${sanitizeColumnForSelection('r5.LATITUDE')}
+              ${sanitizedColumns.r2.latitude},
+              ${sanitizedColumns.r3.latitude},
+              ${sanitizedColumns.r4.latitude},
+              ${sanitizedColumns.r5.latitude}
             ) AS resolved_latitude,
             COALESCE(
-              ${sanitizeColumnForSelection('r2.AZIMUT')},
-              ${sanitizeColumnForSelection('r3.AZIMUT')},
-              ${sanitizeColumnForSelection('r4.AZIMUT')},
-              ${sanitizeColumnForSelection('r5.AZIMUT')}
+              ${sanitizedColumns.r2.azimut},
+              ${sanitizedColumns.r3.azimut},
+              ${sanitizedColumns.r4.azimut},
+              ${sanitizedColumns.r5.azimut}
             ) AS resolved_azimut
           FROM autres.cdr_temps_reel AS c
           LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
-          LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND r2.CGI IS NULL
-          LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL
+          LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND ${needsFallbackAfterR2}
+          LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${needsFallbackAfterR3}
           LEFT JOIN bts_orange.\`5g\` AS r5
-            ON ${join5gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
+            ON ${join5gCondition} AND ${needsFallbackAfterR4}
           WHERE c.id > ?
             AND (
               c.longitude IS NULL
