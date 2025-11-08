@@ -31,6 +31,18 @@ const sanitizeColumnForSelection = (column) => `
   END
 `;
 
+const buildColumnIsNullOrEmpty = (column) => `(
+  ${column} IS NULL
+  OR TRIM(CAST(${column} AS CHAR)) = ''
+  OR LOWER(TRIM(CAST(${column} AS CHAR))) = 'null'
+)`;
+
+const buildRadioDataMissingCondition = (alias) => `(
+  ${buildColumnIsNullOrEmpty(`${alias}.CGI`)}
+  OR ${sanitizeColumnForSelection(`${alias}.LONGITUDE`)} IS NULL
+  OR ${sanitizeColumnForSelection(`${alias}.LATITUDE`)} IS NULL
+)`;
+
 const INDEX_BATCH_SIZE = Math.min(
   parsePositiveInteger(process.env.REALTIME_CDR_INDEX_BATCH_SIZE, 500),
   MAX_BATCH_SIZE
@@ -486,10 +498,10 @@ class RealtimeCdrService {
             ) AS resolved_azimut
           FROM autres.cdr_temps_reel AS c
           LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
-          LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND r2.CGI IS NULL
-          LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL
+          LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r2')}
+          LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')}
           LEFT JOIN bts_orange.\`5g\` AS r5
-            ON ${join5gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
+            ON ${join5gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')} AND ${buildRadioDataMissingCondition('r4')}
           WHERE c.id > ?
             AND (
               c.longitude IS NULL
@@ -667,10 +679,10 @@ class RealtimeCdrService {
         c.inserted_at
       FROM autres.cdr_temps_reel AS c
       LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
-      LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND r2.CGI IS NULL
-      LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL
+      LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r2')}
+      LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')}
       LEFT JOIN bts_orange.\`5g\` AS r5
-        ON ${join5gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
+        ON ${join5gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')} AND ${buildRadioDataMissingCondition('r4')}
       ${whereClause}
       ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
       LIMIT ?
@@ -920,10 +932,10 @@ class RealtimeCdrService {
           c.inserted_at
         FROM autres.cdr_temps_reel AS c
         LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
-        LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND r2.CGI IS NULL
-        LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL
+        LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r2')}
+        LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')}
         LEFT JOIN bts_orange.\`5g\` AS r5
-          ON ${join5gCondition} AND r2.CGI IS NULL AND r3.CGI IS NULL AND r4.CGI IS NULL
+          ON ${join5gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')} AND ${buildRadioDataMissingCondition('r4')}
         WHERE c.id > ?
         ORDER BY c.id ASC
         LIMIT ?
