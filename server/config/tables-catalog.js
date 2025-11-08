@@ -939,59 +939,6 @@ export default {
     }
   },
 
-  // Base bts_orange
-  'bts_orange.2g': {
-    display: '2g',
-    database: 'bts_orange',
-    primaryKey: 'CGI',
-    searchable: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
-    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE'],
-    filters: {
-      CGI: 'string',
-      NOM_BTS: 'string'
-    },
-    theme: 'telecom'
-  },
-
-  'bts_orange.3g': {
-    display: '3g',
-    database: 'bts_orange',
-    primaryKey: 'CGI',
-    searchable: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
-    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE'],
-    filters: {
-      CGI: 'string',
-      NOM_BTS: 'string'
-    },
-    theme: 'telecom'
-  },
-
-  'bts_orange.4g': {
-    display: '4g',
-    database: 'bts_orange',
-    primaryKey: 'CGI',
-    searchable: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
-    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE'],
-    filters: {
-      CGI: 'string',
-      NOM_BTS: 'string'
-    },
-    theme: 'telecom'
-  },
-
-  'bts_orange.5g': {
-    display: '5g',
-    database: 'bts_orange',
-    primaryKey: 'CGI',
-    searchable: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
-    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE'],
-    filters: {
-      CGI: 'string',
-      NOM_BTS: 'string'
-    },
-    theme: 'telecom'
-  },
-
   'autres.fichemilitaire': {
     display: 'fichemilitaire',
     database: 'autres',
