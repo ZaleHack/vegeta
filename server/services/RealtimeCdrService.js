@@ -22,6 +22,15 @@ const parsePositiveInteger = (value, fallback) => {
   return fallback;
 };
 
+const sanitizeColumnForSelection = (column) => `
+  CASE
+    WHEN ${column} IS NULL THEN NULL
+    WHEN TRIM(CAST(${column} AS CHAR)) = '' THEN NULL
+    WHEN LOWER(TRIM(CAST(${column} AS CHAR))) = 'null' THEN NULL
+    ELSE TRIM(CAST(${column} AS CHAR))
+  END
+`;
+
 const INDEX_BATCH_SIZE = Math.min(
   parsePositiveInteger(process.env.REALTIME_CDR_INDEX_BATCH_SIZE, 500),
   MAX_BATCH_SIZE
@@ -476,10 +485,29 @@ class RealtimeCdrService {
         c.numero_appele,
         c.imsi_appelant,
         c.cgi,
-        COALESCE(r2.LONGITUDE, r3.LONGITUDE, r4.LONGITUDE, r5.LONGITUDE) AS longitude,
-        COALESCE(r2.LATITUDE, r3.LATITUDE, r4.LATITUDE, r5.LATITUDE) AS latitude,
-        COALESCE(r2.AZIMUT, r3.AZIMUT, r4.AZIMUT, r5.AZIMUT) AS azimut,
         COALESCE(
+          ${sanitizeColumnForSelection('c.longitude')},
+          r2.LONGITUDE,
+          r3.LONGITUDE,
+          r4.LONGITUDE,
+          r5.LONGITUDE
+        ) AS longitude,
+        COALESCE(
+          ${sanitizeColumnForSelection('c.latitude')},
+          r2.LATITUDE,
+          r3.LATITUDE,
+          r4.LATITUDE,
+          r5.LATITUDE
+        ) AS latitude,
+        COALESCE(
+          ${sanitizeColumnForSelection('c.azimut')},
+          r2.AZIMUT,
+          r3.AZIMUT,
+          r4.AZIMUT,
+          r5.AZIMUT
+        ) AS azimut,
+        COALESCE(
+          ${sanitizeColumnForSelection('c.nom_bts')},
           NULLIF(TRIM(r2.NOM_BTS), ''),
           NULLIF(TRIM(r3.NOM_BTS), ''),
           NULLIF(TRIM(r4.NOM_BTS), ''),
