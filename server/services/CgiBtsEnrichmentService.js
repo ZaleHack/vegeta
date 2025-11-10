@@ -68,19 +68,55 @@ class TimedLruCache {
 const RADIO_TABLE_CANDIDATES = [
   {
     priority: 1,
-    candidates: ['bts_orange.`5g`', 'bts_orange.radio_5g', 'bts_orange.radio5g', 'radio_5g', 'radio5g']
+    candidates: [
+      'bts-orange.`2g`',
+      'bts_orange.`2g`',
+      'bts-orange.radio_2g',
+      'bts_orange.radio_2g',
+      'bts-orange.radio2g',
+      'bts_orange.radio2g',
+      'radio_2g',
+      'radio2g'
+    ]
   },
   {
     priority: 2,
-    candidates: ['bts_orange.`4g`', 'bts_orange.radio_4g', 'bts_orange.radio4g', 'radio_4g', 'radio4g']
+    candidates: [
+      'bts-orange.`3g`',
+      'bts_orange.`3g`',
+      'bts-orange.radio_3g',
+      'bts_orange.radio_3g',
+      'bts-orange.radio3g',
+      'bts_orange.radio3g',
+      'radio_3g',
+      'radio3g'
+    ]
   },
   {
     priority: 3,
-    candidates: ['bts_orange.`3g`', 'bts_orange.radio_3g', 'bts_orange.radio3g', 'radio_3g', 'radio3g']
+    candidates: [
+      'bts-orange.`4g`',
+      'bts_orange.`4g`',
+      'bts-orange.radio_4g',
+      'bts_orange.radio_4g',
+      'bts-orange.radio4g',
+      'bts_orange.radio4g',
+      'radio_4g',
+      'radio4g'
+    ]
   },
   {
     priority: 4,
-    candidates: ['bts_orange.`2g`', 'bts_orange.radio_2g', 'bts_orange.radio2g', 'radio_2g', 'radio2g']
+    candidates: [
+      'bts-orange.`5g`',
+      'bts_orange.`5g`',
+      'bts-orange.radio_5g',
+      'bts_orange.radio_5g',
+      'bts-orange.radio5g',
+      'bts_orange.radio5g',
+      'radio_5g',
+      'radio5g'
+    ]
   }
 ];
 
@@ -200,6 +236,20 @@ class CgiBtsEnrichmentService {
       maxLookupMs,
       failureRate
     };
+  }
+
+  async listLookupSources() {
+    const sources = await this.#getLookupSources();
+    if (!Array.isArray(sources)) {
+      return [];
+    }
+
+    return sources.map((source) => ({
+      tableSql: source.tableSql,
+      priority: source.priority,
+      schema: source.schema ?? null,
+      table: source.table ?? null
+    }));
   }
 
   async fetchOne(cgi) {
