@@ -14,6 +14,7 @@ class CellCoordinates:
     longitude: float
     latitude: float
     azimut: float
+    nom_bts: Optional[str] = None
 
 
 class CgiCache:
@@ -39,19 +40,19 @@ class CdrEnricher:
     """Enrich CDR rows by resolving CGI to coordinates."""
 
     CGI_QUERY = """
-        SELECT longitude, latitude, azimut
+        SELECT longitude, latitude, azimut, nom_bts
         FROM (
-            SELECT longitude, latitude, azimut, 1 AS priority
-            FROM radio_2g WHERE cgi = %(cgi)s
+            SELECT longitude, latitude, azimut, nom_bts, 1 AS priority
+            FROM radio_5g WHERE cgi = %(cgi)s
             UNION ALL
-            SELECT longitude, latitude, azimut, 2 AS priority
-            FROM radio_3g WHERE cgi = %(cgi)s
-            UNION ALL
-            SELECT longitude, latitude, azimut, 3 AS priority
+            SELECT longitude, latitude, azimut, nom_bts, 2 AS priority
             FROM radio_4g WHERE cgi = %(cgi)s
             UNION ALL
-            SELECT longitude, latitude, azimut, 4 AS priority
-            FROM radio_5g WHERE cgi = %(cgi)s
+            SELECT longitude, latitude, azimut, nom_bts, 3 AS priority
+            FROM radio_3g WHERE cgi = %(cgi)s
+            UNION ALL
+            SELECT longitude, latitude, azimut, nom_bts, 4 AS priority
+            FROM radio_2g WHERE cgi = %(cgi)s
         ) AS candidates
         ORDER BY priority
         LIMIT 1
@@ -74,7 +75,12 @@ class CdrEnricher:
             row = cursor.fetchone()
 
         coords = (
-            CellCoordinates(row["longitude"], row["latitude"], row["azimut"])
+            CellCoordinates(
+                row["longitude"],
+                row["latitude"],
+                row["azimut"],
+                row.get("nom_bts"),
+            )
             if row
             else None
         )
@@ -89,17 +95,19 @@ class CdrEnricher:
                     longitude=coords.longitude,
                     latitude=coords.latitude,
                     azimut=coords.azimut,
+                    nom_bts=coords.nom_bts,
                 )
             yield cdr_id, cgi, payload
 
     def bulk_insert(self, rows: Iterable[Tuple[int, str, dict]]) -> None:
         insert_query = """
-            INSERT INTO cdr_temps_reel (id, cgi, payload, longitude, latitude, azimut)
-            VALUES (%(id)s, %(cgi)s, %(payload)s, %(longitude)s, %(latitude)s, %(azimut)s)
+            INSERT INTO cdr_temps_reel (id, cgi, payload, longitude, latitude, azimut, nom_bts)
+            VALUES (%(id)s, %(cgi)s, %(payload)s, %(longitude)s, %(latitude)s, %(azimut)s, %(nom_bts)s)
             ON CONFLICT (id) DO UPDATE
             SET longitude = EXCLUDED.longitude,
                 latitude  = EXCLUDED.latitude,
-                azimut    = EXCLUDED.azimut
+                azimut    = EXCLUDED.azimut,
+                nom_bts   = EXCLUDED.nom_bts
         """
 
         with self._get_connection() as conn, conn.cursor() as cursor:
@@ -114,6 +122,7 @@ class CdrEnricher:
                         "longitude": payload.get("longitude"),
                         "latitude": payload.get("latitude"),
                         "azimut": payload.get("azimut"),
+                        "nom_bts": payload.get("nom_bts"),
                     }
                     for cdr_id, cgi, payload in rows
                 ],

@@ -42,6 +42,8 @@ const buildRadioDataMissingCondition = (alias) => `(
   ${buildColumnIsNullOrEmpty(`${alias}.CGI`)}
   OR ${sanitizeColumnForSelection(`${alias}.LONGITUDE`)} IS NULL
   OR ${sanitizeColumnForSelection(`${alias}.LATITUDE`)} IS NULL
+  OR ${sanitizeColumnForSelection(`${alias}.AZIMUT`)} IS NULL
+  OR ${sanitizeColumnForSelection(`${alias}.NOM_BTS`)} IS NULL
 )`;
 
 const INDEX_BATCH_SIZE = Math.min(
@@ -500,40 +502,48 @@ class RealtimeCdrService {
           SELECT
             c.id,
             COALESCE(
-              ${sanitizeColumnForSelection('r2.LONGITUDE')},
-              ${sanitizeColumnForSelection('r3.LONGITUDE')},
+              ${sanitizeColumnForSelection('r5.LONGITUDE')},
               ${sanitizeColumnForSelection('r4.LONGITUDE')},
-              ${sanitizeColumnForSelection('r5.LONGITUDE')}
+              ${sanitizeColumnForSelection('r3.LONGITUDE')},
+              ${sanitizeColumnForSelection('r2.LONGITUDE')}
             ) AS resolved_longitude,
             COALESCE(
-              ${sanitizeColumnForSelection('r2.LATITUDE')},
-              ${sanitizeColumnForSelection('r3.LATITUDE')},
+              ${sanitizeColumnForSelection('r5.LATITUDE')},
               ${sanitizeColumnForSelection('r4.LATITUDE')},
-              ${sanitizeColumnForSelection('r5.LATITUDE')}
+              ${sanitizeColumnForSelection('r3.LATITUDE')},
+              ${sanitizeColumnForSelection('r2.LATITUDE')}
             ) AS resolved_latitude,
             COALESCE(
-              ${sanitizeColumnForSelection('r2.AZIMUT')},
-              ${sanitizeColumnForSelection('r3.AZIMUT')},
+              ${sanitizeColumnForSelection('r5.AZIMUT')},
               ${sanitizeColumnForSelection('r4.AZIMUT')},
-              ${sanitizeColumnForSelection('r5.AZIMUT')}
-            ) AS resolved_azimut
+              ${sanitizeColumnForSelection('r3.AZIMUT')},
+              ${sanitizeColumnForSelection('r2.AZIMUT')}
+            ) AS resolved_azimut,
+            COALESCE(
+              ${sanitizeColumnForSelection('r5.NOM_BTS')},
+              ${sanitizeColumnForSelection('r4.NOM_BTS')},
+              ${sanitizeColumnForSelection('r3.NOM_BTS')},
+              ${sanitizeColumnForSelection('r2.NOM_BTS')}
+            ) AS resolved_nom_bts
           FROM ${REALTIME_CDR_TABLE_SQL} AS c
-          LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
-          LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r2')}
-          LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')}
-          LEFT JOIN bts_orange.\`5g\` AS r5
-            ON ${join5gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')} AND ${buildRadioDataMissingCondition('r4')}
+          LEFT JOIN bts_orange.\`5g\` AS r5 ON ${join5gCondition}
+          LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r5')}
+          LEFT JOIN bts_orange.\`3g\` AS r3
+            ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')}
+          LEFT JOIN bts_orange.\`2g\` AS r2
+            ON ${join2gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')} AND ${buildRadioDataMissingCondition('r3')}
           WHERE c.id > ?
             AND (
               c.longitude IS NULL
               OR c.latitude IS NULL
               OR c.azimut IS NULL
+              OR c.nom_bts IS NULL
             )
             AND (
-              r2.CGI IS NOT NULL
-              OR r3.CGI IS NOT NULL
+              r5.CGI IS NOT NULL
               OR r4.CGI IS NOT NULL
-              OR r5.CGI IS NOT NULL
+              OR r3.CGI IS NOT NULL
+              OR r2.CGI IS NOT NULL
             )
           ORDER BY c.id ASC
           LIMIT ?
@@ -554,9 +564,16 @@ class RealtimeCdrService {
           id: row.id,
           longitude: toNullableNumber(row.resolved_longitude),
           latitude: toNullableNumber(row.resolved_latitude),
-          azimut: normalizeString(row.resolved_azimut)
+          azimut: normalizeString(row.resolved_azimut),
+          nom_bts: normalizeString(row.resolved_nom_bts)
         }))
-        .filter((row) => row.longitude !== null || row.latitude !== null || row.azimut !== null);
+        .filter(
+          (row) =>
+            row.longitude !== null ||
+            row.latitude !== null ||
+            row.azimut !== null ||
+            (row.nom_bts !== null && row.nom_bts !== undefined)
+        );
 
       let updatedInBatch = 0;
 
@@ -568,10 +585,17 @@ class RealtimeCdrService {
               SET
                 longitude = IFNULL(longitude, ?),
                 latitude  = IFNULL(latitude, ?),
-                azimut    = IFNULL(azimut, ?)
+                azimut    = IFNULL(azimut, ?),
+                nom_bts   = IFNULL(nom_bts, ?)
               WHERE id = ?
             `,
-            [candidate.longitude, candidate.latitude, candidate.azimut, candidate.id]
+            [
+              candidate.longitude,
+              candidate.latitude,
+              candidate.azimut,
+              candidate.nom_bts,
+              candidate.id
+            ]
           );
 
           const affected = Number(result?.affectedRows ?? 0);
@@ -673,37 +697,38 @@ class RealtimeCdrService {
         c.imsi_appelant,
         c.cgi,
         COALESCE(
-          ${sanitizeColumnForSelection('r2.LONGITUDE')},
-          ${sanitizeColumnForSelection('r3.LONGITUDE')},
+          ${sanitizeColumnForSelection('r5.LONGITUDE')},
           ${sanitizeColumnForSelection('r4.LONGITUDE')},
-          ${sanitizeColumnForSelection('r5.LONGITUDE')}
+          ${sanitizeColumnForSelection('r3.LONGITUDE')},
+          ${sanitizeColumnForSelection('r2.LONGITUDE')}
         ) AS longitude,
         COALESCE(
-          ${sanitizeColumnForSelection('r2.LATITUDE')},
-          ${sanitizeColumnForSelection('r3.LATITUDE')},
+          ${sanitizeColumnForSelection('r5.LATITUDE')},
           ${sanitizeColumnForSelection('r4.LATITUDE')},
-          ${sanitizeColumnForSelection('r5.LATITUDE')}
+          ${sanitizeColumnForSelection('r3.LATITUDE')},
+          ${sanitizeColumnForSelection('r2.LATITUDE')}
         ) AS latitude,
         COALESCE(
-          ${sanitizeColumnForSelection('r2.AZIMUT')},
-          ${sanitizeColumnForSelection('r3.AZIMUT')},
+          ${sanitizeColumnForSelection('r5.AZIMUT')},
           ${sanitizeColumnForSelection('r4.AZIMUT')},
-          ${sanitizeColumnForSelection('r5.AZIMUT')}
+          ${sanitizeColumnForSelection('r3.AZIMUT')},
+          ${sanitizeColumnForSelection('r2.AZIMUT')}
         ) AS azimut,
         COALESCE(
-          ${sanitizeColumnForSelection('r2.NOM_BTS')},
-          ${sanitizeColumnForSelection('r3.NOM_BTS')},
+          ${sanitizeColumnForSelection('r5.NOM_BTS')},
           ${sanitizeColumnForSelection('r4.NOM_BTS')},
-          ${sanitizeColumnForSelection('r5.NOM_BTS')}
+          ${sanitizeColumnForSelection('r3.NOM_BTS')},
+          ${sanitizeColumnForSelection('r2.NOM_BTS')}
         ) AS nom_bts,
         c.fichier_source AS source_file,
         c.inserted_at
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
-      LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
-      LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r2')}
-      LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')}
-      LEFT JOIN bts_orange.\`5g\` AS r5
-        ON ${join5gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')} AND ${buildRadioDataMissingCondition('r4')}
+      LEFT JOIN bts_orange.\`5g\` AS r5 ON ${join5gCondition}
+      LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r5')}
+      LEFT JOIN bts_orange.\`3g\` AS r3
+        ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')}
+      LEFT JOIN bts_orange.\`2g\` AS r2
+        ON ${join2gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')} AND ${buildRadioDataMissingCondition('r3')}
       ${whereClause}
       ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
       LIMIT ?
@@ -926,37 +951,38 @@ class RealtimeCdrService {
           c.imsi_appelant,
           c.cgi,
           COALESCE(
-            ${sanitizeColumnForSelection('r2.LONGITUDE')},
-            ${sanitizeColumnForSelection('r3.LONGITUDE')},
+            ${sanitizeColumnForSelection('r5.LONGITUDE')},
             ${sanitizeColumnForSelection('r4.LONGITUDE')},
-            ${sanitizeColumnForSelection('r5.LONGITUDE')}
+            ${sanitizeColumnForSelection('r3.LONGITUDE')},
+            ${sanitizeColumnForSelection('r2.LONGITUDE')}
           ) AS longitude,
           COALESCE(
-            ${sanitizeColumnForSelection('r2.LATITUDE')},
-            ${sanitizeColumnForSelection('r3.LATITUDE')},
+            ${sanitizeColumnForSelection('r5.LATITUDE')},
             ${sanitizeColumnForSelection('r4.LATITUDE')},
-            ${sanitizeColumnForSelection('r5.LATITUDE')}
+            ${sanitizeColumnForSelection('r3.LATITUDE')},
+            ${sanitizeColumnForSelection('r2.LATITUDE')}
           ) AS latitude,
           COALESCE(
-            ${sanitizeColumnForSelection('r2.AZIMUT')},
-            ${sanitizeColumnForSelection('r3.AZIMUT')},
+            ${sanitizeColumnForSelection('r5.AZIMUT')},
             ${sanitizeColumnForSelection('r4.AZIMUT')},
-            ${sanitizeColumnForSelection('r5.AZIMUT')}
+            ${sanitizeColumnForSelection('r3.AZIMUT')},
+            ${sanitizeColumnForSelection('r2.AZIMUT')}
           ) AS azimut,
           COALESCE(
-            ${sanitizeColumnForSelection('r2.NOM_BTS')},
-            ${sanitizeColumnForSelection('r3.NOM_BTS')},
+            ${sanitizeColumnForSelection('r5.NOM_BTS')},
             ${sanitizeColumnForSelection('r4.NOM_BTS')},
-            ${sanitizeColumnForSelection('r5.NOM_BTS')}
+            ${sanitizeColumnForSelection('r3.NOM_BTS')},
+            ${sanitizeColumnForSelection('r2.NOM_BTS')}
           ) AS nom_bts,
           c.fichier_source AS source_file,
           c.inserted_at
         FROM ${REALTIME_CDR_TABLE_SQL} AS c
-        LEFT JOIN bts_orange.\`2g\` AS r2 ON ${join2gCondition}
-        LEFT JOIN bts_orange.\`3g\` AS r3 ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r2')}
-        LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')}
-        LEFT JOIN bts_orange.\`5g\` AS r5
-          ON ${join5gCondition} AND ${buildRadioDataMissingCondition('r2')} AND ${buildRadioDataMissingCondition('r3')} AND ${buildRadioDataMissingCondition('r4')}
+        LEFT JOIN bts_orange.\`5g\` AS r5 ON ${join5gCondition}
+        LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r5')}
+        LEFT JOIN bts_orange.\`3g\` AS r3
+          ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')}
+        LEFT JOIN bts_orange.\`2g\` AS r2
+          ON ${join2gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')} AND ${buildRadioDataMissingCondition('r3')}
         WHERE c.id > ?
         ORDER BY c.id ASC
         LIMIT ?
