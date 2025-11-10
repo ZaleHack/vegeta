@@ -53,6 +53,14 @@ interface Point {
   tracked?: string;
   cgi?: string;
   azimut?: string;
+  seqNumber?: string;
+  callStatus?: string;
+  releaseCause?: string;
+  billing?: string;
+  networkRoute?: string;
+  deviceId?: string;
+  sourceFile?: string;
+  insertedAt?: string;
 }
 
 interface Contact {
@@ -1174,6 +1182,24 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         ? `${eventTypeBase} (${directionLabel})`
         : eventTypeBase;
 
+      const seqLabel = point.seqNumber?.trim() || 'N/A';
+      const statusLabel = point.callStatus?.trim() || 'N/A';
+      const releaseLabel = point.releaseCause?.trim() || 'N/A';
+      const billingLabel = point.billing?.trim() || 'N/A';
+      const networkRouteLabel = point.networkRoute?.trim() || 'N/A';
+      const deviceLabel = point.deviceId?.trim() || 'N/A';
+      const sourceFileLabel = point.sourceFile?.trim() || 'N/A';
+      const insertedLabel = (() => {
+        if (!point.insertedAt) {
+          return 'N/A';
+        }
+        const parsed = new Date(point.insertedAt);
+        if (Number.isNaN(parsed.getTime())) {
+          return point.insertedAt;
+        }
+        return formatDateTime(parsed.getTime()) ?? point.insertedAt;
+      })();
+
       const infoItems = [
         { label: "Type d'événement", value: eventTypeValue },
         { label: 'Début', value: startLabel || 'N/A' },
@@ -1185,11 +1211,23 @@ const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggl
         { label: "Identifiant d'équipement (IMEI)", value: imeiValue }
       ];
 
+      const optionalDetails = [
+        { label: 'Séquence', value: seqLabel },
+        { label: "Statut d'appel", value: statusLabel },
+        { label: 'Cause de libération', value: releaseLabel },
+        { label: 'Facturation', value: billingLabel },
+        { label: 'Route réseau', value: networkRouteLabel },
+        { label: "Identifiant appareil", value: deviceLabel },
+        { label: 'Fichier source', value: sourceFileLabel },
+        { label: "Date d'insertion", value: insertedLabel }
+      ].filter((item) => item.value && item.value !== 'N/A');
+
       const detailItems = [
         ...(calleeNumber
           ? [{ label: 'Numéro associé', value: formatPhoneForDisplay(calleeNumber) }]
           : []),
-        ...infoItems
+        ...infoItems,
+        ...optionalDetails
       ];
 
       return (

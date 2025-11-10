@@ -522,6 +522,14 @@ interface CdrPoint {
   tracked?: string;
   cgi?: string;
   azimut?: string;
+  seqNumber?: string;
+  callStatus?: string;
+  releaseCause?: string;
+  billing?: string;
+  networkRoute?: string;
+  deviceId?: string;
+  sourceFile?: string;
+  insertedAt?: string;
 }
 
 interface CdrSearchResult {
@@ -751,6 +759,50 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
     if (fallbackType) {
       normalized.type = fallbackType;
     }
+  }
+
+  const seqNumber = normalizeOptionalTextField(record.seqNumber ?? record.seq_number);
+  if (seqNumber !== undefined) {
+    normalized.seqNumber = seqNumber;
+  }
+
+  const callStatus = normalizeOptionalTextField(record.callStatus ?? record.statut_appel);
+  if (callStatus !== undefined) {
+    normalized.callStatus = callStatus;
+  }
+
+  const releaseCause = normalizeOptionalTextField(
+    record.releaseCause ?? record.cause_liberation
+  );
+  if (releaseCause !== undefined) {
+    normalized.releaseCause = releaseCause;
+  }
+
+  const billing = normalizeOptionalTextField(record.billing ?? record.facturation);
+  if (billing !== undefined) {
+    normalized.billing = billing;
+  }
+
+  const networkRoute = normalizeOptionalTextField(
+    record.networkRoute ?? record.route_reseau
+  );
+  if (networkRoute !== undefined) {
+    normalized.networkRoute = networkRoute;
+  }
+
+  const deviceId = normalizeOptionalTextField(record.deviceId ?? record.device_id);
+  if (deviceId !== undefined) {
+    normalized.deviceId = deviceId;
+  }
+
+  const sourceFile = normalizeOptionalTextField(record.sourceFile ?? record.source_file);
+  if (sourceFile !== undefined) {
+    normalized.sourceFile = sourceFile;
+  }
+
+  const insertedAt = normalizeOptionalTextField(record.insertedAt ?? record.inserted_at);
+  if (insertedAt !== undefined) {
+    normalized.insertedAt = insertedAt;
   }
 
   return normalized;
