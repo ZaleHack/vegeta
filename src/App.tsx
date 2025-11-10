@@ -3740,7 +3740,7 @@ useEffect(() => {
 
   const fetchCdrData = async (identifiersOverride?: string[]) => {
     const ids = dedupeCdrIdentifiers(identifiersOverride ?? cdrIdentifiers).filter(
-      (identifier) => identifier && !identifier.startsWith('2214')
+      (identifier) => Boolean(identifier)
     );
 
     if (ids.length === 0) {
