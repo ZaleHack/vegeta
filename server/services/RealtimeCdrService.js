@@ -1,7 +1,11 @@
 import database from '../config/database.js';
 import client from '../config/elasticsearch.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
-import { REALTIME_CDR_TABLE_SQL } from '../config/realtime-table.js';
+import {
+  REALTIME_CDR_TABLE_NAME,
+  REALTIME_CDR_TABLE_SCHEMA,
+  REALTIME_CDR_TABLE_SQL
+} from '../config/realtime-table.js';
 
 const EMPTY_RESULT = {
   total: 0,
@@ -15,12 +19,38 @@ const EMPTY_RESULT = {
 const REALTIME_INDEX = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
 const MAX_BATCH_SIZE = 5000;
 
-const RADIO_COORDINATE_SELECT = `
-  COALESCE(radio5g.LONGITUDE, radio4g.LONGITUDE, radio3g.LONGITUDE, radio2g.LONGITUDE, c.longitude) AS longitude,
-  COALESCE(radio5g.LATITUDE, radio4g.LATITUDE, radio3g.LATITUDE, radio2g.LATITUDE, c.latitude) AS latitude,
-  COALESCE(radio5g.AZIMUT, radio4g.AZIMUT, radio3g.AZIMUT, radio2g.AZIMUT, c.azimut) AS azimut,
-  COALESCE(radio5g.NOM_BTS, radio4g.NOM_BTS, radio3g.NOM_BTS, radio2g.NOM_BTS, c.nom_bts) AS nom_bts
-`;
+const COORDINATE_FALLBACK_COLUMNS = ['longitude', 'latitude', 'azimut', 'nom_bts'];
+
+const RADIO_COORDINATE_FIELDS = [
+  {
+    alias: 'longitude',
+    fallback: 'longitude',
+    sources: ['radio5g.LONGITUDE', 'radio4g.LONGITUDE', 'radio3g.LONGITUDE', 'radio2g.LONGITUDE']
+  },
+  {
+    alias: 'latitude',
+    fallback: 'latitude',
+    sources: ['radio5g.LATITUDE', 'radio4g.LATITUDE', 'radio3g.LATITUDE', 'radio2g.LATITUDE']
+  },
+  {
+    alias: 'azimut',
+    fallback: 'azimut',
+    sources: ['radio5g.AZIMUT', 'radio4g.AZIMUT', 'radio3g.AZIMUT', 'radio2g.AZIMUT']
+  },
+  {
+    alias: 'nom_bts',
+    fallback: 'nom_bts',
+    sources: ['radio5g.NOM_BTS', 'radio4g.NOM_BTS', 'radio3g.NOM_BTS', 'radio2g.NOM_BTS']
+  }
+];
+
+const buildRadioCoordinateSelectClause = (availableFallbackColumns = new Set()) =>
+  RADIO_COORDINATE_FIELDS.map(({ alias, fallback, sources }) => {
+    const fallbackSegment = availableFallbackColumns.has(fallback)
+      ? `, c.${fallback}`
+      : '';
+    return `        COALESCE(${sources.join(', ')}${fallbackSegment}) AS ${alias}`;
+  }).join(',\n');
 
 const RADIO_COORDINATE_JOINS = `
   LEFT JOIN bts_orange.\`5g\` AS radio5g ON c.cgi = radio5g.CGI
@@ -336,6 +366,8 @@ class RealtimeCdrService {
     this.lastIndexedId = 0;
     this.indexing = false;
     this.indexTimer = null;
+    this.coordinateSelectClausePromise = null;
+    this.coordinateFallbackColumns = null;
 
     this.initializationPromise = this.elasticEnabled && this.autoStart
       ? this.#initializeElasticsearch().catch((error) => {
@@ -445,6 +477,7 @@ class RealtimeCdrService {
   }
 
   async #searchDatabase(identifierVariants, filters) {
+    const coordinateSelect = await this.#getCoordinateSelectClause();
     const conditions = [];
     const params = [];
 
@@ -501,7 +534,7 @@ class RealtimeCdrService {
         c.cgi,
         c.route_reseau,
         c.device_id,
-        ${RADIO_COORDINATE_SELECT},
+        ${coordinateSelect},
         c.fichier_source AS source_file,
         c.inserted_at
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
@@ -512,6 +545,74 @@ class RealtimeCdrService {
     `;
 
     return database.query(sql, params);
+  }
+
+  async #getCoordinateSelectClause() {
+    if (!this.coordinateSelectClausePromise) {
+      this.coordinateSelectClausePromise = this.#resolveCoordinateSelectClause().catch(
+        (error) => {
+          console.warn(
+            '⚠️ Impossible de détecter les colonnes de coordonnées des CDR temps réel, utilisation de la clause par défaut.',
+            error?.message || error
+          );
+          return buildRadioCoordinateSelectClause(new Set());
+        }
+      );
+    }
+
+    return this.coordinateSelectClausePromise;
+  }
+
+  async #resolveCoordinateSelectClause() {
+    const fallbackColumns = await this.#detectCoordinateColumns();
+    return buildRadioCoordinateSelectClause(fallbackColumns);
+  }
+
+  async #detectCoordinateColumns() {
+    if (this.coordinateFallbackColumns instanceof Set) {
+      return this.coordinateFallbackColumns;
+    }
+
+    const availableColumns = new Set();
+
+    const placeholders = COORDINATE_FALLBACK_COLUMNS.map(() => '?').join(', ');
+    const schemaCondition = REALTIME_CDR_TABLE_SCHEMA
+      ? 'AND TABLE_SCHEMA = ?'
+      : 'AND TABLE_SCHEMA = DATABASE()';
+
+    const sql = `
+      SELECT LOWER(COLUMN_NAME) AS column_name
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_NAME = ?
+        ${schemaCondition}
+        AND LOWER(COLUMN_NAME) IN (${placeholders})
+    `;
+
+    const params = REALTIME_CDR_TABLE_SCHEMA
+      ? [REALTIME_CDR_TABLE_NAME, REALTIME_CDR_TABLE_SCHEMA, ...COORDINATE_FALLBACK_COLUMNS]
+      : [REALTIME_CDR_TABLE_NAME, ...COORDINATE_FALLBACK_COLUMNS];
+
+    try {
+      const rows = await database.query(sql, params, {
+        suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+        suppressErrorLog: true
+      });
+
+      for (const row of rows) {
+        const name = (row.column_name || row.COLUMN_NAME || '').toString().toLowerCase();
+        if (name) {
+          availableColumns.add(name);
+        }
+      }
+    } catch (error) {
+      console.warn(
+        "⚠️ Lecture de la structure de la table CDR temps réel impossible, coordonnées d'origine ignorées.",
+        error?.message || error
+      );
+    }
+
+    this.coordinateFallbackColumns = availableColumns;
+    return availableColumns;
   }
 
   async #searchElasticsearch(variantList, filters) {
@@ -711,6 +812,7 @@ class RealtimeCdrService {
   }
 
   async #fetchRows(afterId, limit) {
+    const coordinateSelect = await this.#getCoordinateSelectClause();
     const numericAfterId = Number(afterId);
     const startId = Number.isFinite(numericAfterId)
       ? Math.max(0, Math.floor(numericAfterId))
@@ -739,7 +841,7 @@ class RealtimeCdrService {
           c.cgi,
           c.route_reseau,
           c.device_id,
-          ${RADIO_COORDINATE_SELECT},
+          ${coordinateSelect},
           c.fichier_source AS source_file,
           c.inserted_at
         FROM ${REALTIME_CDR_TABLE_SQL} AS c
