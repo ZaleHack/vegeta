@@ -662,13 +662,65 @@ const getFirstDefinedValue = (
   return undefined;
 };
 
-const normalizeCoordinateField = (value: unknown): string | null => {
+type CoordinateAxis = 'latitude' | 'longitude';
+
+const resolveOrientationSign = (value: string, axis: CoordinateAxis): number | null => {
+  const normalized = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+
+  const orientationPatterns =
+    axis === 'latitude'
+      ? [
+          { regex: /\bS(?:UD)?\b/, sign: -1 },
+          { regex: /\bN(?:ORD)?\b/, sign: 1 }
+        ]
+      : [
+          { regex: /\bO(?:UEST)?\b/, sign: -1 },
+          { regex: /\bW(?:EST)?\b/, sign: -1 },
+          { regex: /\bE(?:ST)?\b/, sign: 1 }
+        ];
+
+  for (const { regex, sign } of orientationPatterns) {
+    if (regex.test(normalized)) {
+      return sign;
+    }
+  }
+
+  const letterMatch = normalized.match(/(?:^|[^A-Z0-9])([NSEWO])(?:[^A-Z]|$)/);
+  if (!letterMatch) {
+    return null;
+  }
+
+  const letter = letterMatch[1];
+  if (axis === 'latitude') {
+    if (letter === 'S') return -1;
+    if (letter === 'N') return 1;
+  } else {
+    if (letter === 'W' || letter === 'O') return -1;
+    if (letter === 'E') return 1;
+  }
+
+  return null;
+};
+
+const toDecimal = (value: string): number => Number.parseFloat(value.replace(/,/g, '.'));
+
+const normalizeCoordinateField = (value: unknown, axis: CoordinateAxis): string | null => {
   if (value === null || value === undefined) {
     return null;
   }
 
   if (typeof value === 'number') {
-    return Number.isFinite(value) ? value.toString() : null;
+    if (!Number.isFinite(value)) {
+      return null;
+    }
+    const limited = axis === 'latitude' ? Math.abs(value) <= 90 : Math.abs(value) <= 180;
+    if (!limited) {
+      return null;
+    }
+    return value.toString();
   }
 
   const raw = String(value).trim();
@@ -676,18 +728,85 @@ const normalizeCoordinateField = (value: unknown): string | null => {
     return null;
   }
 
-  const match = raw.match(/[-+]?\d+(?:[.,]\d+)?/);
-  if (!match) {
+  const orientationSign = resolveOrientationSign(raw, axis);
+  const matchAll = raw.match(/[-+]?\d+(?:[.,]\d+)?/g);
+  if (!matchAll || matchAll.length === 0) {
     return null;
   }
 
-  const sanitized = match[0].replace(/,/g, '.');
-  const parsed = Number.parseFloat(sanitized);
-  if (!Number.isFinite(parsed)) {
+  const hasDmsIndicators = /[°º'’′"”″]/.test(raw);
+  const treatAsDms =
+    hasDmsIndicators || (orientationSign !== null && matchAll.length >= 2) || matchAll.length >= 3;
+
+  const limit = axis === 'latitude' ? 90 : 180;
+
+  const resolveSign = (): number => {
+    if (/^[\s+]*-/.test(raw)) {
+      return -1;
+    }
+    if (/^[\s+]*\+/.test(raw)) {
+      return 1;
+    }
+    const first = matchAll[0] || '';
+    if (first.trim().startsWith('-')) {
+      return -1;
+    }
+    if (first.trim().startsWith('+')) {
+      return 1;
+    }
+    if (orientationSign !== null) {
+      return orientationSign;
+    }
+    return 1;
+  };
+
+  let decimal: number | null = null;
+
+  if (treatAsDms) {
+    const degrees = toDecimal(matchAll[0]);
+    if (!Number.isFinite(degrees)) {
+      return null;
+    }
+    const minutes = matchAll[1] ? toDecimal(matchAll[1]) : 0;
+    const seconds = matchAll[2] ? toDecimal(matchAll[2]) : 0;
+    if ([minutes, seconds].some((component) => Number.isNaN(component))) {
+      return null;
+    }
+
+    const absDegrees = Math.abs(degrees);
+    const absMinutes = Math.abs(minutes);
+    const absSeconds = Math.abs(seconds);
+
+    const magnitude = absDegrees + absMinutes / 60 + absSeconds / 3600;
+    const sign = resolveSign();
+    decimal = magnitude * sign;
+  } else {
+    const parsed = toDecimal(matchAll[0]);
+    if (!Number.isFinite(parsed)) {
+      return null;
+    }
+    const sign = resolveSign();
+    decimal = Math.abs(parsed) * sign;
+  }
+
+  if (decimal === null || !Number.isFinite(decimal)) {
     return null;
   }
 
-  return parsed.toString();
+  if (Math.abs(decimal) > limit) {
+    return null;
+  }
+
+  let normalized = Number(decimal.toFixed(8));
+  if (!Number.isFinite(normalized)) {
+    return null;
+  }
+
+  if (Object.is(normalized, -0)) {
+    normalized = 0;
+  }
+
+  return normalized.toString();
 };
 
 const normalizeOptionalTextField = (value: unknown): string | undefined => {
@@ -708,10 +827,12 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
   }
 
   const latitude = normalizeCoordinateField(
-    getFirstDefinedValue(point, LATITUDE_FIELD_CANDIDATES)
+    getFirstDefinedValue(point, LATITUDE_FIELD_CANDIDATES),
+    'latitude'
   );
   const longitude = normalizeCoordinateField(
-    getFirstDefinedValue(point, LONGITUDE_FIELD_CANDIDATES)
+    getFirstDefinedValue(point, LONGITUDE_FIELD_CANDIDATES),
+    'longitude'
   );
 
   if (!latitude || !longitude) {
