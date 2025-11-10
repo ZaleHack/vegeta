@@ -585,10 +585,21 @@ const sanitizeFieldKey = (key: string): string => {
     .toLowerCase();
 };
 
-const getFirstDefinedValue = (source: unknown, keys: string[]): unknown => {
+const getFirstDefinedValue = (
+  source: unknown,
+  keys: string[],
+  depth = 3,
+  visited?: WeakSet<object>
+): unknown => {
   if (!source || typeof source !== 'object') {
     return undefined;
   }
+
+  const tracker = visited ?? new WeakSet<object>();
+  if (tracker.has(source as object)) {
+    return undefined;
+  }
+  tracker.add(source as object);
 
   const record = source as Record<string, unknown>;
 
@@ -616,6 +627,35 @@ const getFirstDefinedValue = (source: unknown, keys: string[]): unknown => {
     const value = record[actualKey];
     if (value !== null && value !== undefined && value !== '') {
       return value;
+    }
+  }
+
+  if (depth <= 0) {
+    return undefined;
+  }
+
+  for (const value of Object.values(record)) {
+    if (!value || typeof value !== 'object') {
+      continue;
+    }
+
+    if (value instanceof Date) {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const nested = getFirstDefinedValue(item, keys, depth - 1, tracker);
+        if (nested !== undefined) {
+          return nested;
+        }
+      }
+      continue;
+    }
+
+    const nested = getFirstDefinedValue(value, keys, depth - 1, tracker);
+    if (nested !== undefined) {
+      return nested;
     }
   }
 
