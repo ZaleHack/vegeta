@@ -1186,13 +1186,34 @@ class RealtimeCdrService {
           imeiCalled: undefined,
           cgi: row.cgi ? String(row.cgi).trim() : undefined,
           azimut: row.azimut ? String(row.azimut).trim() : undefined,
-          seqNumber: row.seq_number ? String(row.seq_number).trim() : undefined,
-          callStatus: row.statut_appel ? String(row.statut_appel).trim() : undefined,
-          releaseCause: row.cause_liberation ? String(row.cause_liberation).trim() : undefined,
-          billing: row.facturation ? String(row.facturation).trim() : undefined,
-          networkRoute: row.route_reseau ? String(row.route_reseau).trim() : undefined,
-          deviceId: row.device_id ? String(row.device_id).trim() : undefined,
-          sourceFile: row.source_file ? String(row.source_file).trim() : undefined,
+          seqNumber:
+            row.seq_number !== null && row.seq_number !== undefined
+              ? String(row.seq_number).trim()
+              : undefined,
+          callStatus:
+            row.statut_appel !== null && row.statut_appel !== undefined
+              ? String(row.statut_appel).trim()
+              : undefined,
+          releaseCause:
+            row.cause_liberation !== null && row.cause_liberation !== undefined
+              ? String(row.cause_liberation).trim()
+              : undefined,
+          billing:
+            row.facturation !== null && row.facturation !== undefined
+              ? String(row.facturation).trim()
+              : undefined,
+          networkRoute:
+            row.route_reseau !== null && row.route_reseau !== undefined
+              ? String(row.route_reseau).trim()
+              : undefined,
+          deviceId:
+            row.device_id !== null && row.device_id !== undefined
+              ? String(row.device_id).trim()
+              : undefined,
+          sourceFile:
+            row.source_file !== null && row.source_file !== undefined
+              ? String(row.source_file).trim()
+              : undefined,
           insertedAt: normalizeDateTimeInput(row.inserted_at) || undefined
         });
       }
