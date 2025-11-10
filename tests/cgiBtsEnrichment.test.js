@@ -79,11 +79,11 @@ test('cgi enricher builds UNION ALL SQL when using database', async () => {
   assert.ok(results.get('CELL-1'));
   assert.match(capturedSql, /UNION ALL/);
   assert.ok(/WITH\s+unioned/i.test(capturedSql));
-  assert.match(capturedSql, /LOWER\(CGI\)\s+IN\s*\(/i);
+  assert.match(capturedSql, /UPPER\(TRIM\(CGI\)\)\s+IN\s*\(/i);
   assert.equal(
     capturedParams.length,
     2,
     'Parameters should repeat once per configured table.'
   );
-  assert.deepEqual(capturedParams, ['cell-1', 'cell-1']);
+  assert.deepEqual(capturedParams, ['CELL-1', 'CELL-1']);
 });

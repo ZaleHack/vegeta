@@ -416,16 +416,21 @@ class CgiBtsEnrichmentService {
       return new Map();
     }
 
-    const lowercaseKeys = keys.map((key) =>
-      typeof key === 'string' ? key.toLowerCase() : String(key ?? '').toLowerCase()
-    );
-    const placeholders = lowercaseKeys.map(() => '?').join(', ');
+    const normalizedKeys = keys
+      .map((key) => this.#normalizeCgi(key))
+      .filter((key) => typeof key === 'string' && key.length > 0);
+    if (normalizedKeys.length === 0) {
+      return new Map();
+    }
+
+    const placeholders = normalizedKeys.map(() => '?').join(', ');
+    const normalizedExpression = 'UPPER(TRIM(CGI))';
     const unionSegments = sources
       .map(
         (source, index) =>
           `SELECT CGI, NOM_BTS, LONGITUDE, LATITUDE, AZIMUT, ${
             source.priority ?? index + 1
-          } AS priority FROM ${source.tableSql} WHERE LOWER(CGI) IN (${placeholders})`
+          } AS priority FROM ${source.tableSql} WHERE ${normalizedExpression} IN (${placeholders})`
       )
       .join('\n    UNION ALL\n');
 
@@ -444,7 +449,7 @@ class CgiBtsEnrichmentService {
 
     const params = [];
     for (let i = 0; i < sources.length; i += 1) {
-      params.push(...lowercaseKeys);
+      params.push(...normalizedKeys);
     }
 
     const debugSql = sql.replace(/\s+/g, ' ').trim();
