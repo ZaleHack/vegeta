@@ -44,6 +44,53 @@ const RADIO_COORDINATE_FIELDS = [
   }
 ];
 
+const RADIO_COORDINATE_TABLE_CANDIDATES = [
+  {
+    alias: 'radio5g',
+    priority: 1,
+    candidates: [
+      'bts_orange.`5g`',
+      'bts_orange.radio_5g',
+      'bts_orange.radio5g',
+      'radio_5g',
+      'radio5g'
+    ]
+  },
+  {
+    alias: 'radio4g',
+    priority: 2,
+    candidates: [
+      'bts_orange.`4g`',
+      'bts_orange.radio_4g',
+      'bts_orange.radio4g',
+      'radio_4g',
+      'radio4g'
+    ]
+  },
+  {
+    alias: 'radio3g',
+    priority: 3,
+    candidates: [
+      'bts_orange.`3g`',
+      'bts_orange.radio_3g',
+      'bts_orange.radio3g',
+      'radio_3g',
+      'radio3g'
+    ]
+  },
+  {
+    alias: 'radio2g',
+    priority: 4,
+    candidates: [
+      'bts_orange.`2g`',
+      'bts_orange.radio_2g',
+      'bts_orange.radio2g',
+      'radio_2g',
+      'radio2g'
+    ]
+  }
+];
+
 const buildRadioCoordinateSelectClause = (availableFallbackColumns = new Set()) =>
   RADIO_COORDINATE_FIELDS.map(({ alias, fallback, sources }) => {
     const fallbackSegment = availableFallbackColumns.has(fallback)
@@ -51,13 +98,6 @@ const buildRadioCoordinateSelectClause = (availableFallbackColumns = new Set()) 
       : '';
     return `        COALESCE(${sources.join(', ')}${fallbackSegment}) AS ${alias}`;
   }).join(',\n');
-
-const RADIO_COORDINATE_JOINS = `
-  LEFT JOIN bts_orange.\`5g\` AS radio5g ON c.cgi = radio5g.CGI
-  LEFT JOIN bts_orange.\`4g\` AS radio4g ON c.cgi = radio4g.CGI
-  LEFT JOIN bts_orange.\`3g\` AS radio3g ON c.cgi = radio3g.CGI
-  LEFT JOIN bts_orange.\`2g\` AS radio2g ON c.cgi = radio2g.CGI
-`;
 
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number(value);
@@ -198,6 +238,50 @@ const normalizeString = (value) => {
   }
   const text = String(value).trim();
   return text || null;
+};
+
+const sanitizeTableIdentifier = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.replace(/`/g, '').trim();
+};
+
+const parseTableIdentifier = (value) => {
+  const sanitized = sanitizeTableIdentifier(value);
+  if (!sanitized) {
+    return null;
+  }
+
+  const parts = sanitized
+    .split('.')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  if (parts.length === 1) {
+    return { schema: null, table: parts[0] };
+  }
+
+  return {
+    schema: parts[0],
+    table: parts.slice(1).join('.')
+  };
+};
+
+const quoteIdentifier = (value) => `\`${value.replace(/`/g, '``')}\``;
+
+const formatTableReference = ({ schema, table }) => {
+  if (!table) {
+    return null;
+  }
+  if (schema) {
+    return `${quoteIdentifier(schema)}.${quoteIdentifier(table)}`;
+  }
+  return quoteIdentifier(table);
 };
 
 const normalizeDateInput = (value) => {
@@ -368,6 +452,8 @@ class RealtimeCdrService {
     this.indexTimer = null;
     this.coordinateSelectClausePromise = null;
     this.coordinateFallbackColumns = null;
+    this.radioCoordinateSourcesPromise = null;
+    this.radioCoordinateJoinPromise = null;
 
     this.initializationPromise = this.elasticEnabled && this.autoStart
       ? this.#initializeElasticsearch().catch((error) => {
@@ -478,6 +564,7 @@ class RealtimeCdrService {
 
   async #searchDatabase(identifierVariants, filters) {
     const coordinateSelect = await this.#getCoordinateSelectClause();
+    const joinClause = await this.#getRadioCoordinateJoinClause();
     const conditions = [];
     const params = [];
 
@@ -538,7 +625,7 @@ class RealtimeCdrService {
         c.fichier_source AS source_file,
         c.inserted_at
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
-      ${RADIO_COORDINATE_JOINS}
+      ${joinClause}
       ${whereClause}
       ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
       LIMIT ?
@@ -613,6 +700,168 @@ class RealtimeCdrService {
 
     this.coordinateFallbackColumns = availableColumns;
     return availableColumns;
+  }
+
+  async #getRadioCoordinateJoinClause() {
+    if (!this.radioCoordinateJoinPromise) {
+      this.radioCoordinateJoinPromise = this.#resolveRadioCoordinateJoinClause().catch(
+        (error) => {
+          console.warn(
+            '⚠️ Impossible de déterminer les jointures des coordonnées radio, utilisation sans jointure.',
+            error?.message || error
+          );
+          return '';
+        }
+      );
+    }
+
+    return this.radioCoordinateJoinPromise;
+  }
+
+  async #resolveRadioCoordinateJoinClause() {
+    const sources = await this.#getRadioCoordinateSources();
+    if (!Array.isArray(sources) || sources.length === 0) {
+      return '';
+    }
+
+    return sources
+      .map((source) => `  LEFT JOIN ${source.tableSql} AS ${source.alias} ON c.cgi = ${source.alias}.CGI`)
+      .join('\n');
+  }
+
+  async #getRadioCoordinateSources() {
+    if (!this.radioCoordinateSourcesPromise) {
+      this.radioCoordinateSourcesPromise = this.#detectRadioCoordinateSources().catch(
+        (error) => {
+          console.warn(
+            '⚠️ Impossible de détecter les tables radio pour les coordonnées CDR.',
+            error?.message || error
+          );
+          return [];
+        }
+      );
+    }
+
+    return this.radioCoordinateSourcesPromise;
+  }
+
+  async #detectRadioCoordinateSources() {
+    const detected = [];
+
+    for (const definition of RADIO_COORDINATE_TABLE_CANDIDATES) {
+      const { alias, candidates, priority } = definition;
+
+      for (const candidate of candidates) {
+        const parsed = parseTableIdentifier(candidate);
+        if (!parsed || !parsed.table) {
+          continue;
+        }
+
+        const exists = await this.#tableExists(parsed);
+        if (!exists) {
+          continue;
+        }
+
+        const tableSql = formatTableReference(parsed);
+        if (!tableSql) {
+          continue;
+        }
+
+        detected.push({ alias, tableSql, priority });
+        break;
+      }
+    }
+
+    detected.sort((a, b) => a.priority - b.priority);
+    return detected;
+  }
+
+  async #tableExists(reference) {
+    if (!reference || !reference.table) {
+      return false;
+    }
+
+    const { schema, table } = reference;
+    const sql = schema
+      ? 'SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? LIMIT 1'
+      : 'SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1';
+
+    const params = schema ? [schema, table] : [table];
+
+    try {
+      const rows = await database.query(sql, params, {
+        suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+        suppressErrorLog: true
+      });
+      return Array.isArray(rows) && rows.length > 0;
+    } catch (error) {
+      console.warn(
+        `⚠️ Vérification de la table ${schema ? `${schema}.` : ''}${table} impossible:`,
+        error?.message || error
+      );
+      return false;
+    }
+  }
+
+  async #fetchCoordinatesForCgi(cgiValues) {
+    if (!Array.isArray(cgiValues) || cgiValues.length === 0) {
+      return new Map();
+    }
+
+    const sources = await this.#getRadioCoordinateSources();
+    if (!Array.isArray(sources) || sources.length === 0) {
+      return new Map();
+    }
+
+    const placeholders = cgiValues.map(() => '?').join(', ');
+    const results = new Map();
+
+    for (const source of sources) {
+      if (!source?.tableSql) {
+        continue;
+      }
+
+      try {
+        const rows = await database.query(
+          `SELECT CGI, LONGITUDE, LATITUDE, AZIMUT, NOM_BTS FROM ${source.tableSql} WHERE CGI IN (${placeholders})`,
+          cgiValues,
+          {
+            suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+            suppressErrorLog: true
+          }
+        );
+
+        for (const row of rows || []) {
+          const key = normalizeString(row?.CGI ?? row?.cgi);
+          if (!key || results.has(key)) {
+            continue;
+          }
+
+          const longitude = toNullableNumber(row?.longitude ?? row?.LONGITUDE);
+          const latitude = toNullableNumber(row?.latitude ?? row?.LATITUDE);
+          const azimut = toNullableNumber(row?.azimut ?? row?.AZIMUT);
+          const nom = normalizeString(row?.nom_bts ?? row?.NOM_BTS);
+
+          results.set(key, {
+            longitude,
+            latitude,
+            azimut,
+            nom_bts: nom
+          });
+        }
+      } catch (error) {
+        console.warn(
+          `⚠️ Lecture des coordonnées depuis ${source.tableSql} impossible:`,
+          error?.message || error
+        );
+      }
+
+      if (results.size >= cgiValues.length) {
+        break;
+      }
+    }
+
+    return results;
   }
 
   async #searchElasticsearch(variantList, filters) {
@@ -813,6 +1062,7 @@ class RealtimeCdrService {
 
   async #fetchRows(afterId, limit) {
     const coordinateSelect = await this.#getCoordinateSelectClause();
+    const joinClause = await this.#getRadioCoordinateJoinClause();
     const numericAfterId = Number(afterId);
     const startId = Number.isFinite(numericAfterId)
       ? Math.max(0, Math.floor(numericAfterId))
@@ -845,7 +1095,7 @@ class RealtimeCdrService {
           c.fichier_source AS source_file,
           c.inserted_at
         FROM ${REALTIME_CDR_TABLE_SQL} AS c
-        ${RADIO_COORDINATE_JOINS}
+        ${joinClause}
         WHERE c.id > ?
         ORDER BY c.id ASC
         LIMIT ?
@@ -1217,9 +1467,63 @@ class RealtimeCdrService {
     };
   }
 
-  #buildResult(rows, identifierSet) {
+  async #buildResult(rows, identifierSet) {
     if (!Array.isArray(rows) || rows.length === 0) {
       return { ...EMPTY_RESULT };
+    }
+
+    const missingCgi = new Set();
+    for (const row of rows) {
+      const hasLongitude = row.longitude !== null && row.longitude !== undefined && row.longitude !== '';
+      const hasLatitude = row.latitude !== null && row.latitude !== undefined && row.latitude !== '';
+
+      if (hasLongitude && hasLatitude) {
+        continue;
+      }
+
+      const cgiValue = normalizeString(row?.cgi ?? row?.CGI);
+      if (cgiValue) {
+        missingCgi.add(cgiValue);
+      }
+    }
+
+    if (missingCgi.size > 0) {
+      try {
+        const coordinateMap = await this.#fetchCoordinatesForCgi(Array.from(missingCgi));
+        if (coordinateMap.size > 0) {
+          for (const row of rows) {
+            const key = normalizeString(row?.cgi ?? row?.CGI);
+            if (!key) {
+              continue;
+            }
+
+            const coords = coordinateMap.get(key);
+            if (!coords) {
+              continue;
+            }
+
+            if ((row.longitude === null || row.longitude === undefined || row.longitude === '') && coords.longitude !== null && coords.longitude !== undefined) {
+              row.longitude = coords.longitude;
+            }
+            if ((row.latitude === null || row.latitude === undefined || row.latitude === '') && coords.latitude !== null && coords.latitude !== undefined) {
+              row.latitude = coords.latitude;
+            }
+            if ((row.azimut === null || row.azimut === undefined || row.azimut === '') && coords.azimut !== null && coords.azimut !== undefined) {
+              row.azimut = coords.azimut;
+            }
+
+            const currentName = normalizeString(row.nom_bts ?? row.NOM_BTS);
+            if (!currentName && normalizeString(coords.nom_bts)) {
+              row.nom_bts = coords.nom_bts;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(
+          '⚠️ Impossible de compléter les coordonnées manquantes des CDR temps réel:',
+          error?.message || error
+        );
+      }
     }
 
     const contactsMap = new Map();
