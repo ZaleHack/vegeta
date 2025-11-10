@@ -29,6 +29,94 @@ const COORDINATE_SELECT_FIELDS = [
   { alias: 'nom_bts', column: 'nom_bts' }
 ];
 
+const LATITUDE_FIELD_CANDIDATES = [
+  'latitude',
+  'Latitude',
+  'LATITUDE',
+  'lat',
+  'Lat',
+  'LAT',
+  'lat_bts',
+  'LAT_BTS',
+  'latitude_bts',
+  'Latitude_BTS'
+];
+
+const LONGITUDE_FIELD_CANDIDATES = [
+  'longitude',
+  'Longitude',
+  'LONGITUDE',
+  'long',
+  'Long',
+  'LONG',
+  'lon',
+  'Lon',
+  'LON',
+  'lng',
+  'Lng',
+  'LNG',
+  'long_bts',
+  'LONG_BTS',
+  'longitude_bts',
+  'Longitude_BTS'
+];
+
+const NOM_FIELD_CANDIDATES = ['nom', 'Nom', 'NOM', 'nom_bts', 'Nom_BTS', 'NOM_BTS'];
+
+const AZIMUT_FIELD_CANDIDATES = ['azimut', 'Azimut', 'AZIMUT', 'azimuth', 'Azimuth', 'AZIMUTH'];
+
+const sanitizeFieldKey = (key = '') =>
+  String(key)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toLowerCase();
+
+const getFirstDefinedValue = (source, keys) => {
+  if (!source || typeof source !== 'object' || !Array.isArray(keys)) {
+    return undefined;
+  }
+
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      const value = source[key];
+      if (value !== null && value !== undefined && value !== '') {
+        return value;
+      }
+    }
+  }
+
+  const normalizedKeys = new Map();
+  for (const existingKey of Object.keys(source)) {
+    const sanitized = sanitizeFieldKey(existingKey);
+    if (sanitized && !normalizedKeys.has(sanitized)) {
+      normalizedKeys.set(sanitized, existingKey);
+    }
+  }
+
+  for (const key of keys) {
+    const sanitized = sanitizeFieldKey(key);
+    const actualKey = sanitized ? normalizedKeys.get(sanitized) : undefined;
+    if (!actualKey) {
+      continue;
+    }
+    const value = source[actualKey];
+    if (value !== null && value !== undefined && value !== '') {
+      return value;
+    }
+  }
+
+  return undefined;
+};
+
+const toTrimmedString = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  const text = String(value).trim();
+  return text;
+};
+
 const buildCoordinateSelectClause = (availableColumns = new Set()) =>
   COORDINATE_SELECT_FIELDS.map(({ alias, column }) =>
     availableColumns.has(column)
@@ -1376,11 +1464,11 @@ class RealtimeCdrService {
         contactsMap.set(normalizedOtherNumber, entry);
       }
 
-      const latitude = row.latitude !== null && row.latitude !== undefined ? String(row.latitude) : '';
-      const longitude = row.longitude !== null && row.longitude !== undefined ? String(row.longitude) : '';
+      const latitude = toTrimmedString(getFirstDefinedValue(row, LATITUDE_FIELD_CANDIDATES));
+      const longitude = toTrimmedString(getFirstDefinedValue(row, LONGITUDE_FIELD_CANDIDATES));
 
       if (latitude && longitude) {
-        const locationName = row.nom_bts ? String(row.nom_bts).trim() : '';
+        const locationName = toTrimmedString(getFirstDefinedValue(row, NOM_FIELD_CANDIDATES));
         const key = `${latitude},${longitude},${locationName}`;
         const locationEntry = locationsMap.get(key) || {
           latitude,
@@ -1390,6 +1478,8 @@ class RealtimeCdrService {
         };
         locationEntry.count += 1;
         locationsMap.set(key, locationEntry);
+
+        const azimut = toTrimmedString(getFirstDefinedValue(row, AZIMUT_FIELD_CANDIDATES));
 
         path.push({
           latitude,
@@ -1409,7 +1499,7 @@ class RealtimeCdrService {
           imeiCaller: row.imei_appelant ? String(row.imei_appelant).trim() : undefined,
           imeiCalled: undefined,
           cgi: row.cgi ? String(row.cgi).trim() : undefined,
-          azimut: row.azimut ? String(row.azimut).trim() : undefined,
+          azimut: azimut || undefined,
           seqNumber: row.seq_number ? String(row.seq_number).trim() : undefined,
           callStatus: row.statut_appel ? String(row.statut_appel).trim() : undefined,
           releaseCause: row.cause_liberation ? String(row.cause_liberation).trim() : undefined,
