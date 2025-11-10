@@ -23,29 +23,6 @@ const parsePositiveInteger = (value, fallback) => {
   return fallback;
 };
 
-const sanitizeColumnForSelection = (column) => `
-  CASE
-    WHEN ${column} IS NULL THEN NULL
-    WHEN TRIM(CAST(${column} AS CHAR)) = '' THEN NULL
-    WHEN LOWER(TRIM(CAST(${column} AS CHAR))) = 'null' THEN NULL
-    ELSE TRIM(CAST(${column} AS CHAR))
-  END
-`;
-
-const buildColumnIsNullOrEmpty = (column) => `(
-  ${column} IS NULL
-  OR TRIM(CAST(${column} AS CHAR)) = ''
-  OR LOWER(TRIM(CAST(${column} AS CHAR))) = 'null'
-)`;
-
-const buildRadioDataMissingCondition = (alias) => `(
-  ${buildColumnIsNullOrEmpty(`${alias}.CGI`)}
-  OR ${sanitizeColumnForSelection(`${alias}.LONGITUDE`)} IS NULL
-  OR ${sanitizeColumnForSelection(`${alias}.LATITUDE`)} IS NULL
-  OR ${sanitizeColumnForSelection(`${alias}.AZIMUT`)} IS NULL
-  OR ${sanitizeColumnForSelection(`${alias}.NOM_BTS`)} IS NULL
-)`;
-
 const INDEX_BATCH_SIZE = Math.min(
   parsePositiveInteger(process.env.REALTIME_CDR_INDEX_BATCH_SIZE, 500),
   MAX_BATCH_SIZE
@@ -75,29 +52,6 @@ const sanitizeNumber = (value) => {
   }
   text = text.replace(/[^0-9]/g, '');
   return text;
-};
-
-const CGI_NORMALIZATION_REMOVE_CHARS = [
-  '-',
-  ':',
-  ' ',
-  '.',
-  ';',
-  '/',
-  ',',
-  '_',
-  '\\'
-];
-
-const escapeSqlLiteral = (value) => value.replace(/\\/g, '\\\\').replace(/'/g, "''");
-
-const buildNormalizedCgiSql = (column) => {
-  let expression = `TRIM(${column})`;
-  for (const char of CGI_NORMALIZATION_REMOVE_CHARS) {
-    const escaped = escapeSqlLiteral(char);
-    expression = `REPLACE(${expression}, '${escaped}', '')`;
-  }
-  return `LOWER(${expression})`;
 };
 
 const normalizePhoneNumber = (value) => {
@@ -464,178 +418,15 @@ class RealtimeCdrService {
   }
 
   async enrichMissingCoordinates(options = {}) {
-    const {
-      batchSize = null,
-      limit = null,
-      dryRun = false,
-      onBatchComplete = null
-    } = options;
-
-    const effectiveBatchSize = this.#resolveBatchSize(
-      batchSize === null || batchSize === undefined ? this.batchSize : batchSize
-    );
-    const totalLimit = parsePositiveInteger(limit, null);
-
-    const normalizedCgiSql = buildNormalizedCgiSql('c.cgi');
-    const join2gCondition = `${buildNormalizedCgiSql('r2.CGI')} = ${normalizedCgiSql}`;
-    const join3gCondition = `${buildNormalizedCgiSql('r3.CGI')} = ${normalizedCgiSql}`;
-    const join4gCondition = `${buildNormalizedCgiSql('r4.CGI')} = ${normalizedCgiSql}`;
-    const join5gCondition = `${buildNormalizedCgiSql('r5.CGI')} = ${normalizedCgiSql}`;
-
-    let totalUpdated = 0;
-    let totalScanned = 0;
-    let batchCount = 0;
-    let lastId = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      if (totalLimit !== null && totalUpdated >= totalLimit) {
-        break;
-      }
-
-      const remainingLimit =
-        totalLimit !== null ? Math.max(totalLimit - totalUpdated, 0) : Number.POSITIVE_INFINITY;
-      const fetchLimit = Math.min(effectiveBatchSize, Math.max(remainingLimit || effectiveBatchSize, 1));
-
-      const rows = await database.query(
-        `
-          SELECT
-            c.id,
-            COALESCE(
-              ${sanitizeColumnForSelection('r5.LONGITUDE')},
-              ${sanitizeColumnForSelection('r4.LONGITUDE')},
-              ${sanitizeColumnForSelection('r3.LONGITUDE')},
-              ${sanitizeColumnForSelection('r2.LONGITUDE')}
-            ) AS resolved_longitude,
-            COALESCE(
-              ${sanitizeColumnForSelection('r5.LATITUDE')},
-              ${sanitizeColumnForSelection('r4.LATITUDE')},
-              ${sanitizeColumnForSelection('r3.LATITUDE')},
-              ${sanitizeColumnForSelection('r2.LATITUDE')}
-            ) AS resolved_latitude,
-            COALESCE(
-              ${sanitizeColumnForSelection('r5.AZIMUT')},
-              ${sanitizeColumnForSelection('r4.AZIMUT')},
-              ${sanitizeColumnForSelection('r3.AZIMUT')},
-              ${sanitizeColumnForSelection('r2.AZIMUT')}
-            ) AS resolved_azimut,
-            COALESCE(
-              ${sanitizeColumnForSelection('r5.NOM_BTS')},
-              ${sanitizeColumnForSelection('r4.NOM_BTS')},
-              ${sanitizeColumnForSelection('r3.NOM_BTS')},
-              ${sanitizeColumnForSelection('r2.NOM_BTS')}
-            ) AS resolved_nom_bts
-          FROM ${REALTIME_CDR_TABLE_SQL} AS c
-          LEFT JOIN bts_orange.\`5g\` AS r5 ON ${join5gCondition}
-          LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r5')}
-          LEFT JOIN bts_orange.\`3g\` AS r3
-            ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')}
-          LEFT JOIN bts_orange.\`2g\` AS r2
-            ON ${join2gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')} AND ${buildRadioDataMissingCondition('r3')}
-          WHERE c.id > ?
-            AND (
-              c.longitude IS NULL
-              OR c.latitude IS NULL
-              OR c.azimut IS NULL
-              OR c.nom_bts IS NULL
-            )
-            AND (
-              r5.CGI IS NOT NULL
-              OR r4.CGI IS NOT NULL
-              OR r3.CGI IS NOT NULL
-              OR r2.CGI IS NOT NULL
-            )
-          ORDER BY c.id ASC
-          LIMIT ?
-        `,
-        [lastId, fetchLimit]
-      );
-
-      if (!Array.isArray(rows) || rows.length === 0) {
-        break;
-      }
-
-      batchCount += 1;
-      totalScanned += rows.length;
-      lastId = rows[rows.length - 1].id || lastId;
-
-      const candidates = rows
-        .map((row) => ({
-          id: row.id,
-          longitude: toNullableNumber(row.resolved_longitude),
-          latitude: toNullableNumber(row.resolved_latitude),
-          azimut: normalizeString(row.resolved_azimut),
-          nom_bts: normalizeString(row.resolved_nom_bts)
-        }))
-        .filter(
-          (row) =>
-            row.longitude !== null ||
-            row.latitude !== null ||
-            row.azimut !== null ||
-            (row.nom_bts !== null && row.nom_bts !== undefined)
-        );
-
-      let updatedInBatch = 0;
-
-      if (!dryRun && candidates.length > 0) {
-        for (const candidate of candidates) {
-          const result = await database.query(
-            `
-              UPDATE ${REALTIME_CDR_TABLE_SQL}
-              SET
-                longitude = IFNULL(longitude, ?),
-                latitude  = IFNULL(latitude, ?),
-                azimut    = IFNULL(azimut, ?),
-                nom_bts   = IFNULL(nom_bts, ?)
-              WHERE id = ?
-            `,
-            [
-              candidate.longitude,
-              candidate.latitude,
-              candidate.azimut,
-              candidate.nom_bts,
-              candidate.id
-            ]
-          );
-
-          const affected = Number(result?.affectedRows ?? 0);
-          updatedInBatch += Number.isFinite(affected) ? affected : 0;
-
-          if (totalLimit !== null && totalUpdated + updatedInBatch >= totalLimit) {
-            break;
-          }
-        }
-      } else if (dryRun) {
-        updatedInBatch = candidates.length;
-      }
-
-      totalUpdated += updatedInBatch;
-
-      if (typeof onBatchComplete === 'function') {
-        try {
-          await onBatchComplete({
-            batch: batchCount,
-            fetched: rows.length,
-            candidates: candidates.length,
-            updated: updatedInBatch,
-            lastId
-          });
-        } catch (callbackError) {
-          console.error('Erreur notification enrichissement CDR temps réel:', callbackError);
-        }
-      }
-
-      if (rows.length < fetchLimit || (totalLimit !== null && totalUpdated >= totalLimit)) {
-        hasMore = false;
-      }
-    }
+    const { dryRun = false } = options;
 
     return {
       dryRun: Boolean(dryRun),
-      scanned: totalScanned,
-      updated: totalUpdated,
-      batches: batchCount,
-      lastId
+      scanned: 0,
+      updated: 0,
+      batches: 0,
+      lastId: 0,
+      skipped: true
     };
   }
 
@@ -676,12 +467,6 @@ class RealtimeCdrService {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const normalizedCgiSql = buildNormalizedCgiSql('c.cgi');
-    const join2gCondition = `${buildNormalizedCgiSql('r2.CGI')} = ${normalizedCgiSql}`;
-    const join3gCondition = `${buildNormalizedCgiSql('r3.CGI')} = ${normalizedCgiSql}`;
-    const join4gCondition = `${buildNormalizedCgiSql('r4.CGI')} = ${normalizedCgiSql}`;
-    const join5gCondition = `${buildNormalizedCgiSql('r5.CGI')} = ${normalizedCgiSql}`;
-
     const sql = `
       SELECT
         c.id,
@@ -696,39 +481,13 @@ class RealtimeCdrService {
         c.numero_appele,
         c.imsi_appelant,
         c.cgi,
-        COALESCE(
-          ${sanitizeColumnForSelection('r5.LONGITUDE')},
-          ${sanitizeColumnForSelection('r4.LONGITUDE')},
-          ${sanitizeColumnForSelection('r3.LONGITUDE')},
-          ${sanitizeColumnForSelection('r2.LONGITUDE')}
-        ) AS longitude,
-        COALESCE(
-          ${sanitizeColumnForSelection('r5.LATITUDE')},
-          ${sanitizeColumnForSelection('r4.LATITUDE')},
-          ${sanitizeColumnForSelection('r3.LATITUDE')},
-          ${sanitizeColumnForSelection('r2.LATITUDE')}
-        ) AS latitude,
-        COALESCE(
-          ${sanitizeColumnForSelection('r5.AZIMUT')},
-          ${sanitizeColumnForSelection('r4.AZIMUT')},
-          ${sanitizeColumnForSelection('r3.AZIMUT')},
-          ${sanitizeColumnForSelection('r2.AZIMUT')}
-        ) AS azimut,
-        COALESCE(
-          ${sanitizeColumnForSelection('r5.NOM_BTS')},
-          ${sanitizeColumnForSelection('r4.NOM_BTS')},
-          ${sanitizeColumnForSelection('r3.NOM_BTS')},
-          ${sanitizeColumnForSelection('r2.NOM_BTS')}
-        ) AS nom_bts,
+        c.longitude,
+        c.latitude,
+        c.azimut,
+        c.nom_bts,
         c.fichier_source AS source_file,
         c.inserted_at
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
-      LEFT JOIN bts_orange.\`5g\` AS r5 ON ${join5gCondition}
-      LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r5')}
-      LEFT JOIN bts_orange.\`3g\` AS r3
-        ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')}
-      LEFT JOIN bts_orange.\`2g\` AS r2
-        ON ${join2gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')} AND ${buildRadioDataMissingCondition('r3')}
       ${whereClause}
       ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
       LIMIT ?
@@ -929,12 +688,6 @@ class RealtimeCdrService {
 
     const effectiveLimit = this.#resolveBatchSize(limit);
 
-    const normalizedCgiSql = buildNormalizedCgiSql('c.cgi');
-    const join2gCondition = `${buildNormalizedCgiSql('r2.CGI')} = ${normalizedCgiSql}`;
-    const join3gCondition = `${buildNormalizedCgiSql('r3.CGI')} = ${normalizedCgiSql}`;
-    const join4gCondition = `${buildNormalizedCgiSql('r4.CGI')} = ${normalizedCgiSql}`;
-    const join5gCondition = `${buildNormalizedCgiSql('r5.CGI')} = ${normalizedCgiSql}`;
-
     return database.query(
       `
         SELECT
@@ -950,39 +703,13 @@ class RealtimeCdrService {
           c.numero_appele,
           c.imsi_appelant,
           c.cgi,
-          COALESCE(
-            ${sanitizeColumnForSelection('r5.LONGITUDE')},
-            ${sanitizeColumnForSelection('r4.LONGITUDE')},
-            ${sanitizeColumnForSelection('r3.LONGITUDE')},
-            ${sanitizeColumnForSelection('r2.LONGITUDE')}
-          ) AS longitude,
-          COALESCE(
-            ${sanitizeColumnForSelection('r5.LATITUDE')},
-            ${sanitizeColumnForSelection('r4.LATITUDE')},
-            ${sanitizeColumnForSelection('r3.LATITUDE')},
-            ${sanitizeColumnForSelection('r2.LATITUDE')}
-          ) AS latitude,
-          COALESCE(
-            ${sanitizeColumnForSelection('r5.AZIMUT')},
-            ${sanitizeColumnForSelection('r4.AZIMUT')},
-            ${sanitizeColumnForSelection('r3.AZIMUT')},
-            ${sanitizeColumnForSelection('r2.AZIMUT')}
-          ) AS azimut,
-          COALESCE(
-            ${sanitizeColumnForSelection('r5.NOM_BTS')},
-            ${sanitizeColumnForSelection('r4.NOM_BTS')},
-            ${sanitizeColumnForSelection('r3.NOM_BTS')},
-            ${sanitizeColumnForSelection('r2.NOM_BTS')}
-          ) AS nom_bts,
+          c.longitude,
+          c.latitude,
+          c.azimut,
+          c.nom_bts,
           c.fichier_source AS source_file,
           c.inserted_at
         FROM ${REALTIME_CDR_TABLE_SQL} AS c
-        LEFT JOIN bts_orange.\`5g\` AS r5 ON ${join5gCondition}
-        LEFT JOIN bts_orange.\`4g\` AS r4 ON ${join4gCondition} AND ${buildRadioDataMissingCondition('r5')}
-        LEFT JOIN bts_orange.\`3g\` AS r3
-          ON ${join3gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')}
-        LEFT JOIN bts_orange.\`2g\` AS r2
-          ON ${join2gCondition} AND ${buildRadioDataMissingCondition('r5')} AND ${buildRadioDataMissingCondition('r4')} AND ${buildRadioDataMissingCondition('r3')}
         WHERE c.id > ?
         ORDER BY c.id ASC
         LIMIT ?
