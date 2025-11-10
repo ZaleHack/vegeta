@@ -470,7 +470,11 @@ class RealtimeCdrService {
     const sql = `
       SELECT
         c.id,
+        c.seq_number,
         c.type_appel,
+        c.statut_appel,
+        c.cause_liberation,
+        c.facturation,
         c.date_debut AS date_debut_appel,
         c.date_fin AS date_fin_appel,
         c.heure_debut AS heure_debut_appel,
@@ -481,6 +485,8 @@ class RealtimeCdrService {
         c.numero_appele,
         c.imsi_appelant,
         c.cgi,
+        c.route_reseau,
+        c.device_id,
         c.longitude,
         c.latitude,
         c.azimut,
@@ -548,7 +554,11 @@ class RealtimeCdrService {
         const source = hit._source || {};
         return {
           id: source.record_id ?? hit._id,
+          seq_number: source.seq_number ?? null,
           type_appel: source.type_appel ?? null,
+          statut_appel: source.statut_appel ?? null,
+          cause_liberation: source.cause_liberation ?? null,
+          facturation: source.facturation ?? null,
           date_debut_appel: source.date_debut_appel ?? null,
           date_fin_appel: source.date_fin_appel ?? null,
           heure_debut_appel: source.heure_debut_appel ?? null,
@@ -560,6 +570,8 @@ class RealtimeCdrService {
           numero_appele: source.numero_appele ?? source.numero_appele_normalized ?? null,
           imsi_appelant: source.imsi_appelant ?? null,
           cgi: source.cgi ?? null,
+          route_reseau: source.route_reseau ?? null,
+          device_id: source.device_id ?? null,
           longitude: source.longitude ?? null,
           latitude: source.latitude ?? null,
           azimut: source.azimut ?? null,
@@ -595,8 +607,12 @@ class RealtimeCdrService {
           mappings: {
             properties: {
               record_id: { type: 'long' },
+              seq_number: { type: 'long' },
               type_appel: { type: 'keyword' },
               event_type: { type: 'keyword' },
+              statut_appel: { type: 'keyword' },
+              cause_liberation: { type: 'keyword' },
+              facturation: { type: 'keyword' },
               date_debut_appel: { type: 'date' },
               date_fin_appel: { type: 'date' },
               heure_debut_appel: { type: 'keyword' },
@@ -615,6 +631,8 @@ class RealtimeCdrService {
               imei_appelant: { type: 'keyword' },
               imsi_appelant: { type: 'keyword' },
               cgi: { type: 'keyword' },
+              route_reseau: { type: 'keyword' },
+              device_id: { type: 'keyword' },
               longitude: { type: 'double' },
               latitude: { type: 'double' },
               azimut: { type: 'keyword' },
@@ -692,7 +710,11 @@ class RealtimeCdrService {
       `
         SELECT
           c.id,
+          c.seq_number,
           c.type_appel,
+          c.statut_appel,
+          c.cause_liberation,
+          c.facturation,
           c.date_debut AS date_debut_appel,
           c.date_fin AS date_fin_appel,
           c.heure_debut AS heure_debut_appel,
@@ -703,6 +725,8 @@ class RealtimeCdrService {
           c.numero_appele,
           c.imsi_appelant,
           c.cgi,
+          c.route_reseau,
+          c.device_id,
           c.longitude,
           c.latitude,
           c.azimut,
@@ -1043,8 +1067,12 @@ class RealtimeCdrService {
 
     return {
       record_id: row.id,
+      seq_number: normalizeString(row.seq_number),
       type_appel: normalizeString(row.type_appel),
       event_type: resolveEventType(row.type_appel),
+      statut_appel: normalizeString(row.statut_appel),
+      cause_liberation: normalizeString(row.cause_liberation),
+      facturation: normalizeString(row.facturation),
       date_debut_appel: dateStart,
       date_fin_appel: dateEnd,
       heure_debut_appel: startTime,
@@ -1063,6 +1091,8 @@ class RealtimeCdrService {
       imei_appelant: normalizeString(row.imei_appelant),
       imsi_appelant: normalizeString(row.imsi_appelant),
       cgi: normalizeString(row.cgi),
+      route_reseau: normalizeString(row.route_reseau),
+      device_id: normalizeString(row.device_id),
       longitude: toNullableNumber(row.longitude),
       latitude: toNullableNumber(row.latitude),
       azimut: normalizeString(row.azimut),
@@ -1155,7 +1185,15 @@ class RealtimeCdrService {
           imeiCaller: row.imei_appelant ? String(row.imei_appelant).trim() : undefined,
           imeiCalled: undefined,
           cgi: row.cgi ? String(row.cgi).trim() : undefined,
-          azimut: row.azimut ? String(row.azimut).trim() : undefined
+          azimut: row.azimut ? String(row.azimut).trim() : undefined,
+          seqNumber: row.seq_number ? String(row.seq_number).trim() : undefined,
+          callStatus: row.statut_appel ? String(row.statut_appel).trim() : undefined,
+          releaseCause: row.cause_liberation ? String(row.cause_liberation).trim() : undefined,
+          billing: row.facturation ? String(row.facturation).trim() : undefined,
+          networkRoute: row.route_reseau ? String(row.route_reseau).trim() : undefined,
+          deviceId: row.device_id ? String(row.device_id).trim() : undefined,
+          sourceFile: row.source_file ? String(row.source_file).trim() : undefined,
+          insertedAt: normalizeDateTimeInput(row.inserted_at) || undefined
         });
       }
     }
