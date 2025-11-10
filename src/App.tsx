@@ -688,7 +688,7 @@ const resolveOrientationSign = (value: string, axis: CoordinateAxis): number | n
     }
   }
 
-  const letterMatch = normalized.match(/(?:^|[^A-Z0-9])([NSEWO])(?:[^A-Z]|$)/);
+  const letterMatch = normalized.match(/(?:^|[^A-Z])([NSEWO])(?:[^A-Z]|$)/);
   if (!letterMatch) {
     return null;
   }
