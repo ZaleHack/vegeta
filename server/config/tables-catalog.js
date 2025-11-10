@@ -908,6 +908,66 @@ export default {
     theme: 'telecom'
   },
 
+  'bts_orange.2g': {
+    display: 'bts_2g',
+    database: 'bts_orange',
+    primaryKey: 'CGI',
+    searchable: ['CGI', 'NOM_BTS'],
+    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
+    filters: {
+      NOM_BTS: 'string',
+      LONGITUDE: 'number',
+      LATITUDE: 'number',
+      AZIMUT: 'number'
+    },
+    theme: 'telecom'
+  },
+
+  'bts_orange.3g': {
+    display: 'bts_3g',
+    database: 'bts_orange',
+    primaryKey: 'CGI',
+    searchable: ['CGI', 'NOM_BTS'],
+    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
+    filters: {
+      NOM_BTS: 'string',
+      LONGITUDE: 'number',
+      LATITUDE: 'number',
+      AZIMUT: 'number'
+    },
+    theme: 'telecom'
+  },
+
+  'bts_orange.4g': {
+    display: 'bts_4g',
+    database: 'bts_orange',
+    primaryKey: 'CGI',
+    searchable: ['CGI', 'NOM_BTS'],
+    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
+    filters: {
+      NOM_BTS: 'string',
+      LONGITUDE: 'number',
+      LATITUDE: 'number',
+      AZIMUT: 'number'
+    },
+    theme: 'telecom'
+  },
+
+  'bts_orange.5g': {
+    display: 'bts_5g',
+    database: 'bts_orange',
+    primaryKey: 'CGI',
+    searchable: ['CGI', 'NOM_BTS'],
+    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
+    filters: {
+      NOM_BTS: 'string',
+      LONGITUDE: 'number',
+      LATITUDE: 'number',
+      AZIMUT: 'number'
+    },
+    theme: 'telecom'
+  },
+
   [REALTIME_TABLE_KEY]: {
     display: REALTIME_TABLE_DISPLAY,
     database: REALTIME_TABLE_DATABASE,

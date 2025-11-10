@@ -25,8 +25,7 @@ const TABLE_EXCLUSIONS = [
   'users',
   'users_log',
   'user_sessions',
-  'search_logs',
-  'cdr_temps_reel'
+  'search_logs'
 ].reduce((set, entry) => {
   const normalized = entry.toLowerCase();
   set.add(normalized);
@@ -34,20 +33,25 @@ const TABLE_EXCLUSIONS = [
   return set;
 }, new Set());
 
-const realtimeTableExclusions = getRealtimeCdrTableIdentifiers();
-const realtimeSchema = REALTIME_CDR_TABLE_METADATA.schema;
-const realtimeTable = REALTIME_CDR_TABLE_METADATA.table;
+const shouldExcludeRealtimeCdr =
+  process.env.EXCLUDE_REALTIME_CDR_FROM_INDEXING === 'true';
 
-if (realtimeSchema && realtimeTable) {
-  realtimeTableExclusions.add(`${realtimeSchema}.${realtimeTable}`.toLowerCase());
-}
+if (shouldExcludeRealtimeCdr) {
+  const realtimeTableExclusions = getRealtimeCdrTableIdentifiers();
+  const realtimeSchema = REALTIME_CDR_TABLE_METADATA.schema;
+  const realtimeTable = REALTIME_CDR_TABLE_METADATA.table;
 
-for (const identifier of realtimeTableExclusions) {
-  TABLE_EXCLUSIONS.add(identifier);
-  const [, withoutSchema = identifier] = identifier.split('.');
-  if (withoutSchema) {
-    TABLE_EXCLUSIONS.add(withoutSchema);
-    TABLE_EXCLUSIONS.add(`autres.${withoutSchema}`);
+  if (realtimeSchema && realtimeTable) {
+    realtimeTableExclusions.add(`${realtimeSchema}.${realtimeTable}`.toLowerCase());
+  }
+
+  for (const identifier of realtimeTableExclusions) {
+    TABLE_EXCLUSIONS.add(identifier);
+    const [, withoutSchema = identifier] = identifier.split('.');
+    if (withoutSchema) {
+      TABLE_EXCLUSIONS.add(withoutSchema);
+      TABLE_EXCLUSIONS.add(`autres.${withoutSchema}`);
+    }
   }
 }
 

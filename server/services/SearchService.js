@@ -22,7 +22,6 @@ const EXCLUDED_SEARCH_TABLES = new Set(
     'autres.structuresanction',
     'autres.search_logs',
     'autres.search_sync_events',
-    'autres.cdr_temps_reel',
     'autres.upload_history',
     'autres.users',
     'autres.users_log',
@@ -37,7 +36,6 @@ const EXCLUDED_SEARCH_TABLES = new Set(
     'structuresanction',
     'search_logs',
     'search_sync_events',
-    'cdr_temps_reel',
     'upload_history',
     'users',
     'users_log',
@@ -46,19 +44,24 @@ const EXCLUDED_SEARCH_TABLES = new Set(
   ].map((name) => name.toLowerCase())
 );
 
-const realtimeExclusions = getRealtimeCdrTableIdentifiers();
-const realtimeSchema = REALTIME_CDR_TABLE_METADATA.schema;
-const realtimeTable = REALTIME_CDR_TABLE_METADATA.table;
+const shouldExcludeRealtimeCdr =
+  process.env.EXCLUDE_REALTIME_CDR_FROM_SEARCH === 'true';
 
-if (realtimeSchema && realtimeTable) {
-  realtimeExclusions.add(`${realtimeSchema}.${realtimeTable}`.toLowerCase());
-}
+if (shouldExcludeRealtimeCdr) {
+  const realtimeExclusions = getRealtimeCdrTableIdentifiers();
+  const realtimeSchema = REALTIME_CDR_TABLE_METADATA.schema;
+  const realtimeTable = REALTIME_CDR_TABLE_METADATA.table;
 
-for (const entry of realtimeExclusions) {
-  EXCLUDED_SEARCH_TABLES.add(entry);
-  const [, withoutSchema = entry] = entry.split('.');
-  if (withoutSchema) {
-    EXCLUDED_SEARCH_TABLES.add(withoutSchema);
+  if (realtimeSchema && realtimeTable) {
+    realtimeExclusions.add(`${realtimeSchema}.${realtimeTable}`.toLowerCase());
+  }
+
+  for (const entry of realtimeExclusions) {
+    EXCLUDED_SEARCH_TABLES.add(entry);
+    const [, withoutSchema = entry] = entry.split('.');
+    if (withoutSchema) {
+      EXCLUDED_SEARCH_TABLES.add(withoutSchema);
+    }
   }
 }
 
