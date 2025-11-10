@@ -25,22 +25,42 @@ const RADIO_COORDINATE_FIELDS = [
   {
     alias: 'longitude',
     fallback: 'longitude',
-    sources: ['radio5g.LONGITUDE', 'radio4g.LONGITUDE', 'radio3g.LONGITUDE', 'radio2g.LONGITUDE']
+    sources: [
+      { alias: 'radio5g', column: 'LONGITUDE' },
+      { alias: 'radio4g', column: 'LONGITUDE' },
+      { alias: 'radio3g', column: 'LONGITUDE' },
+      { alias: 'radio2g', column: 'LONGITUDE' }
+    ]
   },
   {
     alias: 'latitude',
     fallback: 'latitude',
-    sources: ['radio5g.LATITUDE', 'radio4g.LATITUDE', 'radio3g.LATITUDE', 'radio2g.LATITUDE']
+    sources: [
+      { alias: 'radio5g', column: 'LATITUDE' },
+      { alias: 'radio4g', column: 'LATITUDE' },
+      { alias: 'radio3g', column: 'LATITUDE' },
+      { alias: 'radio2g', column: 'LATITUDE' }
+    ]
   },
   {
     alias: 'azimut',
     fallback: 'azimut',
-    sources: ['radio5g.AZIMUT', 'radio4g.AZIMUT', 'radio3g.AZIMUT', 'radio2g.AZIMUT']
+    sources: [
+      { alias: 'radio5g', column: 'AZIMUT' },
+      { alias: 'radio4g', column: 'AZIMUT' },
+      { alias: 'radio3g', column: 'AZIMUT' },
+      { alias: 'radio2g', column: 'AZIMUT' }
+    ]
   },
   {
     alias: 'nom_bts',
     fallback: 'nom_bts',
-    sources: ['radio5g.NOM_BTS', 'radio4g.NOM_BTS', 'radio3g.NOM_BTS', 'radio2g.NOM_BTS']
+    sources: [
+      { alias: 'radio5g', column: 'NOM_BTS' },
+      { alias: 'radio4g', column: 'NOM_BTS' },
+      { alias: 'radio3g', column: 'NOM_BTS' },
+      { alias: 'radio2g', column: 'NOM_BTS' }
+    ]
   }
 ];
 
@@ -91,13 +111,44 @@ const RADIO_COORDINATE_TABLE_CANDIDATES = [
   }
 ];
 
-const buildRadioCoordinateSelectClause = (availableFallbackColumns = new Set()) =>
-  RADIO_COORDINATE_FIELDS.map(({ alias, fallback, sources }) => {
-    const fallbackSegment = availableFallbackColumns.has(fallback)
-      ? `, c.${fallback}`
-      : '';
-    return `        COALESCE(${sources.join(', ')}${fallbackSegment}) AS ${alias}`;
+const buildRadioCoordinateSelectClause = (
+  availableFallbackColumns = new Set(),
+  availableSources = []
+) => {
+  const sourceAliases = new Set(
+    availableSources
+      .map((source) => {
+        if (!source) {
+          return null;
+        }
+        if (typeof source === 'string') {
+          return source;
+        }
+        return source.alias || null;
+      })
+      .filter(Boolean)
+  );
+
+  return RADIO_COORDINATE_FIELDS.map(({ alias, fallback, sources }) => {
+    const expressions = sources
+      .filter((source) => sourceAliases.has(source.alias))
+      .map((source) => `${source.alias}.${source.column}`);
+
+    if (availableFallbackColumns.has(fallback)) {
+      expressions.push(`c.${fallback}`);
+    }
+
+    if (expressions.length === 0) {
+      return `        NULL AS ${alias}`;
+    }
+
+    if (expressions.length === 1) {
+      return `        ${expressions[0]} AS ${alias}`;
+    }
+
+    return `        COALESCE(${expressions.join(', ')}) AS ${alias}`;
   }).join(',\n');
+};
 
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number(value);
@@ -642,7 +693,7 @@ class RealtimeCdrService {
             '⚠️ Impossible de détecter les colonnes de coordonnées des CDR temps réel, utilisation de la clause par défaut.',
             error?.message || error
           );
-          return buildRadioCoordinateSelectClause(new Set());
+          return buildRadioCoordinateSelectClause(new Set(), []);
         }
       );
     }
@@ -651,8 +702,12 @@ class RealtimeCdrService {
   }
 
   async #resolveCoordinateSelectClause() {
-    const fallbackColumns = await this.#detectCoordinateColumns();
-    return buildRadioCoordinateSelectClause(fallbackColumns);
+    const [fallbackColumns, radioSources] = await Promise.all([
+      this.#detectCoordinateColumns(),
+      this.#getRadioCoordinateSources()
+    ]);
+
+    return buildRadioCoordinateSelectClause(fallbackColumns, radioSources);
   }
 
   async #detectCoordinateColumns() {
