@@ -118,11 +118,13 @@ const toTrimmedString = (value) => {
 };
 
 const buildCoordinateSelectClause = (availableColumns = new Set()) =>
-  COORDINATE_SELECT_FIELDS.map(({ alias, column }) =>
-    availableColumns.has(column)
-      ? `        c.${column} AS ${alias}`
-      : `        NULL AS ${alias}`
-  ).join(',\n');
+  COORDINATE_SELECT_FIELDS.map(({ alias, column }) => {
+    const hasColumn = availableColumns.has(column);
+    if (hasColumn) {
+      return `        COALESCE(c.${column}, coords.${column}) AS ${alias}`;
+    }
+    return `        coords.${column} AS ${alias}`;
+  }).join(',\n');
 
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number(value);
@@ -444,6 +446,7 @@ class RealtimeCdrService {
     this.indexTimer = null;
     this.coordinateSelectClausePromise = null;
     this.coordinateFallbackColumns = null;
+    this.btsLookupSegmentsPromise = null;
 
     this.initializationPromise = this.elasticEnabled && this.autoStart
       ? this.#initializeElasticsearch().catch((error) => {
@@ -554,6 +557,10 @@ class RealtimeCdrService {
 
   async #searchDatabase(identifierVariants, filters) {
     const coordinateSelect = await this.#getCoordinateSelectClause();
+    const btsSegments = await this.#getBtsLookupSegments();
+    const unionSegments = btsSegments.length
+      ? btsSegments.join('\n        UNION ALL\n        ')
+      : 'SELECT NULL AS CGI, NULL AS NOM_BTS, NULL AS LONGITUDE, NULL AS LATITUDE, NULL AS AZIMUT, 1 AS priority FROM (SELECT 1) AS empty WHERE 1 = 0';
     const conditions = [];
     const params = [];
 
@@ -591,6 +598,23 @@ class RealtimeCdrService {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const sql = `
+      WITH prioritized_bts AS (
+        ${unionSegments}
+      ),
+      best_bts AS (
+        SELECT
+          p.CGI AS cgi,
+          p.NOM_BTS AS nom_bts,
+          p.LONGITUDE AS longitude,
+          p.LATITUDE AS latitude,
+          p.AZIMUT AS azimut
+        FROM prioritized_bts p
+        INNER JOIN (
+          SELECT CGI, MIN(priority) AS min_priority
+          FROM prioritized_bts
+          GROUP BY CGI
+        ) ranked ON ranked.CGI = p.CGI AND ranked.min_priority = p.priority
+      )
       SELECT
         c.id,
         c.seq_number,
@@ -614,6 +638,7 @@ class RealtimeCdrService {
         c.fichier_source AS source_file,
         c.inserted_at
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
+      LEFT JOIN best_bts AS coords ON coords.cgi = c.cgi
       ${whereClause}
       ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
       LIMIT ?
@@ -688,6 +713,46 @@ class RealtimeCdrService {
 
     this.coordinateFallbackColumns = availableColumns;
     return availableColumns;
+  }
+
+  async #getBtsLookupSegments() {
+    if (!this.btsLookupSegmentsPromise) {
+      this.btsLookupSegmentsPromise = this.#resolveBtsLookupSegments().catch((error) => {
+        console.warn(
+          '⚠️ Impossible de détecter les tables BTS pour la jointure directe, enrichissement par défaut utilisé.',
+          error?.message || error
+        );
+        return [];
+      });
+    }
+
+    return this.btsLookupSegmentsPromise;
+  }
+
+  async #resolveBtsLookupSegments() {
+    if (this.cgiEnricher && typeof this.cgiEnricher.listLookupSources === 'function') {
+      const sources = await this.cgiEnricher.listLookupSources();
+      if (Array.isArray(sources) && sources.length > 0) {
+        const segments = [];
+        sources.forEach((source, index) => {
+          if (!source || !source.tableSql) {
+            return;
+          }
+          const priority = Number.isFinite(source.priority)
+            ? Math.floor(source.priority)
+            : index + 1;
+          segments.push(
+            `SELECT CGI, NOM_BTS, LONGITUDE, LATITUDE, AZIMUT, ${priority} AS priority FROM ${source.tableSql}`
+          );
+        });
+
+        if (segments.length > 0) {
+          return segments;
+        }
+      }
+    }
+
+    return [];
   }
 
   #hasCoordinateValue(value) {
