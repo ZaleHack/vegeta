@@ -322,12 +322,14 @@ class CgiBtsEnrichmentService {
       return new Map();
     }
 
+    this.#debug('Début recherche des coordonnées BTS pour CGI.', { keys });
     const start = performance.now();
     this.metrics.lookupRequests += 1;
 
     try {
       let lookupMap;
       if (this.lookupExecutor) {
+        this.#debug('Utilisation du moteur de recherche BTS personnalisé.', { keys });
         const value = await this.lookupExecutor(keys.slice());
         lookupMap = value instanceof Map ? value : this.#normalizeLookupResult(value, keys);
       } else {
@@ -338,6 +340,21 @@ class CgiBtsEnrichmentService {
       this.metrics.totalLookupMs += elapsed;
       if (elapsed > this.metrics.maxLookupMs) {
         this.metrics.maxLookupMs = elapsed;
+      }
+
+      if (lookupMap instanceof Map) {
+        const entries = Array.from(lookupMap.entries()).map(([key, value]) => ({
+          cgi: key,
+          longitude: value?.longitude ?? null,
+          latitude: value?.latitude ?? null,
+          azimut: value?.azimut ?? null,
+          nom_bts: value?.nom_bts ?? null
+        }));
+        this.#debug('Résultats de la recherche des coordonnées BTS.', {
+          keys,
+          resultCount: lookupMap.size,
+          entries
+        });
       }
 
       return lookupMap;
@@ -363,6 +380,7 @@ class CgiBtsEnrichmentService {
   async #lookupFromDatabase(keys) {
     const sources = await this.#getLookupSources();
     if (!Array.isArray(sources) || sources.length === 0) {
+      this.#debug('Aucune source de données BTS disponible pour la recherche.', { keys });
       return new Map();
     }
 
@@ -392,9 +410,25 @@ class CgiBtsEnrichmentService {
       params.push(...keys);
     }
 
+    const debugSql = sql.replace(/\s+/g, ' ').trim();
+    this.#debug('Exécution de la requête SQL pour les coordonnées BTS.', {
+      keys,
+      tables: sources.map((source) => ({
+        tableSql: source.tableSql,
+        priority: source.priority ?? null
+      })),
+      sql: debugSql,
+      params
+    });
+
     const rows = await this.database.query(sql, params, {
       suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
       suppressErrorLog: true
+    });
+
+    this.#debug('Résultats bruts retournés par la base BTS.', {
+      rowCount: Array.isArray(rows) ? rows.length : 0,
+      rows
     });
 
     const result = new Map();
@@ -411,6 +445,11 @@ class CgiBtsEnrichmentService {
         azimut: toNullableNumber(row?.AZIMUT ?? row?.azimut)
       });
     }
+
+    this.#debug('Carte des coordonnées BTS normalisées prête.', {
+      keys,
+      resultCount: result.size
+    });
 
     return result;
   }
@@ -537,12 +576,12 @@ class CgiBtsEnrichmentService {
     return text ? text.toUpperCase() : '';
   }
 
-  #debug(message, error) {
+  #debug(message, ...details) {
     if (!this.debug) {
       return;
     }
-    if (error) {
-      console.debug(`[CDR-BTS] ${message}`, error);
+    if (details.length > 0) {
+      console.debug(`[CDR-BTS] ${message}`, ...details);
     } else {
       console.debug(`[CDR-BTS] ${message}`);
     }
