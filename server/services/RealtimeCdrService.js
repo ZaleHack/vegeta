@@ -75,8 +75,28 @@ const sanitizeNumber = (value) => {
   return text;
 };
 
-const buildNormalizedCgiSql = (column) =>
-  `LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(${column}), '-', ''), ':', ''), ' ', ''), '.', ''), ';', ''))`;
+const CGI_NORMALIZATION_REMOVE_CHARS = [
+  '-',
+  ':',
+  ' ',
+  '.',
+  ';',
+  '/',
+  ',',
+  '_',
+  '\\'
+];
+
+const escapeSqlLiteral = (value) => value.replace(/\\/g, '\\\\').replace(/'/g, "''");
+
+const buildNormalizedCgiSql = (column) => {
+  let expression = `TRIM(${column})`;
+  for (const char of CGI_NORMALIZATION_REMOVE_CHARS) {
+    const escaped = escapeSqlLiteral(char);
+    expression = `REPLACE(${expression}, '${escaped}', '')`;
+  }
+  return `LOWER(${expression})`;
+};
 
 const normalizePhoneNumber = (value) => {
   const sanitized = sanitizeNumber(value);
