@@ -15,6 +15,20 @@ const EMPTY_RESULT = {
 const REALTIME_INDEX = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
 const MAX_BATCH_SIZE = 5000;
 
+const RADIO_COORDINATE_SELECT = `
+  COALESCE(radio5g.LONGITUDE, radio4g.LONGITUDE, radio3g.LONGITUDE, radio2g.LONGITUDE, c.longitude) AS longitude,
+  COALESCE(radio5g.LATITUDE, radio4g.LATITUDE, radio3g.LATITUDE, radio2g.LATITUDE, c.latitude) AS latitude,
+  COALESCE(radio5g.AZIMUT, radio4g.AZIMUT, radio3g.AZIMUT, radio2g.AZIMUT, c.azimut) AS azimut,
+  COALESCE(radio5g.NOM_BTS, radio4g.NOM_BTS, radio3g.NOM_BTS, radio2g.NOM_BTS, c.nom_bts) AS nom_bts
+`;
+
+const RADIO_COORDINATE_JOINS = `
+  LEFT JOIN bts_orange.\`5g\` AS radio5g ON c.cgi = radio5g.CGI
+  LEFT JOIN bts_orange.\`4g\` AS radio4g ON c.cgi = radio4g.CGI
+  LEFT JOIN bts_orange.\`3g\` AS radio3g ON c.cgi = radio3g.CGI
+  LEFT JOIN bts_orange.\`2g\` AS radio2g ON c.cgi = radio2g.CGI
+`;
+
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number(value);
   if (Number.isFinite(parsed) && parsed > 0) {
@@ -487,13 +501,11 @@ class RealtimeCdrService {
         c.cgi,
         c.route_reseau,
         c.device_id,
-        c.longitude,
-        c.latitude,
-        c.azimut,
-        c.nom_bts,
+        ${RADIO_COORDINATE_SELECT},
         c.fichier_source AS source_file,
         c.inserted_at
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
+      ${RADIO_COORDINATE_JOINS}
       ${whereClause}
       ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
       LIMIT ?
@@ -727,13 +739,11 @@ class RealtimeCdrService {
           c.cgi,
           c.route_reseau,
           c.device_id,
-          c.longitude,
-          c.latitude,
-          c.azimut,
-          c.nom_bts,
+          ${RADIO_COORDINATE_SELECT},
           c.fichier_source AS source_file,
           c.inserted_at
         FROM ${REALTIME_CDR_TABLE_SQL} AS c
+        ${RADIO_COORDINATE_JOINS}
         WHERE c.id > ?
         ORDER BY c.id ASC
         LIMIT ?
