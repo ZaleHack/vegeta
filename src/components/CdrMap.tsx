@@ -1091,8 +1091,83 @@ const MeetingPointMarker: React.FC<{
   );
 });
 
-const CdrMap: React.FC<Props> = ({ points, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated }) => {
-  if (!points || points.length === 0) return null;
+const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated }) => {
+  const points = useMemo<Point[]>(() => {
+    if (!Array.isArray(rawPoints) || rawPoints.length === 0) {
+      console.warn('[CdrMap] Aucun point fourni pour l\'affichage de la carte.');
+      return [];
+    }
+
+    const valid: Point[] = [];
+    const foundDetails: {
+      index: number;
+      latitude: number;
+      longitude: number;
+      nom?: string;
+      source?: string;
+    }[] = [];
+    const invalidDetails: {
+      index: number;
+      latitude: string;
+      longitude: string;
+      nom?: string;
+      source?: string;
+    }[] = [];
+
+    rawPoints.forEach((point, index) => {
+      const lat = Number.parseFloat(point.latitude);
+      const lng = Number.parseFloat(point.longitude);
+      const isLatValid = Number.isFinite(lat);
+      const isLngValid = Number.isFinite(lng);
+
+      if (isLatValid && isLngValid) {
+        valid.push(point);
+        foundDetails.push({
+          index,
+          latitude: lat,
+          longitude: lng,
+          nom: point.nom || undefined,
+          source: point.source || point.tracked || undefined
+        });
+      } else {
+        invalidDetails.push({
+          index,
+          latitude: point.latitude,
+          longitude: point.longitude,
+          nom: point.nom || undefined,
+          source: point.source || point.tracked || undefined
+        });
+      }
+    });
+
+    const previewLimit = 10;
+
+    if (foundDetails.length > 0) {
+      console.info('[CdrMap] Localisations exploitables détectées', {
+        total: foundDetails.length,
+        apercu: foundDetails.slice(0, previewLimit),
+        tronque: foundDetails.length > previewLimit
+      });
+    }
+
+    if (invalidDetails.length > 0) {
+      console.warn('[CdrMap] Points ignorés faute de coordonnées valides', {
+        total: invalidDetails.length,
+        apercu: invalidDetails.slice(0, previewLimit),
+        tronque: invalidDetails.length > previewLimit
+      });
+    }
+
+    if (foundDetails.length === 0) {
+      console.error("[CdrMap] Impossible d'afficher la carte: aucune coordonnée valide", {
+        totalPoints: rawPoints.length
+      });
+    }
+
+    return valid;
+  }, [rawPoints]);
+
+  if (points.length === 0) return null;
 
   const callerPoints = useMemo(
     () =>
