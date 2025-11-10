@@ -177,6 +177,11 @@ const normalizeString = (value) => {
   return text || null;
 };
 
+const normalizeCgiKey = (value) => {
+  const normalized = normalizeString(value);
+  return normalized ? normalized.toUpperCase() : '';
+};
+
 const normalizeDateInput = (value) => {
   if (value instanceof Date) {
     return value.toISOString().split('T')[0];
@@ -621,8 +626,8 @@ class RealtimeCdrService {
         continue;
       }
 
-      const cgiValue = normalizeString(row?.cgi ?? row?.CGI);
-      if (!cgiValue) {
+      const normalizedCgi = normalizeCgiKey(row?.cgi ?? row?.CGI);
+      if (!normalizedCgi) {
         continue;
       }
 
@@ -635,11 +640,11 @@ class RealtimeCdrService {
         continue;
       }
 
-      if (!pending.has(cgiValue)) {
-        pending.set(cgiValue, []);
+      if (!pending.has(normalizedCgi)) {
+        pending.set(normalizedCgi, []);
       }
 
-      pending.get(cgiValue).push({
+      pending.get(normalizedCgi).push({
         row,
         needsLongitude,
         needsLatitude,
@@ -667,8 +672,8 @@ class RealtimeCdrService {
       return;
     }
 
-    for (const [cgiValue, entries] of pending.entries()) {
-      const enrichment = lookup.get(cgiValue);
+    for (const [normalizedCgi, entries] of pending.entries()) {
+      const enrichment = lookup.get(normalizedCgi);
       if (!enrichment) {
         continue;
       }
