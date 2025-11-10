@@ -71,12 +71,20 @@ const RADIO_TABLE_CANDIDATES = [
     candidates: [
       'bts-orange.`2g`',
       'bts_orange.`2g`',
+      'bts-orange.`2G`',
+      'bts_orange.`2G`',
       'bts-orange.radio_2g',
       'bts_orange.radio_2g',
       'bts-orange.radio2g',
       'bts_orange.radio2g',
+      'bts-orange.RADIO_2G',
+      'bts_orange.RADIO_2G',
+      'bts-orange.RADIO2G',
+      'bts_orange.RADIO2G',
       'radio_2g',
-      'radio2g'
+      'RADIO_2G',
+      'radio2g',
+      'RADIO2G'
     ]
   },
   {
@@ -84,12 +92,20 @@ const RADIO_TABLE_CANDIDATES = [
     candidates: [
       'bts-orange.`3g`',
       'bts_orange.`3g`',
+      'bts-orange.`3G`',
+      'bts_orange.`3G`',
       'bts-orange.radio_3g',
       'bts_orange.radio_3g',
       'bts-orange.radio3g',
       'bts_orange.radio3g',
+      'bts-orange.RADIO_3G',
+      'bts_orange.RADIO_3G',
+      'bts-orange.RADIO3G',
+      'bts_orange.RADIO3G',
       'radio_3g',
-      'radio3g'
+      'RADIO_3G',
+      'radio3g',
+      'RADIO3G'
     ]
   },
   {
@@ -97,12 +113,20 @@ const RADIO_TABLE_CANDIDATES = [
     candidates: [
       'bts-orange.`4g`',
       'bts_orange.`4g`',
+      'bts-orange.`4G`',
+      'bts_orange.`4G`',
       'bts-orange.radio_4g',
       'bts_orange.radio_4g',
       'bts-orange.radio4g',
       'bts_orange.radio4g',
+      'bts-orange.RADIO_4G',
+      'bts_orange.RADIO_4G',
+      'bts-orange.RADIO4G',
+      'bts_orange.RADIO4G',
       'radio_4g',
-      'radio4g'
+      'RADIO_4G',
+      'radio4g',
+      'RADIO4G'
     ]
   },
   {
@@ -110,12 +134,20 @@ const RADIO_TABLE_CANDIDATES = [
     candidates: [
       'bts-orange.`5g`',
       'bts_orange.`5g`',
+      'bts-orange.`5G`',
+      'bts_orange.`5G`',
       'bts-orange.radio_5g',
       'bts_orange.radio_5g',
       'bts-orange.radio5g',
       'bts_orange.radio5g',
+      'bts-orange.RADIO_5G',
+      'bts_orange.RADIO_5G',
+      'bts-orange.RADIO5G',
+      'bts_orange.RADIO5G',
       'radio_5g',
-      'radio5g'
+      'RADIO_5G',
+      'radio5g',
+      'RADIO5G'
     ]
   }
 ];
