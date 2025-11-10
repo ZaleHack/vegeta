@@ -551,7 +551,10 @@ const LATITUDE_FIELD_CANDIDATES = [
   'lat_bts',
   'LAT_BTS',
   'latitude_bts',
-  'Latitude_BTS'
+  'Latitude_BTS',
+  'nord_bts',
+  'Nord_BTS',
+  'NORD_BTS'
 ];
 
 const LONGITUDE_FIELD_CANDIDATES = [
@@ -570,7 +573,10 @@ const LONGITUDE_FIELD_CANDIDATES = [
   'long_bts',
   'LONG_BTS',
   'longitude_bts',
-  'Longitude_BTS'
+  'Longitude_BTS',
+  'est_bts',
+  'Est_BTS',
+  'EST_BTS'
 ];
 
 const NOM_FIELD_CANDIDATES = ['nom', 'Nom', 'NOM', 'nom_bts', 'Nom_BTS', 'NOM_BTS'];
