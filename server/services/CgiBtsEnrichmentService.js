@@ -391,7 +391,7 @@ class CgiBtsEnrichmentService {
     const unionSegments = sources
       .map(
         (source, index) =>
-          `SELECT CGI, NOM_BTS, LONGITUDE, LATITUDE, AZIMUT, ${
+          `SELECT CGI, LOWER(CGI) AS normalized_cgi, NOM_BTS, LONGITUDE, LATITUDE, AZIMUT, ${
             source.priority ?? index + 1
           } AS priority FROM ${source.tableSql} WHERE LOWER(CGI) IN (${placeholders})`
       )
@@ -404,10 +404,10 @@ class CgiBtsEnrichmentService {
       SELECT u.CGI, u.NOM_BTS, u.LONGITUDE, u.LATITUDE, u.AZIMUT
       FROM unioned u
       INNER JOIN (
-        SELECT CGI, MIN(priority) AS min_priority
+        SELECT normalized_cgi, MIN(priority) AS min_priority
         FROM unioned
-        GROUP BY CGI
-      ) best ON u.CGI = best.CGI AND u.priority = best.min_priority
+        GROUP BY normalized_cgi
+      ) best ON u.normalized_cgi = best.normalized_cgi AND u.priority = best.min_priority
     `;
 
     const params = [];

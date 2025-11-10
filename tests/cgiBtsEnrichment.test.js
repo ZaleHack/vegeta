@@ -80,6 +80,9 @@ test('cgi enricher builds UNION ALL SQL when using database', async () => {
   assert.match(capturedSql, /UNION ALL/);
   assert.ok(/WITH\s+unioned/i.test(capturedSql));
   assert.match(capturedSql, /LOWER\(CGI\)\s+IN\s*\(/i);
+  assert.match(capturedSql, /LOWER\(CGI\)\s+AS\s+normalized_cgi/i);
+  assert.match(capturedSql, /GROUP BY\s+normalized_cgi/i);
+  assert.match(capturedSql, /ON\s+u\.normalized_cgi\s*=\s*best\.normalized_cgi/i);
   assert.equal(
     capturedParams.length,
     2,
