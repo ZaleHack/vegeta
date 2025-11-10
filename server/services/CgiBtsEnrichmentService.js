@@ -384,71 +384,107 @@ class CgiBtsEnrichmentService {
       return new Map();
     }
 
-    const lowercaseKeys = keys.map((key) =>
-      typeof key === 'string' ? key.toLowerCase() : String(key ?? '').toLowerCase()
-    );
-    const placeholders = lowercaseKeys.map(() => '?').join(', ');
-    const unionSegments = sources
-      .map(
-        (source, index) =>
-          `SELECT CGI, LOWER(CGI) AS normalized_cgi, NOM_BTS, LONGITUDE, LATITUDE, AZIMUT, ${
-            source.priority ?? index + 1
-          } AS priority FROM ${source.tableSql} WHERE LOWER(CGI) IN (${placeholders})`
-      )
-      .join('\n    UNION ALL\n');
+    const normalizedKeys = keys
+      .map((key) => this.#normalizeCgi(key))
+      .filter((key) => typeof key === 'string' && key.length > 0);
+    const uniqueKeys = Array.from(new Set(normalizedKeys));
 
-    const sql = `
-      WITH unioned AS (
-        ${unionSegments}
-      )
-      SELECT u.CGI, u.NOM_BTS, u.LONGITUDE, u.LATITUDE, u.AZIMUT
-      FROM unioned u
-      INNER JOIN (
-        SELECT normalized_cgi, MIN(priority) AS min_priority
-        FROM unioned
-        GROUP BY normalized_cgi
-      ) best ON u.normalized_cgi = best.normalized_cgi AND u.priority = best.min_priority
-    `;
-
-    const params = [];
-    for (let i = 0; i < sources.length; i += 1) {
-      params.push(...lowercaseKeys);
+    if (uniqueKeys.length === 0) {
+      return new Map();
     }
 
-    const debugSql = sql.replace(/\s+/g, ' ').trim();
-    this.#debug('Exécution de la requête SQL pour les coordonnées BTS.', {
-      keys,
-      tables: sources.map((source) => ({
-        tableSql: source.tableSql,
-        priority: source.priority ?? null
-      })),
-      sql: debugSql,
-      params
-    });
-
-    const rows = await this.database.query(sql, params, {
-      suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
-      suppressErrorLog: true
-    });
-
-    this.#debug('Résultats bruts retournés par la base BTS.', {
-      rowCount: Array.isArray(rows) ? rows.length : 0,
-      rows
-    });
-
-    const result = new Map();
-    for (const row of rows || []) {
-      const key = this.#normalizeCgi(row?.CGI ?? row?.cgi);
-      if (!key || result.has(key)) {
-        continue;
+    const runUnionQuery = async (lookupKeys, { normalizedExpression, whereClause, label }) => {
+      if (!Array.isArray(lookupKeys) || lookupKeys.length === 0) {
+        return [];
       }
 
-      result.set(key, {
-        nom_bts: normalizeString(row?.NOM_BTS ?? row?.nom_bts),
-        longitude: toNullableNumber(row?.LONGITUDE ?? row?.longitude),
-        latitude: toNullableNumber(row?.LATITUDE ?? row?.latitude),
-        azimut: toNullableNumber(row?.AZIMUT ?? row?.azimut)
+      const placeholders = lookupKeys.map(() => '?').join(', ');
+      const unionSegments = sources
+        .map(
+          (source, index) =>
+            `SELECT CGI, ${normalizedExpression} AS normalized_cgi, NOM_BTS, LONGITUDE, LATITUDE, AZIMUT, ${
+              source.priority ?? index + 1
+            } AS priority FROM ${source.tableSql} WHERE ${whereClause(placeholders)}`
+        )
+        .join('\n    UNION ALL\n');
+
+      const sql = `
+        WITH unioned AS (
+          ${unionSegments}
+        )
+        SELECT u.CGI, u.NOM_BTS, u.LONGITUDE, u.LATITUDE, u.AZIMUT
+        FROM unioned u
+        INNER JOIN (
+          SELECT normalized_cgi, MIN(priority) AS min_priority
+          FROM unioned
+          GROUP BY normalized_cgi
+        ) best ON u.normalized_cgi = best.normalized_cgi AND u.priority = best.min_priority
+      `;
+
+      const params = [];
+      for (let i = 0; i < sources.length; i += 1) {
+        params.push(...lookupKeys);
+      }
+
+      const debugSql = sql.replace(/\s+/g, ' ').trim();
+      this.#debug(`Exécution de la requête SQL (${label}) pour les coordonnées BTS.`, {
+        keys,
+        tables: sources.map((source) => ({
+          tableSql: source.tableSql,
+          priority: source.priority ?? null
+        })),
+        sql: debugSql,
+        params
       });
+
+      const rows = await this.database.query(sql, params, {
+        suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+        suppressErrorLog: true
+      });
+
+      this.#debug(`Résultats bruts (${label}) retournés par la base BTS.`, {
+        rowCount: Array.isArray(rows) ? rows.length : 0,
+        rows
+      });
+
+      return rows || [];
+    };
+
+    const result = new Map();
+    const appendRows = (rows) => {
+      for (const row of rows) {
+        const key = this.#normalizeCgi(row?.CGI ?? row?.cgi);
+        if (!key || result.has(key)) {
+          continue;
+        }
+
+        result.set(key, {
+          nom_bts: normalizeString(row?.NOM_BTS ?? row?.nom_bts),
+          longitude: toNullableNumber(row?.LONGITUDE ?? row?.longitude),
+          latitude: toNullableNumber(row?.LATITUDE ?? row?.latitude),
+          azimut: toNullableNumber(row?.AZIMUT ?? row?.azimut)
+        });
+      }
+    };
+
+    const primaryRows = await runUnionQuery(uniqueKeys, {
+      normalizedExpression: 'UPPER(CGI)',
+      whereClause: (placeholders) => `CGI IN (${placeholders})`,
+      label: 'principal'
+    });
+    appendRows(primaryRows);
+
+    const missingKeys = uniqueKeys.filter((key) => !result.has(key));
+    if (missingKeys.length > 0) {
+      const fallbackRows = await runUnionQuery(
+        missingKeys.map((key) => key.toLowerCase()),
+        {
+          normalizedExpression: 'LOWER(CGI)',
+          whereClause: (placeholders) => `LOWER(CGI) IN (${placeholders})`,
+          label: 'secours (normalisé)'
+        }
+      );
+      appendRows(fallbackRows);
     }
 
     this.#debug('Carte des coordonnées BTS normalisées prête.', {

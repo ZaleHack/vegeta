@@ -79,8 +79,8 @@ test('cgi enricher builds UNION ALL SQL when using database', async () => {
   assert.ok(results.get('CELL-1'));
   assert.match(capturedSql, /UNION ALL/);
   assert.ok(/WITH\s+unioned/i.test(capturedSql));
-  assert.match(capturedSql, /LOWER\(CGI\)\s+IN\s*\(/i);
-  assert.match(capturedSql, /LOWER\(CGI\)\s+AS\s+normalized_cgi/i);
+  assert.match(capturedSql, /CGI\s+IN\s*\(/i);
+  assert.match(capturedSql, /UPPER\(CGI\)\s+AS\s+normalized_cgi/i);
   assert.match(capturedSql, /GROUP BY\s+normalized_cgi/i);
   assert.match(capturedSql, /ON\s+u\.normalized_cgi\s*=\s*best\.normalized_cgi/i);
   assert.equal(
@@ -88,5 +88,47 @@ test('cgi enricher builds UNION ALL SQL when using database', async () => {
     2,
     'Parameters should repeat once per configured table.'
   );
-  assert.deepEqual(capturedParams, ['cell-1', 'cell-1']);
+  assert.deepEqual(capturedParams, ['CELL-1', 'CELL-1']);
+});
+
+test('cgi enricher falls back to normalized lookup when direct match missing', async () => {
+  const capturedSql = [];
+  const capturedParams = [];
+  const stubDatabase = {
+    async query(sql, params) {
+      capturedSql.push(sql);
+      capturedParams.push(params);
+      if (capturedSql.length === 1) {
+        return [];
+      }
+      return [
+        {
+          CGI: 'Cell-1',
+          NOM_BTS: 'Fallback Alpha',
+          LONGITUDE: 16.5,
+          LATITUDE: -23.4,
+          AZIMUT: 45
+        }
+      ];
+    }
+  };
+
+  const enricher = new CgiBtsEnrichmentService({
+    enabled: true,
+    databaseClient: stubDatabase,
+    staticTables: [
+      { tableSql: '`radio5g`', priority: 1 },
+      { tableSql: '`radio4g`', priority: 2 }
+    ]
+  });
+
+  const results = await enricher.fetchMany(['Cell-1']);
+  assert.ok(results.get('CELL-1'));
+  assert.equal(capturedSql.length, 2, 'Fallback query should run after primary miss.');
+  assert.match(capturedSql[0], /CGI\s+IN\s*\(/i);
+  assert.match(capturedSql[0], /UPPER\(CGI\)\s+AS\s+normalized_cgi/i);
+  assert.match(capturedSql[1], /LOWER\(CGI\)\s+IN\s*\(/i);
+  assert.match(capturedSql[1], /LOWER\(CGI\)\s+AS\s+normalized_cgi/i);
+  assert.deepEqual(capturedParams[0], ['CELL-1', 'CELL-1']);
+  assert.deepEqual(capturedParams[1], ['cell-1', 'cell-1']);
 });
