@@ -3777,15 +3777,22 @@ useEffect(() => {
         const data = await res.json();
         if (res.ok) {
           const rawPath = Array.isArray(data.path) ? data.path : [];
-          const filtered = rawPath.filter((rawPoint: unknown) => {
+          const sanitizedPath = rawPath.map((rawPoint: unknown) => {
             if (!rawPoint || typeof rawPoint !== 'object') {
-              return true;
+              return rawPoint;
             }
+
             const record = rawPoint as Record<string, unknown>;
             const candidate = normalizeOptionalTextField(record.number);
-            return !candidate || !candidate.startsWith('2214');
+            const normalizedCandidate = candidate ? normalizeCdrNumber(candidate) : '';
+
+            if (normalizedCandidate && normalizedCandidate.startsWith('2214')) {
+              return { ...record, number: null };
+            }
+
+            return record;
           });
-          const normalizedPoints = filtered
+          const normalizedPoints = sanitizedPath
             .map((rawPoint: unknown) => normalizeCdrPointFields(rawPoint, id))
             .filter((point): point is CdrPoint => Boolean(point));
           allPaths.push(...normalizedPoints);
