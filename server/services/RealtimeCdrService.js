@@ -7,6 +7,7 @@ import {
   REALTIME_CDR_TABLE_SQL
 } from '../config/realtime-table.js';
 import cgiBtsEnricher from './CgiBtsEnrichmentService.js';
+import { normalizeCgi } from '../utils/cgi.js';
 
 const EMPTY_RESULT = {
   total: 0,
@@ -268,8 +269,8 @@ const normalizeString = (value) => {
 };
 
 const normalizeCgiKey = (value) => {
-  const normalized = normalizeString(value);
-  return normalized ? normalized.toUpperCase() : '';
+  const normalized = normalizeCgi(value);
+  return normalized || '';
 };
 
 const normalizeDateInput = (value) => {
