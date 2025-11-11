@@ -2806,6 +2806,12 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }}
             whenCreated={(map) => {
               mapRef.current = map;
+              map.once('unload', () => {
+                setIsMapReady(false);
+                if (mapRef.current === map) {
+                  mapRef.current = null;
+                }
+              });
               const paneId = 'latest-location-pane';
               const pane = map.getPane(paneId) ?? map.createPane(paneId);
               if (pane) {
@@ -2845,7 +2851,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         {zoneShape && (
           <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
         )}
-        {showBaseMarkers && (
+        {isMapReady && showBaseMarkers && (
           <MarkerClusterGroup maxClusterRadius={0}>
             {groupedPoints.flatMap((group, idx) => {
               const perSourceEntries = group.perSource;
@@ -2879,7 +2885,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             })}
           </MarkerClusterGroup>
         )}
-        {showMeetingPoints &&
+        {isMapReady && showMeetingPoints &&
           meetingPoints
             .filter(
               (mp) =>
@@ -2893,7 +2899,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             .map((mp, idx) => (
               <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
             ))}
-        {showBaseMarkers && showRoute && routePositions.length > 1 && (
+        {isMapReady && showBaseMarkers && showRoute && routePositions.length > 1 && (
           <Polyline
             positions={routePositions}
             pathOptions={{
@@ -2906,19 +2912,19 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }}
           />
         )}
-        {showBaseMarkers && showRoute && routePositions.length > 0 && (
+        {isMapReady && showBaseMarkers && showRoute && routePositions.length > 0 && (
           <Marker position={routePositions[0]} icon={startIcon} />
         )}
-        {showBaseMarkers && showRoute && routePositions.length > 1 && (
+        {isMapReady && showBaseMarkers && showRoute && routePositions.length > 1 && (
           <Marker
             position={routePositions[routePositions.length - 1]}
             icon={endIcon}
           />
         )}
-        {showBaseMarkers && showRoute && interpolatedRoute.length > 0 && (
+        {isMapReady && showBaseMarkers && showRoute && interpolatedRoute.length > 0 && (
           <Marker position={carPosition} icon={carIcon} />
         )}
-        {showBaseMarkers && showRoute &&
+        {isMapReady && showBaseMarkers && showRoute &&
           arrowMarkers.map((a, idx) => (
             <Marker
               key={`arrow-${idx}`}
@@ -2927,7 +2933,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               interactive={false}
             />
           ))}
-        {showSimilar &&
+        {isMapReady && showSimilar &&
           similarSegments.flatMap((seg, idx) =>
             seg.sources.map((src) =>
               visibleSimilar.has(src) ? (
@@ -2945,7 +2951,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               ) : null
             )
           )}
-        {showSimilar &&
+        {isMapReady && showSimilar &&
           (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
             <Marker
               key={`similar-point-${idx}`}
@@ -2960,27 +2966,28 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               </Popup>
             </Marker>
             ))}
-        {locationMarkers.map((loc, idx) => (
-          <Marker
-            key={`stat-${idx}`}
-            position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-            icon={createLabelIcon(
-              String(loc.count),
-              selectedSource === null &&
-              sourceNumbers.length > 1 &&
-              (activeInfo === 'recent' || activeInfo === 'popular')
-                ? colorMap.get(loc.source || '') || '#f97316'
-                : activeInfo === 'popular'
-                ? '#9333ea'
-                : '#f97316'
-            )}
-            zIndexOffset={1000}
-          >
-            <Popup className="cdr-popup">
-              {renderLocationStatPopup(loc)}
-            </Popup>
-          </Marker>
-        ))}
+        {isMapReady &&
+          locationMarkers.map((loc, idx) => (
+            <Marker
+              key={`stat-${idx}`}
+              position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
+              icon={createLabelIcon(
+                String(loc.count),
+                selectedSource === null &&
+                  sourceNumbers.length > 1 &&
+                  (activeInfo === 'recent' || activeInfo === 'popular')
+                  ? colorMap.get(loc.source || '') || '#f97316'
+                  : activeInfo === 'popular'
+                  ? '#9333ea'
+                  : '#f97316'
+              )}
+              zIndexOffset={1000}
+            >
+              <Popup className="cdr-popup">
+                {renderLocationStatPopup(loc)}
+              </Popup>
+            </Marker>
+          ))}
         {isMapReady && highlightedLatestPosition && (
           <Marker
             ref={highlightedMarkerRef}
@@ -3185,7 +3192,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           </div>
         </div>
 
-        {showBaseMarkers && showRoute && (
+        {isMapReady && showBaseMarkers && showRoute && (
           <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
             <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
               <Car className="w-4 h-4 text-indigo-500" />
