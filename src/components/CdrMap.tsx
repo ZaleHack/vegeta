@@ -2928,32 +2928,18 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           <button
             onClick={handleFocusLatestLocation}
             disabled={!hasLatestLocation}
-            className={`pointer-events-auto latest-location-button ${
+            className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
               hasLatestLocation
-                ? 'latest-location-button--active'
-                : 'latest-location-button--disabled'
-            }`}
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-white/90 text-gray-400 hover:bg-gray-100'
+            } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/90`}
             title={
               hasLatestLocation
                 ? 'Centrer sur la dernière localisation connue'
                 : 'Aucune localisation exploitable'
             }
           >
-            <span className="latest-location-button__icon-wrapper">
-              <span className="latest-location-button__icon-pulse" />
-              <MapPin className="w-5 h-5 relative z-[1] text-white" />
-            </span>
-            <span className="flex flex-col text-left leading-tight">
-              <span className="latest-location-button__label">Dernière localisation</span>
-              <span className="latest-location-button__value">
-                {hasLatestLocation
-                  ? latestLocationPoint?.nom?.trim() || 'Position inconnue'
-                  : 'Aucune donnée'}
-              </span>
-              {hasLatestLocation && latestLocationDetails && (
-                <span className="latest-location-button__meta">{latestLocationDetails}</span>
-              )}
-            </span>
+            <MapPin className="w-5 h-5" />
           </button>
           <button
             onClick={handleTriangulation}
