@@ -1500,13 +1500,17 @@ class RealtimeCdrService {
       const callee = row.numero_appele ? normalizeForOutput(row.numero_appele) : '';
 
       const matchesCaller = matchesIdentifier(identifierSet, row.numero_appelant);
-      const matchesCallee = matchesIdentifier(identifierSet, row.numero_appele);
+      let matchesCallee = matchesIdentifier(identifierSet, row.numero_appele);
+
+      const eventType = resolveEventType(row.type_appel);
+
+      if (eventType === 'position') {
+        matchesCallee = false;
+      }
 
       if (!matchesCaller && !matchesCallee) {
         continue;
       }
-
-      const eventType = resolveEventType(row.type_appel);
 
       let direction = 'incoming';
       let otherNumber = '';

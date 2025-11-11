@@ -131,3 +131,54 @@ test('Realtime CDR search treats position events as location points', async () =
   assert.equal(pathEntry?.latitude, '-14.32');
   assert.equal(pathEntry?.longitude, '17.89');
 });
+
+test('Realtime CDR search ignores callee matches for position events', async () => {
+  const sampleRow = {
+    id: 3,
+    seq_number: 99,
+    type_appel: 'POSITION',
+    statut_appel: null,
+    cause_liberation: null,
+    facturation: null,
+    date_debut_appel: '2024-06-01',
+    date_fin_appel: '2024-06-01',
+    heure_debut_appel: '18:00:00',
+    heure_fin_appel: '18:00:00',
+    duree_appel: '0',
+    numero_appelant: '771111111',
+    imei_appelant: null,
+    numero_appele: '772222222',
+    imsi_appelant: null,
+    cgi: null,
+    route_reseau: null,
+    device_id: null,
+    longitude: 17.12,
+    latitude: -14.98,
+    azimut: null,
+    nom_bts: 'Position Callee',
+    source_file: null,
+    inserted_at: '2024-06-01T18:00:00Z'
+  };
+
+  const databaseStub = {
+    async query(sql) {
+      if (/INFORMATION_SCHEMA\.COLUMNS/i.test(sql)) {
+        return [];
+      }
+      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`)) {
+        return [JSON.parse(JSON.stringify(sampleRow))];
+      }
+      throw new Error(`Unexpected SQL in test: ${sql}`);
+    }
+  };
+
+  const service = new RealtimeCdrService({
+    autoStart: false,
+    databaseClient: databaseStub
+  });
+
+  const result = await service.search('772222222', { limit: 10 });
+  assert.equal(result.total, 1);
+  assert.equal(result.path.length, 0);
+  assert.equal(result.locations.length, 0);
+});
