@@ -900,6 +900,18 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
     normalized.endDate = endDate;
   }
 
+  if (!normalized.caller && caller) {
+    normalized.caller = caller;
+  }
+
+  if (!normalized.callee && callee) {
+    normalized.callee = callee;
+  }
+
+  if (!normalized.number) {
+    normalized.number = normalized.caller ?? normalized.tracked ?? undefined;
+  }
+
   if (!normalized.callDate) {
     const fallbackDate = normalizeOptionalTextField(
       record.date_debut_appel ?? record.date
@@ -946,10 +958,36 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
     }
   }
 
+  const normalizedDirection = normalizeOptionalTextField(normalized.direction)?.toLowerCase();
+  if (normalizedDirection === 'sortant') {
+    normalized.direction = 'outgoing';
+  } else if (normalizedDirection === 'entrant') {
+    normalized.direction = 'incoming';
+  }
+
   if (!normalized.type) {
     const fallbackType = normalizeOptionalTextField(record.event_type);
     if (fallbackType) {
       normalized.type = fallbackType;
+    }
+  }
+
+  const normalizedType = normalizeOptionalTextField(normalized.type)?.toLowerCase();
+  if (normalizedType) {
+    normalized.type = normalizedType;
+  }
+
+  if (normalizedType === 'audio') {
+    const trackedDigits = normalizePhoneDigits(normalized.tracked);
+    const callerDigits = normalizePhoneDigits(normalized.caller);
+    const calleeDigits = normalizePhoneDigits(normalized.callee);
+
+    if (trackedDigits && callerDigits && trackedDigits === callerDigits) {
+      normalized.direction = 'outgoing';
+    } else if (trackedDigits && calleeDigits && trackedDigits === calleeDigits) {
+      normalized.direction = 'incoming';
+    } else if (!normalized.direction) {
+      normalized.direction = 'outgoing';
     }
   }
 
