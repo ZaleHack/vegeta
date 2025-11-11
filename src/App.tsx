@@ -511,9 +511,6 @@ interface CdrPoint {
   number?: string;
   caller?: string;
   callee?: string;
-  type_appel?: string;
-  numero_appelant?: string;
-  numero_appele?: string;
   callDate: string;
   startTime: string;
   endTime: string;
@@ -533,9 +530,6 @@ interface CdrPoint {
   deviceId?: string;
   sourceFile?: string;
   insertedAt?: string;
-  icon?: string;
-  role?: string;
-  nom_bts?: string;
 }
 
 interface CdrSearchResult {
@@ -901,45 +895,6 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
     azimut: normalizeOptionalTextField(getFirstDefinedValue(point, AZIMUT_FIELD_CANDIDATES))
   };
 
-  const typeAppel = normalizeOptionalTextField(record.type_appel);
-  if (typeAppel) {
-    normalized.type_appel = typeAppel;
-  }
-
-  const numeroAppelant = normalizeOptionalTextField(record.numero_appelant);
-  if (numeroAppelant) {
-    normalized.numero_appelant = numeroAppelant;
-  }
-
-  const numeroAppele = normalizeOptionalTextField(record.numero_appele);
-  if (numeroAppele) {
-    normalized.numero_appele = numeroAppele;
-  }
-
-  const iconValue = normalizeOptionalTextField(record.icon);
-  if (iconValue) {
-    normalized.icon = iconValue;
-  }
-
-  const roleValue = normalizeOptionalTextField(record.role);
-  if (roleValue) {
-    const normalizedRole = roleValue.toLowerCase();
-    normalized.role = normalizedRole;
-    if (normalizedRole === 'caller') {
-      normalized.direction = 'outgoing';
-    } else if (normalizedRole === 'callee') {
-      normalized.direction = 'incoming';
-    }
-  }
-
-  const nomBts = normalizeOptionalTextField(record.nom_bts);
-  if (nomBts) {
-    normalized.nom_bts = nomBts;
-    if (!normalized.nom) {
-      normalized.nom = nomBts;
-    }
-  }
-
   const endDate = normalizeOptionalTextField(record.endDate);
   if (endDate) {
     normalized.endDate = endDate;
@@ -1022,7 +977,7 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
     normalized.type = normalizedType;
   }
 
-  if (normalizedType === 'audio' && !normalized.role) {
+  if (normalizedType === 'audio') {
     const trackedDigits = normalizePhoneDigits(normalized.tracked);
     const callerDigits = normalizePhoneDigits(normalized.caller);
     const calleeDigits = normalizePhoneDigits(normalized.callee);

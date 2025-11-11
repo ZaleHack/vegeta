@@ -1493,10 +1493,8 @@ class RealtimeCdrService {
     const path = [];
 
     for (const row of rows) {
-      const rawCallerOriginal = row.numero_appelant ? String(row.numero_appelant).trim() : '';
-      const rawCalleeOriginal = row.numero_appele ? String(row.numero_appele).trim() : '';
-      const caller = rawCallerOriginal ? normalizeForOutput(rawCallerOriginal) : '';
-      const callee = rawCalleeOriginal ? normalizeForOutput(rawCalleeOriginal) : '';
+      const caller = row.numero_appelant ? normalizeForOutput(row.numero_appelant) : '';
+      const callee = row.numero_appele ? normalizeForOutput(row.numero_appele) : '';
 
       const matchesCaller = matchesIdentifier(identifierSet, row.numero_appelant);
       const matchesCallee = matchesIdentifier(identifierSet, row.numero_appele);
@@ -1507,13 +1505,17 @@ class RealtimeCdrService {
 
       const eventType = resolveEventType(row.type_appel);
 
+      let direction = 'incoming';
       let otherNumber = '';
 
       if (matchesCaller && !matchesCallee) {
+        direction = 'outgoing';
         otherNumber = callee;
       } else if (!matchesCaller && matchesCallee) {
+        direction = 'incoming';
         otherNumber = caller;
       } else if (matchesCaller && matchesCallee) {
+        direction = 'outgoing';
         otherNumber = callee || caller;
       }
 
@@ -1531,111 +1533,48 @@ class RealtimeCdrService {
       const latitude = toTrimmedString(getFirstDefinedValue(row, LATITUDE_FIELD_CANDIDATES));
       const longitude = toTrimmedString(getFirstDefinedValue(row, LONGITUDE_FIELD_CANDIDATES));
 
-      if (!latitude || !longitude) {
-        continue;
-      }
-
-      const locationName = toTrimmedString(getFirstDefinedValue(row, NOM_FIELD_CANDIDATES));
-      const key = `${latitude},${longitude},${locationName}`;
-      const locationEntry = locationsMap.get(key) || {
-        latitude,
-        longitude,
-        nom: locationName,
-        count: 0
-      };
-      locationEntry.count += 1;
-      locationsMap.set(key, locationEntry);
-
-      const azimut = toTrimmedString(getFirstDefinedValue(row, AZIMUT_FIELD_CANDIDATES));
-      const normalizedTypeAppel = (row.type_appel ? String(row.type_appel) : '').trim().toLowerCase();
-      const baseType = normalizedTypeAppel || eventType;
-      const seqNumber = row.seq_number ? String(row.seq_number).trim() : undefined;
-
-      const callDate = formatDateValue(row.date_debut_appel);
-      const endDate = formatDateValue(row.date_fin_appel);
-      const startTime = formatTimeValue(row.heure_debut_appel);
-      const endTime = formatTimeValue(row.heure_fin_appel);
-      const duration = formatDuration(row.duree_appel);
-      const cgiValue = row.cgi ? String(row.cgi).trim() : undefined;
-      const callStatus = row.statut_appel ? String(row.statut_appel).trim() : undefined;
-      const releaseCause = row.cause_liberation ? String(row.cause_liberation).trim() : undefined;
-      const billing = row.facturation ? String(row.facturation).trim() : undefined;
-      const networkRoute = row.route_reseau ? String(row.route_reseau).trim() : undefined;
-      const deviceId = row.device_id ? String(row.device_id).trim() : undefined;
-      const sourceFile = row.source_file ? String(row.source_file).trim() : undefined;
-      const insertedAt = normalizeDateTimeInput(row.inserted_at) || undefined;
-
-      const basePoint = {
-        latitude,
-        longitude,
-        nom: locationName,
-        nom_bts: locationName || undefined,
-        type: baseType,
-        type_appel: row.type_appel ? String(row.type_appel).trim() : undefined,
-        numero_appelant: rawCallerOriginal || undefined,
-        numero_appele: rawCalleeOriginal || undefined,
-        callDate,
-        endDate,
-        startTime,
-        endTime,
-        duration,
-        imsiCaller: row.imsi_appelant ? String(row.imsi_appelant).trim() : undefined,
-        imeiCaller: row.imei_appelant ? String(row.imei_appelant).trim() : undefined,
-        imeiCalled: undefined,
-        cgi: cgiValue,
-        azimut: azimut || undefined,
-        seqNumber,
-        callStatus,
-        releaseCause,
-        billing,
-        networkRoute,
-        deviceId,
-        sourceFile,
-        insertedAt,
-        event_type: eventType
-      };
-
-      const resolveIconId = (role) => {
-        if (normalizedTypeAppel === 'sms') {
-          return 'sms';
-        }
-        if (normalizedTypeAppel === 'position') {
-          return 'position';
-        }
-        if (role === 'callee') {
-          return 'call_incoming';
-        }
-        return 'call_outgoing';
-      };
-
-      const callerPoint = {
-        ...basePoint,
-        direction: normalizedTypeAppel === 'position' ? undefined : 'outgoing',
-        icon: resolveIconId('caller'),
-        number: normalizedOtherNumber || undefined,
-        caller: caller || undefined,
-        callee: callee || undefined,
-        source: caller || undefined,
-        role: 'caller'
-      };
-
-      path.push(callerPoint);
-
-      if (normalizedTypeAppel === 'audio' && callee) {
-        const calleePoint = {
-          ...basePoint,
-          direction: 'incoming',
-          icon: resolveIconId('callee'),
-          number: caller || undefined,
-          caller: callee || undefined,
-          callee: caller || undefined,
-          source: callee || undefined,
-          role: 'callee'
+      if (latitude && longitude) {
+        const locationName = toTrimmedString(getFirstDefinedValue(row, NOM_FIELD_CANDIDATES));
+        const key = `${latitude},${longitude},${locationName}`;
+        const locationEntry = locationsMap.get(key) || {
+          latitude,
+          longitude,
+          nom: locationName,
+          count: 0
         };
+        locationEntry.count += 1;
+        locationsMap.set(key, locationEntry);
 
-        path.push(calleePoint);
-      } else if (normalizedTypeAppel === 'sms') {
-        // Nothing additional to push; SMS represented by caller point only.
+        const azimut = toTrimmedString(getFirstDefinedValue(row, AZIMUT_FIELD_CANDIDATES));
+
+        path.push({
+          latitude,
+          longitude,
+          nom: locationName,
+          type: eventType,
+          direction,
+          number: normalizedOtherNumber || undefined,
+          caller: caller || undefined,
+          callee: callee || undefined,
+          callDate: formatDateValue(row.date_debut_appel),
+          endDate: formatDateValue(row.date_fin_appel),
+          startTime: formatTimeValue(row.heure_debut_appel),
+          endTime: formatTimeValue(row.heure_fin_appel),
+          duration: formatDuration(row.duree_appel),
+          imsiCaller: row.imsi_appelant ? String(row.imsi_appelant).trim() : undefined,
+          imeiCaller: row.imei_appelant ? String(row.imei_appelant).trim() : undefined,
+          imeiCalled: undefined,
+          cgi: row.cgi ? String(row.cgi).trim() : undefined,
+          azimut: azimut || undefined,
+          seqNumber: row.seq_number ? String(row.seq_number).trim() : undefined,
+          callStatus: row.statut_appel ? String(row.statut_appel).trim() : undefined,
+          releaseCause: row.cause_liberation ? String(row.cause_liberation).trim() : undefined,
+          billing: row.facturation ? String(row.facturation).trim() : undefined,
+          networkRoute: row.route_reseau ? String(row.route_reseau).trim() : undefined,
+          deviceId: row.device_id ? String(row.device_id).trim() : undefined,
+          sourceFile: row.source_file ? String(row.source_file).trim() : undefined,
+          insertedAt: normalizeDateTimeInput(row.inserted_at) || undefined
+        });
       }
     }
 
