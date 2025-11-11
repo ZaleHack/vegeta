@@ -931,13 +931,7 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
   if (explicitSource) {
     normalized.source = explicitSource;
   } else {
-    const normalizedTypeValue = normalized.type.toLowerCase();
-    const isLocationEvent = normalizedTypeValue === 'web' || normalizedTypeValue === 'position';
-    if (isLocationEvent) {
-      normalized.source = callee || trackedId;
-    } else {
-      normalized.source = caller || trackedId;
-    }
+    normalized.source = caller || trackedId;
   }
 
   const explicitTracked = normalizeOptionalTextField(record.tracked);
