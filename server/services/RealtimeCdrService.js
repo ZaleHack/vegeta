@@ -422,6 +422,9 @@ const resolveEventType = (value) => {
   if (text.includes('data') || text.includes('gprs') || text.includes('web')) {
     return 'web';
   }
+  if (text.includes('position')) {
+    return 'position';
+  }
   return 'call';
 };
 
@@ -1520,7 +1523,7 @@ class RealtimeCdrService {
       }
 
       const normalizedOtherNumber = otherNumber ? normalizeForOutput(otherNumber) : '';
-      if (normalizedOtherNumber && eventType !== 'web') {
+      if (normalizedOtherNumber && (eventType === 'call' || eventType === 'sms')) {
         const entry = contactsMap.get(normalizedOtherNumber) || { callCount: 0, smsCount: 0 };
         if (eventType === 'sms') {
           entry.smsCount += 1;
