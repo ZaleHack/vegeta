@@ -1634,6 +1634,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     setActiveInfo
   ]);
 
+  const hasLatestLocation = Boolean(latestLocationPosition);
+
   useEffect(() => {
     if (!hasLatestLocation && showLatestOnly) {
       setShowLatestOnly(false);
@@ -1658,8 +1660,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     setHighlightedLatest(null);
     latestLocationMarkerRef.current?.closePopup();
   }, [showLatestOnly]);
-
-  const hasLatestLocation = Boolean(latestLocationPosition);
 
   const contactPoints = useMemo(() => {
     const matchesVisible = (raw?: string): boolean => {
