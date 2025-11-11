@@ -1568,9 +1568,11 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       pane = map.createPane(paneId);
     }
     if (pane) {
-      pane.style.zIndex = '700';
+      pane.style.zIndex = '1200';
     }
   }, [isMapReady]);
+
+  const latestLocationMarkerRef = useRef<L.Marker | null>(null);
 
   const latestLocationIcon = useMemo(
     () =>
@@ -1579,14 +1581,20 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         html: `
           <div class="latest-location-pulse">
             <span class="latest-location-pulse__ring"></span>
+            <span class="latest-location-pulse__ring latest-location-pulse__ring--delayed"></span>
             <span class="latest-location-pulse__dot"></span>
           </div>
         `.trim(),
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        iconSize: [42, 42],
+        iconAnchor: [21, 21]
       }),
     []
   );
+
+  useEffect(() => {
+    if (!isMapReady) return;
+    latestLocationMarkerRef.current?.bringToFront();
+  }, [isMapReady, latestLocationPosition, highlightedLatestPosition]);
 
   const handleFocusLatestLocation = useCallback(() => {
     if (!latestLocationPoint || !latestLocationPosition) return;
@@ -2743,7 +2751,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               const paneId = 'latest-location-pane';
               const pane = map.getPane(paneId) ?? map.createPane(paneId);
               if (pane) {
-                pane.style.zIndex = '700';
+                pane.style.zIndex = '1200';
               }
               setIsMapReady(true);
             }}
@@ -2918,6 +2926,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             icon={latestLocationIcon}
             zIndexOffset={4000}
             pane="latest-location-pane"
+            ref={latestLocationMarkerRef}
           >
             <Popup className="cdr-popup latest-location-popup">
               <div className="latest-location-popup-card">
@@ -2954,20 +2963,24 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
         <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-2">
           <button
+            type="button"
             onClick={handleFocusLatestLocation}
             disabled={!hasLatestLocation}
-            className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
+            className={`latest-location-control ${
               hasLatestLocation
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-white/90 text-gray-400 hover:bg-gray-100'
-            } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/90`}
+                ? 'latest-location-control--active'
+                : 'latest-location-control--disabled'
+            }`}
             title={
               hasLatestLocation
                 ? 'Centrer sur la dernière localisation connue'
                 : 'Aucune localisation exploitable'
             }
           >
-            <MapPin className="w-5 h-5" />
+            <span className="latest-location-control__icon">
+              <MapPin className="w-4 h-4" />
+            </span>
+            <span className="latest-location-control__label">Dernière position</span>
           </button>
           <button
             onClick={handleTriangulation}
