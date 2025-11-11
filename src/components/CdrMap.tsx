@@ -1246,6 +1246,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | 'history' | null>(null);
   const [showOthers, setShowOthers] = useState(true);
+  const [latestFocusActive, setLatestFocusActive] = useState(false);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
   const [showZoneInfo, setShowZoneInfo] = useState(false);
@@ -1560,6 +1561,12 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   }, [highlightedLatest]);
 
   useEffect(() => {
+    if (!highlightedLatest) {
+      setLatestFocusActive(false);
+    }
+  }, [highlightedLatest]);
+
+  useEffect(() => {
     if (!isMapReady || !mapRef.current) return;
     const paneId = 'latest-location-pane';
     const map = mapRef.current;
@@ -1593,6 +1600,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     const nextZoom = Math.max(mapRef.current?.getZoom() ?? 13, 16);
     mapRef.current?.flyTo(latestLocationPosition, nextZoom, { animate: true, duration: 1.5 });
     setHighlightedLatest({ ...latestLocationPoint });
+    setLatestFocusActive(true);
     setShowZoneInfo(false);
     setActiveInfo(null);
   }, [latestLocationPoint, latestLocationPosition, setShowZoneInfo, setActiveInfo]);
@@ -2187,7 +2195,10 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
+  const showBaseMarkers = useMemo(
+    () => showOthers && !latestFocusActive,
+    [showOthers, latestFocusActive]
+  );
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -2809,7 +2820,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             })}
           </MarkerClusterGroup>
         )}
-        {showMeetingPoints &&
+        {showBaseMarkers && showMeetingPoints &&
           meetingPoints
             .filter(
               (mp) =>
@@ -2857,7 +2868,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               interactive={false}
             />
           ))}
-        {showSimilar &&
+        {showBaseMarkers && showSimilar &&
           similarSegments.flatMap((seg, idx) =>
             seg.sources.map((src) =>
               visibleSimilar.has(src) ? (
@@ -2875,7 +2886,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               ) : null
             )
           )}
-        {showSimilar &&
+        {showBaseMarkers && showSimilar &&
           (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
             <Marker
               key={`similar-point-${idx}`}
@@ -2890,12 +2901,13 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               </Popup>
             </Marker>
             ))}
-        {locationMarkers.map((loc, idx) => (
-          <Marker
-            key={`stat-${idx}`}
-            position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-            icon={createLabelIcon(
-              String(loc.count),
+        {showBaseMarkers &&
+          locationMarkers.map((loc, idx) => (
+            <Marker
+              key={`stat-${idx}`}
+              position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
+              icon={createLabelIcon(
+                String(loc.count),
               selectedSource === null &&
               sourceNumbers.length > 1 &&
               (activeInfo === 'recent' || activeInfo === 'popular')
