@@ -1246,6 +1246,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | 'history' | null>(null);
   const [showOthers, setShowOthers] = useState(true);
+  const [showLatestOnly, setShowLatestOnly] = useState(false);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
   const [showZoneInfo, setShowZoneInfo] = useState(false);
@@ -1599,14 +1600,64 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     latestLocationMarkerRef.current?.bringToFront();
   }, [isMapReady, latestLocationPosition]);
 
-  const handleFocusLatestLocation = useCallback(() => {
+  const handleToggleLatestLocation = useCallback(() => {
     if (!latestLocationPoint || !latestLocationPosition) return;
+
+    if (showLatestOnly) {
+      setShowLatestOnly(false);
+      setHighlightedLatest(null);
+      latestLocationMarkerRef.current?.closePopup();
+      return;
+    }
+
     const nextZoom = Math.max(mapRef.current?.getZoom() ?? 13, 16);
-    mapRef.current?.flyTo(latestLocationPosition, nextZoom, { animate: true, duration: 1.5 });
+    mapRef.current?.flyTo(latestLocationPosition, nextZoom, {
+      animate: true,
+      duration: 1.5
+    });
+    setShowLatestOnly(true);
     setHighlightedLatest({ ...latestLocationPoint });
     setShowZoneInfo(false);
     setActiveInfo(null);
-  }, [latestLocationPoint, latestLocationPosition, setShowZoneInfo, setActiveInfo]);
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => {
+        latestLocationMarkerRef.current?.openPopup();
+      }, 250);
+    } else {
+      latestLocationMarkerRef.current?.openPopup();
+    }
+  }, [
+    latestLocationPoint,
+    latestLocationPosition,
+    showLatestOnly,
+    setShowZoneInfo,
+    setActiveInfo
+  ]);
+
+  useEffect(() => {
+    if (!hasLatestLocation && showLatestOnly) {
+      setShowLatestOnly(false);
+    }
+  }, [hasLatestLocation, showLatestOnly]);
+
+  useEffect(() => {
+    if (!showLatestOnly) {
+      return;
+    }
+    if (!latestLocationPoint || !latestLocationPosition) {
+      setShowLatestOnly(false);
+      return;
+    }
+    setHighlightedLatest({ ...latestLocationPoint });
+  }, [showLatestOnly, latestLocationPoint, latestLocationPosition]);
+
+  useEffect(() => {
+    if (showLatestOnly) {
+      return;
+    }
+    setHighlightedLatest(null);
+    latestLocationMarkerRef.current?.closePopup();
+  }, [showLatestOnly]);
 
   const hasLatestLocation = Boolean(latestLocationPosition);
 
@@ -2198,7 +2249,10 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
+  const showBaseMarkers = useMemo(
+    () => showOthers && !showLatestOnly,
+    [showOthers, showLatestOnly]
+  );
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -2777,7 +2831,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             />
           )}
           <ZoneSelector />
-        {drawing && currentPoints.length > 0 && (
+        {!showLatestOnly && drawing && currentPoints.length > 0 && (
           <Polyline
             positions={currentPoints}
             pathOptions={{
@@ -2789,7 +2843,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }}
           />
         )}
-        {zoneShape && (
+        {!showLatestOnly && zoneShape && (
           <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
         )}
         {showBaseMarkers && (
@@ -2965,38 +3019,42 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </Marker>
           </>
         )}
-        {triangulationZones.map((zone, idx) => (
-          <React.Fragment key={`tri-${idx}`}>
-            <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
-            {zone.cells.map((cell, i) => (
-              <CircleMarker
-                key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
-                center={cell.position}
-                radius={4}
-                pathOptions={{ color: '#dc2626' }}
-              />
-            ))}
-            <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#dc2626')}>
-              <Popup className="cdr-popup">
-                {renderTriangulationPopup(zone)}
-              </Popup>
-            </Marker>
-          </React.Fragment>
-        ))}
+        {!showLatestOnly &&
+          triangulationZones.map((zone, idx) => (
+            <React.Fragment key={`tri-${idx}`}>
+              <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
+              {zone.cells.map((cell, i) => (
+                <CircleMarker
+                  key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
+                  center={cell.position}
+                  radius={4}
+                  pathOptions={{ color: '#dc2626' }}
+                />
+              ))}
+              <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#dc2626')}>
+                <Popup className="cdr-popup">{renderTriangulationPopup(zone)}</Popup>
+              </Marker>
+            </React.Fragment>
+          ))}
         </MapContainer>
 
         <div className="pointer-events-none absolute bottom-6 left-1/2 z-[1000] flex -translate-x-1/2">
           <button
-            onClick={handleFocusLatestLocation}
+            onClick={handleToggleLatestLocation}
             disabled={!hasLatestLocation}
+            aria-pressed={showLatestOnly}
             className={`pointer-events-auto latest-location-button ${
-              hasLatestLocation
-                ? 'latest-location-button--active'
-                : 'latest-location-button--disabled'
+              !hasLatestLocation
+                ? 'latest-location-button--disabled'
+                : showLatestOnly
+                ? 'latest-location-button--focused'
+                : 'latest-location-button--active'
             }`}
             title={
               hasLatestLocation
-                ? 'Centrer sur la dernière localisation connue'
+                ? showLatestOnly
+                  ? 'Afficher toutes les données'
+                  : 'Centrer sur la dernière localisation connue'
                 : 'Aucune localisation exploitable'
             }
           >
