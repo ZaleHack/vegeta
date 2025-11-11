@@ -5,6 +5,7 @@ import {
   isCdrBtsDebugEnabled,
   isCdrBtsEnrichmentEnabled
 } from '../config/cdr-enrichment.js';
+import { normalizeCgi as normalizeCgiValue } from '../utils/cgi.js';
 
 class TimedLruCache {
   constructor(options = {}) {
@@ -611,11 +612,8 @@ class CgiBtsEnrichmentService {
   }
 
   #normalizeCgi(value) {
-    if (value === null || value === undefined) {
-      return '';
-    }
-    const text = String(value).trim();
-    return text ? text.toUpperCase() : '';
+    const normalized = normalizeCgiValue(value);
+    return normalized || '';
   }
 
   #debug(message, ...details) {

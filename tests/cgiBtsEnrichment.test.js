@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CgiBtsEnrichmentService } from '../server/services/CgiBtsEnrichmentService.js';
+import { normalizeCgi } from '../server/utils/cgi.js';
 
 test('cgi enricher caches lookup results', async () => {
   let lookupCalls = 0;
@@ -86,4 +87,28 @@ test('cgi enricher builds UNION ALL SQL when using database', async () => {
     'Parameters should repeat once per configured table.'
   );
   assert.deepEqual(capturedParams, ['CELL-1', 'CELL-1']);
+});
+
+test('normalizeCgi removes leading zero before LAC', () => {
+  const normalized = normalizeCgi('608-01-09025-61051');
+  assert.equal(normalized, '608-01-9025-61051');
+});
+
+test('cgi enricher normalizes realtime CGI keys before querying database', async () => {
+  let capturedParams = [];
+  const stubDatabase = {
+    async query(sql, params) {
+      capturedParams = params.slice();
+      return [];
+    }
+  };
+
+  const enricher = new CgiBtsEnrichmentService({
+    enabled: true,
+    databaseClient: stubDatabase,
+    staticTables: [{ tableSql: '`radio4g`' }]
+  });
+
+  await enricher.fetchMany(['608-01-09025-61051']);
+  assert.deepEqual(capturedParams, ['608-01-9025-61051']);
 });
