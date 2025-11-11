@@ -1190,11 +1190,14 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const callerPoints = useMemo(
     () =>
-      points.filter(
-        (p) =>
-          isLocationEventType(p.type) ||
-          (typeof p.direction === 'string' && p.direction.toLowerCase() === 'outgoing')
-      ),
+      points.filter((p) => {
+        if (isLocationEventType(p.type)) {
+          return true;
+        }
+
+        const direction = (p.direction || '').toString().toLowerCase();
+        return direction === 'outgoing';
+      }),
     [points]
   );
 
@@ -1336,14 +1339,14 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const sourceNumbers = useMemo(() => {
     const numbers = new Set<string>();
-    referencePoints.forEach((point) => {
+    callerPoints.forEach((point) => {
       const rawSource = point.source || point.tracked;
       if (rawSource) {
         numbers.add(rawSource);
       }
     });
     return Array.from(numbers);
-  }, [referencePoints]);
+  }, [callerPoints]);
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
     sourceNumbers.forEach((n, i) => map.set(n, numberColors[i % numberColors.length]));
@@ -1448,14 +1451,14 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   );
 
   const displayedPoints = useMemo(() => {
-    let filtered = referencePoints;
+    let filtered = callerPoints;
     if (selectedSource) {
       filtered = filtered.filter((p) => p.source === selectedSource);
     } else if (visibleSources.size > 0) {
       filtered = filtered.filter((p) => !p.source || visibleSources.has(p.source));
     }
     return filtered.filter(isPointWithinZone);
-  }, [referencePoints, selectedSource, visibleSources, isPointWithinZone]);
+  }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
 
   const contactPoints = useMemo(() => {
     const matchesVisible = (raw?: string): boolean => {
@@ -2960,49 +2963,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                 </span>
                 <span className="font-semibold">Localisation approximative</span>
               </li>
-              {showSimilar ? (
-                similarNumbers.map((n) => (
-                  <li key={n} className="flex items-center space-x-2">
-                    <span
-                      className="w-6 h-6 rounded-full"
-                      style={{ backgroundColor: colorMap.get(n) }}
-                    ></span>
-                    <span>{n}</span>
-                  </li>
-                ))
-              ) : selectedSource === null &&
-                sourceNumbers.length > 1 ? (
-                sourceNumbers.map((n) => (
-                  <li key={n} className="flex items-center space-x-2">
-                    <span
-                      className="w-6 h-6 rounded-full"
-                      style={{ backgroundColor: colorMap.get(n) }}
-                    ></span>
-                    <span>{n}</span>
-                  </li>
-                ))
-              ) : (
-                <>
-                  <li className="flex items-center space-x-2">
-                    <span
-                      className="w-6 h-6 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: '#f97316' }}
-                    >
-                      <Clock className="w-4 h-4 text-white" />
-                    </span>
-                    <span>Localisations récentes</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <span
-                      className="w-6 h-6 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: '#9333ea' }}
-                    >
-                      <Flame className="w-4 h-4 text-white" />
-                    </span>
-                    <span>Lieux les plus visités</span>
-                  </li>
-                </>
-              )}
             </ul>
           </div>
         </div>
