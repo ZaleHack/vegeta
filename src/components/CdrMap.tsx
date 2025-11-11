@@ -1789,7 +1789,10 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               }
               entry.contactNormalized = contactNormalized;
 
-              if (eventType === 'sms') {
+              const normalizedEventType = (p.type || '').trim().toLowerCase();
+              const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
+
+              if (isSmsEvent) {
                 entry.smsCount += 1;
               } else {
                 entry.callCount += 1;
