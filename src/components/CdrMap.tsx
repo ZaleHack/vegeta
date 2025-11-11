@@ -273,12 +273,13 @@ const getPointColor = (type: string, _direction?: string) => {
 const getIcon = (
   type: string,
   direction: string | undefined,
-  _colorOverride?: string
+  colorOverride?: string
 ) => {
   const size = 32;
   let inner: React.ReactElement;
 
   const normalizedType = type.trim().toLowerCase();
+  const backgroundColor = colorOverride ?? getPointColor(type, direction);
 
   if (isLocationEventType(type)) {
     inner = <MapPin size={16} className="text-white" />;
@@ -296,7 +297,7 @@ const getIcon = (
   const icon = (
     <div
       style={{
-        backgroundColor: getPointColor(type, direction),
+        backgroundColor,
         borderRadius: '9999px',
         width: size,
         height: size,
@@ -377,10 +378,10 @@ const getGroupIcon = (
   count: number,
   type: string,
   direction: string | undefined,
-  _colorOverride?: string
+  colorOverride?: string
 ) => {
   const size = 32;
-  const color = getPointColor(type, direction);
+  const color = colorOverride ?? getPointColor(type, direction);
   const icon = (
     <div className="relative">
       <div
