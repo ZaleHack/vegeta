@@ -1584,6 +1584,16 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     []
   );
 
+  const handleLatestLocationRingClick = useCallback(() => {
+    if (!latestLocationPoint || !latestLocationPosition) {
+      return;
+    }
+    setHighlightedLatest({ ...latestLocationPoint });
+    setShowZoneInfo(false);
+    setActiveInfo(null);
+    latestLocationMarkerRef.current?.openPopup();
+  }, [latestLocationPoint, latestLocationPosition, setActiveInfo, setShowZoneInfo]);
+
   useEffect(() => {
     if (!isMapReady || !latestLocationPosition) return;
     latestLocationMarkerRef.current?.bringToFront();
@@ -2916,27 +2926,44 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           </Marker>
         ))}
         {isMapReady && latestLocationPoint && latestLocationPosition && (
-          <Marker
-            position={latestLocationPosition}
-            icon={latestLocationIcon}
-            zIndexOffset={4000}
-            pane="latest-location-pane"
-            ref={latestLocationMarkerRef}
-          >
-            <Popup className="cdr-popup">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-red-600">Dernière localisation détectée</p>
-                {latestLocationPopupPoint?.nom && (
-                  <p className="text-sm font-medium text-slate-700">
-                    {latestLocationPopupPoint.nom}
-                  </p>
-                )}
-                {latestLocationPopupDetails && (
-                  <p className="text-xs text-slate-500">{latestLocationPopupDetails}</p>
-                )}
-              </div>
-            </Popup>
-          </Marker>
+          <>
+            <CircleMarker
+              center={latestLocationPosition}
+              radius={18}
+              pathOptions={{
+                color: '#ef4444',
+                weight: 2,
+                fillColor: '#fca5a5',
+                fillOpacity: 0.2,
+                className: 'latest-location-circle'
+              }}
+              pane="latest-location-pane"
+              eventHandlers={{
+                click: handleLatestLocationRingClick
+              }}
+            />
+            <Marker
+              position={latestLocationPosition}
+              icon={latestLocationIcon}
+              zIndexOffset={4000}
+              pane="latest-location-pane"
+              ref={latestLocationMarkerRef}
+            >
+              <Popup className="cdr-popup">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-red-600">Dernière localisation détectée</p>
+                  {latestLocationPopupPoint?.nom && (
+                    <p className="text-sm font-medium text-slate-700">
+                      {latestLocationPopupPoint.nom}
+                    </p>
+                  )}
+                  {latestLocationPopupDetails && (
+                    <p className="text-xs text-slate-500">{latestLocationPopupDetails}</p>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          </>
         )}
         {triangulationZones.map((zone, idx) => (
           <React.Fragment key={`tri-${idx}`}>
