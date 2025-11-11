@@ -76,3 +76,58 @@ test('Realtime CDR search enriches BTS metadata via CGI', async () => {
   assert.equal(pathEntry?.latitude, '-14.67');
   assert.equal(pathEntry?.longitude, '17.45');
 });
+
+test('Realtime CDR search treats position events as location points', async () => {
+  const sampleRow = {
+    id: 2,
+    seq_number: 42,
+    type_appel: 'POSITION',
+    statut_appel: null,
+    cause_liberation: null,
+    facturation: null,
+    date_debut_appel: '2024-05-01',
+    date_fin_appel: '2024-05-01',
+    heure_debut_appel: '14:00:00',
+    heure_fin_appel: '14:00:00',
+    duree_appel: '0',
+    numero_appelant: '770000000',
+    imei_appelant: null,
+    numero_appele: null,
+    imsi_appelant: null,
+    cgi: null,
+    route_reseau: null,
+    device_id: null,
+    longitude: 17.89,
+    latitude: -14.32,
+    azimut: null,
+    nom_bts: 'Position Report',
+    source_file: null,
+    inserted_at: '2024-05-01T14:00:00Z'
+  };
+
+  const databaseStub = {
+    async query(sql) {
+      if (/INFORMATION_SCHEMA\.COLUMNS/i.test(sql)) {
+        return [];
+      }
+      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`)) {
+        return [JSON.parse(JSON.stringify(sampleRow))];
+      }
+      throw new Error(`Unexpected SQL in test: ${sql}`);
+    }
+  };
+
+  const service = new RealtimeCdrService({
+    autoStart: false,
+    databaseClient: databaseStub
+  });
+
+  const result = await service.search('770000000', { limit: 10 });
+  assert.equal(result.total, 1);
+  assert.equal(result.contacts.length, 0);
+  const pathEntry = result.path[0];
+  assert.equal(pathEntry?.type, 'position');
+  assert.equal(pathEntry?.nom, 'Position Report');
+  assert.equal(pathEntry?.latitude, '-14.32');
+  assert.equal(pathEntry?.longitude, '17.89');
+});
