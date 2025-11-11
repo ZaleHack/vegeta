@@ -41,9 +41,6 @@ interface Point {
   number?: string;
   caller?: string;
   callee?: string;
-  type_appel?: string;
-  numero_appelant?: string;
-  numero_appele?: string;
   callDate: string;
   endDate?: string;
   startTime: string;
@@ -64,9 +61,6 @@ interface Point {
   deviceId?: string;
   sourceFile?: string;
   insertedAt?: string;
-  icon?: string;
-  role?: string;
-  nom_bts?: string;
 }
 
 interface Contact {
@@ -271,10 +265,10 @@ const isLocationEventType = (type?: string): boolean => {
   return normalized === 'web' || normalized === 'position';
 };
 
-const getPointColor = (rawType: string, direction?: string) => {
-  const normalizedType = rawType.trim().toLowerCase();
+const getPointColor = (type: string, direction?: string) => {
+  const normalizedType = type.trim().toLowerCase();
 
-  if (isLocationEventType(rawType)) {
+  if (isLocationEventType(type)) {
     return '#dc2626';
   }
 
@@ -289,60 +283,33 @@ const getPointColor = (rawType: string, direction?: string) => {
   return '#16a34a';
 };
 
-const createPointIcon = (point: Point, colorOverride?: string) => {
+const getIcon = (
+  type: string,
+  direction: string | undefined,
+  _colorOverride?: string
+) => {
   const size = 32;
-  const normalizedType = (point.type || point.type_appel || '').trim().toLowerCase();
-  const direction = point.direction;
-  const iconId = (point.icon || '').trim().toLowerCase();
-
   let inner: React.ReactElement;
-  let background = colorOverride;
 
-  const fallbackColor = getPointColor(normalizedType, direction);
+  const normalizedType = type.trim().toLowerCase();
 
-  switch (iconId) {
-    case 'sms':
-    case 'sms_outgoing':
-    case 'sms_incoming':
-      inner = <MessageSquare size={16} className="text-white" />;
-      background = background ?? '#16a34a';
-      break;
-    case 'position':
-    case 'location':
-      inner = <MapPin size={16} className="text-white" />;
-      background = background ?? '#dc2626';
-      break;
-    case 'call_incoming':
-      inner = <PhoneIncoming size={16} className="text-white" />;
-      background = background ?? getPointColor(normalizedType || 'audio', 'incoming');
-      break;
-    case 'call_outgoing':
-      inner = <PhoneOutgoing size={16} className="text-white" />;
-      background = background ?? getPointColor(normalizedType || 'audio', 'outgoing');
-      break;
-    default:
-      if (isLocationEventType(normalizedType)) {
-        inner = <MapPin size={16} className="text-white" />;
-        background = background ?? '#dc2626';
-      } else if (normalizedType === 'sms') {
-        inner = <MessageSquare size={16} className="text-white" />;
-        background = background ?? '#16a34a';
-      } else {
-        inner =
-          direction === 'incoming' ? (
-            <PhoneIncoming size={16} className="text-white" />
-          ) : (
-            <PhoneOutgoing size={16} className="text-white" />
-          );
-        background = background ?? getPointColor(normalizedType || 'audio', direction);
-      }
-      break;
+  if (isLocationEventType(type)) {
+    inner = <MapPin size={16} className="text-white" />;
+  } else if (normalizedType === 'sms') {
+    inner = <MessageSquare size={16} className="text-white" />;
+  } else {
+    inner =
+      direction === 'outgoing' ? (
+        <PhoneOutgoing size={16} className="text-white" />
+      ) : (
+        <PhoneIncoming size={16} className="text-white" />
+      );
   }
 
   const icon = (
     <div
       style={{
-        backgroundColor: background ?? fallbackColor,
+        backgroundColor: getPointColor(type, direction),
         borderRadius: '9999px',
         width: size,
         height: size,
@@ -419,14 +386,14 @@ const createLabelIcon = (text: string, bgColor: string) => {
   });
 };
 
-const createGroupIcon = (
+const getGroupIcon = (
   count: number,
-  point: Point,
-  colorOverride?: string
+  type: string,
+  direction: string | undefined,
+  _colorOverride?: string
 ) => {
   const size = 32;
-  const color =
-    colorOverride ?? getPointColor(point.type || point.type_appel || '', point.direction);
+  const color = getPointColor(type, direction);
   const icon = (
     <div className="relative">
       <div
@@ -1267,9 +1234,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       const { compact = false } = options;
       const callerNumber = point.caller || point.number;
       const calleeNumber = point.callee;
-      const typeAppel = (point.type_appel || point.type || '').toLowerCase();
-      const callerDisplay = point.numero_appelant || callerNumber;
-      const calleeDisplay = point.numero_appele || calleeNumber;
 
       const startParts: string[] = [];
       if (point.callDate) startParts.push(formatDate(point.callDate));
@@ -1293,15 +1257,11 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
       const cellParts: string[] = [];
       if (point.cgi) cellParts.push(point.cgi);
-      if (point.nom) {
-        cellParts.push(point.nom);
-      } else if (point.nom_bts) {
-        cellParts.push(point.nom_bts);
-      }
+      if (point.nom) cellParts.push(point.nom);
       const cellValue = cellParts.length > 0 ? cellParts.join(' • ') : 'N/A';
 
       const normalizedType = (point.type || '').toLowerCase();
-      const isLocationEvent = isLocationEventType(point.type || typeAppel);
+      const isLocationEvent = isLocationEventType(point.type);
       const eventTypeBase = isLocationEvent
         ? 'Position'
         : normalizedType === 'sms'
@@ -1316,13 +1276,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       const eventTypeValue = directionLabel
         ? `${eventTypeBase} (${directionLabel})`
         : eventTypeBase;
-
-      const smsMessage =
-        typeAppel === 'sms'
-          ? `SMS envoyé de ${formatPhoneForDisplay(callerDisplay)} vers ${formatPhoneForDisplay(
-              calleeDisplay || ''
-            )}`
-          : null;
 
       const statusLabel = point.callStatus?.trim() || 'N/A';
       const networkRouteLabel = point.networkRoute?.trim() || 'N/A';
@@ -1362,9 +1315,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               {formatPhoneForDisplay(callerNumber)}
             </span>
           </div>
-          {smsMessage && (
-            <p className="cdr-popup-card__hint">{smsMessage}</p>
-          )}
           <div className="cdr-popup-card__details">
             {detailItems.map((item) => (
               <div key={item.label} className="cdr-popup-card__detail-item">
@@ -2550,63 +2500,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     });
   }, [displayedPoints]);
 
-  const callDirectionSegments = useMemo(() => {
-    const pairs = new Map<
-      string,
-      {
-        caller?: { point: Point; position: [number, number] };
-        callee?: { point: Point; position: [number, number] };
-      }
-    >();
-
-    groupedPoints.forEach((group) => {
-      const perSourceEntries = group.perSource;
-      const total = perSourceEntries.length;
-      perSourceEntries.forEach((entry, idx) => {
-        const position: [number, number] =
-          total > 1 ? computeOffsetPosition(group.lat, group.lng, idx, total) : [group.lat, group.lng];
-        entry.events.forEach((event) => {
-          const typeValue = (event.type_appel || event.type || '').toLowerCase();
-          if (typeValue !== 'audio') {
-            return;
-          }
-          const seq = event.seqNumber || '';
-          const timeKey = `${event.callDate || ''}|${event.startTime || ''}`;
-          const callerKey = event.numero_appelant || event.caller || '';
-          const calleeKey = event.numero_appele || event.callee || '';
-          const pairKey = seq || `${callerKey}|${calleeKey}|${timeKey}`;
-          if (!pairKey) {
-            return;
-          }
-
-          if (!pairs.has(pairKey)) {
-            pairs.set(pairKey, {});
-          }
-
-          const pair = pairs.get(pairKey)!;
-          const role = (event.role || '').toLowerCase();
-          const direction = event.direction?.toLowerCase();
-
-          if (role === 'callee' || direction === 'incoming') {
-            if (!pair.callee) {
-              pair.callee = { point: event, position };
-            }
-          } else if (!pair.caller) {
-            pair.caller = { point: event, position };
-          }
-        });
-      });
-    });
-
-    return Array.from(pairs.entries())
-      .filter(([, value]) => value.caller && value.callee)
-      .map(([key, value]) => ({
-        key,
-        from: value.caller!.position,
-        to: value.callee!.position
-      }));
-  }, [groupedPoints]);
-
   const createMarkerForEvents = useCallback(
     (events: Point[], position: [number, number], key: string) => {
       if (events.length === 0) return null;
@@ -2616,7 +2509,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           <Marker
             key={key}
             position={position}
-            icon={createPointIcon(loc, resolveSourceColor(loc.source))}
+            icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
           >
             <Popup className="cdr-popup">{renderEventPopupContent(loc)}</Popup>
           </Marker>
@@ -2636,7 +2529,12 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         <Marker
           key={key}
           position={position}
-          icon={createGroupIcon(events.length, first, resolveSourceColor(first.source))}
+          icon={getGroupIcon(
+            events.length,
+            first.type,
+            first.direction,
+            resolveSourceColor(first.source)
+          )}
         >
           <Popup className="cdr-popup">
             <div className="space-y-2.5 w-[360px] max-w-[90vw]">
@@ -2761,31 +2659,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             })}
           </MarkerClusterGroup>
         )}
-        {showBaseMarkers &&
-          callDirectionSegments.map((segment) => {
-            const [fromLat, fromLng] = segment.from;
-            const [toLat, toLng] = segment.to;
-            const midpoint: [number, number] = [
-              (fromLat + toLat) / 2,
-              (fromLng + toLng) / 2
-            ];
-            const angle = (Math.atan2(fromLat - toLat, toLng - fromLng) * 180) / Math.PI;
-            return (
-              <React.Fragment key={`call-link-${segment.key}`}>
-                <Polyline
-                  positions={[segment.from, segment.to]}
-                  pathOptions={{
-                    color: '#2563eb',
-                    weight: 2,
-                    opacity: 0.8,
-                    dashArray: '6 4',
-                    lineCap: 'round'
-                  }}
-                />
-                <Marker position={midpoint} icon={getArrowIcon(angle)} interactive={false} />
-              </React.Fragment>
-            );
-          })}
         {showMeetingPoints &&
           meetingPoints
             .filter(
@@ -2860,7 +2733,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                 parseFloat(loc.latitude),
                 parseFloat(loc.longitude)
               ]}
-              icon={createPointIcon(loc, resolveSourceColor(loc.source))}
+              icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
             >
               <Popup className="cdr-popup">
                 {renderEventPopupContent(loc)}
