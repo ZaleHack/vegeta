@@ -402,6 +402,7 @@
   border-radius: 9999px;
   background: #dc2626;
   box-shadow: 0 0 0 6px rgba(248, 113, 113, 0.45);
+  animation: latest-location-blink 1s ease-in-out infinite;
 }
 
 .dark .latest-location-pulse__dot {
@@ -421,6 +422,18 @@
   100% {
     transform: scale(2.1);
     opacity: 0;
+  }
+}
+
+@keyframes latest-location-blink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.85);
   }
 }
 
