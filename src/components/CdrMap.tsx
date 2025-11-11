@@ -2740,6 +2740,11 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }}
             whenCreated={(map) => {
               mapRef.current = map;
+              const paneId = 'latest-location-pane';
+              const pane = map.getPane(paneId) ?? map.createPane(paneId);
+              if (pane) {
+                pane.style.zIndex = '700';
+              }
               setIsMapReady(true);
             }}
             ref={mapRef}
@@ -2906,7 +2911,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </Popup>
           </Marker>
         ))}
-        {highlightedLatestPosition && (
+        {isMapReady && highlightedLatestPosition && (
           <Marker
             position={highlightedLatestPosition}
             icon={latestLocationIcon}
