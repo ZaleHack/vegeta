@@ -2249,10 +2249,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(
-    () => showOthers && !showLatestOnly,
-    [showOthers, showLatestOnly]
-  );
+  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -2831,7 +2828,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             />
           )}
           <ZoneSelector />
-        {!showLatestOnly && drawing && currentPoints.length > 0 && (
+        {drawing && currentPoints.length > 0 && (
           <Polyline
             positions={currentPoints}
             pathOptions={{
@@ -2843,7 +2840,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }}
           />
         )}
-        {!showLatestOnly && zoneShape && (
+        {zoneShape && (
           <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
         )}
         {showBaseMarkers && (
@@ -3019,8 +3016,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </Marker>
           </>
         )}
-        {!showLatestOnly &&
-          triangulationZones.map((zone, idx) => (
+        {triangulationZones.map((zone, idx) => (
             <React.Fragment key={`tri-${idx}`}>
               <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
               {zone.cells.map((cell, i) => (
@@ -3053,7 +3049,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             title={
               hasLatestLocation
                 ? showLatestOnly
-                  ? 'Afficher toutes les données'
+                  ? 'Quitter le focus sur la dernière localisation'
                   : 'Centrer sur la dernière localisation connue'
                 : 'Aucune localisation exploitable'
             }
