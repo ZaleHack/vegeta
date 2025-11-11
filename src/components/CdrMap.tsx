@@ -1307,7 +1307,12 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           : []),
         ...infoItems,
         ...optionalDetails
-      ];
+      ].filter((item) =>
+        !isLocationEvent ||
+        (item.label !== 'Numéro associé' &&
+          item.label !== 'Durée' &&
+          item.label !== "Statut d'appel")
+      );
 
       return (
         <div
