@@ -174,6 +174,28 @@ class DatabaseManager {
         );
       };
 
+      const ensureInnoDbEngine = async (tableName) => {
+        const [schemaName, ...tableParts] = tableName.split('.');
+        const tableId = tableParts.join('.');
+
+        if (!schemaName || !tableId) {
+          throw new Error(`Table name invalide: ${tableName}`);
+        }
+
+        const tableInfo = await queryOne(
+          `
+            SELECT ENGINE
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+          `,
+          [schemaName, tableId]
+        );
+
+        if (tableInfo && tableInfo.ENGINE && tableInfo.ENGINE.toUpperCase() !== 'INNODB') {
+          await this.pool.execute(`ALTER TABLE ${tableName} ENGINE=InnoDB`);
+        }
+      };
+
       const ensureColumnDefinition = async (tableName, columnName, definition, existingInfo = null) => {
         const columnInfo = existingInfo || (await getColumnInfo(tableName, columnName));
         const columnDefinition = buildColumnDefinition(definition);
@@ -707,6 +729,9 @@ class DatabaseManager {
         extraFieldsInfo
       );
 
+      await ensureInnoDbEngine('autres.profile_folders');
+      await ensureInnoDbEngine('autres.profiles');
+
       const folderColumnInfo = await getColumnInfo('autres.profiles', 'folder_id');
       await ensureColumnDefinition(
         'autres.profiles',
@@ -731,6 +756,15 @@ class DatabaseManager {
       );
       if (!existingFolderFk) {
         try {
+          try {
+            await this.pool.execute(
+              'ALTER TABLE autres.profiles ADD INDEX idx_profiles_folder_id (folder_id)'
+            );
+          } catch (error) {
+            if (error.code !== 'ER_DUP_KEYNAME') {
+              throw error;
+            }
+          }
           await query(`
             UPDATE autres.profiles p
             LEFT JOIN autres.profile_folders f ON f.id = p.folder_id
