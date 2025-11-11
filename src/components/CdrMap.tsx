@@ -1581,12 +1581,11 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         html: `
           <div class="latest-location-pulse">
             <span class="latest-location-pulse__ring"></span>
-            <span class="latest-location-pulse__ring latest-location-pulse__ring--delayed"></span>
             <span class="latest-location-pulse__dot"></span>
           </div>
         `.trim(),
-        iconSize: [42, 42],
-        iconAnchor: [21, 21]
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
       }),
     []
   );
@@ -2928,14 +2927,14 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             pane="latest-location-pane"
             ref={latestLocationMarkerRef}
           >
-            <Popup className="cdr-popup latest-location-popup">
-              <div className="latest-location-popup-card">
-                <p className="latest-location-popup-card__title">Dernière localisation détectée</p>
+            <Popup className="cdr-popup">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-red-600">Dernière localisation détectée</p>
                 {highlightedLatest?.nom && (
-                  <p className="latest-location-popup-card__location">{highlightedLatest.nom}</p>
+                  <p className="text-sm font-medium text-slate-700">{highlightedLatest.nom}</p>
                 )}
                 {highlightedLatestDetails && (
-                  <p className="latest-location-popup-card__meta">{highlightedLatestDetails}</p>
+                  <p className="text-xs text-slate-500">{highlightedLatestDetails}</p>
                 )}
               </div>
             </Popup>
@@ -2961,15 +2960,14 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         ))}
         </MapContainer>
 
-        <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-2">
+        <div className="pointer-events-none absolute bottom-6 left-1/2 z-[1000] flex -translate-x-1/2">
           <button
-            type="button"
             onClick={handleFocusLatestLocation}
             disabled={!hasLatestLocation}
-            className={`latest-location-control ${
+            className={`pointer-events-auto latest-location-button ${
               hasLatestLocation
-                ? 'latest-location-control--active'
-                : 'latest-location-control--disabled'
+                ? 'latest-location-button--active'
+                : 'latest-location-button--disabled'
             }`}
             title={
               hasLatestLocation
@@ -2977,11 +2975,25 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                 : 'Aucune localisation exploitable'
             }
           >
-            <span className="latest-location-control__icon">
-              <MapPin className="w-4 h-4" />
+            <span className="latest-location-button__icon-wrapper">
+              <span className="latest-location-button__icon-pulse" />
+              <MapPin className="w-5 h-5 relative z-[1] text-white" />
             </span>
-            <span className="latest-location-control__label">Dernière position</span>
+            <span className="flex flex-col text-left leading-tight">
+              <span className="latest-location-button__label">Dernière localisation</span>
+              <span className="latest-location-button__value">
+                {hasLatestLocation
+                  ? latestLocationPoint?.nom?.trim() || 'Position inconnue'
+                  : 'Aucune donnée'}
+              </span>
+              {hasLatestLocation && latestLocationDetails && (
+                <span className="latest-location-button__meta">{latestLocationDetails}</span>
+              )}
+            </span>
           </button>
+        </div>
+
+        <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-2">
           <button
             onClick={handleTriangulation}
             className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
