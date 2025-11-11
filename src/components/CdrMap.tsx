@@ -259,24 +259,30 @@ const formatDuration = (seconds: number): string => {
   return parts.join(' ');
 };
 
-const getPointColor = (type: string, direction?: string) => {
-  if (type === 'web') return '#dc2626';
-  if (type === 'sms') return '#16a34a';
-  if (direction === 'outgoing') return '#2563eb';
-  return '#16a34a';
+const isLocationEventType = (type?: string): boolean => {
+  if (!type) return false;
+  const normalized = type.trim().toLowerCase();
+  return normalized === 'web' || normalized === 'position';
+};
+
+const getPointColor = (type: string, _direction?: string) => {
+  if (isLocationEventType(type)) return '#2563eb';
+  return '#111827';
 };
 
 const getIcon = (
   type: string,
   direction: string | undefined,
-  colorOverride?: string
+  _colorOverride?: string
 ) => {
   const size = 32;
   let inner: React.ReactElement;
 
-  if (type === 'web') {
+  const normalizedType = type.trim().toLowerCase();
+
+  if (isLocationEventType(type)) {
     inner = <MapPin size={16} className="text-white" />;
-  } else if (type === 'sms') {
+  } else if (normalizedType === 'sms') {
     inner = <MessageSquare size={16} className="text-white" />;
   } else {
     inner =
@@ -290,7 +296,7 @@ const getIcon = (
   const icon = (
     <div
       style={{
-        backgroundColor: colorOverride || getPointColor(type, direction),
+        backgroundColor: getPointColor(type, direction),
         borderRadius: '9999px',
         width: size,
         height: size,
@@ -371,10 +377,10 @@ const getGroupIcon = (
   count: number,
   type: string,
   direction: string | undefined,
-  colorOverride?: string
+  _colorOverride?: string
 ) => {
   const size = 32;
-  const color = colorOverride || getPointColor(type, direction);
+  const color = getPointColor(type, direction);
   const icon = (
     <div className="relative">
       <div
@@ -1173,7 +1179,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     () =>
       points.filter(
         (p) =>
-          p.type === 'web' ||
+          isLocationEventType(p.type) ||
           (typeof p.direction === 'string' && p.direction.toLowerCase() === 'outgoing')
       ),
     [points]
@@ -1241,14 +1247,15 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       if (point.nom) cellParts.push(point.nom);
       const cellValue = cellParts.length > 0 ? cellParts.join(' • ') : 'N/A';
 
-      const eventTypeBase =
-        point.type === 'web'
-          ? 'Position'
-          : point.type === 'sms'
-            ? 'SMS'
-            : 'Appel';
+      const normalizedType = (point.type || '').toLowerCase();
+      const isLocationEvent = isLocationEventType(point.type);
+      const eventTypeBase = isLocationEvent
+        ? 'Position'
+        : normalizedType === 'sms'
+          ? 'SMS'
+          : 'Appel';
       const directionLabel =
-        point.direction && point.type !== 'web'
+        point.direction && !isLocationEvent
           ? point.direction === 'outgoing'
             ? 'Sortant'
             : 'Entrant'
@@ -1257,23 +1264,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         ? `${eventTypeBase} (${directionLabel})`
         : eventTypeBase;
 
-      const seqLabel = point.seqNumber?.trim() || 'N/A';
       const statusLabel = point.callStatus?.trim() || 'N/A';
-      const releaseLabel = point.releaseCause?.trim() || 'N/A';
-      const billingLabel = point.billing?.trim() || 'N/A';
       const networkRouteLabel = point.networkRoute?.trim() || 'N/A';
       const deviceLabel = point.deviceId?.trim() || 'N/A';
-      const sourceFileLabel = point.sourceFile?.trim() || 'N/A';
-      const insertedLabel = (() => {
-        if (!point.insertedAt) {
-          return 'N/A';
-        }
-        const parsed = new Date(point.insertedAt);
-        if (Number.isNaN(parsed.getTime())) {
-          return point.insertedAt;
-        }
-        return formatDateTime(parsed.getTime()) ?? point.insertedAt;
-      })();
 
       const infoItems = [
         { label: "Type d'événement", value: eventTypeValue },
@@ -1287,14 +1280,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       ];
 
       const optionalDetails = [
-        { label: 'Séquence', value: seqLabel },
         { label: "Statut d'appel", value: statusLabel },
-        { label: 'Cause de libération', value: releaseLabel },
-        { label: 'Facturation', value: billingLabel },
         { label: 'Route réseau', value: networkRouteLabel },
-        { label: "Identifiant appareil", value: deviceLabel },
-        { label: 'Fichier source', value: sourceFileLabel },
-        { label: "Date d'insertion", value: insertedLabel }
+        { label: "Identifiant appareil", value: deviceLabel }
       ].filter((item) => item.value && item.value !== 'N/A');
 
       const detailItems = [
@@ -1500,8 +1488,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         }
       }
 
-      const type = (point.type || '').toLowerCase();
-      return type !== 'web';
+      return !isLocationEventType(point.type);
     });
 
     if (!selectedSource) {
@@ -1745,8 +1732,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     const excludeTrackedContacts = trackedNumbersSet.size >= 2;
 
     contactEvents.forEach((p) => {
-      const eventType = (p.type || '').toLowerCase();
-      if (eventType !== 'web') {
+      if (!isLocationEventType(p.type)) {
         const trackedRaw = (p.tracked || '').trim();
         const trackedNormalized = normalizePhoneDigits(trackedRaw);
         if (trackedNormalized) {

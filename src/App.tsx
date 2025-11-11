@@ -583,6 +583,22 @@ const NOM_FIELD_CANDIDATES = ['nom', 'Nom', 'NOM', 'nom_bts', 'Nom_BTS', 'NOM_BT
 
 const AZIMUT_FIELD_CANDIDATES = ['azimut', 'Azimut', 'AZIMUT', 'azimuth', 'Azimuth', 'AZIMUTH'];
 
+const TYPE_FIELD_CANDIDATES = ['type', 'type_appel', "type_d'appel", 'type_d_appel'];
+
+const CALLER_FIELD_CANDIDATES = [
+  'caller',
+  'numero_appelant',
+  'numero appelant',
+  'numeroAppelant'
+];
+
+const CALLEE_FIELD_CANDIDATES = [
+  'callee',
+  'numero_appele',
+  'numero appele',
+  'numeroAppelee'
+];
+
 const sanitizeFieldKey = (key: string): string => {
   return key
     .normalize('NFD')
@@ -846,17 +862,26 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
   }
 
   const record = point as Record<string, unknown>;
-  const caller = normalizeOptionalTextField(record.caller);
+  const caller = normalizeOptionalTextField(
+    getFirstDefinedValue(point, CALLER_FIELD_CANDIDATES)
+  );
+  const callee = normalizeOptionalTextField(
+    getFirstDefinedValue(point, CALLEE_FIELD_CANDIDATES)
+  );
+  const eventType = normalizeTextField(
+    getFirstDefinedValue(point, TYPE_FIELD_CANDIDATES),
+    ''
+  );
 
   const normalized: CdrPoint = {
     latitude,
     longitude,
     nom: normalizeTextField(getFirstDefinedValue(point, NOM_FIELD_CANDIDATES), ''),
-    type: normalizeTextField(record.type, ''),
+    type: eventType,
     direction: normalizeTextField(record.direction, ''),
     number: normalizeOptionalTextField(record.number),
     caller,
-    callee: normalizeOptionalTextField(record.callee),
+    callee,
     callDate: normalizeTextField(record.callDate, ''),
     startTime: normalizeTextField(record.startTime, ''),
     endTime: normalizeTextField(record.endTime, ''),
@@ -906,7 +931,13 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
   if (explicitSource) {
     normalized.source = explicitSource;
   } else {
-    normalized.source = normalized.type === 'web' ? trackedId : caller || trackedId;
+    const normalizedTypeValue = normalized.type.toLowerCase();
+    const isLocationEvent = normalizedTypeValue === 'web' || normalizedTypeValue === 'position';
+    if (isLocationEvent) {
+      normalized.source = callee || trackedId;
+    } else {
+      normalized.source = caller || trackedId;
+    }
   }
 
   const explicitTracked = normalizeOptionalTextField(record.tracked);
@@ -3823,7 +3854,8 @@ useEffect(() => {
       const locationsMap = new Map<string, CdrLocation>();
       allPaths.forEach((p: CdrPoint) => {
         const eventType = (p.type || '').toLowerCase();
-        if (eventType !== 'web') {
+        const isLocationEvent = eventType === 'web' || eventType === 'position';
+        if (!isLocationEvent) {
           const trackedRaw = (p.tracked ?? '').toString().trim();
           const trackedNormalized = normalizeCdrNumber(trackedRaw);
           if (trackedNormalized) {
