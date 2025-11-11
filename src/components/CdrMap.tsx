@@ -1581,6 +1581,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         html: `
           <div class="latest-location-pulse">
             <span class="latest-location-pulse__ring"></span>
+            <span class="latest-location-pulse__ring latest-location-pulse__ring--delayed"></span>
+            <span class="latest-location-pulse__glow"></span>
             <span class="latest-location-pulse__dot"></span>
           </div>
         `.trim(),
