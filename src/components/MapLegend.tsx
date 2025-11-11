@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhoneIncoming, PhoneOutgoing, MessageSquare, MapPin, Route } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, MessageSquare, MapPin } from 'lucide-react';
 
 const MapLegend: React.FC = () => {
   const legendItems = [
@@ -7,7 +7,7 @@ const MapLegend: React.FC = () => {
     { icon: PhoneOutgoing, label: 'Appel sortant', color: 'bg-blue-600' },
     { icon: MessageSquare, label: 'SMS', color: 'bg-green-600' },
     { icon: MapPin, label: 'Position', color: 'bg-red-600' },
-    { icon: Route, label: 'Trajectoires similaires', color: 'bg-indigo-600' }
+    { icon: MapPin, label: 'Localisation approximative', color: 'bg-red-300' }
   ];
 
     return (
