@@ -1536,14 +1536,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     return [lat, lng];
   }, [latestLocationPoint]);
 
-  const highlightedLatestPosition = useMemo<[number, number] | null>(() => {
-    if (!highlightedLatest) return null;
-    const lat = parseFloat(highlightedLatest.latitude);
-    const lng = parseFloat(highlightedLatest.longitude);
-    if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
-    return [lat, lng];
-  }, [highlightedLatest]);
-
   useEffect(() => {
     if (!latestLocationPoint) {
       setHighlightedLatest(null);
@@ -1593,9 +1585,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   );
 
   useEffect(() => {
-    if (!isMapReady) return;
+    if (!isMapReady || !latestLocationPosition) return;
     latestLocationMarkerRef.current?.bringToFront();
-  }, [isMapReady, latestLocationPosition, highlightedLatestPosition]);
+  }, [isMapReady, latestLocationPosition]);
 
   const handleFocusLatestLocation = useCallback(() => {
     if (!latestLocationPoint || !latestLocationPosition) return;
@@ -2614,6 +2606,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
+  const latestLocationPopupPoint = highlightedLatest ?? latestLocationPoint;
+  const latestLocationPopupDetails = highlightedLatestDetails ?? latestLocationDetails;
   const groupedPoints = useMemo<GroupedPoint[]>(() => {
     const groups = new Map<
       string,
@@ -2921,9 +2915,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </Popup>
           </Marker>
         ))}
-        {isMapReady && highlightedLatestPosition && (
+        {isMapReady && latestLocationPoint && latestLocationPosition && (
           <Marker
-            position={highlightedLatestPosition}
+            position={latestLocationPosition}
             icon={latestLocationIcon}
             zIndexOffset={4000}
             pane="latest-location-pane"
@@ -2932,11 +2926,13 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             <Popup className="cdr-popup">
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-red-600">Dernière localisation détectée</p>
-                {highlightedLatest?.nom && (
-                  <p className="text-sm font-medium text-slate-700">{highlightedLatest.nom}</p>
+                {latestLocationPopupPoint?.nom && (
+                  <p className="text-sm font-medium text-slate-700">
+                    {latestLocationPopupPoint.nom}
+                  </p>
                 )}
-                {highlightedLatestDetails && (
-                  <p className="text-xs text-slate-500">{highlightedLatestDetails}</p>
+                {latestLocationPopupDetails && (
+                  <p className="text-xs text-slate-500">{latestLocationPopupDetails}</p>
                 )}
               </div>
             </Popup>
