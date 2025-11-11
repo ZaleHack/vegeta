@@ -265,9 +265,22 @@ const isLocationEventType = (type?: string): boolean => {
   return normalized === 'web' || normalized === 'position';
 };
 
-const getPointColor = (type: string, _direction?: string) => {
-  if (isLocationEventType(type)) return '#2563eb';
-  return '#111827';
+const getPointColor = (type: string, direction?: string) => {
+  const normalizedType = type.trim().toLowerCase();
+
+  if (isLocationEventType(type)) {
+    return '#dc2626';
+  }
+
+  if (normalizedType === 'sms') {
+    return '#16a34a';
+  }
+
+  if (direction && direction.toLowerCase() === 'outgoing') {
+    return '#2563eb';
+  }
+
+  return '#16a34a';
 };
 
 const getIcon = (
@@ -1376,14 +1389,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     }
   }, [sourceNumbers, selectedSource]);
 
-  const toggleSourceVisibility = (src: string) => {
-    setVisibleSources((prev) => {
-      const next = new Set(prev);
-      if (next.has(src)) next.delete(src);
-      else next.add(src);
-      return next;
-    });
-  };
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular' | 'history') => {
     if (showMeetingPoints) onToggleMeetingPoints?.();
     setShowZoneInfo(false);
@@ -2141,15 +2146,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       setVisibleSimilar(new Set(similarNumbers));
     }
   }, [showSimilar, similarNumbers]);
-
-  const toggleSimilarVisibility = (src: string) => {
-    setVisibleSimilar((prev) => {
-      const next = new Set(prev);
-      if (next.has(src)) next.delete(src);
-      else next.add(src);
-      return next;
-    });
-  };
 
   const similarPoints = useMemo(
     () =>
@@ -2962,31 +2958,16 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                 <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
                   <MapPin className="w-4 h-4 text-white" />
                 </span>
-                <span className="font-semibold text-red-600 dark:text-white">Localisation approximative</span>
+                <span className="font-semibold">Localisation approximative</span>
               </li>
               {showSimilar ? (
                 similarNumbers.map((n) => (
                   <li key={n} className="flex items-center space-x-2">
                     <span
                       className="w-6 h-6 rounded-full"
-                      style={{
-                        backgroundColor: colorMap.get(n),
-                        opacity: visibleSimilar.has(n) ? 1 : 0.3
-                      }}
+                      style={{ backgroundColor: colorMap.get(n) }}
                     ></span>
-                    <span className={visibleSimilar.has(n) ? '' : 'line-through'}>
-                      {n}
-                    </span>
-                    <button
-                      className="ml-1"
-                      onClick={() => toggleSimilarVisibility(n)}
-                    >
-                      {visibleSimilar.has(n) ? (
-                        <Eye className="w-4 h-4 text-gray-600" />
-                      ) : (
-                        <EyeOff className="w-4 h-4 text-gray-400" />
-                      )}
-                    </button>
+                    <span>{n}</span>
                   </li>
                 ))
               ) : selectedSource === null &&
@@ -2995,24 +2976,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                   <li key={n} className="flex items-center space-x-2">
                     <span
                       className="w-6 h-6 rounded-full"
-                      style={{
-                        backgroundColor: colorMap.get(n),
-                        opacity: visibleSources.has(n) ? 1 : 0.3
-                      }}
+                      style={{ backgroundColor: colorMap.get(n) }}
                     ></span>
-                    <span className={visibleSources.has(n) ? '' : 'line-through'}>
-                      {n}
-                    </span>
-                    <button
-                      className="ml-1"
-                      onClick={() => toggleSourceVisibility(n)}
-                    >
-                      {visibleSources.has(n) ? (
-                        <Eye className="w-4 h-4 text-gray-600" />
-                      ) : (
-                        <EyeOff className="w-4 h-4 text-gray-400" />
-                      )}
-                    </button>
+                    <span>{n}</span>
                   </li>
                 ))
               ) : (
