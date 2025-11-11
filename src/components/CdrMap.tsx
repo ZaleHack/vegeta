@@ -1246,7 +1246,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | 'history' | null>(null);
   const [showOthers, setShowOthers] = useState(true);
-  const [latestFocusActive, setLatestFocusActive] = useState(false);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
   const [showZoneInfo, setShowZoneInfo] = useState(false);
@@ -1561,12 +1560,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   }, [highlightedLatest]);
 
   useEffect(() => {
-    if (!highlightedLatest) {
-      setLatestFocusActive(false);
-    }
-  }, [highlightedLatest]);
-
-  useEffect(() => {
     if (!isMapReady || !mapRef.current) return;
     const paneId = 'latest-location-pane';
     const map = mapRef.current;
@@ -1600,7 +1593,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     const nextZoom = Math.max(mapRef.current?.getZoom() ?? 13, 16);
     mapRef.current?.flyTo(latestLocationPosition, nextZoom, { animate: true, duration: 1.5 });
     setHighlightedLatest({ ...latestLocationPoint });
-    setLatestFocusActive(true);
     setShowZoneInfo(false);
     setActiveInfo(null);
   }, [latestLocationPoint, latestLocationPosition, setShowZoneInfo, setActiveInfo]);
@@ -2195,10 +2187,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(
-    () => showOthers && !latestFocusActive,
-    [showOthers, latestFocusActive]
-  );
+  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
