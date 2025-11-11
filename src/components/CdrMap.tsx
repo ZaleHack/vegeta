@@ -2941,6 +2941,11 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           >
             <MapPin className="w-5 h-5" />
           </button>
+          {hasLatestLocation && latestLocationDetails && (
+            <span className="pointer-events-none px-1 text-[10px] uppercase tracking-wide text-slate-500">
+              {latestLocationDetails}
+            </span>
+          )}
           <button
             onClick={handleTriangulation}
             className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${

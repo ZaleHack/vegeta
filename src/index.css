@@ -371,6 +371,64 @@
   }
 }
 
-/* Latest location button styling now aligns with the shared Tailwind utility controls. */
+/* Reinstate the pulse animation used by the latest location marker icon. */
+
+.latest-location-pulse-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.latest-location-pulse {
+  position: relative;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.latest-location-pulse__ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: rgba(59, 130, 246, 0.35);
+  animation: latest-location-ring 1.6s ease-out infinite;
+}
+
+.latest-location-pulse__dot {
+  position: absolute;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 9999px;
+  background: #2563eb;
+  box-shadow: 0 0 18px rgba(37, 99, 235, 0.75);
+  animation: latest-location-dot 1.6s ease-in-out infinite;
+}
+
+@keyframes latest-location-ring {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+@keyframes latest-location-dot {
+  0%,
+  100% {
+    transform: scale(0.9);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
 
 
