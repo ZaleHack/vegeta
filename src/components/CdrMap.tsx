@@ -214,6 +214,27 @@ const getPointDurationInSeconds = (point: Point): number => {
   return diff > 0 ? diff : 0;
 };
 
+const getPointTimestamp = (point: Point): number | null => {
+  const fallbackFromInsertedAt = () => {
+    if (!point.insertedAt) return null;
+    const parsed = Date.parse(point.insertedAt);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const datePart = point.callDate || point.endDate || point.insertedAt?.split('T')[0];
+  if (!datePart) {
+    return fallbackFromInsertedAt();
+  }
+
+  const timePart =
+    point.startTime || point.endTime || point.insertedAt?.split('T')[1]?.slice(0, 8) || '00:00:00';
+  const parsed = Date.parse(`${datePart}T${timePart}`);
+  if (Number.isNaN(parsed)) {
+    return fallbackFromInsertedAt();
+  }
+  return parsed;
+};
+
 const formatPointDuration = (point: Point): string | null => {
   if (point.type === 'sms') return null;
 
@@ -1232,6 +1253,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
   const [activeMeetingNumber, setActiveMeetingNumber] = useState<string | null>(null);
   const [isSatellite, setIsSatellite] = useState(false);
+  const [highlightedLatest, setHighlightedLatest] = useState<Point | null>(null);
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
       const { compact = false } = options;
@@ -1464,6 +1486,104 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     }
     return filtered.filter(isPointWithinZone);
   }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
+
+  const latestLocationPoint = useMemo(() => {
+    let latest: { point: Point; timestamp: number } | null = null;
+    displayedPoints.forEach((point) => {
+      if (!isLocationEventType(point.type)) return;
+      const lat = parseFloat(point.latitude);
+      const lng = parseFloat(point.longitude);
+      if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+      const ts = getPointTimestamp(point);
+      if (ts === null) return;
+      if (!latest || ts > latest.timestamp) {
+        latest = { point, timestamp: ts };
+      }
+    });
+    return latest?.point ?? null;
+  }, [displayedPoints]);
+
+  const latestLocationDetails = useMemo(() => {
+    if (!latestLocationPoint) return null;
+    const parts: string[] = [];
+    if (latestLocationPoint.callDate) {
+      parts.push(formatDate(latestLocationPoint.callDate));
+    }
+    if (latestLocationPoint.startTime) {
+      parts.push(latestLocationPoint.startTime);
+    }
+    return parts.length > 0 ? parts.join(' • ') : null;
+  }, [latestLocationPoint]);
+
+  const highlightedLatestDetails = useMemo(() => {
+    if (!highlightedLatest) return null;
+    const parts: string[] = [];
+    if (highlightedLatest.callDate) {
+      parts.push(formatDate(highlightedLatest.callDate));
+    }
+    if (highlightedLatest.startTime) {
+      parts.push(highlightedLatest.startTime);
+    }
+    return parts.length > 0 ? parts.join(' • ') : null;
+  }, [highlightedLatest]);
+
+  const latestLocationPosition = useMemo<[number, number] | null>(() => {
+    if (!latestLocationPoint) return null;
+    const lat = parseFloat(latestLocationPoint.latitude);
+    const lng = parseFloat(latestLocationPoint.longitude);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+    return [lat, lng];
+  }, [latestLocationPoint]);
+
+  const highlightedLatestPosition = useMemo<[number, number] | null>(() => {
+    if (!highlightedLatest) return null;
+    const lat = parseFloat(highlightedLatest.latitude);
+    const lng = parseFloat(highlightedLatest.longitude);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+    return [lat, lng];
+  }, [highlightedLatest]);
+
+  useEffect(() => {
+    if (!latestLocationPoint) {
+      setHighlightedLatest(null);
+    }
+  }, [latestLocationPoint]);
+
+  useEffect(() => {
+    if (!highlightedLatest) return;
+    if (typeof window === 'undefined') return;
+    const timeout = window.setTimeout(() => {
+      setHighlightedLatest(null);
+    }, 8000);
+    return () => window.clearTimeout(timeout);
+  }, [highlightedLatest]);
+
+  const latestLocationIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: 'latest-location-pulse-icon',
+        html: `
+          <div class="latest-location-pulse">
+            <span class="latest-location-pulse__ring"></span>
+            <span class="latest-location-pulse__dot"></span>
+          </div>
+        `.trim(),
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      }),
+    []
+  );
+
+  const handleFocusLatestLocation = useCallback(() => {
+    if (!latestLocationPoint || !latestLocationPosition) return;
+    const nextZoom = Math.max(mapRef.current?.getZoom() ?? 13, 16);
+    mapRef.current?.flyTo(latestLocationPosition, nextZoom, { animate: true, duration: 1.5 });
+    setHighlightedLatest({ ...latestLocationPoint });
+    setShowZoneInfo(false);
+    setActiveInfo(null);
+  }, [latestLocationPoint, latestLocationPosition, setShowZoneInfo, setActiveInfo]);
+
+  const hasLatestLocation = Boolean(latestLocationPosition);
 
   const contactPoints = useMemo(() => {
     const matchesVisible = (raw?: string): boolean => {
@@ -2769,6 +2889,21 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </Popup>
           </Marker>
         ))}
+        {highlightedLatestPosition && (
+          <Marker position={highlightedLatestPosition} icon={latestLocationIcon} zIndexOffset={4000}>
+            <Popup className="cdr-popup">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-red-600">Dernière localisation détectée</p>
+                {highlightedLatest?.nom && (
+                  <p className="text-sm font-medium text-slate-700">{highlightedLatest.nom}</p>
+                )}
+                {highlightedLatestDetails && (
+                  <p className="text-xs text-slate-500">{highlightedLatestDetails}</p>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        )}
         {triangulationZones.map((zone, idx) => (
           <React.Fragment key={`tri-${idx}`}>
             <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
@@ -2790,6 +2925,36 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         </MapContainer>
 
         <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-2">
+          <button
+            onClick={handleFocusLatestLocation}
+            disabled={!hasLatestLocation}
+            className={`pointer-events-auto latest-location-button ${
+              hasLatestLocation
+                ? 'latest-location-button--active'
+                : 'latest-location-button--disabled'
+            }`}
+            title={
+              hasLatestLocation
+                ? 'Centrer sur la dernière localisation connue'
+                : 'Aucune localisation exploitable'
+            }
+          >
+            <span className="latest-location-button__icon-wrapper">
+              <span className="latest-location-button__icon-pulse" />
+              <MapPin className="w-5 h-5 relative z-[1] text-white" />
+            </span>
+            <span className="flex flex-col text-left leading-tight">
+              <span className="latest-location-button__label">Dernière localisation</span>
+              <span className="latest-location-button__value">
+                {hasLatestLocation
+                  ? latestLocationPoint?.nom?.trim() || 'Position inconnue'
+                  : 'Aucune donnée'}
+              </span>
+              {hasLatestLocation && latestLocationDetails && (
+                <span className="latest-location-button__meta">{latestLocationDetails}</span>
+              )}
+            </span>
+          </button>
           <button
             onClick={handleTriangulation}
             className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
