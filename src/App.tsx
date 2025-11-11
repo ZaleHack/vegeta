@@ -839,6 +839,18 @@ const normalizeOptionalTextField = (value: unknown): string | undefined => {
   return text || undefined;
 };
 
+const normalizePhoneDigits = (value?: string): string => {
+  if (!value) return '';
+  let digits = value.replace(/\D/g, '');
+  if (digits.startsWith('00')) {
+    digits = digits.replace(/^00+/, '');
+  }
+  if (digits.startsWith('221')) {
+    digits = digits.slice(3);
+  }
+  return digits;
+};
+
 const normalizeTextField = (value: unknown, fallback = ''): string => {
   return normalizeOptionalTextField(value) ?? fallback;
 };
