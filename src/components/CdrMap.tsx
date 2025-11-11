@@ -280,19 +280,6 @@ const formatDuration = (seconds: number): string => {
   return parts.join(' ');
 };
 
-const getPointIdentifier = (point: Point): string => {
-  const lat = Number.parseFloat(point.latitude || '0') || 0;
-  const lng = Number.parseFloat(point.longitude || '0') || 0;
-  const normalizedLat = lat.toFixed(6);
-  const normalizedLng = lng.toFixed(6);
-  const date = point.callDate?.trim() || '';
-  const time = point.startTime?.trim() || '';
-  const type = point.type?.trim().toLowerCase() || '';
-  const seq = point.seqNumber?.toString() || '';
-  const source = point.source?.toString() || '';
-  return [normalizedLat, normalizedLng, date, time, type, seq, source].join('|');
-};
-
 const isLocationEventType = (type?: string): boolean => {
   if (!type) return false;
   const normalized = type.trim().toLowerCase();
@@ -317,24 +304,15 @@ const getPointColor = (type: string, direction?: string) => {
   return '#16a34a';
 };
 
-interface IconOptions {
-  highlight?: boolean;
-}
-
 const getIcon = (
   type: string,
   direction: string | undefined,
-  _colorOverride?: string,
-  options: IconOptions = {}
+  _colorOverride?: string
 ) => {
-  const highlight = options.highlight ?? false;
-  const normalizedType = type.trim().toLowerCase();
-  const innerColor = getPointColor(type, direction);
-  const baseSize = 32;
-  const highlightSize = 56;
-  const size = highlight ? highlightSize : baseSize;
-
+  const size = 32;
   let inner: React.ReactElement;
+
+  const normalizedType = type.trim().toLowerCase();
 
   if (isLocationEventType(type)) {
     inner = <MapPin size={16} className="text-white" />;
@@ -350,16 +328,18 @@ const getIcon = (
   }
 
   const icon = (
-    <div className={`latest-location-icon${highlight ? ' latest-location-icon--highlighted' : ''}`}>
-      {highlight && (
-        <>
-          <span className="latest-location-icon__pulse" />
-          <span className="latest-location-icon__pulse latest-location-icon__pulse--delayed" />
-        </>
-      )}
-      <div className="latest-location-icon__inner" style={{ backgroundColor: innerColor }}>
-        {inner}
-      </div>
+    <div
+      style={{
+        backgroundColor: getPointColor(type, direction),
+        borderRadius: '9999px',
+        width: size,
+        height: size,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      {inner}
     </div>
   );
 
@@ -431,28 +411,19 @@ const getGroupIcon = (
   count: number,
   type: string,
   direction: string | undefined,
-  _colorOverride?: string,
-  options: IconOptions = {}
+  _colorOverride?: string
 ) => {
-  const highlight = options.highlight ?? false;
+  const size = 32;
   const color = getPointColor(type, direction);
-  const baseSize = 32;
-  const highlightSize = 56;
-  const size = highlight ? highlightSize : baseSize;
   const icon = (
-    <div className={`latest-location-icon${highlight ? ' latest-location-icon--highlighted' : ''}`}>
-      {highlight && (
-        <>
-          <span className="latest-location-icon__pulse" />
-          <span className="latest-location-icon__pulse latest-location-icon__pulse--delayed" />
-        </>
-      )}
-      <div className="latest-location-icon__inner" style={{ backgroundColor: color }}>
-        <Layers size={16} className="text-white" />
-      </div>
-      <span
-        className={`latest-location-icon__badge${highlight ? ' latest-location-icon__badge--highlighted' : ''}`}
+    <div className="relative">
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center text-white"
+        style={{ backgroundColor: color }}
       >
+        <Layers size={16} />
+      </div>
+      <span className="absolute -top-1 -right-1 bg-gray-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
         {count}
       </span>
     </div>
@@ -461,7 +432,7 @@ const getGroupIcon = (
     html: renderToStaticMarkup(icon),
     className: '',
     iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2]
+    iconAnchor: [size / 2, size]
   });
 };
 
@@ -1259,7 +1230,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const first = referencePoints[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const mapRef = useRef<L.Map | null>(null);
-  const highlightedMarkerRef = useRef<L.Marker | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
 
   const handleZoomIn = () => {
@@ -1285,10 +1255,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const [activeMeetingNumber, setActiveMeetingNumber] = useState<string | null>(null);
   const [isSatellite, setIsSatellite] = useState(false);
   const [highlightedLatest, setHighlightedLatest] = useState<Point | null>(null);
-  const highlightedLatestKey = useMemo(
-    () => (highlightedLatest ? getPointIdentifier(highlightedLatest) : null),
-    [highlightedLatest]
-  );
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
       const { compact = false } = options;
@@ -1579,16 +1545,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   }, [highlightedLatest]);
 
   useEffect(() => {
-    if (!highlightedMarkerRef.current) return;
-    if (highlightedLatest) {
-      highlightedMarkerRef.current.openPopup();
-      highlightedMarkerRef.current.bringToFront();
-    } else {
-      highlightedMarkerRef.current.closePopup();
-    }
-  }, [highlightedLatest]);
-
-  useEffect(() => {
     if (!latestLocationPoint) {
       setHighlightedLatest(null);
     }
@@ -1612,25 +1568,22 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       pane = map.createPane(paneId);
     }
     if (pane) {
-      pane.style.zIndex = '900';
+      pane.style.zIndex = '700';
     }
   }, [isMapReady]);
 
   const latestLocationIcon = useMemo(
     () =>
       L.divIcon({
-        className: '',
-        html: renderToStaticMarkup(
-          <div className="latest-location-icon latest-location-icon--highlighted latest-location-icon--pulse-only">
-            <span className="latest-location-icon__pulse" />
-            <span className="latest-location-icon__pulse latest-location-icon__pulse--delayed" />
-            <div className="latest-location-icon__inner latest-location-icon__inner--primary">
-              <MapPin size={20} className="text-white" />
-            </div>
+        className: 'latest-location-pulse-icon',
+        html: `
+          <div class="latest-location-pulse">
+            <span class="latest-location-pulse__ring"></span>
+            <span class="latest-location-pulse__dot"></span>
           </div>
-        ),
-        iconSize: [56, 56],
-        iconAnchor: [28, 28]
+        `.trim(),
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
       }),
     []
   );
@@ -2689,32 +2642,16 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     });
   }, [displayedPoints]);
 
-  const matchesHighlightedLatest = useCallback(
-    (events: Point[]) => {
-      if (!highlightedLatestKey) return false;
-      return events.some((event) => getPointIdentifier(event) === highlightedLatestKey);
-    },
-    [highlightedLatestKey]
-  );
-
   const createMarkerForEvents = useCallback(
-    (
-      events: Point[],
-      position: [number, number],
-      key: string,
-      options: IconOptions = {}
-    ) => {
+    (events: Point[], position: [number, number], key: string) => {
       if (events.length === 0) return null;
-      const highlight = options.highlight ?? false;
       if (events.length === 1) {
         const loc = events[0];
         return (
           <Marker
             key={key}
             position={position}
-            icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source), { highlight })}
-            zIndexOffset={highlight ? 2500 : undefined}
-            pane={highlight ? 'latest-location-pane' : undefined}
+            icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
           >
             <Popup className="cdr-popup">{renderEventPopupContent(loc)}</Popup>
           </Marker>
@@ -2738,11 +2675,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             events.length,
             first.type,
             first.direction,
-            resolveSourceColor(first.source),
-            { highlight }
+            resolveSourceColor(first.source)
           )}
-          zIndexOffset={highlight ? 2500 : undefined}
-          pane={highlight ? 'latest-location-pane' : undefined}
         >
           <Popup className="cdr-popup">
             <div className="space-y-2.5 w-[360px] max-w-[90vw]">
@@ -2806,16 +2740,10 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }}
             whenCreated={(map) => {
               mapRef.current = map;
-              map.once('unload', () => {
-                setIsMapReady(false);
-                if (mapRef.current === map) {
-                  mapRef.current = null;
-                }
-              });
               const paneId = 'latest-location-pane';
               const pane = map.getPane(paneId) ?? map.createPane(paneId);
               if (pane) {
-                pane.style.zIndex = '900';
+                pane.style.zIndex = '700';
               }
               setIsMapReady(true);
             }}
@@ -2851,17 +2779,15 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         {zoneShape && (
           <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
         )}
-        {isMapReady && showBaseMarkers && (
+        {showBaseMarkers && (
           <MarkerClusterGroup maxClusterRadius={0}>
             {groupedPoints.flatMap((group, idx) => {
               const perSourceEntries = group.perSource;
-              const groupHighlighted = matchesHighlightedLatest(group.events);
               if (perSourceEntries.length <= 1) {
                 const marker = createMarkerForEvents(
                   group.events,
                   [group.lat, group.lng],
-                  `group-${idx}`,
-                  { highlight: groupHighlighted }
+                  `group-${idx}`
                 );
                 return marker ? [marker] : [];
               }
@@ -2873,19 +2799,17 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                   entryIdx,
                   perSourceEntries.length
                 );
-                const isHighlighted = matchesHighlightedLatest(entry.events);
                 const marker = createMarkerForEvents(
                   entry.events,
                   position,
-                  `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`,
-                  { highlight: isHighlighted || groupHighlighted }
+                  `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
                 );
                 return marker ? [marker] : [];
               });
             })}
           </MarkerClusterGroup>
         )}
-        {isMapReady && showMeetingPoints &&
+        {showMeetingPoints &&
           meetingPoints
             .filter(
               (mp) =>
@@ -2899,7 +2823,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             .map((mp, idx) => (
               <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
             ))}
-        {isMapReady && showBaseMarkers && showRoute && routePositions.length > 1 && (
+        {showBaseMarkers && showRoute && routePositions.length > 1 && (
           <Polyline
             positions={routePositions}
             pathOptions={{
@@ -2912,19 +2836,19 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }}
           />
         )}
-        {isMapReady && showBaseMarkers && showRoute && routePositions.length > 0 && (
+        {showBaseMarkers && showRoute && routePositions.length > 0 && (
           <Marker position={routePositions[0]} icon={startIcon} />
         )}
-        {isMapReady && showBaseMarkers && showRoute && routePositions.length > 1 && (
+        {showBaseMarkers && showRoute && routePositions.length > 1 && (
           <Marker
             position={routePositions[routePositions.length - 1]}
             icon={endIcon}
           />
         )}
-        {isMapReady && showBaseMarkers && showRoute && interpolatedRoute.length > 0 && (
+        {showBaseMarkers && showRoute && interpolatedRoute.length > 0 && (
           <Marker position={carPosition} icon={carIcon} />
         )}
-        {isMapReady && showBaseMarkers && showRoute &&
+        {showBaseMarkers && showRoute &&
           arrowMarkers.map((a, idx) => (
             <Marker
               key={`arrow-${idx}`}
@@ -2933,7 +2857,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               interactive={false}
             />
           ))}
-        {isMapReady && showSimilar &&
+        {showSimilar &&
           similarSegments.flatMap((seg, idx) =>
             seg.sources.map((src) =>
               visibleSimilar.has(src) ? (
@@ -2951,7 +2875,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               ) : null
             )
           )}
-        {isMapReady && showSimilar &&
+        {showSimilar &&
           (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
             <Marker
               key={`similar-point-${idx}`}
@@ -2966,31 +2890,29 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               </Popup>
             </Marker>
             ))}
-        {isMapReady &&
-          locationMarkers.map((loc, idx) => (
-            <Marker
-              key={`stat-${idx}`}
-              position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-              icon={createLabelIcon(
-                String(loc.count),
-                selectedSource === null &&
-                  sourceNumbers.length > 1 &&
-                  (activeInfo === 'recent' || activeInfo === 'popular')
-                  ? colorMap.get(loc.source || '') || '#f97316'
-                  : activeInfo === 'popular'
-                  ? '#9333ea'
-                  : '#f97316'
-              )}
-              zIndexOffset={1000}
-            >
-              <Popup className="cdr-popup">
-                {renderLocationStatPopup(loc)}
-              </Popup>
-            </Marker>
-          ))}
+        {locationMarkers.map((loc, idx) => (
+          <Marker
+            key={`stat-${idx}`}
+            position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
+            icon={createLabelIcon(
+              String(loc.count),
+              selectedSource === null &&
+              sourceNumbers.length > 1 &&
+              (activeInfo === 'recent' || activeInfo === 'popular')
+                ? colorMap.get(loc.source || '') || '#f97316'
+                : activeInfo === 'popular'
+                ? '#9333ea'
+                : '#f97316'
+            )}
+            zIndexOffset={1000}
+          >
+            <Popup className="cdr-popup">
+              {renderLocationStatPopup(loc)}
+            </Popup>
+          </Marker>
+        ))}
         {isMapReady && highlightedLatestPosition && (
           <Marker
-            ref={highlightedMarkerRef}
             position={highlightedLatestPosition}
             icon={latestLocationIcon}
             zIndexOffset={4000}
@@ -2998,35 +2920,13 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           >
             <Popup className="cdr-popup latest-location-popup">
               <div className="latest-location-popup-card">
-                <div className="latest-location-popup-card__header">
-                  <span className="latest-location-popup-card__icon">
-                    <MapPin size={18} />
-                  </span>
-                  <div>
-                    <p className="latest-location-popup-card__title">Dernière localisation détectée</p>
-                    {highlightedLatest?.nom && (
-                      <p className="latest-location-popup-card__location">{highlightedLatest.nom}</p>
-                    )}
-                  </div>
-                </div>
-                {highlightedLatestDetails && (
-                  <p className="latest-location-popup-card__meta">
-                    Observée le {highlightedLatestDetails}
-                  </p>
+                <p className="latest-location-popup-card__title">Dernière localisation détectée</p>
+                {highlightedLatest?.nom && (
+                  <p className="latest-location-popup-card__location">{highlightedLatest.nom}</p>
                 )}
-                <div className="latest-location-popup-card__footer">
-                  {highlightedLatest?.latitude && highlightedLatest?.longitude && (
-                    <span className="latest-location-popup-card__chip">
-                      {parseFloat(highlightedLatest.latitude).toFixed(4)},{' '}
-                      {parseFloat(highlightedLatest.longitude).toFixed(4)}
-                    </span>
-                  )}
-                  {highlightedLatest?.source && (
-                    <span className="latest-location-popup-card__chip">
-                      Source : {formatPhoneForDisplay(highlightedLatest.source)}
-                    </span>
-                  )}
-                </div>
+                {highlightedLatestDetails && (
+                  <p className="latest-location-popup-card__meta">{highlightedLatestDetails}</p>
+                )}
               </div>
             </Popup>
           </Marker>
@@ -3192,7 +3092,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           </div>
         </div>
 
-        {isMapReady && showBaseMarkers && showRoute && (
+        {showBaseMarkers && showRoute && (
           <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
             <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
               <Car className="w-4 h-4 text-indigo-500" />
