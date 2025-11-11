@@ -1230,6 +1230,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const first = referencePoints[0];
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const mapRef = useRef<L.Map | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
 
   const handleZoomIn = () => {
     if (mapRef.current) {
@@ -1557,6 +1558,19 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     }, 8000);
     return () => window.clearTimeout(timeout);
   }, [highlightedLatest]);
+
+  useEffect(() => {
+    if (!isMapReady || !mapRef.current) return;
+    const paneId = 'latest-location-pane';
+    const map = mapRef.current;
+    let pane = map.getPane(paneId);
+    if (!pane) {
+      pane = map.createPane(paneId);
+    }
+    if (pane) {
+      pane.style.zIndex = '700';
+    }
+  }, [isMapReady]);
 
   const latestLocationIcon = useMemo(
     () =>
@@ -2724,7 +2738,10 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               position: 'relative',
               cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined
             }}
-            whenCreated={(map) => (mapRef.current = map)}
+            whenCreated={(map) => {
+              mapRef.current = map;
+              setIsMapReady(true);
+            }}
             ref={mapRef}
           >
           {isSatellite ? (
@@ -2890,15 +2907,20 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           </Marker>
         ))}
         {highlightedLatestPosition && (
-          <Marker position={highlightedLatestPosition} icon={latestLocationIcon} zIndexOffset={4000}>
-            <Popup className="cdr-popup">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-red-600">Dernière localisation détectée</p>
+          <Marker
+            position={highlightedLatestPosition}
+            icon={latestLocationIcon}
+            zIndexOffset={4000}
+            pane="latest-location-pane"
+          >
+            <Popup className="cdr-popup latest-location-popup">
+              <div className="latest-location-popup-card">
+                <p className="latest-location-popup-card__title">Dernière localisation détectée</p>
                 {highlightedLatest?.nom && (
-                  <p className="text-sm font-medium text-slate-700">{highlightedLatest.nom}</p>
+                  <p className="latest-location-popup-card__location">{highlightedLatest.nom}</p>
                 )}
                 {highlightedLatestDetails && (
-                  <p className="text-xs text-slate-500">{highlightedLatestDetails}</p>
+                  <p className="latest-location-popup-card__meta">{highlightedLatestDetails}</p>
                 )}
               </div>
             </Popup>
