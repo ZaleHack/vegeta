@@ -139,6 +139,15 @@ class DatabaseManager {
 
       const buildColumnDefinition = (definition) => {
         const parts = [definition.type];
+
+        if (definition.characterSet) {
+          parts.push(`CHARACTER SET ${definition.characterSet}`);
+        }
+
+        if (definition.collation) {
+          parts.push(`COLLATE ${definition.collation}`);
+        }
+
         const isNullable = definition.nullable !== false;
         parts.push(isNullable ? 'NULL' : 'NOT NULL');
 
@@ -166,7 +175,7 @@ class DatabaseManager {
 
         return queryOne(
           `
-            SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
+            SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, CHARACTER_SET_NAME, COLLATION_NAME
             FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
           `,
@@ -220,13 +229,21 @@ class DatabaseManager {
           return { existed: false, changed: true };
         }
 
-        const expectedType = definition.type?.trim().toUpperCase();
-        const actualType = columnInfo.COLUMN_TYPE?.trim().toUpperCase();
+        const expectedType = normalizeColumnType(definition.type?.trim());
+        const actualType = normalizeColumnType(columnInfo.COLUMN_TYPE?.trim());
         const typeMatches = expectedType === actualType;
 
         const expectedNullable = definition.nullable !== false;
         const actualNullable = columnInfo.IS_NULLABLE === 'YES';
         const nullableMatches = expectedNullable === actualNullable;
+
+        const expectedCharacterSet = definition.characterSet || null;
+        const actualCharacterSet = columnInfo.CHARACTER_SET_NAME || null;
+        const characterSetMatches = expectedCharacterSet ? expectedCharacterSet === actualCharacterSet : true;
+
+        const expectedCollation = definition.collation || null;
+        const actualCollation = columnInfo.COLLATION_NAME || null;
+        const collationMatches = expectedCollation ? expectedCollation === actualCollation : true;
 
         const expectedDefault = Object.prototype.hasOwnProperty.call(definition, 'default')
           ? definition.default
@@ -247,7 +264,14 @@ class DatabaseManager {
         const actualExtra = columnInfo.EXTRA ? columnInfo.EXTRA.trim().toUpperCase() : '';
         const extraMatches = expectedExtra === actualExtra;
 
-        if (!typeMatches || !nullableMatches || !defaultMatches || !extraMatches) {
+        if (
+          !typeMatches ||
+          !nullableMatches ||
+          !defaultMatches ||
+          !extraMatches ||
+          !characterSetMatches ||
+          !collationMatches
+        ) {
           await applyColumn('modify');
           return { existed: true, changed: true };
         }
@@ -688,12 +712,27 @@ class DatabaseManager {
       `);
 
       const profileFolderIdInfo = await getColumnInfo('autres.profile_folders', 'id');
-      const profileFolderIdColumnType = (profileFolderIdInfo?.COLUMN_TYPE || 'INT').toUpperCase();
+      const profileFolderIdColumnType = normalizeColumnType(profileFolderIdInfo?.COLUMN_TYPE) || 'INT';
+      const profileFolderIdCharacterSet = profileFolderIdInfo?.CHARACTER_SET_NAME || null;
+      const profileFolderIdCollation = profileFolderIdInfo?.COLLATION_NAME || null;
+      const buildFolderIdColumn = () => {
+        const parts = [profileFolderIdColumnType];
+
+        if (profileFolderIdCharacterSet) {
+          parts.push(`CHARACTER SET ${profileFolderIdCharacterSet}`);
+        }
+
+        if (profileFolderIdCollation) {
+          parts.push(`COLLATE ${profileFolderIdCollation}`);
+        }
+
+        return parts.join(' ');
+      };
 
       await query(`
         CREATE TABLE IF NOT EXISTS autres.profile_folder_shares (
           id INT AUTO_INCREMENT PRIMARY KEY,
-          folder_id ${profileFolderIdColumnType} NOT NULL,
+          folder_id ${buildFolderIdColumn()} NOT NULL,
           user_id INT NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE KEY uniq_profile_folder_user (folder_id, user_id),
@@ -708,7 +747,7 @@ class DatabaseManager {
         CREATE TABLE IF NOT EXISTS autres.profiles (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,
-          folder_id ${profileFolderIdColumnType} DEFAULT NULL,
+          folder_id ${buildFolderIdColumn()} DEFAULT NULL,
           first_name VARCHAR(255) DEFAULT NULL,
           last_name VARCHAR(255) DEFAULT NULL,
           phone VARCHAR(50) DEFAULT NULL,
@@ -776,6 +815,8 @@ class DatabaseManager {
         'folder_id',
         {
           type: profileFolderIdColumnType,
+          characterSet: profileFolderIdCharacterSet,
+          collation: profileFolderIdCollation,
           nullable: true,
           after: 'user_id'
         },
