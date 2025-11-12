@@ -28,8 +28,10 @@ import {
   Crosshair,
   History,
   Plus,
-  Minus
+  Minus,
+  LocateFixed
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface Point {
@@ -157,6 +159,17 @@ interface Props {
   zoneMode?: boolean;
   onZoneCreated?: () => void;
 }
+
+type ControlButtonConfig = {
+  key: string;
+  icon: LucideIcon;
+  onClick: () => void;
+  title: string;
+  active?: boolean;
+  disabled?: boolean;
+  hidden?: boolean;
+  section?: 'primary' | 'secondary';
+};
 
 const parseDurationToSeconds = (duration: string): number => {
   const parts = duration.split(':').map(Number);
@@ -1327,13 +1340,13 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
       const detailItems = [
         ...(calleeNumber
-          ? [{ label: 'Numéro associé', value: formatPhoneForDisplay(calleeNumber) }]
+          ? [{ label: 'Numéro contacté', value: formatPhoneForDisplay(calleeNumber) }]
           : []),
         ...infoItems,
         ...optionalDetails
       ].filter((item) =>
         !isLocationEvent ||
-        (item.label !== 'Numéro associé' &&
+        (item.label !== 'Numéro contacté' &&
           item.label !== 'Durée' &&
           item.label !== "Statut d'appel")
       );
@@ -1491,7 +1504,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const latestLocationPoint = useMemo(() => {
     let latest: { point: Point; timestamp: number } | null = null;
-    displayedPoints.forEach((point) => {
+    points.forEach((point) => {
       if (!isLocationEventType(point.type)) return;
       const lat = parseFloat(point.latitude);
       const lng = parseFloat(point.longitude);
@@ -1503,7 +1516,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       }
     });
     return latest?.point ?? null;
-  }, [displayedPoints]);
+  }, [points]);
 
   const latestLocationDetails = useMemo(() => {
     if (!latestLocationPoint) return null;
@@ -1515,6 +1528,11 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       parts.push(latestLocationPoint.startTime);
     }
     return parts.length > 0 ? parts.join(' • ') : null;
+  }, [latestLocationPoint]);
+
+  const latestLocationSourceLabel = useMemo(() => {
+    if (!latestLocationPoint?.source) return null;
+    return formatPhoneForDisplay(latestLocationPoint.source);
   }, [latestLocationPoint]);
 
   const highlightedLatestDetails = useMemo(() => {
@@ -2249,7 +2267,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
+  const showBaseMarkers = useMemo(() => showOthers && !showLatestOnly, [showOthers, showLatestOnly]);
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -2428,6 +2446,99 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   }, [carIndex, interpolatedRoute]);
 
   const carPosition = interpolatedRoute[carIndex] || interpolatedRoute[0];
+
+  const renderControlButton = (config: ControlButtonConfig) => {
+    if (config.hidden) return null;
+    const { key, icon: Icon, onClick, title, active, disabled } = config;
+    const isToggle = typeof active === 'boolean';
+    const isActive = active === true;
+    const buttonClasses = [
+      'pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border transition-colors shadow-sm backdrop-blur',
+      disabled
+        ? 'cursor-not-allowed border-slate-200/80 bg-white/70 text-slate-400 opacity-60 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-500'
+        : isActive
+          ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-700 dark:border-blue-400 dark:bg-blue-500 dark:hover:bg-blue-600'
+          : 'border-slate-200/80 bg-white/90 text-slate-700 hover:bg-slate-100 dark:border-slate-700/60 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:bg-slate-800'
+    ].join(' ');
+
+    return (
+      <div key={key} className="group relative">
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={disabled}
+          title={title}
+          className={buttonClasses}
+          aria-pressed={isToggle ? isActive : undefined}
+        >
+          <Icon className="h-5 w-5" />
+        </button>
+        <span className="pointer-events-none absolute left-[calc(100%+0.75rem)] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900/90 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 dark:bg-white/90 dark:text-slate-900">
+          {title}
+        </span>
+      </div>
+    );
+  };
+
+  const latestLocationButtonTitle = hasLatestLocation
+    ? showLatestOnly
+      ? 'Quitter le focus sur la dernière localisation'
+      : 'Centrer sur la dernière localisation connue'
+    : 'Aucune localisation exploitable';
+
+  const controlButtons: ControlButtonConfig[] = [
+    {
+      key: 'latest-location',
+      icon: LocateFixed,
+      onClick: handleToggleLatestLocation,
+      title: latestLocationButtonTitle,
+      active: showLatestOnly,
+      disabled: !hasLatestLocation
+    },
+    {
+      key: 'triangulation',
+      icon: Crosshair,
+      onClick: handleTriangulation,
+      title: 'Localisation approximative de la personne',
+      active: triangulationZones.length > 0
+    },
+    {
+      key: 'layers',
+      icon: Layers,
+      onClick: () => setIsSatellite((s) => !s),
+      title: "Changer l'affichage",
+      active: isSatellite
+    },
+    {
+      key: 'similar',
+      icon: Activity,
+      onClick: () => setShowSimilar((s) => !s),
+      title: 'Trajectoires similaires',
+      active: showSimilar,
+      hidden: sourceNumbers.length === 0
+    },
+    {
+      key: 'zoom-in',
+      icon: Plus,
+      onClick: handleZoomIn,
+      title: 'Zoomer',
+      section: 'secondary'
+    },
+    {
+      key: 'zoom-out',
+      icon: Minus,
+      onClick: handleZoomOut,
+      title: 'Dézoomer',
+      section: 'secondary'
+    }
+  ];
+
+  const primaryControls = controlButtons.filter(
+    (btn) => (btn.section ?? 'primary') === 'primary' && !btn.hidden
+  );
+  const secondaryControls = controlButtons.filter(
+    (btn) => btn.section === 'secondary' && !btn.hidden
+  );
 
   const ZoneSelector: React.FC = () => {
     const map = useMapEvents({
@@ -2828,7 +2939,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             />
           )}
           <ZoneSelector />
-        {drawing && currentPoints.length > 0 && (
+        {!showLatestOnly && drawing && currentPoints.length > 0 && (
           <Polyline
             positions={currentPoints}
             pathOptions={{
@@ -2840,7 +2951,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }}
           />
         )}
-        {zoneShape && (
+        {!showLatestOnly && zoneShape && (
           <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
         )}
         {showBaseMarkers && (
@@ -3015,7 +3126,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </Marker>
           </>
         )}
-        {triangulationZones.map((zone, idx) => (
+        {!showLatestOnly &&
+          triangulationZones.map((zone, idx) => (
             <React.Fragment key={`tri-${idx}`}>
               <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
               {zone.cells.map((cell, i) => (
@@ -3033,94 +3145,48 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           ))}
         </MapContainer>
 
-        <div className="pointer-events-none absolute bottom-6 left-1/2 z-[1000] flex -translate-x-1/2">
-          <button
-            onClick={handleToggleLatestLocation}
-            disabled={!hasLatestLocation}
-            aria-pressed={showLatestOnly}
-            className={`pointer-events-auto latest-location-button ${
-              !hasLatestLocation
-                ? 'latest-location-button--disabled'
-                : showLatestOnly
-                ? 'latest-location-button--focused'
-                : 'latest-location-button--active'
-            }`}
-            title={
-              hasLatestLocation
-                ? showLatestOnly
-                  ? 'Quitter le focus sur la dernière localisation'
-                  : 'Centrer sur la dernière localisation connue'
-                : 'Aucune localisation exploitable'
-            }
-          >
-            <span className="latest-location-button__icon-wrapper">
-              <span className="latest-location-button__icon-pulse" />
-              <MapPin className="w-5 h-5 relative z-[1] text-white" />
-            </span>
-            <span className="flex flex-col text-left leading-tight">
-              <span className="latest-location-button__label">Dernière localisation</span>
-              <span className="latest-location-button__value">
-                {hasLatestLocation
-                  ? latestLocationPoint?.nom?.trim() || 'Position inconnue'
-                  : 'Aucune donnée'}
-              </span>
-              {hasLatestLocation && latestLocationDetails && (
-                <span className="latest-location-button__meta">{latestLocationDetails}</span>
-              )}
-            </span>
-          </button>
-        </div>
+        <div className="pointer-events-none absolute top-4 left-3 z-[1000] flex flex-col gap-3">
+          <div className="pointer-events-auto flex flex-col gap-2 rounded-3xl border border-slate-200/70 bg-white/90 p-3 shadow-xl shadow-slate-200/60 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/80 dark:shadow-black/40">
+            <div className="flex flex-col gap-2">
+              {primaryControls.map((config) => renderControlButton(config))}
+            </div>
+            {secondaryControls.length > 0 && (
+              <div className="mt-3 border-t border-slate-200/60 pt-3 dark:border-slate-700/60">
+                <div className="flex flex-col gap-2">
+                  {secondaryControls.map((config) => renderControlButton(config))}
+                </div>
+              </div>
+            )}
+          </div>
 
-        <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-2">
-          <button
-            onClick={handleTriangulation}
-            className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
-              triangulationZones.length > 0
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-white/90 text-gray-700 hover:bg-gray-100'
-            }`}
-            title="Localisation approximative de la personne"
-          >
-            <Crosshair className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setIsSatellite((s) => !s)}
-            className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
-              isSatellite
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-white/90 text-gray-700 hover:bg-gray-100'
-            }`}
-            title="Changer l'affichage"
-          >
-            <Layers className="w-5 h-5" />
-          </button>
-          {sourceNumbers.length > 0 && (
-            <button
-              onClick={() => setShowSimilar((s) => !s)}
-              className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
-                showSimilar
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-white/90 text-gray-700 hover:bg-gray-100'
-              }`}
-              title="Trajectoires similaires"
-            >
-              <Activity className="w-5 h-5" />
-            </button>
+          {showLatestOnly && latestLocationPoint && (
+            <div className="pointer-events-auto w-[260px] rounded-2xl border border-blue-200/70 bg-white/95 p-4 shadow-xl shadow-blue-200/40 backdrop-blur dark:border-blue-500/40 dark:bg-slate-900/80">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-blue-500/80">
+                Dernière localisation
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {latestLocationPoint.nom?.trim() || 'Position inconnue'}
+              </p>
+              {latestLocationDetails && (
+                <p className="text-xs text-slate-500 dark:text-slate-300">{latestLocationDetails}</p>
+              )}
+              {latestLocationSourceLabel && (
+                <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  Source :{' '}
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    {latestLocationSourceLabel}
+                  </span>
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowLatestOnly(false)}
+                className="mt-3 inline-flex items-center gap-2 rounded-full border border-blue-200/70 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-100 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:bg-blue-500/20"
+              >
+                Quitter le focus
+              </button>
+            </div>
           )}
-          <button
-            onClick={handleZoomIn}
-            className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300"
-            title="Zoomer"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-          <button
-            onClick={handleZoomOut}
-            className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300"
-            title="Dézoomer"
-          >
-            <Minus className="w-5 h-5" />
-          </button>
         </div>
 
         <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
@@ -3243,12 +3309,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                   <MapPin className="w-4 h-4 text-white" />
                 </span>
                 <span>Position</span>
-              </li>
-              <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
-                  <MapPin className="w-4 h-4 text-white" />
-                </span>
-                <span className="font-semibold">Localisation approximative</span>
               </li>
             </ul>
           </div>
