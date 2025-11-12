@@ -23,10 +23,6 @@ const getElasticService = () => {
     elasticService = new ElasticSearchService();
   }
 
-  if (typeof elasticService.isOperational === 'function' && !elasticService.isOperational()) {
-    return null;
-  }
-
   return elasticService;
 };
 
@@ -92,16 +88,30 @@ router.post('/', authenticate, async (req, res) => {
     const requiresSqlOnly = followLinks === true || activeFilters;
 
     const elastic = requiresSqlOnly ? null : getElasticService();
-    const canUseElastic = elastic?.isOperational?.() === true;
 
     let esResults = null;
-    if (canUseElastic) {
-      esResults = await elastic
-        .search(trimmed, pageNumber, limitNumber)
-        .catch((error) => {
-          console.error('Erreur recherche Elasticsearch:', error);
-          return null;
-        });
+    if (elastic) {
+      let canUseElastic = true;
+
+      if (typeof elastic.ensureOperational === 'function') {
+        try {
+          canUseElastic = await elastic.ensureOperational('search-route');
+        } catch (error) {
+          console.error('Erreur vérification Elasticsearch:', error);
+          canUseElastic = false;
+        }
+      } else if (typeof elastic.isOperational === 'function') {
+        canUseElastic = elastic.isOperational();
+      }
+
+      if (canUseElastic) {
+        esResults = await elastic
+          .search(trimmed, pageNumber, limitNumber)
+          .catch((error) => {
+            console.error('Erreur recherche Elasticsearch:', error);
+            return null;
+          });
+      }
     }
 
     let results = null;
