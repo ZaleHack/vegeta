@@ -6,7 +6,8 @@ const MapLegend: React.FC = () => {
     { icon: PhoneIncoming, label: 'Appel entrant', color: 'bg-green-600' },
     { icon: PhoneOutgoing, label: 'Appel sortant', color: 'bg-blue-600' },
     { icon: MessageSquare, label: 'SMS', color: 'bg-green-600' },
-    { icon: MapPin, label: 'Position', color: 'bg-red-600' }
+    { icon: MapPin, label: 'Position', color: 'bg-red-600' },
+    { icon: MapPin, label: 'Localisation approximative', color: 'bg-red-300' }
   ];
 
     return (
