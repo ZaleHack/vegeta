@@ -1576,11 +1576,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             <span class="latest-location-pulse__ring"></span>
             <span class="latest-location-pulse__ring latest-location-pulse__ring--delayed"></span>
             <span class="latest-location-pulse__glow"></span>
-            <span class="latest-location-pulse__dot">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M12 2a7 7 0 0 0-7 7c0 4.418 7 13 7 13s7-8.582 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" />
-              </svg>
-            </span>
+            <span class="latest-location-pulse__dot"></span>
           </div>
         `.trim(),
         iconSize: [32, 32],
@@ -1639,7 +1635,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   ]);
 
   const hasLatestLocation = Boolean(latestLocationPosition);
-  const isLatestLocationFocus = hasLatestLocation && showLatestOnly;
 
   useEffect(() => {
     if (!hasLatestLocation && showLatestOnly) {
@@ -2832,186 +2827,154 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
           )}
-          {!isLatestLocationFocus && (
-            <>
-              <ZoneSelector />
-              {drawing && currentPoints.length > 0 && (
-                <Polyline
-                  positions={currentPoints}
-                  pathOptions={{
-                    color: '#6366f1',
-                    weight: 2,
-                    opacity: 0.75,
-                    dashArray: '6 3',
-                    lineCap: 'round'
-                  }}
-                />
-              )}
-              {zoneShape && (
-                <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
-              )}
-            </>
-          )}
-          {showBaseMarkers && (
-            <>
-              <MarkerClusterGroup maxClusterRadius={0}>
-                {groupedPoints.flatMap((group, idx) => {
-                  const perSourceEntries = group.perSource;
-                  if (perSourceEntries.length <= 1) {
-                    const marker = createMarkerForEvents(
-                      group.events,
-                      [group.lat, group.lng],
-                      `group-${idx}`
-                    );
-                    return marker ? [marker] : [];
-                  }
+          <ZoneSelector />
+        {drawing && currentPoints.length > 0 && (
+          <Polyline
+            positions={currentPoints}
+            pathOptions={{
+              color: '#6366f1',
+              weight: 2,
+              opacity: 0.75,
+              dashArray: '6 3',
+              lineCap: 'round'
+            }}
+          />
+        )}
+        {zoneShape && (
+          <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
+        )}
+        {showBaseMarkers && (
+          <MarkerClusterGroup maxClusterRadius={0}>
+            {groupedPoints.flatMap((group, idx) => {
+              const perSourceEntries = group.perSource;
+              if (perSourceEntries.length <= 1) {
+                const marker = createMarkerForEvents(
+                  group.events,
+                  [group.lat, group.lng],
+                  `group-${idx}`
+                );
+                return marker ? [marker] : [];
+              }
 
-                  return perSourceEntries.flatMap((entry, entryIdx) => {
-                    const position = computeOffsetPosition(
-                      group.lat,
-                      group.lng,
-                      entryIdx,
-                      perSourceEntries.length
-                    );
-                    const marker = createMarkerForEvents(
-                      entry.events,
-                      position,
-                      `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
-                    );
-                    return marker ? [marker] : [];
-                  });
-                })}
-              </MarkerClusterGroup>
-              {showMeetingPoints &&
-                meetingPoints
-                  .filter(
-                    (mp) =>
-                      !activeMeetingNumber ||
-                      mp.numbers.some((n) => {
-                        const normalized = normalizePhoneDigits(n);
-                        const candidate = normalized || n.trim();
-                        return candidate === activeMeetingNumber;
-                      })
-                  )
-                  .map((mp, idx) => (
-                    <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
-                  ))}
-              {showRoute && routePositions.length > 1 && (
+              return perSourceEntries.flatMap((entry, entryIdx) => {
+                const position = computeOffsetPosition(
+                  group.lat,
+                  group.lng,
+                  entryIdx,
+                  perSourceEntries.length
+                );
+                const marker = createMarkerForEvents(
+                  entry.events,
+                  position,
+                  `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
+                );
+                return marker ? [marker] : [];
+              });
+            })}
+          </MarkerClusterGroup>
+        )}
+        {showBaseMarkers && showMeetingPoints &&
+          meetingPoints
+            .filter(
+              (mp) =>
+                !activeMeetingNumber ||
+                mp.numbers.some((n) => {
+                  const normalized = normalizePhoneDigits(n);
+                  const candidate = normalized || n.trim();
+                  return candidate === activeMeetingNumber;
+                })
+            )
+            .map((mp, idx) => (
+              <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
+            ))}
+        {showBaseMarkers && showRoute && routePositions.length > 1 && (
+          <Polyline
+            positions={routePositions}
+            pathOptions={{
+              color: '#4f46e5',
+              weight: 2.5,
+              opacity: 0.85,
+              dashArray: '10 6',
+              lineJoin: 'round',
+              lineCap: 'round'
+            }}
+          />
+        )}
+        {showBaseMarkers && showRoute && routePositions.length > 0 && (
+          <Marker position={routePositions[0]} icon={startIcon} />
+        )}
+        {showBaseMarkers && showRoute && routePositions.length > 1 && (
+          <Marker
+            position={routePositions[routePositions.length - 1]}
+            icon={endIcon}
+          />
+        )}
+        {showBaseMarkers && showRoute && interpolatedRoute.length > 0 && (
+          <Marker position={carPosition} icon={carIcon} />
+        )}
+        {showBaseMarkers && showRoute &&
+          arrowMarkers.map((a, idx) => (
+            <Marker
+              key={`arrow-${idx}`}
+              position={a.position}
+              icon={getArrowIcon(a.angle)}
+              interactive={false}
+            />
+          ))}
+        {showBaseMarkers && showSimilar &&
+          similarSegments.flatMap((seg, idx) =>
+            seg.sources.map((src) =>
+              visibleSimilar.has(src) ? (
                 <Polyline
-                  positions={routePositions}
+                  key={`similar-${idx}-${src}`}
+                  positions={seg.positions}
                   pathOptions={{
-                    color: '#4f46e5',
+                    color: colorMap.get(src) || '#8b5cf6',
                     weight: 2.5,
-                    opacity: 0.85,
-                    dashArray: '10 6',
-                    lineJoin: 'round',
+                    opacity: 0.7,
+                    dashArray: '4 8',
                     lineCap: 'round'
                   }}
                 />
-              )}
-              {showRoute && routePositions.length > 0 && (
-                <Marker position={routePositions[0]} icon={startIcon} />
-              )}
-              {showRoute && routePositions.length > 1 && (
-                <Marker
-                  position={routePositions[routePositions.length - 1]}
-                  icon={endIcon}
-                />
-              )}
-              {showRoute && interpolatedRoute.length > 0 && (
-                <Marker position={carPosition} icon={carIcon} />
-              )}
-              {showRoute &&
-                arrowMarkers.map((a, idx) => (
-                  <Marker
-                    key={`arrow-${idx}`}
-                    position={a.position}
-                    icon={getArrowIcon(a.angle)}
-                    interactive={false}
-                  />
-                ))}
-              {showSimilar &&
-                similarSegments.flatMap((seg, idx) =>
-                  seg.sources.map((src) =>
-                    visibleSimilar.has(src) ? (
-                      <Polyline
-                        key={`similar-${idx}-${src}`}
-                        positions={seg.positions}
-                        pathOptions={{
-                          color: colorMap.get(src) || '#8b5cf6',
-                          weight: 2.5,
-                          opacity: 0.7,
-                          dashArray: '4 8',
-                          lineCap: 'round'
-                        }}
-                      />
-                    ) : null
-                  )
-                )}
-              {showSimilar &&
-                (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
-                  <Marker
-                    key={`similar-point-${idx}`}
-                    position={[
-                      parseFloat(loc.latitude),
-                      parseFloat(loc.longitude)
-                    ]}
-                    icon={getIcon(
-                      loc.type,
-                      loc.direction,
-                      resolveSourceColor(loc.source)
-                    )}
-                  >
-                    <Popup className="cdr-popup">
-                      {renderEventPopupContent(loc)}
-                    </Popup>
-                  </Marker>
-                ))}
-              {locationMarkers.map((loc, idx) => (
-                <Marker
-                  key={`stat-${idx}`}
-                  position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-                  icon={createLabelIcon(
-                    String(loc.count),
-                    selectedSource === null &&
-                      sourceNumbers.length > 1 &&
-                      (activeInfo === 'recent' || activeInfo === 'popular')
-                      ? colorMap.get(loc.source || '') || '#f97316'
-                      : activeInfo === 'popular'
-                        ? '#9333ea'
-                        : '#f97316'
-                  )}
-                  zIndexOffset={1000}
-                >
-                  <Popup className="cdr-popup">
-                    {renderLocationStatPopup(loc)}
-                  </Popup>
-                </Marker>
-              ))}
-              {triangulationZones.map((zone, idx) => (
-                <React.Fragment key={`tri-${idx}`}>
-                  <Polygon
-                    positions={zone.polygon}
-                    pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }}
-                  />
-                  {zone.cells.map((cell, i) => (
-                    <CircleMarker
-                      key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
-                      center={cell.position}
-                      radius={4}
-                      pathOptions={{ color: '#dc2626' }}
-                    />
-                  ))}
-                  <Marker
-                    position={zone.barycenter}
-                    icon={createLabelIcon(String(idx + 1), '#dc2626')}
-                  >
-                    <Popup className="cdr-popup">{renderTriangulationPopup(zone)}</Popup>
-                  </Marker>
-                </React.Fragment>
-              ))}
-            </>
+              ) : null
+            )
           )}
+        {showBaseMarkers && showSimilar &&
+          (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
+            <Marker
+              key={`similar-point-${idx}`}
+              position={[
+                parseFloat(loc.latitude),
+                parseFloat(loc.longitude)
+              ]}
+              icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
+            >
+              <Popup className="cdr-popup">
+                {renderEventPopupContent(loc)}
+              </Popup>
+            </Marker>
+            ))}
+        {locationMarkers.map((loc, idx) => (
+            <Marker
+              key={`stat-${idx}`}
+              position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
+              icon={createLabelIcon(
+                String(loc.count),
+              selectedSource === null &&
+              sourceNumbers.length > 1 &&
+              (activeInfo === 'recent' || activeInfo === 'popular')
+                ? colorMap.get(loc.source || '') || '#f97316'
+                : activeInfo === 'popular'
+                ? '#9333ea'
+                : '#f97316'
+            )}
+            zIndexOffset={1000}
+          >
+            <Popup className="cdr-popup">
+              {renderLocationStatPopup(loc)}
+            </Popup>
+          </Marker>
+        ))}
         {isMapReady && latestLocationPoint && latestLocationPosition && (
           <>
             <CircleMarker
@@ -3052,7 +3015,22 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </Marker>
           </>
         )}
-        
+        {triangulationZones.map((zone, idx) => (
+            <React.Fragment key={`tri-${idx}`}>
+              <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
+              {zone.cells.map((cell, i) => (
+                <CircleMarker
+                  key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
+                  center={cell.position}
+                  radius={4}
+                  pathOptions={{ color: '#dc2626' }}
+                />
+              ))}
+              <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#dc2626')}>
+                <Popup className="cdr-popup">{renderTriangulationPopup(zone)}</Popup>
+              </Marker>
+            </React.Fragment>
+          ))}
         </MapContainer>
 
         <div className="pointer-events-none absolute bottom-6 left-1/2 z-[1000] flex -translate-x-1/2">
