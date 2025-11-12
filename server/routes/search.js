@@ -7,6 +7,7 @@ import Blacklist from '../models/Blacklist.js';
 import UserLog from '../models/UserLog.js';
 import SearchLog from '../models/SearchLog.js';
 import searchAccessManager from '../utils/search-access-manager.js';
+import { hasActiveFilters } from '../utils/filter-utils.js';
 
 const router = express.Router();
 const searchService = new SearchService();
@@ -87,16 +88,8 @@ router.post('/', authenticate, async (req, res) => {
     const limitNumber = parseInt(limit);
     const depthNumber = parseInt(depth);
 
-    const hasActiveFilters = Object.entries(filters || {}).some(([_, value]) => {
-      if (Array.isArray(value)) {
-        return value.length > 0;
-      }
-      if (value && typeof value === 'object') {
-        return Object.keys(value).length > 0;
-      }
-      return value !== undefined && value !== null && value !== '';
-    });
-    const requiresSqlOnly = followLinks === true || hasActiveFilters;
+    const activeFilters = hasActiveFilters(filters);
+    const requiresSqlOnly = followLinks === true || activeFilters;
 
     const elastic = requiresSqlOnly ? null : getElasticService();
     const canUseElastic = elastic?.isOperational?.() === true;
