@@ -4113,20 +4113,6 @@ useEffect(() => {
     setGlobalFraudError('');
   };
 
-  const resetCdrSearch = () => {
-    setCdrIdentifiers([]);
-    setCdrIdentifierInput('');
-    setCdrStart('');
-    setCdrEnd('');
-    setCdrStartTime('');
-    setCdrEndTime('');
-    setCdrItinerary(false);
-    setCdrError('');
-    setCdrInfoMessage('');
-    setCdrResult(null);
-    setShowCdrMap(false);
-  };
-
   const handleCdrSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!selectedCase) return;
@@ -5052,7 +5038,6 @@ useEffect(() => {
                 </div>
                 <div>
                   <h3 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Géolocalisation</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-300">Configurez et lancez vos analyses en quelques clics.</p>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -5131,23 +5116,9 @@ useEffect(() => {
               onSubmit={handleCdrSearch}
               className="space-y-6 rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-900/70"
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-1">
-                  <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">Paramètres de recherche</h4>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Définissez les identifiants et la période d'analyse.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={resetCdrSearch}
-                  className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:text-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Réinitialiser
-                </button>
-              </div>
 
               <div>
-                <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Identifiants ciblés</label>
+                <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Entrer la cible</label>
                 <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-dashed border-slate-300/70 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700/60 dark:bg-slate-900/60">
                   {cdrIdentifiers.map((id, idx) => (
                     <span
@@ -5237,13 +5208,7 @@ useEffect(() => {
                 />
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-200/80 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
-                    i
-                  </span>
-                  <span>Ajoutez plusieurs numéros pour enrichir l'analyse.</span>
-                </div>
+              <div className="flex flex-wrap justify-end gap-3">
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="submit"
