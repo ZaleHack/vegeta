@@ -547,7 +547,12 @@ class SearchService {
     }
 
     // Recherche supplémentaire pour les champs uniques trouvés dans les résultats
-    if (depth === 0 && MAX_EXTRA_SEARCHES !== 0) {
+    const shouldRunExtraSearches =
+      depth === 0 &&
+      MAX_EXTRA_SEARCHES !== 0 &&
+      results.length < limit;
+
+    if (shouldRunExtraSearches) {
       const extraValueCandidates = [];
       const seenExtraValues = new Set();
       const queryNormalized = String(query).trim().toLowerCase();
