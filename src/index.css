@@ -208,8 +208,8 @@
 }
 
 .cdr-popup .leaflet-popup-tip {
-  width: 18px;
-  height: 18px;
+  width: 7px;
+  height: 5px;
   margin-top: -2px;
   background: #ffffff !important;
   border: 1px solid rgba(15, 23, 42, 0.14) !important;
