@@ -2228,6 +2228,10 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   ]);
 
   const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
+  const showLocationMarkers = useMemo(
+    () => showOthers || activeInfo === 'recent' || activeInfo === 'popular',
+    [showOthers, activeInfo]
+  );
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -2931,7 +2935,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </Popup>
           </Marker>
           ))}
-      {showBaseMarkers &&
+      {showLocationMarkers &&
         locationMarkers.map((loc, idx) => (
           <Marker
             key={`stat-${idx}`}
