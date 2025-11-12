@@ -3128,7 +3128,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </button>
           </div>
         </div>
-      </div>
 
       {showBaseMarkers && showRoute && (
         <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
