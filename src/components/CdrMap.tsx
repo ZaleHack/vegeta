@@ -2769,743 +2769,739 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     [renderEventPopupContent, resolveSourceColor]
   );
   return (
-    <>
-        <div className="relative w-full h-screen">
-          <MapContainer
-            center={center}
-            zoom={13}
-            zoomControl={false}
-            className="w-full h-full"
-            style={{
-              position: 'relative',
-              cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined
-            }}
-            whenCreated={(map) => {
-              mapRef.current = map;
-              const paneId = 'latest-location-pane';
-              const pane = map.getPane(paneId) ?? map.createPane(paneId);
-              if (pane) {
-                pane.style.zIndex = '1200';
-              }
-              setIsMapReady(true);
-            }}
-            ref={mapRef}
-          >
-          {isSatellite ? (
-            <TileLayer
-              attribution='&copy; Esri &mdash; Sources: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-              url={
-                import.meta.env.VITE_SATELLITE_TILE_URL ||
-                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-              }
-            />
-          ) : (
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-          )}
-          <ZoneSelector />
-        {drawing && currentPoints.length > 0 && (
-          <Polyline
-            positions={currentPoints}
-            pathOptions={{
-              color: '#6366f1',
-              weight: 2,
-              opacity: 0.75,
-              dashArray: '6 3',
-              lineCap: 'round'
-            }}
+    <div className="relative w-full h-screen">
+        <MapContainer
+          center={center}
+          zoom={13}
+          zoomControl={false}
+          className="w-full h-full"
+          style={{
+            position: 'relative',
+            cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined
+          }}
+          whenCreated={(map) => {
+            mapRef.current = map;
+            const paneId = 'latest-location-pane';
+            const pane = map.getPane(paneId) ?? map.createPane(paneId);
+            if (pane) {
+              pane.style.zIndex = '1200';
+            }
+            setIsMapReady(true);
+          }}
+          ref={mapRef}
+        >
+        {isSatellite ? (
+          <TileLayer
+            attribution='&copy; Esri &mdash; Sources: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            url={
+              import.meta.env.VITE_SATELLITE_TILE_URL ||
+              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            }
+          />
+        ) : (
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         )}
-        {zoneShape && (
-          <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
-        )}
-        {showBaseMarkers && (
-          <MarkerClusterGroup maxClusterRadius={0}>
-            {groupedPoints.flatMap((group, idx) => {
-              const perSourceEntries = group.perSource;
-              if (perSourceEntries.length <= 1) {
-                const marker = createMarkerForEvents(
-                  group.events,
-                  [group.lat, group.lng],
-                  `group-${idx}`
-                );
-                return marker ? [marker] : [];
-              }
+        <ZoneSelector />
+      {drawing && currentPoints.length > 0 && (
+        <Polyline
+          positions={currentPoints}
+          pathOptions={{
+            color: '#6366f1',
+            weight: 2,
+            opacity: 0.75,
+            dashArray: '6 3',
+            lineCap: 'round'
+          }}
+        />
+      )}
+      {zoneShape && (
+        <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
+      )}
+      {showBaseMarkers && (
+        <MarkerClusterGroup maxClusterRadius={0}>
+          {groupedPoints.flatMap((group, idx) => {
+            const perSourceEntries = group.perSource;
+            if (perSourceEntries.length <= 1) {
+              const marker = createMarkerForEvents(
+                group.events,
+                [group.lat, group.lng],
+                `group-${idx}`
+              );
+              return marker ? [marker] : [];
+            }
 
-              return perSourceEntries.flatMap((entry, entryIdx) => {
-                const position = computeOffsetPosition(
-                  group.lat,
-                  group.lng,
-                  entryIdx,
-                  perSourceEntries.length
-                );
-                const marker = createMarkerForEvents(
-                  entry.events,
-                  position,
-                  `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
-                );
-                return marker ? [marker] : [];
-              });
-            })}
-          </MarkerClusterGroup>
-        )}
-        {showBaseMarkers && showMeetingPoints &&
-          meetingPoints
-            .filter(
-              (mp) =>
-                !activeMeetingNumber ||
-                mp.numbers.some((n) => {
-                  const normalized = normalizePhoneDigits(n);
-                  const candidate = normalized || n.trim();
-                  return candidate === activeMeetingNumber;
-                })
-            )
-            .map((mp, idx) => (
-              <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
-            ))}
-        {showBaseMarkers && showRoute && routePositions.length > 1 && (
-          <Polyline
-            positions={routePositions}
-            pathOptions={{
-              color: '#4f46e5',
-              weight: 2.5,
-              opacity: 0.85,
-              dashArray: '10 6',
-              lineJoin: 'round',
-              lineCap: 'round'
-            }}
-          />
-        )}
-        {showBaseMarkers && showRoute && routePositions.length > 0 && (
-          <Marker position={routePositions[0]} icon={startIcon} />
-        )}
-        {showBaseMarkers && showRoute && routePositions.length > 1 && (
-          <Marker
-            position={routePositions[routePositions.length - 1]}
-            icon={endIcon}
-          />
-        )}
-        {showBaseMarkers && showRoute && interpolatedRoute.length > 0 && (
-          <Marker position={carPosition} icon={carIcon} />
-        )}
-        {showBaseMarkers && showRoute &&
-          arrowMarkers.map((a, idx) => (
-            <Marker
-              key={`arrow-${idx}`}
-              position={a.position}
-              icon={getArrowIcon(a.angle)}
-              interactive={false}
-            />
+            return perSourceEntries.flatMap((entry, entryIdx) => {
+              const position = computeOffsetPosition(
+                group.lat,
+                group.lng,
+                entryIdx,
+                perSourceEntries.length
+              );
+              const marker = createMarkerForEvents(
+                entry.events,
+                position,
+                `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
+              );
+              return marker ? [marker] : [];
+            });
+          })}
+        </MarkerClusterGroup>
+      )}
+      {showBaseMarkers && showMeetingPoints &&
+        meetingPoints
+          .filter(
+            (mp) =>
+              !activeMeetingNumber ||
+              mp.numbers.some((n) => {
+                const normalized = normalizePhoneDigits(n);
+                const candidate = normalized || n.trim();
+                return candidate === activeMeetingNumber;
+              })
+          )
+          .map((mp, idx) => (
+            <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
           ))}
-        {showBaseMarkers && showSimilar &&
-          similarSegments.flatMap((seg, idx) =>
-            seg.sources.map((src) =>
-              visibleSimilar.has(src) ? (
-                <Polyline
-                  key={`similar-${idx}-${src}`}
-                  positions={seg.positions}
-                  pathOptions={{
-                    color: colorMap.get(src) || '#8b5cf6',
-                    weight: 2.5,
-                    opacity: 0.7,
-                    dashArray: '4 8',
-                    lineCap: 'round'
-                  }}
-                />
-              ) : null
-            )
-          )}
-        {showBaseMarkers && showSimilar &&
-          (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
-            <Marker
-              key={`similar-point-${idx}`}
-              position={[
-                parseFloat(loc.latitude),
-                parseFloat(loc.longitude)
-              ]}
-              icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
-            >
-              <Popup className="cdr-popup">
-                {renderEventPopupContent(loc)}
-              </Popup>
-            </Marker>
-            ))}
-        {showBaseMarkers &&
-          locationMarkers.map((loc, idx) => (
-            <Marker
-              key={`stat-${idx}`}
-              position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-              icon={createLabelIcon(
-                String(loc.count),
-              selectedSource === null &&
-              sourceNumbers.length > 1 &&
-              (activeInfo === 'recent' || activeInfo === 'popular')
-                ? colorMap.get(loc.source || '') || '#f97316'
-                : activeInfo === 'popular'
-                ? '#9333ea'
-                : '#f97316'
-            )}
-            zIndexOffset={1000}
+      {showBaseMarkers && showRoute && routePositions.length > 1 && (
+        <Polyline
+          positions={routePositions}
+          pathOptions={{
+            color: '#4f46e5',
+            weight: 2.5,
+            opacity: 0.85,
+            dashArray: '10 6',
+            lineJoin: 'round',
+            lineCap: 'round'
+          }}
+        />
+      )}
+      {showBaseMarkers && showRoute && routePositions.length > 0 && (
+        <Marker position={routePositions[0]} icon={startIcon} />
+      )}
+      {showBaseMarkers && showRoute && routePositions.length > 1 && (
+        <Marker
+          position={routePositions[routePositions.length - 1]}
+          icon={endIcon}
+        />
+      )}
+      {showBaseMarkers && showRoute && interpolatedRoute.length > 0 && (
+        <Marker position={carPosition} icon={carIcon} />
+      )}
+      {showBaseMarkers && showRoute &&
+        arrowMarkers.map((a, idx) => (
+          <Marker
+            key={`arrow-${idx}`}
+            position={a.position}
+            icon={getArrowIcon(a.angle)}
+            interactive={false}
+          />
+        ))}
+      {showBaseMarkers && showSimilar &&
+        similarSegments.flatMap((seg, idx) =>
+          seg.sources.map((src) =>
+            visibleSimilar.has(src) ? (
+              <Polyline
+                key={`similar-${idx}-${src}`}
+                positions={seg.positions}
+                pathOptions={{
+                  color: colorMap.get(src) || '#8b5cf6',
+                  weight: 2.5,
+                  opacity: 0.7,
+                  dashArray: '4 8',
+                  lineCap: 'round'
+                }}
+              />
+            ) : null
+          )
+        )}
+      {showBaseMarkers && showSimilar &&
+        (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
+          <Marker
+            key={`similar-point-${idx}`}
+            position={[
+              parseFloat(loc.latitude),
+              parseFloat(loc.longitude)
+            ]}
+            icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
           >
             <Popup className="cdr-popup">
-              {renderLocationStatPopup(loc)}
+              {renderEventPopupContent(loc)}
             </Popup>
           </Marker>
-        ))}
-        {isMapReady && latestLocationPoint && latestLocationPosition && (
-          <>
-            <CircleMarker
-              center={latestLocationPosition}
-              radius={18}
-              pathOptions={{
-                color: '#ef4444',
-                weight: 2,
-                fillColor: '#fca5a5',
-                fillOpacity: 0.2,
-                className: 'latest-location-circle'
-              }}
-              pane="latest-location-pane"
-              eventHandlers={{
-                click: handleLatestLocationRingClick
-              }}
-            />
-            <Marker
-              position={latestLocationPosition}
-              icon={latestLocationIcon}
-              zIndexOffset={4000}
-              pane="latest-location-pane"
-              ref={latestLocationMarkerRef}
-            >
-              <Popup className="cdr-popup">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-red-600">Dernière localisation détectée</p>
-                  {latestLocationPopupPoint?.nom && (
-                    <p className="text-sm font-medium text-slate-700">
-                      {latestLocationPopupPoint.nom}
-                    </p>
-                  )}
-                  {latestLocationPopupDetails && (
-                    <p className="text-xs text-slate-500">{latestLocationPopupDetails}</p>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          </>
-        )}
-        {triangulationZones.map((zone, idx) => (
-          <React.Fragment key={`tri-${idx}`}>
-            <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
-            {zone.cells.map((cell, i) => (
-              <CircleMarker
-                key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
-                center={cell.position}
-                radius={4}
-                pathOptions={{ color: '#dc2626' }}
-              />
-            ))}
-            <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#dc2626')}>
-              <Popup className="cdr-popup">{renderTriangulationPopup(zone)}</Popup>
-            </Marker>
-          </React.Fragment>
-        ))}
-        </MapContainer>
-        <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-3">
-          <MapControlButton
-            title={
-              hasLatestLocation
-                ? 'Centrer sur la dernière localisation connue'
-                : 'Aucune localisation exploitable'
-            }
-            icon={<MapPin className="h-5 w-5" />}
-            onClick={handleFocusLatestLocation}
-            disabled={!hasLatestLocation}
-          />
-          <MapControlButton
-            title="Localisation approximative de la personne"
-            icon={<Crosshair className="h-5 w-5" />}
-            onClick={handleTriangulation}
-            active={triangulationZones.length > 0}
-            isToggle
-          />
-          <MapControlButton
-            title="Changer l'affichage"
-            icon={<Layers className="h-5 w-5" />}
-            onClick={() => setIsSatellite((s) => !s)}
-            active={isSatellite}
-            isToggle
-          />
-          {sourceNumbers.length > 0 && (
-            <MapControlButton
-              title="Trajectoires similaires"
-              icon={<Activity className="h-5 w-5" />}
-              onClick={() => setShowSimilar((s) => !s)}
-              active={showSimilar}
-              isToggle
-            />
+          ))}
+      {showBaseMarkers &&
+        locationMarkers.map((loc, idx) => (
+          <Marker
+            key={`stat-${idx}`}
+            position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
+            icon={createLabelIcon(
+              String(loc.count),
+            selectedSource === null &&
+            sourceNumbers.length > 1 &&
+            (activeInfo === 'recent' || activeInfo === 'popular')
+              ? colorMap.get(loc.source || '') || '#f97316'
+              : activeInfo === 'popular'
+              ? '#9333ea'
+              : '#f97316'
           )}
-          <MapControlButton
-            title="Zoomer"
-            icon={<Plus className="h-5 w-5" />}
-            onClick={handleZoomIn}
+          zIndexOffset={1000}
+        >
+          <Popup className="cdr-popup">
+            {renderLocationStatPopup(loc)}
+          </Popup>
+        </Marker>
+      ))}
+      {isMapReady && latestLocationPoint && latestLocationPosition && (
+        <>
+          <CircleMarker
+            center={latestLocationPosition}
+            radius={18}
+            pathOptions={{
+              color: '#ef4444',
+              weight: 2,
+              fillColor: '#fca5a5',
+              fillOpacity: 0.2,
+              className: 'latest-location-circle'
+            }}
+            pane="latest-location-pane"
+            eventHandlers={{
+              click: handleLatestLocationRingClick
+            }}
           />
-          <MapControlButton
-            title="Dézoomer"
-            icon={<Minus className="h-5 w-5" />}
-            onClick={handleZoomOut}
-          />
-        </div>
-
-        <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
-            <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
-              <button
-                onClick={() => toggleInfo('contacts')}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  activeInfo === 'contacts'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                <span>Personnes en contact</span>
-              </button>
-              <button
-                onClick={() => toggleInfo('recent')}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  activeInfo === 'recent'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Clock className="w-4 h-4" />
-                <span>Localisations récentes</span>
-              </button>
-              <button
-                onClick={() => toggleInfo('popular')}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  activeInfo === 'popular'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Flame className="w-4 h-4" />
-                <span>Lieux les plus visités</span>
-              </button>
-              <button
-                onClick={() => toggleInfo('history')}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  activeInfo === 'history'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <History className="w-4 h-4" />
-                <span>Historique des déplacements</span>
-              </button>
-              {sourceNumbers.length >= 2 && (
-                <button
-                  onClick={handleMeetingPointsClick}
-                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                    showMeetingPoints
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <MapPin className="w-4 h-4" />
-                  <span>Points de rencontre</span>
-                </button>
-              )}
-              <button
-                onClick={() => setShowOthers((s) => !s)}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  showOthers
-                    ? 'text-gray-600 hover:bg-gray-100'
-                    : 'bg-gray-600 text-white'
-                }`}
-                title={showOthers ? 'Masquer autres éléments' : 'Afficher tous les éléments'}
-              >
-                {showOthers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {showBaseMarkers && showRoute && (
-          <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
-            <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
-              <Car className="w-4 h-4 text-indigo-500" />
-              <label htmlFor="speed" className="font-semibold text-sm">
-                {speed}x
-              </label>
-              <input
-                id="speed"
-                type="range"
-                min={1}
-                max={10}
-                value={speed}
-                onChange={(e) => setSpeed(Number(e.target.value))}
-                className="w-24"
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
-            <div className="pointer-events-auto max-h-full overflow-y-auto overflow-x-hidden bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
-              <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
-              <ul className="space-y-2">
-                <li className="flex items-center space-x-2">
-                  <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
-                    <PhoneIncoming className="w-4 h-4 text-white" />
-                  </span>
-                  <span>Appel entrant</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#2563eb' }}>
-                    <PhoneOutgoing className="w-4 h-4 text-white" />
-                  </span>
-                  <span>Appel sortant</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
-                    <MessageSquare className="w-4 h-4 text-white" />
-                  </span>
-                  <span>SMS</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
-                    <MapPin className="w-4 h-4 text-white" />
-                  </span>
-                  <span>Position</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-          {showMeetingPoints && meetingPoints.length > 0 && (
-          <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-72 overflow-y-auto">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="font-semibold">Points de rencontre</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveMeetingNumber(null);
-                  onToggleMeetingPoints?.();
-                }}
-                className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                Fermer tableau
-              </button>
-            </div>
-            <table className="text-xs">
-              <thead>
-                <tr className="text-left">
-                  <th className="pr-2">Point</th>
-                  <th className="pr-2">Numéros</th>
-                  <th className="pr-2">Événements</th>
-                </tr>
-              </thead>
-              <tbody>
-                {meetingPoints
-                  .filter(
-                    (m) =>
-                      !activeMeetingNumber ||
-                      m.numbers.some((num) => {
-                        const normalized = normalizePhoneDigits(num);
-                        const candidate = normalized || num.trim();
-                        return candidate === activeMeetingNumber;
-                      })
-                  )
-                  .map((m, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="pr-2">{m.nom || `${m.lat},${m.lng}`}</td>
-                      <td className="pr-2">{m.numbers.map((num) => formatPhoneForDisplay(num)).join(', ')}</td>
-                      <td className="pr-2">{m.events.length}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {(showZoneInfo || activeInfo) && (
-          <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
-            <div className="flex items-start justify-between gap-3">
+          <Marker
+            position={latestLocationPosition}
+            icon={latestLocationIcon}
+            zIndexOffset={4000}
+            pane="latest-location-pane"
+            ref={latestLocationMarkerRef}
+          >
+            <Popup className="cdr-popup">
               <div className="space-y-1">
-                <p className="font-semibold">
-                  {showZoneInfo && !activeInfo
-                    ? 'Résumé de la zone'
-                    : activeInfo === 'contacts'
-                      ? 'Personnes en contact'
-                      : activeInfo === 'recent'
-                        ? 'Localisations récentes'
-                        : activeInfo === 'popular'
-                          ? 'Lieux les plus visités'
-                          : activeInfo === 'history'
-                            ? 'Historique des déplacements'
-                            : 'Informations'}
-                </p>
-                <p className="text-xs text-slate-600 dark:text-slate-300">Total : {total}</p>
+                <p className="text-sm font-semibold text-red-600">Dernière localisation détectée</p>
+                {latestLocationPopupPoint?.nom && (
+                  <p className="text-sm font-medium text-slate-700">
+                    {latestLocationPopupPoint.nom}
+                  </p>
+                )}
+                {latestLocationPopupDetails && (
+                  <p className="text-xs text-slate-500">{latestLocationPopupDetails}</p>
+                )}
               </div>
+            </Popup>
+          </Marker>
+        </>
+      )}
+      {triangulationZones.map((zone, idx) => (
+        <React.Fragment key={`tri-${idx}`}>
+          <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
+          {zone.cells.map((cell, i) => (
+            <CircleMarker
+              key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
+              center={cell.position}
+              radius={4}
+              pathOptions={{ color: '#dc2626' }}
+            />
+          ))}
+          <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#dc2626')}>
+            <Popup className="cdr-popup">{renderTriangulationPopup(zone)}</Popup>
+          </Marker>
+        </React.Fragment>
+      ))}
+      </MapContainer>
+      <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-3">
+        <MapControlButton
+          title={
+            hasLatestLocation
+              ? 'Centrer sur la dernière localisation connue'
+              : 'Aucune localisation exploitable'
+          }
+          icon={<MapPin className="h-5 w-5" />}
+          onClick={handleFocusLatestLocation}
+          disabled={!hasLatestLocation}
+        />
+        <MapControlButton
+          title="Localisation approximative de la personne"
+          icon={<Crosshair className="h-5 w-5" />}
+          onClick={handleTriangulation}
+          active={triangulationZones.length > 0}
+          isToggle
+        />
+        <MapControlButton
+          title="Changer l'affichage"
+          icon={<Layers className="h-5 w-5" />}
+          onClick={() => setIsSatellite((s) => !s)}
+          active={isSatellite}
+          isToggle
+        />
+        {sourceNumbers.length > 0 && (
+          <MapControlButton
+            title="Trajectoires similaires"
+            icon={<Activity className="h-5 w-5" />}
+            onClick={() => setShowSimilar((s) => !s)}
+            active={showSimilar}
+            isToggle
+          />
+        )}
+        <MapControlButton
+          title="Zoomer"
+          icon={<Plus className="h-5 w-5" />}
+          onClick={handleZoomIn}
+        />
+        <MapControlButton
+          title="Dézoomer"
+          icon={<Minus className="h-5 w-5" />}
+          onClick={handleZoomOut}
+        />
+      </div>
+
+      <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
+          <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
+            <button
+              onClick={() => toggleInfo('contacts')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                activeInfo === 'contacts'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Personnes en contact</span>
+            </button>
+            <button
+              onClick={() => toggleInfo('recent')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                activeInfo === 'recent'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              <span>Localisations récentes</span>
+            </button>
+            <button
+              onClick={() => toggleInfo('popular')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                activeInfo === 'popular'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Flame className="w-4 h-4" />
+              <span>Lieux les plus visités</span>
+            </button>
+            <button
+              onClick={() => toggleInfo('history')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                activeInfo === 'history'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <History className="w-4 h-4" />
+              <span>Historique des déplacements</span>
+            </button>
+            {sourceNumbers.length >= 2 && (
               <button
-                type="button"
-                onClick={closeInfoPanels}
-                className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700"
+                onClick={handleMeetingPointsClick}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  showMeetingPoints
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
               >
-                Fermer tableau
+                <MapPin className="w-4 h-4" />
+                <span>Points de rencontre</span>
               </button>
+            )}
+            <button
+              onClick={() => setShowOthers((s) => !s)}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                showOthers
+                  ? 'text-gray-600 hover:bg-gray-100'
+                  : 'bg-gray-600 text-white'
+              }`}
+              title={showOthers ? 'Masquer autres éléments' : 'Afficher tous les éléments'}
+            >
+              {showOthers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {showBaseMarkers && showRoute && (
+        <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
+          <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
+            <Car className="w-4 h-4 text-indigo-500" />
+            <label htmlFor="speed" className="font-semibold text-sm">
+              {speed}x
+            </label>
+            <input
+              id="speed"
+              type="range"
+              min={1}
+              max={10}
+              value={speed}
+              onChange={(e) => setSpeed(Number(e.target.value))}
+              className="w-24"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
+          <div className="pointer-events-auto max-h-full overflow-y-auto overflow-x-hidden bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
+            <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
+            <ul className="space-y-2">
+              <li className="flex items-center space-x-2">
+                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
+                  <PhoneIncoming className="w-4 h-4 text-white" />
+                </span>
+                <span>Appel entrant</span>
+              </li>
+              <li className="flex items-center space-x-2">
+                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#2563eb' }}>
+                  <PhoneOutgoing className="w-4 h-4 text-white" />
+                </span>
+                <span>Appel sortant</span>
+              </li>
+              <li className="flex items-center space-x-2">
+                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
+                  <MessageSquare className="w-4 h-4 text-white" />
+                </span>
+                <span>SMS</span>
+              </li>
+              <li className="flex items-center space-x-2">
+                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
+                  <MapPin className="w-4 h-4 text-white" />
+                </span>
+                <span>Position</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+        {showMeetingPoints && meetingPoints.length > 0 && (
+        <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-72 overflow-y-auto">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="font-semibold">Points de rencontre</p>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveMeetingNumber(null);
+                onToggleMeetingPoints?.();
+              }}
+              className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              Fermer tableau
+            </button>
+          </div>
+          <table className="text-xs">
+            <thead>
+              <tr className="text-left">
+                <th className="pr-2">Point</th>
+                <th className="pr-2">Numéros</th>
+                <th className="pr-2">Événements</th>
+              </tr>
+            </thead>
+            <tbody>
+              {meetingPoints
+                .filter(
+                  (m) =>
+                    !activeMeetingNumber ||
+                    m.numbers.some((num) => {
+                      const normalized = normalizePhoneDigits(num);
+                      const candidate = normalized || num.trim();
+                      return candidate === activeMeetingNumber;
+                    })
+                )
+                .map((m, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="pr-2">{m.nom || `${m.lat},${m.lng}`}</td>
+                    <td className="pr-2">{m.numbers.map((num) => formatPhoneForDisplay(num)).join(', ')}</td>
+                    <td className="pr-2">{m.events.length}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {(showZoneInfo || activeInfo) && (
+        <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="font-semibold">
+                {showZoneInfo && !activeInfo
+                  ? 'Résumé de la zone'
+                  : activeInfo === 'contacts'
+                    ? 'Personnes en contact'
+                    : activeInfo === 'recent'
+                      ? 'Localisations récentes'
+                      : activeInfo === 'popular'
+                        ? 'Lieux les plus visités'
+                        : activeInfo === 'history'
+                          ? 'Historique des déplacements'
+                          : 'Informations'}
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-300">Total : {total}</p>
             </div>
-            {sourceNumbers.length > 1 && (
-              <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={closeInfoPanels}
+              className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              Fermer tableau
+            </button>
+          </div>
+          {sourceNumbers.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedSource(null)}
+                className={`px-2 py-1 rounded ${
+                  selectedSource === null
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-800'
+                }`}
+              >
+                Tous
+              </button>
+              {sourceNumbers.map((n) => (
                 <button
-                  onClick={() => setSelectedSource(null)}
+                  key={n}
+                  onClick={() => setSelectedSource(n)}
                   className={`px-2 py-1 rounded ${
-                    selectedSource === null
+                    selectedSource === n
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-200 text-gray-800'
                   }`}
                 >
-                  Tous
+                  {n}
                 </button>
-                {sourceNumbers.map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setSelectedSource(n)}
-                    className={`px-2 py-1 rounded ${
-                      selectedSource === n
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-800'
-                    }`}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            )}
-            {(showZoneInfo || activeInfo === 'contacts') && topContacts.length > 0 && (
-              <div>
-                <p className="font-semibold mb-2">Personnes en contact</p>
-                <table className="min-w-full border-collapse">
-                  <thead>
-                    <tr className="text-left">
-                      <th className="pr-4">Numéro suivi</th>
-                      <th className="pr-4">Contact</th>
-                      <th className="pr-4">Appels</th>
-                      <th className="pr-4">Durée</th>
-                      <th className="pr-4">SMS</th>
-                      <th className="pr-4">Rencontres</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedContacts.map((c, i) => {
-                      const idx = (contactPage - 1) * pageSize + i;
-                      const contactNumber = c.contact?.trim() || '';
-                      const toggleKey = contactNumber
-                        ? normalizePhoneDigits(contactNumber) || contactNumber
-                        : c.contactNormalized || '';
-                      const meetingCount = toggleKey
-                        ? meetingPoints.filter((m) =>
-                            m.numbers.some((num) => {
-                              const normalized = normalizePhoneDigits(num);
-                              const candidate = normalized || num.trim();
-                              return candidate === toggleKey;
-                            })
-                          ).length
-                        : 0;
-                      const isActiveMeeting =
-                        toggleKey && showMeetingPoints && activeMeetingNumber === toggleKey;
-                      const toggleValue = contactNumber || toggleKey;
-                      return (
-                        <tr
-                          key={c.id}
-                          className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
-                        >
-                          <td className="pr-4">{formatPhoneForDisplay(c.tracked)}</td>
-                          <td className="pr-4">{formatPhoneForDisplay(c.contact)}</td>
-                          <td className="pr-4">{c.callCount}</td>
-                          <td className="pr-4">{c.callDuration}</td>
-                          <td className="pr-4">{c.smsCount}</td>
-                          <td className="pr-4">
-                            {meetingCount}
-                            {meetingCount > 0 && toggleValue && (
-                              <button
-                                className="ml-1 text-blue-600"
-                                onClick={() => handleToggleMeetingPoint(toggleValue)}
-                              >
-                                {isActiveMeeting ? (
-                                  <EyeOff size={16} />
-                                ) : (
-                                  <Eye size={16} />
-                                )}
-                              </button>
-                            )}
-                          </td>
-                          <td>{c.total}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div className="flex justify-center items-center space-x-2 mt-2">
-                  <button
-                    className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
-                    onClick={() => setContactPage((p) => Math.max(1, p - 1))}
-                    disabled={contactPage === 1}
-                  >
-                    Précédent
-                  </button>
-                  <span>
-                    Page {contactPage} / {Math.max(1, Math.ceil(topContacts.length / pageSize))}
-                  </span>
-                  <button
-                    className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
-                    onClick={() => setContactPage((p) => p + 1)}
-                    disabled={contactPage >= Math.ceil(topContacts.length / pageSize)}
-                  >
-                    Suivant
-                  </button>
-                </div>
-              </div>
-            )}
-            {(showZoneInfo || activeInfo === 'recent') && recentLocations.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold">Localisations récentes</p>
-                  <button
-                    className="text-blue-600 hover:underline"
-                    onClick={() => toggleAllLocations(recentLocations)}
-                  >
-                    {recentLocations.every((l) =>
-                      hiddenLocations.has(`${l.latitude},${l.longitude},${l.nom || ''}`)
-                    )
-                      ? 'Tout afficher'
-                      : 'Tout cacher'}
-                  </button>
-                </div>
-                <table className="min-w-full border-collapse">
-                  <thead>
-                    <tr className="text-left">
-                      <th className="pr-4"></th>
-                      <th className="pr-4">Lieu</th>
-                      <th className="pr-4">Occurrences</th>
-                      <th className="pr-4">Dernière visite</th>
-                      <th>Heure dernière visite</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentLocations.map((l, i) => {
-                      const key = `${l.latitude},${l.longitude},${l.nom || ''}`;
-                      const hidden = hiddenLocations.has(key);
-                      return (
-                        <tr key={i} className="border-t">
-                          <td className="pr-4">
-                            <button onClick={() => toggleLocationVisibility(l)}>
-                              {hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              ))}
+            </div>
+          )}
+          {(showZoneInfo || activeInfo === 'contacts') && topContacts.length > 0 && (
+            <div>
+              <p className="font-semibold mb-2">Personnes en contact</p>
+              <table className="min-w-full border-collapse">
+                <thead>
+                  <tr className="text-left">
+                    <th className="pr-4">Numéro suivi</th>
+                    <th className="pr-4">Contact</th>
+                    <th className="pr-4">Appels</th>
+                    <th className="pr-4">Durée</th>
+                    <th className="pr-4">SMS</th>
+                    <th className="pr-4">Rencontres</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedContacts.map((c, i) => {
+                    const idx = (contactPage - 1) * pageSize + i;
+                    const contactNumber = c.contact?.trim() || '';
+                    const toggleKey = contactNumber
+                      ? normalizePhoneDigits(contactNumber) || contactNumber
+                      : c.contactNormalized || '';
+                    const meetingCount = toggleKey
+                      ? meetingPoints.filter((m) =>
+                          m.numbers.some((num) => {
+                            const normalized = normalizePhoneDigits(num);
+                            const candidate = normalized || num.trim();
+                            return candidate === toggleKey;
+                          })
+                        ).length
+                      : 0;
+                    const isActiveMeeting =
+                      toggleKey && showMeetingPoints && activeMeetingNumber === toggleKey;
+                    const toggleValue = contactNumber || toggleKey;
+                    return (
+                      <tr
+                        key={c.id}
+                        className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
+                      >
+                        <td className="pr-4">{formatPhoneForDisplay(c.tracked)}</td>
+                        <td className="pr-4">{formatPhoneForDisplay(c.contact)}</td>
+                        <td className="pr-4">{c.callCount}</td>
+                        <td className="pr-4">{c.callDuration}</td>
+                        <td className="pr-4">{c.smsCount}</td>
+                        <td className="pr-4">
+                          {meetingCount}
+                          {meetingCount > 0 && toggleValue && (
+                            <button
+                              className="ml-1 text-blue-600"
+                              onClick={() => handleToggleMeetingPoint(toggleValue)}
+                            >
+                              {isActiveMeeting ? (
+                                <EyeOff size={16} />
+                              ) : (
+                                <Eye size={16} />
+                              )}
                             </button>
-                          </td>
-                          <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
-                          <td className="pr-4 text-gray-800 dark:text-white">{l.count}</td>
-                          <td className="pr-4">{l.lastDate && formatDate(l.lastDate)}</td>
-                          <td>{l.lastTime}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {(showZoneInfo || activeInfo === 'popular') && topLocations.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold">Lieux les plus visités</p>
-                  <button
-                    className="text-blue-600 hover:underline"
-                    onClick={() => toggleAllLocations(topLocations)}
-                  >
-                    {topLocations.every((l) =>
-                      hiddenLocations.has(`${l.latitude},${l.longitude},${l.nom || ''}`)
-                    )
-                      ? 'Tout afficher'
-                      : 'Tout cacher'}
-                  </button>
-                </div>
-                <table className="min-w-full border-collapse">
-                  <thead>
-                    <tr className="text-left">
-                      <th className="pr-4"></th>
-                      <th className="pr-4">Lieu</th>
-                      <th>Occurrences</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topLocations.map((l, i) => {
-                      const key = `${l.latitude},${l.longitude},${l.nom || ''}`;
-                      const hidden = hiddenLocations.has(key);
-                      return (
-                        <tr key={i} className="border-t">
-                          <td className="pr-4">
-                            <button onClick={() => toggleLocationVisibility(l)}>
-                              {hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                          </td>
-                          <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
-                          <td className="text-gray-800 dark:text-white">{l.count}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {activeInfo === 'history' && historyEvents.length > 0 && (
-              <div>
-                <p className="font-semibold mb-2">Historique des déplacements</p>
-                <div className="mb-2">
-                  <label className="mr-2">Filtrer par date:</label>
-                  <select
-                    value={historyDateFilter}
-                    onChange={(e) => {
-                      setHistoryDateFilter(e.target.value);
-                    }}
-                    className="border rounded px-2 py-1"
-                  >
-                    <option value="">Toutes les dates</option>
-                    {availableHistoryDates.map((d) => (
-                      <option key={d} value={d}>
-                        {formatDate(d)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="max-h-60 overflow-y-auto">
-                  <table className="min-w-full border-collapse">
-                    <thead>
-                      <tr className="text-left">
-                        <th className="pr-4">Lieu</th>
-                        <th className="pr-4">Date</th>
-                        <th>Heure</th>
+                          )}
+                        </td>
+                        <td>{c.total}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {filteredHistoryEvents.map((h, i) => (
-                        <tr key={i} className="border-t">
-                          <td className="pr-4">{h.location}</td>
-                          <td className="pr-4">{formatDate(h.date)}</td>
-                          <td>{h.time}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="flex justify-center items-center space-x-2 mt-2">
+                <button
+                  className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                  onClick={() => setContactPage((p) => Math.max(1, p - 1))}
+                  disabled={contactPage === 1}
+                >
+                  Précédent
+                </button>
+                <span>
+                  Page {contactPage} / {Math.max(1, Math.ceil(topContacts.length / pageSize))}
+                </span>
+                <button
+                  className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                  onClick={() => setContactPage((p) => p + 1)}
+                  disabled={contactPage >= Math.ceil(topContacts.length / pageSize)}
+                >
+                  Suivant
+                </button>
               </div>
-            )}
-          </div>
-        )}
-      </div>
-
-
-    </>
+            </div>
+          )}
+          {(showZoneInfo || activeInfo === 'recent') && recentLocations.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-semibold">Localisations récentes</p>
+                <button
+                  className="text-blue-600 hover:underline"
+                  onClick={() => toggleAllLocations(recentLocations)}
+                >
+                  {recentLocations.every((l) =>
+                    hiddenLocations.has(`${l.latitude},${l.longitude},${l.nom || ''}`)
+                  )
+                    ? 'Tout afficher'
+                    : 'Tout cacher'}
+                </button>
+              </div>
+              <table className="min-w-full border-collapse">
+                <thead>
+                  <tr className="text-left">
+                    <th className="pr-4"></th>
+                    <th className="pr-4">Lieu</th>
+                    <th className="pr-4">Occurrences</th>
+                    <th className="pr-4">Dernière visite</th>
+                    <th>Heure dernière visite</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentLocations.map((l, i) => {
+                    const key = `${l.latitude},${l.longitude},${l.nom || ''}`;
+                    const hidden = hiddenLocations.has(key);
+                    return (
+                      <tr key={i} className="border-t">
+                        <td className="pr-4">
+                          <button onClick={() => toggleLocationVisibility(l)}>
+                            {hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </td>
+                        <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
+                        <td className="pr-4 text-gray-800 dark:text-white">{l.count}</td>
+                        <td className="pr-4">{l.lastDate && formatDate(l.lastDate)}</td>
+                        <td>{l.lastTime}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {(showZoneInfo || activeInfo === 'popular') && topLocations.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-semibold">Lieux les plus visités</p>
+                <button
+                  className="text-blue-600 hover:underline"
+                  onClick={() => toggleAllLocations(topLocations)}
+                >
+                  {topLocations.every((l) =>
+                    hiddenLocations.has(`${l.latitude},${l.longitude},${l.nom || ''}`)
+                  )
+                    ? 'Tout afficher'
+                    : 'Tout cacher'}
+                </button>
+              </div>
+              <table className="min-w-full border-collapse">
+                <thead>
+                  <tr className="text-left">
+                    <th className="pr-4"></th>
+                    <th className="pr-4">Lieu</th>
+                    <th>Occurrences</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topLocations.map((l, i) => {
+                    const key = `${l.latitude},${l.longitude},${l.nom || ''}`;
+                    const hidden = hiddenLocations.has(key);
+                    return (
+                      <tr key={i} className="border-t">
+                        <td className="pr-4">
+                          <button onClick={() => toggleLocationVisibility(l)}>
+                            {hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </td>
+                        <td className="pr-4">{l.nom || `${l.latitude},${l.longitude}`}</td>
+                        <td className="text-gray-800 dark:text-white">{l.count}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {activeInfo === 'history' && historyEvents.length > 0 && (
+            <div>
+              <p className="font-semibold mb-2">Historique des déplacements</p>
+              <div className="mb-2">
+                <label className="mr-2">Filtrer par date:</label>
+                <select
+                  value={historyDateFilter}
+                  onChange={(e) => {
+                    setHistoryDateFilter(e.target.value);
+                  }}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="">Toutes les dates</option>
+                  {availableHistoryDates.map((d) => (
+                    <option key={d} value={d}>
+                      {formatDate(d)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="max-h-60 overflow-y-auto">
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr className="text-left">
+                      <th className="pr-4">Lieu</th>
+                      <th className="pr-4">Date</th>
+                      <th>Heure</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredHistoryEvents.map((h, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="pr-4">{h.location}</td>
+                        <td className="pr-4">{formatDate(h.date)}</td>
+                        <td>{h.time}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
