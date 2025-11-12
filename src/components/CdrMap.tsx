@@ -2254,7 +2254,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(() => showOthers && !isLatestLocationFocus, [showOthers, isLatestLocationFocus]);
+  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -2850,38 +2850,39 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               {zoneShape && (
                 <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
               )}
-              {showBaseMarkers && (
-                <MarkerClusterGroup maxClusterRadius={0}>
-                  {groupedPoints.flatMap((group, idx) => {
-                    const perSourceEntries = group.perSource;
-                    if (perSourceEntries.length <= 1) {
-                      const marker = createMarkerForEvents(
-                        group.events,
-                        [group.lat, group.lng],
-                        `group-${idx}`
-                      );
-                      return marker ? [marker] : [];
-                    }
+            </>
+          )}
+          {showBaseMarkers && (
+            <>
+              <MarkerClusterGroup maxClusterRadius={0}>
+                {groupedPoints.flatMap((group, idx) => {
+                  const perSourceEntries = group.perSource;
+                  if (perSourceEntries.length <= 1) {
+                    const marker = createMarkerForEvents(
+                      group.events,
+                      [group.lat, group.lng],
+                      `group-${idx}`
+                    );
+                    return marker ? [marker] : [];
+                  }
 
-                    return perSourceEntries.flatMap((entry, entryIdx) => {
-                      const position = computeOffsetPosition(
-                        group.lat,
-                        group.lng,
-                        entryIdx,
-                        perSourceEntries.length
-                      );
-                      const marker = createMarkerForEvents(
-                        entry.events,
-                        position,
-                        `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
-                      );
-                      return marker ? [marker] : [];
-                    });
-                  })}
-                </MarkerClusterGroup>
-              )}
-              {showBaseMarkers &&
-                showMeetingPoints &&
+                  return perSourceEntries.flatMap((entry, entryIdx) => {
+                    const position = computeOffsetPosition(
+                      group.lat,
+                      group.lng,
+                      entryIdx,
+                      perSourceEntries.length
+                    );
+                    const marker = createMarkerForEvents(
+                      entry.events,
+                      position,
+                      `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
+                    );
+                    return marker ? [marker] : [];
+                  });
+                })}
+              </MarkerClusterGroup>
+              {showMeetingPoints &&
                 meetingPoints
                   .filter(
                     (mp) =>
@@ -2895,7 +2896,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                   .map((mp, idx) => (
                     <MeetingPointMarker key={`meeting-${idx}`} mp={mp} />
                   ))}
-              {showBaseMarkers && showRoute && routePositions.length > 1 && (
+              {showRoute && routePositions.length > 1 && (
                 <Polyline
                   positions={routePositions}
                   pathOptions={{
@@ -2908,20 +2909,19 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                   }}
                 />
               )}
-              {showBaseMarkers && showRoute && routePositions.length > 0 && (
+              {showRoute && routePositions.length > 0 && (
                 <Marker position={routePositions[0]} icon={startIcon} />
               )}
-              {showBaseMarkers && showRoute && routePositions.length > 1 && (
+              {showRoute && routePositions.length > 1 && (
                 <Marker
                   position={routePositions[routePositions.length - 1]}
                   icon={endIcon}
                 />
               )}
-              {showBaseMarkers && showRoute && interpolatedRoute.length > 0 && (
+              {showRoute && interpolatedRoute.length > 0 && (
                 <Marker position={carPosition} icon={carIcon} />
               )}
-              {showBaseMarkers &&
-                showRoute &&
+              {showRoute &&
                 arrowMarkers.map((a, idx) => (
                   <Marker
                     key={`arrow-${idx}`}
@@ -2930,8 +2930,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                     interactive={false}
                   />
                 ))}
-              {showBaseMarkers &&
-                showSimilar &&
+              {showSimilar &&
                 similarSegments.flatMap((seg, idx) =>
                   seg.sources.map((src) =>
                     visibleSimilar.has(src) ? (
@@ -2949,8 +2948,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                     ) : null
                   )
                 )}
-              {showBaseMarkers &&
-                showSimilar &&
+              {showSimilar &&
                 (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
                   <Marker
                     key={`similar-point-${idx}`}
