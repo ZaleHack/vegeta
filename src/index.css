@@ -551,7 +551,18 @@
     0 0 12px rgba(244, 63, 94, 0.85),
     0 0 28px rgba(244, 63, 94, 0.45),
     0 0 42px rgba(244, 63, 94, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
   animation: latest-location-flash 1.2s ease-in-out infinite;
+}
+
+.latest-location-pulse__dot svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  filter: drop-shadow(0 4px 8px rgba(244, 63, 94, 0.45));
+  fill: currentColor;
 }
 
 @keyframes latest-location-beacon {
