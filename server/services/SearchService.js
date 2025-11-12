@@ -92,6 +92,22 @@ const UNIQUE_SEARCH_FIELDS = new Set(
   ].map((field) => field.toLowerCase())
 );
 
+const resolveMaxExtraSearches = () => {
+  const rawValue = process.env.SEARCH_MAX_EXTRA_SEARCHES ?? process.env.SEARCH_MAX_EXTRA_QUERIES;
+  if (rawValue === undefined) {
+    return 5;
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 5;
+  }
+
+  return Math.floor(parsed);
+};
+
+const MAX_EXTRA_SEARCHES = resolveMaxExtraSearches();
+
 class SearchService {
   constructor() {
     const __filename = fileURLToPath(import.meta.url);
@@ -531,9 +547,11 @@ class SearchService {
     }
 
     // Recherche supplémentaire pour les champs uniques trouvés dans les résultats
-    if (depth === 0) {
-      const extraValues = new Set();
+    if (depth === 0 && MAX_EXTRA_SEARCHES !== 0) {
+      const extraValueCandidates = [];
+      const seenExtraValues = new Set();
       const queryNormalized = String(query).trim().toLowerCase();
+
       for (const res of results) {
         const preview = res.preview || {};
         for (const [key, value] of Object.entries(preview)) {
@@ -541,19 +559,43 @@ class SearchService {
           if (!UNIQUE_SEARCH_FIELDS.has(normalizedKey)) {
             continue;
           }
+
           const valueStr = String(value).trim();
-          if (
-            valueStr &&
-            valueStr.toLowerCase() !== queryNormalized
-          ) {
-            extraValues.add(valueStr);
+          if (!valueStr) {
+            continue;
+          }
+
+          const normalizedValue = valueStr.toLowerCase();
+          if (normalizedValue === queryNormalized) {
+            continue;
+          }
+
+          if (!seenExtraValues.has(normalizedValue)) {
+            seenExtraValues.add(normalizedValue);
+            extraValueCandidates.push(valueStr);
           }
         }
       }
 
-      for (const val of extraValues) {
-        if (val.toLowerCase() === queryNormalized) continue;
+      const limitedExtraValues =
+        MAX_EXTRA_SEARCHES > 0
+          ? extraValueCandidates.slice(0, MAX_EXTRA_SEARCHES)
+          : extraValueCandidates;
+
+      let extraValueSearches = 0;
+
+      for (const val of limitedExtraValues) {
+        const normalizedValue = val.toLowerCase();
+        if (normalizedValue === queryNormalized) {
+          continue;
+        }
+
+        if (MAX_EXTRA_SEARCHES > 0 && extraValueSearches >= MAX_EXTRA_SEARCHES) {
+          break;
+        }
+
         extraSearches++;
+        extraValueSearches++;
         const sub = await this.search(val, {}, 1, 50, null, 'linked', {
           depth: depth + 1
         });
