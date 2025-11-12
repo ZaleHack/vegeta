@@ -255,6 +255,42 @@ class DatabaseManager {
         return { existed: true, changed: false };
       };
 
+      const ensureUniqueIndex = async (tableName, columnName, indexName) => {
+        const [schemaName, ...tableParts] = tableName.split('.');
+        const tableId = tableParts.join('.');
+
+        if (!schemaName || !tableId) {
+          throw new Error(`Table name invalide: ${tableName}`);
+        }
+
+        const existingUniqueIndex = await queryOne(
+          `
+            SELECT INDEX_NAME
+            FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = ?
+              AND TABLE_NAME = ?
+              AND COLUMN_NAME = ?
+              AND NON_UNIQUE = 0
+            LIMIT 1
+          `,
+          [schemaName, tableId, columnName]
+        );
+
+        if (existingUniqueIndex) {
+          return;
+        }
+
+        try {
+          await this.pool.execute(
+            `ALTER TABLE ${tableName} ADD UNIQUE INDEX \`${indexName}\` (\`${columnName}\`)`
+          );
+        } catch (error) {
+          if (!['ER_DUP_KEYNAME', 'ER_DUP_ENTRY'].includes(error?.code)) {
+            throw error;
+          }
+        }
+      };
+
       const cleanOrphanedDivisionReferences = async () => {
         await this.pool.execute(`
           UPDATE autres.users u
@@ -731,6 +767,8 @@ class DatabaseManager {
 
       await ensureInnoDbEngine('autres.profile_folders');
       await ensureInnoDbEngine('autres.profiles');
+
+      await ensureUniqueIndex('autres.profile_folders', 'id', 'uniq_profile_folders_id');
 
       const folderColumnInfo = await getColumnInfo('autres.profiles', 'folder_id');
       await ensureColumnDefinition(
