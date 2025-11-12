@@ -1131,6 +1131,54 @@ const MeetingPointMarker: React.FC<{
   );
 });
 
+interface MapControlButtonProps {
+  title: string;
+  icon: React.ReactNode;
+  onClick?: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  isToggle?: boolean;
+}
+
+const MapControlButton: React.FC<MapControlButtonProps> = ({
+  title,
+  icon,
+  onClick,
+  active = false,
+  disabled = false,
+  isToggle = false
+}) => {
+  const baseClasses =
+    'flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition-all duration-200 backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500';
+
+  const stateClasses = disabled
+    ? 'border border-gray-200 bg-white/70 text-gray-400 opacity-50 cursor-not-allowed'
+    : active
+      ? 'border border-blue-500 bg-blue-600 text-white shadow-md hover:bg-blue-600/90'
+      : 'border border-gray-200 bg-white/80 text-gray-700 hover:bg-gray-100';
+
+  const toggleProps = isToggle ? { 'aria-pressed': active } : {};
+
+  return (
+    <div className="pointer-events-auto group relative">
+      <button
+        type="button"
+        title={title}
+        aria-label={title}
+        disabled={disabled}
+        onClick={onClick}
+        className={`${baseClasses} ${stateClasses}`}
+        {...toggleProps}
+      >
+        {icon}
+      </button>
+      <span className="pointer-events-none absolute left-full top-1/2 ml-3 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900/90 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-all duration-150 group-hover:translate-x-1 group-hover:opacity-100 group-focus-within:translate-x-1 group-focus-within:opacity-100">
+        {title}
+      </span>
+    </div>
+  );
+};
+
 const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated }) => {
   const points = useMemo<Point[]>(() => {
     if (!Array.isArray(rawPoints) || rawPoints.length === 0) {
@@ -1327,13 +1375,13 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
       const detailItems = [
         ...(calleeNumber
-          ? [{ label: 'Numéro associé', value: formatPhoneForDisplay(calleeNumber) }]
+          ? [{ label: 'Numéro contacté', value: formatPhoneForDisplay(calleeNumber) }]
           : []),
         ...infoItems,
         ...optionalDetails
       ].filter((item) =>
         !isLocationEvent ||
-        (item.label !== 'Numéro associé' &&
+        (item.label !== 'Numéro contacté' &&
           item.label !== 'Durée' &&
           item.label !== "Statut d'appel")
       );
@@ -1491,7 +1539,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const latestLocationPoint = useMemo(() => {
     let latest: { point: Point; timestamp: number } | null = null;
-    displayedPoints.forEach((point) => {
+    callerPoints.forEach((point) => {
       if (!isLocationEventType(point.type)) return;
       const lat = parseFloat(point.latitude);
       const lng = parseFloat(point.longitude);
@@ -1503,7 +1551,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       }
     });
     return latest?.point ?? null;
-  }, [displayedPoints]);
+  }, [callerPoints]);
 
   const latestLocationDetails = useMemo(() => {
     if (!latestLocationPoint) return null;
@@ -2249,7 +2297,10 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
+  const showBaseMarkers = useMemo(
+    () => showOthers && !showLatestOnly,
+    [showOthers, showLatestOnly]
+  );
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -2827,8 +2878,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
           )}
-          <ZoneSelector />
-        {drawing && currentPoints.length > 0 && (
+          {!showLatestOnly && <ZoneSelector />}
+        {!showLatestOnly && drawing && currentPoints.length > 0 && (
           <Polyline
             positions={currentPoints}
             pathOptions={{
@@ -2840,7 +2891,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }}
           />
         )}
-        {zoneShape && (
+        {!showLatestOnly && zoneShape && (
           <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
         )}
         {showBaseMarkers && (
@@ -2954,7 +3005,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               </Popup>
             </Marker>
             ))}
-        {locationMarkers.map((loc, idx) => (
+        {showBaseMarkers &&
+          locationMarkers.map((loc, idx) => (
             <Marker
               key={`stat-${idx}`}
               position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
@@ -3015,7 +3067,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </Marker>
           </>
         )}
-        {triangulationZones.map((zone, idx) => (
+        {!showLatestOnly &&
+          triangulationZones.map((zone, idx) => (
             <React.Fragment key={`tri-${idx}`}>
               <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
               {zone.cells.map((cell, i) => (
@@ -3032,19 +3085,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </React.Fragment>
           ))}
         </MapContainer>
-
-        <div className="pointer-events-none absolute bottom-6 left-1/2 z-[1000] flex -translate-x-1/2">
-          <button
-            onClick={handleToggleLatestLocation}
-            disabled={!hasLatestLocation}
-            aria-pressed={showLatestOnly}
-            className={`pointer-events-auto latest-location-button ${
-              !hasLatestLocation
-                ? 'latest-location-button--disabled'
-                : showLatestOnly
-                ? 'latest-location-button--focused'
-                : 'latest-location-button--active'
-            }`}
+        <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-3">
+          <MapControlButton
             title={
               hasLatestLocation
                 ? showLatestOnly
@@ -3052,149 +3094,121 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                   : 'Centrer sur la dernière localisation connue'
                 : 'Aucune localisation exploitable'
             }
-          >
-            <span className="latest-location-button__icon-wrapper">
-              <span className="latest-location-button__icon-pulse" />
-              <MapPin className="w-5 h-5 relative z-[1] text-white" />
-            </span>
-            <span className="flex flex-col text-left leading-tight">
-              <span className="latest-location-button__label">Dernière localisation</span>
-              <span className="latest-location-button__value">
-                {hasLatestLocation
-                  ? latestLocationPoint?.nom?.trim() || 'Position inconnue'
-                  : 'Aucune donnée'}
-              </span>
-              {hasLatestLocation && latestLocationDetails && (
-                <span className="latest-location-button__meta">{latestLocationDetails}</span>
-              )}
-            </span>
-          </button>
-        </div>
-
-        <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-2">
-          <button
-            onClick={handleTriangulation}
-            className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
-              triangulationZones.length > 0
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-white/90 text-gray-700 hover:bg-gray-100'
-            }`}
+            icon={<MapPin className="h-5 w-5" />}
+            onClick={handleToggleLatestLocation}
+            active={showLatestOnly}
+            disabled={!hasLatestLocation}
+            isToggle
+          />
+          <MapControlButton
             title="Localisation approximative de la personne"
-          >
-            <Crosshair className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setIsSatellite((s) => !s)}
-            className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
-              isSatellite
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-white/90 text-gray-700 hover:bg-gray-100'
-            }`}
+            icon={<Crosshair className="h-5 w-5" />}
+            onClick={handleTriangulation}
+            active={triangulationZones.length > 0}
+            isToggle
+          />
+          <MapControlButton
             title="Changer l'affichage"
-          >
-            <Layers className="w-5 h-5" />
-          </button>
+            icon={<Layers className="h-5 w-5" />}
+            onClick={() => setIsSatellite((s) => !s)}
+            active={isSatellite}
+            isToggle
+          />
           {sourceNumbers.length > 0 && (
-            <button
-              onClick={() => setShowSimilar((s) => !s)}
-              className={`pointer-events-auto p-2 rounded-full shadow transition-colors border border-gray-300 ${
-                showSimilar
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-white/90 text-gray-700 hover:bg-gray-100'
-              }`}
+            <MapControlButton
               title="Trajectoires similaires"
-            >
-              <Activity className="w-5 h-5" />
-            </button>
+              icon={<Activity className="h-5 w-5" />}
+              onClick={() => setShowSimilar((s) => !s)}
+              active={showSimilar}
+              isToggle
+            />
           )}
-          <button
-            onClick={handleZoomIn}
-            className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300"
+          <MapControlButton
             title="Zoomer"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-          <button
-            onClick={handleZoomOut}
-            className="pointer-events-auto p-2 rounded-full shadow bg-white/90 hover:bg-gray-100 transition-colors border border-gray-300"
+            icon={<Plus className="h-5 w-5" />}
+            onClick={handleZoomIn}
+          />
+          <MapControlButton
             title="Dézoomer"
-          >
-            <Minus className="w-5 h-5" />
-          </button>
+            icon={<Minus className="h-5 w-5" />}
+            onClick={handleZoomOut}
+          />
         </div>
 
-        <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
-          <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
-            <button
-              onClick={() => toggleInfo('contacts')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                activeInfo === 'contacts'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Personnes en contact</span>
-            </button>
-            <button
-              onClick={() => toggleInfo('recent')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                activeInfo === 'recent'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <Clock className="w-4 h-4" />
-              <span>Localisations récentes</span>
-            </button>
-            <button
-              onClick={() => toggleInfo('popular')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                activeInfo === 'popular'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <Flame className="w-4 h-4" />
-              <span>Lieux les plus visités</span>
-            </button>
-            <button
-              onClick={() => toggleInfo('history')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                activeInfo === 'history'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <History className="w-4 h-4" />
-              <span>Historique des déplacements</span>
-            </button>
-            {sourceNumbers.length >= 2 && (
+        {!showLatestOnly && (
+          <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
+            <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
               <button
-                onClick={handleMeetingPointsClick}
+                onClick={() => toggleInfo('contacts')}
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  showMeetingPoints
+                  activeInfo === 'contacts'
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <MapPin className="w-4 h-4" />
-                <span>Points de rencontre</span>
+                <Users className="w-4 h-4" />
+                <span>Personnes en contact</span>
               </button>
-            )}
-            <button
-              onClick={() => setShowOthers((s) => !s)}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                showOthers
-                  ? 'text-gray-600 hover:bg-gray-100'
-                  : 'bg-gray-600 text-white'
-              }`}
-              title={showOthers ? 'Masquer autres éléments' : 'Afficher tous les éléments'}
-            >
-              {showOthers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            </button>
+              <button
+                onClick={() => toggleInfo('recent')}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  activeInfo === 'recent'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Clock className="w-4 h-4" />
+                <span>Localisations récentes</span>
+              </button>
+              <button
+                onClick={() => toggleInfo('popular')}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  activeInfo === 'popular'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Flame className="w-4 h-4" />
+                <span>Lieux les plus visités</span>
+              </button>
+              <button
+                onClick={() => toggleInfo('history')}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  activeInfo === 'history'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <History className="w-4 h-4" />
+                <span>Historique des déplacements</span>
+              </button>
+              {sourceNumbers.length >= 2 && (
+                <button
+                  onClick={handleMeetingPointsClick}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                    showMeetingPoints
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <MapPin className="w-4 h-4" />
+                  <span>Points de rencontre</span>
+                </button>
+              )}
+              <button
+                onClick={() => setShowOthers((s) => !s)}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  showOthers
+                    ? 'text-gray-600 hover:bg-gray-100'
+                    : 'bg-gray-600 text-white'
+                }`}
+                title={showOthers ? 'Masquer autres éléments' : 'Afficher tous les éléments'}
+              >
+                {showOthers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {showBaseMarkers && showRoute && (
           <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
@@ -3216,46 +3230,42 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           </div>
         )}
 
-        <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
-          <div className="pointer-events-auto max-h-full overflow-y-auto overflow-x-hidden bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
-            <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
-            <ul className="space-y-2">
-              <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
-                  <PhoneIncoming className="w-4 h-4 text-white" />
-                </span>
-                <span>Appel entrant</span>
-              </li>
-              <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#2563eb' }}>
-                  <PhoneOutgoing className="w-4 h-4 text-white" />
-                </span>
-                <span>Appel sortant</span>
-              </li>
-              <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
-                  <MessageSquare className="w-4 h-4 text-white" />
-                </span>
-                <span>SMS</span>
-              </li>
-              <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
-                  <MapPin className="w-4 h-4 text-white" />
-                </span>
-                <span>Position</span>
-              </li>
-              <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
-                  <MapPin className="w-4 h-4 text-white" />
-                </span>
-                <span className="font-semibold">Localisation approximative</span>
-              </li>
-            </ul>
+        {!showLatestOnly && (
+          <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
+            <div className="pointer-events-auto max-h-full overflow-y-auto overflow-x-hidden bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
+              <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
+              <ul className="space-y-2">
+                <li className="flex items-center space-x-2">
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
+                    <PhoneIncoming className="w-4 h-4 text-white" />
+                  </span>
+                  <span>Appel entrant</span>
+                </li>
+                <li className="flex items-center space-x-2">
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#2563eb' }}>
+                    <PhoneOutgoing className="w-4 h-4 text-white" />
+                  </span>
+                  <span>Appel sortant</span>
+                </li>
+                <li className="flex items-center space-x-2">
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
+                    <MessageSquare className="w-4 h-4 text-white" />
+                  </span>
+                  <span>SMS</span>
+                </li>
+                <li className="flex items-center space-x-2">
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
+                    <MapPin className="w-4 h-4 text-white" />
+                  </span>
+                  <span>Position</span>
+                </li>
+              </ul>
+            </div>
           </div>
-        </div>
+        )}
 
 
-        {showMeetingPoints && meetingPoints.length > 0 && (
+        {!showLatestOnly && showMeetingPoints && meetingPoints.length > 0 && (
           <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-72 overflow-y-auto">
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="font-semibold">Points de rencontre</p>
@@ -3301,7 +3311,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           </div>
         )}
 
-        {(showZoneInfo || activeInfo) && (
+        {!showLatestOnly && (showZoneInfo || activeInfo) && (
           <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
