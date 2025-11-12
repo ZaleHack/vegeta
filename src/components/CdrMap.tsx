@@ -2954,8 +2954,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               </Popup>
             </Marker>
             ))}
-        {showBaseMarkers &&
-          locationMarkers.map((loc, idx) => (
+        {locationMarkers.map((loc, idx) => (
             <Marker
               key={`stat-${idx}`}
               position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
