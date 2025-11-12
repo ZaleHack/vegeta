@@ -87,76 +87,33 @@ router.post('/', authenticate, async (req, res) => {
     const limitNumber = parseInt(limit);
     const depthNumber = parseInt(depth);
 
-    const sqlPromise = searchService
-      .search(trimmed, filters, pageNumber, limitNumber, req.user, search_type, {
-        followLinks,
-        maxDepth: depthNumber
-      })
-      .catch((error) => {
-        console.error('Erreur recherche SQL:', error);
-        return null;
-      });
+    const hasActiveFilters = Object.entries(filters || {}).some(([_, value]) => {
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      if (value && typeof value === 'object') {
+        return Object.keys(value).length > 0;
+      }
+      return value !== undefined && value !== null && value !== '';
+    });
+    const requiresSqlOnly = followLinks === true || hasActiveFilters;
 
-    const elastic = getElasticService();
+    const elastic = requiresSqlOnly ? null : getElasticService();
     const canUseElastic = elastic?.isOperational?.() === true;
 
-    const elasticPromise = canUseElastic
-      ? elastic
-          .search(trimmed, pageNumber, limitNumber)
-          .catch((error) => {
-            console.error('Erreur recherche Elasticsearch:', error);
-            return null;
-          })
-      : Promise.resolve(null);
-
-    const [sqlResults, esResults] = await Promise.all([sqlPromise, elasticPromise]);
-
-    let results = sqlResults;
-
-    if (esResults && Array.isArray(esResults.hits)) {
-      const combined = new Map();
-      const addHits = (hits = []) => {
-        for (const hit of hits) {
-          if (!hit) continue;
-          const tableIdentifier = hit.table_name || `${hit.database}:${hit.table}`;
-          const primaryValues =
-            hit.primary_keys && typeof hit.primary_keys === 'object'
-              ? Object.values(hit.primary_keys).join(':')
-              : '';
-          const key = `${tableIdentifier}:${primaryValues}`;
-          if (!combined.has(key)) {
-            combined.set(key, hit);
-          }
-        }
-      };
-
-      if (sqlResults?.hits) {
-        addHits(sqlResults.hits);
-      }
-      addHits(esResults.hits);
-
-      const combinedHits = Array.from(combined.values());
-      const sortedCombinedHits = searchService.sortResults(combinedHits);
-      const offset = (pageNumber - 1) * limitNumber;
-      const paginatedCombinedHits = sortedCombinedHits.slice(offset, offset + limitNumber);
-      const totalCombined = sortedCombinedHits.length;
-      const tablesSearched = new Set([
-        ...(sqlResults?.tables_searched || []),
-        ...(esResults.tables_searched || [])
-      ]);
-
-      results = {
-        total: totalCombined,
-        page: pageNumber,
-        limit: limitNumber,
-        pages: limitNumber > 0 ? Math.ceil(totalCombined / limitNumber) : 0,
-        elapsed_ms: Math.max(sqlResults?.elapsed_ms ?? 0, esResults.elapsed_ms ?? 0),
-        hits: paginatedCombinedHits,
-        tables_searched: Array.from(tablesSearched)
-      };
+    let esResults = null;
+    if (canUseElastic) {
+      esResults = await elastic
+        .search(trimmed, pageNumber, limitNumber)
+        .catch((error) => {
+          console.error('Erreur recherche Elasticsearch:', error);
+          return null;
+        });
     }
 
-    if (!results && esResults) {
+    let results = null;
+
+    if (esResults && Array.isArray(esResults.hits)) {
       const totalEs = esResults.total ?? 0;
       results = {
         total: totalEs,
@@ -167,6 +124,22 @@ router.post('/', authenticate, async (req, res) => {
         hits: esResults.hits || [],
         tables_searched: esResults.tables_searched || []
       };
+    }
+
+    if (!results) {
+      const sqlResults = await searchService
+        .search(trimmed, filters, pageNumber, limitNumber, req.user, search_type, {
+          followLinks,
+          maxDepth: depthNumber
+        })
+        .catch((error) => {
+          console.error('Erreur recherche SQL:', error);
+          return null;
+        });
+
+      if (sqlResults) {
+        results = sqlResults;
+      }
     }
 
     if (!results) {
