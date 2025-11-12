@@ -532,7 +532,9 @@ class RealtimeCdrService {
       );
 
       if (Array.isArray(rowsFromElasticsearch)) {
-        return this.#buildResult(rowsFromElasticsearch, identifierVariants);
+        if (rowsFromElasticsearch.length > 0 || this.indexReady) {
+          return this.#buildResult(rowsFromElasticsearch, identifierVariants);
+        }
       }
     }
 
