@@ -20,6 +20,15 @@ const EMPTY_RESULT = {
 
 const REALTIME_INDEX = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
 const MAX_BATCH_SIZE = 5000;
+const DEFAULT_RECONNECT_DELAY_MS = 15000;
+
+const parseNonNegativeInteger = (value, fallback) => {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed >= 0) {
+    return parsed;
+  }
+  return fallback;
+};
 
 const COORDINATE_FALLBACK_COLUMNS = ['longitude', 'latitude', 'azimut', 'nom_bts'];
 
@@ -443,6 +452,13 @@ class RealtimeCdrService {
     this.elasticEnabled = isElasticsearchEnabled();
     this.batchSize = INDEX_BATCH_SIZE;
     this.pollInterval = INDEX_POLL_INTERVAL;
+    const reconnectDelay = parseNonNegativeInteger(
+      process.env.ELASTICSEARCH_RETRY_DELAY_MS,
+      DEFAULT_RECONNECT_DELAY_MS
+    );
+    this.reconnectDelayMs = reconnectDelay;
+    this.reconnectTimer = null;
+    this.initialElasticEnabled = this.elasticEnabled;
     this.indexEnsured = false;
     this.indexReady = false;
     this.lastIndexedId = 0;
@@ -454,8 +470,15 @@ class RealtimeCdrService {
 
     this.initializationPromise = this.elasticEnabled && this.autoStart
       ? this.#initializeElasticsearch().catch((error) => {
-          console.error('Erreur initialisation Elasticsearch CDR temps réel:', error);
-          this.elasticEnabled = false;
+          if (isConnectionError(error)) {
+            console.error(
+              'Erreur initialisation Elasticsearch CDR temps réel:',
+              error.message
+            );
+          } else {
+            console.error('Erreur initialisation Elasticsearch CDR temps réel:', error);
+          }
+          this.#handleConnectionLoss('initialisation', error);
           return false;
         })
       : null;
@@ -478,13 +501,16 @@ class RealtimeCdrService {
           "Erreur lecture du dernier identifiant indexé pour les CDR temps réel:",
           error.message
         );
+        this.#handleConnectionLoss('lecture dernier identifiant', error);
         return false;
       }
       throw error;
     }
 
     this.indexReady = false;
-    this.#scheduleIndexing(0);
+    if (this.autoStart) {
+      this.#scheduleIndexing(0);
+    }
     return true;
   }
 
@@ -961,8 +987,7 @@ class RealtimeCdrService {
     } catch (error) {
       if (isConnectionError(error)) {
         console.error('Erreur de recherche Elasticsearch CDR temps réel:', error.message);
-        this.elasticEnabled = false;
-        this.indexEnsured = false;
+        this.#handleConnectionLoss('recherche', error);
         return null;
       }
       throw error;
@@ -1032,6 +1057,7 @@ class RealtimeCdrService {
           "Erreur connexion Elasticsearch lors de la préparation de l'index CDR temps réel:",
           error.message
         );
+        this.#handleConnectionLoss('préparation index', error);
         return false;
       }
       console.error('Erreur préparation index Elasticsearch CDR temps réel:', error);
@@ -1147,11 +1173,100 @@ class RealtimeCdrService {
           'Erreur suppression index Elasticsearch CDR temps réel:',
           error.message
         );
-        this.elasticEnabled = false;
+        this.#handleConnectionLoss('suppression index', error);
         return false;
       }
 
       throw error;
+    }
+  }
+
+  #clearIndexTimer() {
+    if (this.indexTimer) {
+      clearTimeout(this.indexTimer);
+      this.indexTimer = null;
+    }
+  }
+
+  #handleConnectionLoss(context = 'operation', error = null) {
+    this.elasticEnabled = false;
+    this.indexEnsured = false;
+    this.indexReady = false;
+    this.initializationPromise = null;
+    this.#clearIndexTimer();
+
+    if (!this.initialElasticEnabled) {
+      return;
+    }
+
+    this.#scheduleReconnect(context, error);
+  }
+
+  #scheduleReconnect(context = 'reconnexion automatique', error = null) {
+    if (this.reconnectTimer) {
+      return;
+    }
+
+    if (process.env.USE_ELASTICSEARCH === 'false') {
+      return;
+    }
+
+    const effectiveDelay = parseNonNegativeInteger(
+      this.reconnectDelayMs,
+      DEFAULT_RECONNECT_DELAY_MS
+    );
+
+    if (effectiveDelay === Infinity) {
+      return;
+    }
+
+    const delaySeconds = Math.max(0, Math.round(effectiveDelay / 1000));
+    const messageSuffix = delaySeconds
+      ? ` dans ${delaySeconds} seconde${delaySeconds > 1 ? 's' : ''}`
+      : ' immédiatement';
+
+    console.warn(
+      `⚠️ Elasticsearch temps réel indisponible (${context}). Nouvelle tentative${messageSuffix}.`
+    );
+
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+
+      if (!this.initialElasticEnabled || process.env.USE_ELASTICSEARCH === 'false') {
+        return;
+      }
+
+      this.elasticEnabled = true;
+      this.indexEnsured = false;
+
+      try {
+        this.initializationPromise = this.#initializeElasticsearch();
+        const initialized = await this.initializationPromise;
+
+        if (!initialized) {
+          this.initializationPromise = null;
+          this.#handleConnectionLoss('reconnexion automatique', error);
+          return;
+        }
+
+        console.info('✅ Reconnexion Elasticsearch temps réel effectuée.');
+      } catch (reconnectError) {
+        this.initializationPromise = null;
+        if (isConnectionError(reconnectError)) {
+          this.#handleConnectionLoss('reconnexion automatique', reconnectError);
+          return;
+        }
+
+        console.error(
+          'Erreur lors de la tentative de reconnexion Elasticsearch temps réel:',
+          reconnectError
+        );
+        this.#scheduleReconnect('reconnexion automatique (erreur inattendue)', reconnectError);
+      }
+    }, effectiveDelay);
+
+    if (typeof this.reconnectTimer.unref === 'function') {
+      this.reconnectTimer.unref();
     }
   }
 
@@ -1326,10 +1441,10 @@ class RealtimeCdrService {
     }
 
     if (!(await this.#ensureElasticsearchIndex())) {
-      this.elasticEnabled = false;
       console.warn(
         '⚠️ Indexation temps réel des CDR désactivée (Elasticsearch indisponible).'
       );
+      this.#handleConnectionLoss('indexation');
       return;
     }
 
@@ -1355,8 +1470,7 @@ class RealtimeCdrService {
         console.warn(
           '⚠️ Indexation Elasticsearch désactivée pour les CDR temps réel (connexion perdue).'
         );
-        this.elasticEnabled = false;
-        this.indexEnsured = false;
+        this.#handleConnectionLoss('indexation', error);
       } else {
         console.error("Erreur lors de l'indexation des CDR temps réel:", error);
       }
@@ -1420,8 +1534,7 @@ class RealtimeCdrService {
     } catch (error) {
       if (isConnectionError(error)) {
         console.error('Erreur indexation Elasticsearch CDR temps réel:', error.message);
-        this.elasticEnabled = false;
-        this.indexEnsured = false;
+        this.#handleConnectionLoss('indexation bulk', error);
         throw error;
       }
       throw error;
