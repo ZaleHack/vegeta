@@ -43,7 +43,18 @@ const hasBodyToLog = (req) => {
   return Object.keys(req.body).length > 0;
 };
 
+const SKIPPED_PATHS = [/^\/api\/cdr\/realtime\/search/i];
+
+const shouldSkipLogging = (url = '') => {
+  const [pathname] = String(url).split('?');
+  return SKIPPED_PATHS.some((pattern) => pattern.test(pathname));
+};
+
 export const requestLogger = (req, res, next) => {
+  if (shouldSkipLogging(req.originalUrl)) {
+    return next();
+  }
+
   const start = process.hrtime.bigint();
   const { method, originalUrl } = req;
   const origin = req.headers.origin || 'n/a';

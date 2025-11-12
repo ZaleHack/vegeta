@@ -519,7 +519,7 @@ class RealtimeCdrService {
       }
     }
 
-    if (this.elasticEnabled && this.indexReady) {
+    if (this.elasticEnabled) {
       const rowsFromElasticsearch = await this.#searchElasticsearch(
         Array.from(identifierVariants),
         {
