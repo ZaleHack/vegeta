@@ -3182,10 +3182,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               </ul>
             </div>
           </div>
-        </div>
-
-
-        {showMeetingPoints && meetingPoints.length > 0 && (
+          {showMeetingPoints && meetingPoints.length > 0 && (
           <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-72 overflow-y-auto">
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="font-semibold">Points de rencontre</p>
