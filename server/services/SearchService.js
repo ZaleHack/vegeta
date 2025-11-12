@@ -11,6 +11,25 @@ import {
 
 const MISSING_TABLE_ERROR_CODES = ['ER_NO_SUCH_TABLE', 'ER_BAD_TABLE_ERROR'];
 
+const resolveUnavailableTableTtl = () => {
+  const rawValue =
+    process.env.SEARCH_UNAVAILABLE_TABLE_TTL_MS ||
+    process.env.SEARCH_MISSING_TABLE_CACHE_TTL_MS;
+
+  if (rawValue === undefined) {
+    return 5 * 60 * 1000; // 5 minutes
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 5 * 60 * 1000;
+  }
+
+  return parsed;
+};
+
+const UNAVAILABLE_TABLE_TTL_MS = resolveUnavailableTableTtl();
+
 const EXCLUDED_SEARCH_TABLES = new Set(
   [
     'autres.blacklist',
@@ -117,6 +136,8 @@ class SearchService {
     this.catalog = this.loadCatalog();
     this.primaryKeyCache = new Map();
     this.columnCache = new Map();
+    this.unavailableTables = new Map();
+    this.unavailableTableTtl = UNAVAILABLE_TABLE_TTL_MS;
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
     }
@@ -161,6 +182,96 @@ class SearchService {
       return '';
     }
     return name.replace(/[\s_-]/g, '').toLowerCase();
+  }
+
+  normalizeTableKey(tableName) {
+    if (typeof tableName !== 'string') {
+      return '';
+    }
+
+    return tableName.trim().toLowerCase();
+  }
+
+  isTableTemporarilyUnavailable(tableName) {
+    const key = this.normalizeTableKey(tableName);
+    if (!key) {
+      return false;
+    }
+
+    const entry = this.unavailableTables.get(key);
+    if (!entry) {
+      return false;
+    }
+
+    if (this.unavailableTableTtl === 0) {
+      this.unavailableTables.delete(key);
+      return false;
+    }
+
+    const now = Date.now();
+    if (now - entry.timestamp > this.unavailableTableTtl) {
+      this.unavailableTables.delete(key);
+      return false;
+    }
+
+    return true;
+  }
+
+  markTableUnavailable(tableName, error) {
+    const key = this.normalizeTableKey(tableName);
+    if (!key) {
+      return;
+    }
+
+    const reason = error?.message || error?.code || 'Erreur inconnue';
+    const now = Date.now();
+    const previous = this.unavailableTables.get(key);
+
+    if (!previous || now - previous.timestamp > this.unavailableTableTtl) {
+      console.warn(`⚠️ Table ${tableName} non accessible:`, reason);
+    }
+
+    this.unavailableTables.set(key, {
+      timestamp: now,
+      reason,
+    });
+  }
+
+  markTableAvailable(tableName) {
+    const key = this.normalizeTableKey(tableName);
+    if (!key) {
+      return;
+    }
+
+    this.unavailableTables.delete(key);
+  }
+
+  async ensureTableAccessible(tableName) {
+    if (!tableName) {
+      return false;
+    }
+
+    if (this.isTableTemporarilyUnavailable(tableName)) {
+      return false;
+    }
+
+    try {
+      const formattedTable = this.formatTableName(tableName);
+      await database.query(
+        `SELECT 1 FROM ${formattedTable} LIMIT 1`,
+        [],
+        {
+          suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
+          suppressErrorLog: true,
+        }
+      );
+
+      this.markTableAvailable(tableName);
+      return true;
+    } catch (error) {
+      this.markTableUnavailable(tableName, error);
+      return false;
+    }
   }
 
   quoteIdentifier(name) {
@@ -222,6 +333,10 @@ class SearchService {
   }
 
   async getTableColumns(tableName) {
+    if (this.isTableTemporarilyUnavailable(tableName)) {
+      return null;
+    }
+
     if (this.columnCache.has(tableName)) {
       return this.columnCache.get(tableName);
     }
@@ -249,12 +364,10 @@ class SearchService {
 
       const info = { columns, lookup };
       this.columnCache.set(tableName, info);
+      this.markTableAvailable(tableName);
       return info;
     } catch (error) {
-      console.warn(
-        `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
-        error.message
-      );
+      this.markTableUnavailable(tableName, error);
       this.columnCache.set(tableName, null);
       return null;
     }
@@ -399,6 +512,12 @@ class SearchService {
       return config.primaryKey;
     }
 
+    if (this.isTableTemporarilyUnavailable(tableName)) {
+      const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
+      this.primaryKeyCache.set(tableName, fallback);
+      return fallback;
+    }
+
     if (this.primaryKeyCache.has(tableName)) {
       return this.primaryKeyCache.get(tableName);
     }
@@ -416,13 +535,11 @@ class SearchService {
         const primaryRow = rows.find((row) => this.getColumnNameFromRow(row));
         const pk = this.getColumnNameFromRow(primaryRow || rows[0]);
         this.primaryKeyCache.set(tableName, pk);
+        this.markTableAvailable(tableName);
         return pk;
       }
     } catch (error) {
-      console.warn(
-        `⚠️ Impossible de déterminer la clé primaire pour ${tableName}:`,
-        error.message
-      );
+      this.markTableUnavailable(tableName, error);
     }
 
     try {
@@ -449,12 +566,10 @@ class SearchService {
         columnDetails[0]?.original ||
         'id';
       this.primaryKeyCache.set(tableName, fallback);
+      this.markTableAvailable(tableName);
       return fallback;
     } catch (error) {
-      console.warn(
-        `⚠️ Impossible de récupérer les colonnes pour ${tableName}:`,
-        error.message
-      );
+      this.markTableUnavailable(tableName, error);
       const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
       this.primaryKeyCache.set(tableName, fallback);
       return fallback;
@@ -705,23 +820,12 @@ class SearchService {
 
   async searchInTable(tableName, config, searchTerms, filters) {
     const results = [];
-    const primaryKey = await this.getPrimaryKey(tableName, config);
-
-    // Vérifier si la table existe
-    try {
-      const formattedTable = this.formatTableName(tableName);
-      await database.query(
-        `SELECT 1 FROM ${formattedTable} LIMIT 1`,
-        [],
-        {
-          suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
-          suppressErrorLog: true,
-        }
-      );
-    } catch (error) {
-      console.warn(`⚠️ Table ${tableName} non accessible:`, error.message);
+    const tableAccessible = await this.ensureTableAccessible(tableName);
+    if (!tableAccessible) {
       return results;
     }
+
+    const primaryKey = await this.getPrimaryKey(tableName, config);
 
     const columnInfo = await this.getTableColumns(tableName);
     const tableColumns = Array.isArray(columnInfo?.columns)
