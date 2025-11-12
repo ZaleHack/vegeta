@@ -723,17 +723,26 @@ class SearchService {
       ? columnInfo.columns.filter(Boolean)
       : [];
 
+    const configuredSearchable = Array.isArray(config.searchable)
+      ? config.searchable.filter(Boolean)
+      : [];
+    const configuredPreview = Array.isArray(config.preview)
+      ? config.preview.filter(Boolean)
+      : [];
+    const configuredLinked = Array.isArray(config.linkedFields)
+      ? config.linkedFields.filter(Boolean)
+      : [];
+
     const resolvedPrimaryColumn =
       this.resolveColumnFromInfo(primaryKey, columnInfo) ||
       tableColumns[0] ||
       primaryKey;
 
     const fields = new Set([
-      ...tableColumns,
-      ...(config.preview || []),
-      ...(config.linkedFields || []),
-      ...(config.searchable || []),
       primaryKey,
+      ...configuredPreview,
+      ...configuredLinked,
+      ...configuredSearchable,
     ].filter(Boolean));
 
     const mappedSelectFields = this.mapFields(Array.from(fields), columnInfo);
@@ -746,6 +755,13 @@ class SearchService {
     }
 
     if (mappedSelectFields.length === 0) {
+      mappedSelectFields = tableColumns.slice(0, 10).map((column) => ({
+        column,
+        alias: column,
+      }));
+    }
+
+    if (mappedSelectFields.length === 0) {
       return results;
     }
 
@@ -754,23 +770,28 @@ class SearchService {
       .join(', ');
 
     const combinedSearchFields = [
-      ...(Array.isArray(tableColumns) ? tableColumns : []),
-      ...(config.searchable || []),
-      ...(config.preview || []),
-      ...(config.linkedFields || []),
-    ].filter((field) => typeof field === 'string' && field.toLowerCase() !== 'id');
+      ...configuredSearchable,
+      ...configuredLinked,
+      ...configuredPreview,
+    ]
+      .filter((field) => typeof field === 'string' && field.toLowerCase() !== 'id')
+      .filter((field, index, self) => self.indexOf(field) === index);
 
     let searchableMappings = this.mapFields(combinedSearchFields, columnInfo);
 
     if (searchableMappings.length === 0) {
-      const fallbackColumns = Array.from(fields).filter(
-        (field) => typeof field === 'string' && field.toLowerCase() !== 'id'
-      );
+      const fallbackColumns = configuredSearchable.length
+        ? configuredSearchable
+        : combinedSearchFields.length
+          ? combinedSearchFields
+          : tableColumns.slice(0, 10);
 
-      searchableMappings = fallbackColumns.map((column) => ({
-        column,
-        alias: column,
-      }));
+      searchableMappings = fallbackColumns
+        .filter((field) => typeof field === 'string' && field.toLowerCase() !== 'id')
+        .map((column) => {
+          const resolved = this.resolveColumnFromInfo(column, columnInfo) || column;
+          return { column: resolved, alias: column };
+        });
     }
 
     if (searchableMappings.length === 0) {
