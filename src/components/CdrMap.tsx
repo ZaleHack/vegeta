@@ -1294,7 +1294,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | 'history' | null>(null);
   const [showOthers, setShowOthers] = useState(true);
-  const [showLatestOnly, setShowLatestOnly] = useState(false);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
   const [showZoneInfo, setShowZoneInfo] = useState(false);
@@ -1303,7 +1302,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
   const [activeMeetingNumber, setActiveMeetingNumber] = useState<string | null>(null);
   const [isSatellite, setIsSatellite] = useState(false);
-  const [highlightedLatest, setHighlightedLatest] = useState<Point | null>(null);
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
       const { compact = false } = options;
@@ -1565,18 +1563,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     return parts.length > 0 ? parts.join(' • ') : null;
   }, [latestLocationPoint]);
 
-  const highlightedLatestDetails = useMemo(() => {
-    if (!highlightedLatest) return null;
-    const parts: string[] = [];
-    if (highlightedLatest.callDate) {
-      parts.push(formatDate(highlightedLatest.callDate));
-    }
-    if (highlightedLatest.startTime) {
-      parts.push(highlightedLatest.startTime);
-    }
-    return parts.length > 0 ? parts.join(' • ') : null;
-  }, [highlightedLatest]);
-
   const latestLocationPosition = useMemo<[number, number] | null>(() => {
     if (!latestLocationPoint) return null;
     const lat = parseFloat(latestLocationPoint.latitude);
@@ -1584,21 +1570,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
     return [lat, lng];
   }, [latestLocationPoint]);
-
-  useEffect(() => {
-    if (!latestLocationPoint) {
-      setHighlightedLatest(null);
-    }
-  }, [latestLocationPoint]);
-
-  useEffect(() => {
-    if (!highlightedLatest) return;
-    if (typeof window === 'undefined') return;
-    const timeout = window.setTimeout(() => {
-      setHighlightedLatest(null);
-    }, 8000);
-    return () => window.clearTimeout(timeout);
-  }, [highlightedLatest]);
 
   useEffect(() => {
     if (!isMapReady || !mapRef.current) return;
@@ -1637,7 +1608,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     if (!latestLocationPoint || !latestLocationPosition) {
       return;
     }
-    setHighlightedLatest({ ...latestLocationPoint });
     setShowZoneInfo(false);
     setActiveInfo(null);
     latestLocationMarkerRef.current?.openPopup();
@@ -1648,23 +1618,14 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     latestLocationMarkerRef.current?.bringToFront();
   }, [isMapReady, latestLocationPosition]);
 
-  const handleToggleLatestLocation = useCallback(() => {
+  const handleFocusLatestLocation = useCallback(() => {
     if (!latestLocationPoint || !latestLocationPosition) return;
-
-    if (showLatestOnly) {
-      setShowLatestOnly(false);
-      setHighlightedLatest(null);
-      latestLocationMarkerRef.current?.closePopup();
-      return;
-    }
 
     const nextZoom = Math.max(mapRef.current?.getZoom() ?? 13, 16);
     mapRef.current?.flyTo(latestLocationPosition, nextZoom, {
       animate: true,
       duration: 1.5
     });
-    setShowLatestOnly(true);
-    setHighlightedLatest({ ...latestLocationPoint });
     setShowZoneInfo(false);
     setActiveInfo(null);
     if (typeof window !== 'undefined') {
@@ -1674,40 +1635,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     } else {
       latestLocationMarkerRef.current?.openPopup();
     }
-  }, [
-    latestLocationPoint,
-    latestLocationPosition,
-    showLatestOnly,
-    setShowZoneInfo,
-    setActiveInfo
-  ]);
+  }, [latestLocationPoint, latestLocationPosition, setShowZoneInfo, setActiveInfo]);
 
   const hasLatestLocation = Boolean(latestLocationPosition);
-
-  useEffect(() => {
-    if (!hasLatestLocation && showLatestOnly) {
-      setShowLatestOnly(false);
-    }
-  }, [hasLatestLocation, showLatestOnly]);
-
-  useEffect(() => {
-    if (!showLatestOnly) {
-      return;
-    }
-    if (!latestLocationPoint || !latestLocationPosition) {
-      setShowLatestOnly(false);
-      return;
-    }
-    setHighlightedLatest({ ...latestLocationPoint });
-  }, [showLatestOnly, latestLocationPoint, latestLocationPosition]);
-
-  useEffect(() => {
-    if (showLatestOnly) {
-      return;
-    }
-    setHighlightedLatest(null);
-    latestLocationMarkerRef.current?.closePopup();
-  }, [showLatestOnly]);
 
   const contactPoints = useMemo(() => {
     const matchesVisible = (raw?: string): boolean => {
@@ -2297,10 +2227,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(
-    () => showOthers && !showLatestOnly,
-    [showOthers, showLatestOnly]
-  );
+  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -2718,8 +2645,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
-  const latestLocationPopupPoint = highlightedLatest ?? latestLocationPoint;
-  const latestLocationPopupDetails = highlightedLatestDetails ?? latestLocationDetails;
+  const latestLocationPopupPoint = latestLocationPoint;
+  const latestLocationPopupDetails = latestLocationDetails;
   const groupedPoints = useMemo<GroupedPoint[]>(() => {
     const groups = new Map<
       string,
@@ -2878,8 +2805,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
           )}
-          {!showLatestOnly && <ZoneSelector />}
-        {!showLatestOnly && drawing && currentPoints.length > 0 && (
+          <ZoneSelector />
+        {drawing && currentPoints.length > 0 && (
           <Polyline
             positions={currentPoints}
             pathOptions={{
@@ -2891,7 +2818,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }}
           />
         )}
-        {!showLatestOnly && zoneShape && (
+        {zoneShape && (
           <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
         )}
         {showBaseMarkers && (
@@ -3067,38 +2994,33 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </Marker>
           </>
         )}
-        {!showLatestOnly &&
-          triangulationZones.map((zone, idx) => (
-            <React.Fragment key={`tri-${idx}`}>
-              <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
-              {zone.cells.map((cell, i) => (
-                <CircleMarker
-                  key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
-                  center={cell.position}
-                  radius={4}
-                  pathOptions={{ color: '#dc2626' }}
-                />
-              ))}
-              <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#dc2626')}>
-                <Popup className="cdr-popup">{renderTriangulationPopup(zone)}</Popup>
-              </Marker>
-            </React.Fragment>
-          ))}
+        {triangulationZones.map((zone, idx) => (
+          <React.Fragment key={`tri-${idx}`}>
+            <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
+            {zone.cells.map((cell, i) => (
+              <CircleMarker
+                key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
+                center={cell.position}
+                radius={4}
+                pathOptions={{ color: '#dc2626' }}
+              />
+            ))}
+            <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#dc2626')}>
+              <Popup className="cdr-popup">{renderTriangulationPopup(zone)}</Popup>
+            </Marker>
+          </React.Fragment>
+        ))}
         </MapContainer>
         <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-3">
           <MapControlButton
             title={
               hasLatestLocation
-                ? showLatestOnly
-                  ? 'Quitter le focus sur la dernière localisation'
-                  : 'Centrer sur la dernière localisation connue'
+                ? 'Centrer sur la dernière localisation connue'
                 : 'Aucune localisation exploitable'
             }
             icon={<MapPin className="h-5 w-5" />}
-            onClick={handleToggleLatestLocation}
-            active={showLatestOnly}
+            onClick={handleFocusLatestLocation}
             disabled={!hasLatestLocation}
-            isToggle
           />
           <MapControlButton
             title="Localisation approximative de la personne"
@@ -3135,8 +3057,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           />
         </div>
 
-        {!showLatestOnly && (
-          <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
+        <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
             <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
               <button
                 onClick={() => toggleInfo('contacts')}
@@ -3208,7 +3129,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               </button>
             </div>
           </div>
-        )}
+        </div>
 
         {showBaseMarkers && showRoute && (
           <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
@@ -3230,8 +3151,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           </div>
         )}
 
-        {!showLatestOnly && (
-          <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
+        <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
             <div className="pointer-events-auto max-h-full overflow-y-auto overflow-x-hidden bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
               <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
               <ul className="space-y-2">
@@ -3262,10 +3182,10 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               </ul>
             </div>
           </div>
-        )}
+        </div>
 
 
-        {!showLatestOnly && showMeetingPoints && meetingPoints.length > 0 && (
+        {showMeetingPoints && meetingPoints.length > 0 && (
           <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-72 overflow-y-auto">
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="font-semibold">Points de rencontre</p>
@@ -3311,7 +3231,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           </div>
         )}
 
-        {!showLatestOnly && (showZoneInfo || activeInfo) && (
+        {(showZoneInfo || activeInfo) && (
           <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
