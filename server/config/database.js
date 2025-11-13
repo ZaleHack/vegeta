@@ -324,13 +324,22 @@ class DatabaseManager {
         `);
       };
 
-      const dropForeignKeyIfExists = async (constraintName) => {
+      const cleanOrphanedProfileFolderReferences = async () => {
+        await this.pool.execute(`
+          UPDATE autres.profiles p
+          LEFT JOIN autres.profile_folders f ON f.id = p.folder_id
+          SET p.folder_id = NULL
+          WHERE p.folder_id IS NOT NULL AND f.id IS NULL
+        `);
+      };
+
+      const dropForeignKeyIfExists = async (tableName, constraintName) => {
         if (!constraintName) {
           return;
         }
         try {
           await this.pool.execute(`
-            ALTER TABLE autres.users
+            ALTER TABLE ${tableName}
             DROP FOREIGN KEY \`${constraintName}\`
           `);
         } catch (error) {
@@ -374,7 +383,7 @@ class DatabaseManager {
         // Drop unexpected constraints to avoid conflicts when recreating
         for (const fk of foreignKeys) {
           if (fk.CONSTRAINT_NAME !== expectedConstraintName || fk.DELETE_RULE !== 'SET NULL') {
-            await dropForeignKeyIfExists(fk.CONSTRAINT_NAME);
+            await dropForeignKeyIfExists('autres.users', fk.CONSTRAINT_NAME);
           }
         }
 
@@ -416,7 +425,7 @@ class DatabaseManager {
               }
               if (error.code === 'ER_ERROR_ON_RENAME' && !retry) {
                 await cleanOrphanedDivisionReferences();
-                await dropForeignKeyIfExists(expectedConstraintName);
+                await dropForeignKeyIfExists('autres.users', expectedConstraintName);
                 return tryAddConstraint(true);
               }
               if (
@@ -823,44 +832,68 @@ class DatabaseManager {
         folderColumnInfo
       );
 
-      const existingFolderFk = await queryOne(
-        `
-          SELECT CONSTRAINT_NAME
-          FROM information_schema.KEY_COLUMN_USAGE
-          WHERE TABLE_SCHEMA = 'autres'
-            AND TABLE_NAME = 'profiles'
-            AND COLUMN_NAME = 'folder_id'
-            AND REFERENCED_TABLE_NAME = 'profile_folders'
-        `
+      const expectedFolderConstraint = 'fk_profiles_folder';
+      const folderForeignKeys = await query(`
+        SELECT kcu.CONSTRAINT_NAME, rc.DELETE_RULE
+        FROM information_schema.KEY_COLUMN_USAGE kcu
+        JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
+          ON rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
+         AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+        WHERE kcu.TABLE_SCHEMA = 'autres'
+          AND kcu.TABLE_NAME = 'profiles'
+          AND kcu.COLUMN_NAME = 'folder_id'
+          AND kcu.REFERENCED_TABLE_NAME = 'profile_folders'
+      `);
+
+      const hasExpectedFolderConstraint = folderForeignKeys.some(
+        (fk) => fk.CONSTRAINT_NAME === expectedFolderConstraint && fk.DELETE_RULE === 'SET NULL'
       );
-      if (!existingFolderFk) {
-        try {
+
+      for (const fk of folderForeignKeys) {
+        if (fk.CONSTRAINT_NAME !== expectedFolderConstraint || fk.DELETE_RULE !== 'SET NULL') {
+          await dropForeignKeyIfExists('autres.profiles', fk.CONSTRAINT_NAME);
+        }
+      }
+
+      try {
+        await this.pool.execute('ALTER TABLE autres.profiles ADD INDEX idx_profiles_folder_id (folder_id)');
+      } catch (error) {
+        if (error.code !== 'ER_DUP_KEYNAME') {
+          throw error;
+        }
+      }
+
+      await cleanOrphanedProfileFolderReferences();
+
+      if (!hasExpectedFolderConstraint) {
+        const tryAddProfileFolderConstraint = async (retry = false) => {
           try {
-            await this.pool.execute(
-              'ALTER TABLE autres.profiles ADD INDEX idx_profiles_folder_id (folder_id)'
-            );
+            await this.pool.execute(`
+              ALTER TABLE autres.profiles
+              ADD CONSTRAINT \`${expectedFolderConstraint}\`
+              FOREIGN KEY (folder_id) REFERENCES autres.profile_folders(id)
+              ON DELETE SET NULL
+            `);
           } catch (error) {
-            if (error.code !== 'ER_DUP_KEYNAME') {
+            if (error.code === 'ER_ERROR_ON_RENAME' && !retry) {
+              await cleanOrphanedProfileFolderReferences();
+              await dropForeignKeyIfExists('autres.profiles', expectedFolderConstraint);
+              return tryAddProfileFolderConstraint(true);
+            }
+            if (
+              error.code === 'ER_DUP_KEYNAME' ||
+              error.code === 'ER_CANT_CREATE_TABLE' ||
+              error.code === 'ER_ERROR_ON_RENAME'
+            ) {
+              return;
+            }
+            if (!String(error?.message || '').includes('Duplicate')) {
               throw error;
             }
           }
-          await query(`
-            UPDATE autres.profiles p
-            LEFT JOIN autres.profile_folders f ON f.id = p.folder_id
-            SET p.folder_id = NULL
-            WHERE p.folder_id IS NOT NULL AND f.id IS NULL
-          `);
-          await query(`
-            ALTER TABLE autres.profiles
-            ADD CONSTRAINT fk_profiles_folder
-            FOREIGN KEY (folder_id) REFERENCES autres.profile_folders(id)
-            ON DELETE SET NULL
-          `);
-        } catch (error) {
-          if (!String(error?.message || '').includes('Duplicate')) {
-            throw error;
-          }
-        }
+        };
+
+        await tryAddProfileFolderConstraint();
       }
 
       await query(`
