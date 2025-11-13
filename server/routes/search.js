@@ -13,6 +13,40 @@ const router = express.Router();
 const searchService = new SearchService();
 let elasticService = null;
 
+const ELASTICSEARCH_TIMEOUT_SYMBOL = Symbol('ELASTICSEARCH_TIMEOUT');
+const DEFAULT_ELASTIC_TIMEOUT_MS = 2000;
+const MIN_ELASTIC_TIMEOUT_MS = 250;
+const MAX_ELASTIC_TIMEOUT_MS = 10000;
+
+const getElasticTimeoutMs = () => {
+  const raw = Number(process.env.ELASTICSEARCH_SEARCH_TIMEOUT_MS);
+  if (Number.isFinite(raw)) {
+    if (raw <= 0) {
+      return 0;
+    }
+    return Math.min(Math.max(raw, MIN_ELASTIC_TIMEOUT_MS), MAX_ELASTIC_TIMEOUT_MS);
+  }
+  return DEFAULT_ELASTIC_TIMEOUT_MS;
+};
+
+const withTimeout = (promise, timeoutMs) => {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return promise;
+  }
+
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(ELASTICSEARCH_TIMEOUT_SYMBOL), timeoutMs);
+    })
+  ]).finally(() => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  });
+};
+
 const getElasticService = () => {
   if (!isElasticsearchEnabled()) {
     elasticService = null;
@@ -36,7 +70,8 @@ router.post('/', authenticate, async (req, res) => {
       limit = 20,
       search_type = 'global',
       followLinks = false,
-      depth = 1
+      depth = 1,
+      preferElastic = true
     } = req.body;
 
     if (!query || query.trim().length === 0) {
@@ -86,47 +121,78 @@ router.post('/', authenticate, async (req, res) => {
 
     const activeFilters = hasActiveFilters(filters);
     const requiresSqlOnly = followLinks === true || activeFilters;
-
-    const elastic = requiresSqlOnly ? null : getElasticService();
-
-    let esResults = null;
-    if (elastic) {
-      let canUseElastic = true;
-
-      if (typeof elastic.ensureOperational === 'function') {
-        try {
-          canUseElastic = await elastic.ensureOperational('search-route');
-        } catch (error) {
-          console.error('Erreur vérification Elasticsearch:', error);
-          canUseElastic = false;
-        }
-      } else if (typeof elastic.isOperational === 'function') {
-        canUseElastic = elastic.isOperational();
-      }
-
-      if (canUseElastic) {
-        esResults = await elastic
-          .search(trimmed, pageNumber, limitNumber)
-          .catch((error) => {
-            console.error('Erreur recherche Elasticsearch:', error);
-            return null;
-          });
-      }
-    }
+    const preferElasticSearch =
+      typeof preferElastic === 'boolean'
+        ? preferElastic
+        : typeof preferElastic === 'string'
+        ? preferElastic !== 'false'
+        : true;
 
     let results = null;
+    let fallbackReason = null;
 
-    if (esResults && Array.isArray(esResults.hits)) {
-      const totalEs = esResults.total ?? 0;
-      results = {
-        total: totalEs,
-        page: pageNumber,
-        limit: limitNumber,
-        pages: limitNumber > 0 ? Math.ceil(totalEs / limitNumber) : 0,
-        elapsed_ms: esResults.elapsed_ms ?? 0,
-        hits: esResults.hits || [],
-        tables_searched: esResults.tables_searched || []
-      };
+    if (!requiresSqlOnly && preferElasticSearch) {
+      const elastic = getElasticService();
+      if (elastic) {
+        let canUseElastic = true;
+
+        if (typeof elastic.ensureOperational === 'function') {
+          try {
+            canUseElastic = await elastic.ensureOperational('search-route');
+          } catch (error) {
+            console.error('Erreur vérification Elasticsearch:', error);
+            canUseElastic = false;
+            fallbackReason = 'unavailable';
+          }
+        } else if (typeof elastic.isOperational === 'function') {
+          canUseElastic = elastic.isOperational();
+          if (!canUseElastic) {
+            fallbackReason = 'unavailable';
+          }
+        }
+
+        if (canUseElastic) {
+          let esResults = null;
+          try {
+            const timeoutMs = getElasticTimeoutMs();
+            const result = await withTimeout(
+              elastic.search(trimmed, pageNumber, limitNumber),
+              timeoutMs
+            );
+
+            if (result === ELASTICSEARCH_TIMEOUT_SYMBOL) {
+              fallbackReason = 'timeout';
+              console.warn(
+                `⏱️ Recherche Elasticsearch > ${timeoutMs}ms. Bascule sur le moteur SQL.`
+              );
+            } else {
+              esResults = result;
+            }
+          } catch (error) {
+            console.error('Erreur recherche Elasticsearch:', error);
+            fallbackReason = 'error';
+          }
+
+          if (esResults && Array.isArray(esResults.hits)) {
+            const totalEs = esResults.total ?? 0;
+            results = {
+              total: totalEs,
+              page: pageNumber,
+              limit: limitNumber,
+              pages: limitNumber > 0 ? Math.ceil(totalEs / limitNumber) : 0,
+              elapsed_ms: esResults.elapsed_ms ?? 0,
+              hits: esResults.hits || [],
+              tables_searched: esResults.tables_searched || [],
+              engine: 'elasticsearch'
+            };
+            fallbackReason = null;
+          } else if (!fallbackReason) {
+            fallbackReason = 'invalid_response';
+          }
+        }
+      } else {
+        fallbackReason = 'disabled';
+      }
     }
 
     if (!results) {
@@ -141,7 +207,7 @@ router.post('/', authenticate, async (req, res) => {
         });
 
       if (sqlResults) {
-        results = sqlResults;
+        results = { ...sqlResults, engine: 'sql' };
       }
     }
 
@@ -153,8 +219,13 @@ router.post('/', authenticate, async (req, res) => {
         pages: 0,
         elapsed_ms: 0,
         hits: [],
-        tables_searched: []
+        tables_searched: [],
+        engine: 'sql'
       };
+    }
+
+    if (fallbackReason && results.engine === 'sql') {
+      results.fallback_reason = fallbackReason;
     }
 
     searchAccessManager.remember(req.user.id, results.hits || []);
