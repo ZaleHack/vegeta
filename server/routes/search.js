@@ -2,6 +2,7 @@ import express from 'express';
 import SearchService from '../services/SearchService.js';
 import ElasticSearchService from '../services/ElasticSearchService.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
+import { hasActiveFilters } from '../utils/filter-utils.js';
 import { authenticate } from '../middleware/auth.js';
 import Blacklist from '../models/Blacklist.js';
 import UserLog from '../models/UserLog.js';
@@ -98,7 +99,9 @@ router.post('/', authenticate, async (req, res) => {
       });
 
     const elastic = getElasticService();
-    const canUseElastic = elastic?.isOperational?.() === true;
+    const hasFilters = hasActiveFilters(filters);
+    const skipElastic = followLinks === true || hasFilters;
+    const canUseElastic = !skipElastic && elastic?.isOperational?.() === true;
 
     const elasticPromise = canUseElastic
       ? elastic
