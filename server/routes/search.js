@@ -1,6 +1,7 @@
 import express from 'express';
 import SearchService from '../services/SearchService.js';
 import ElasticSearchService from '../services/ElasticSearchService.js';
+import UnifiedSearchService from '../services/UnifiedSearchService.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
 import { authenticate } from '../middleware/auth.js';
 import Blacklist from '../models/Blacklist.js';
@@ -22,12 +23,13 @@ const getElasticService = () => {
     elasticService = new ElasticSearchService();
   }
 
-  if (typeof elasticService.isOperational === 'function' && !elasticService.isOperational()) {
-    return null;
-  }
-
   return elasticService;
 };
+
+const unifiedSearchService = new UnifiedSearchService({
+  searchService,
+  elasticFactory: () => getElasticService()
+});
 
 // Route de recherche principale
 router.post('/', authenticate, async (req, res) => {
@@ -87,90 +89,20 @@ router.post('/', authenticate, async (req, res) => {
     const limitNumber = parseInt(limit);
     const depthNumber = parseInt(depth);
 
-    const sqlPromise = searchService
-      .search(trimmed, filters, pageNumber, limitNumber, req.user, search_type, {
-        followLinks,
-        maxDepth: depthNumber
-      })
-      .catch((error) => {
-        console.error('Erreur recherche SQL:', error);
-        return null;
-      });
+    const results = await unifiedSearchService.search({
+      query: trimmed,
+      filters,
+      page: pageNumber,
+      limit: limitNumber,
+      user: req.user,
+      searchType: search_type,
+      followLinks,
+      depth: depthNumber,
+      preferElastic: req.body?.preferElastic
+    });
 
-    const elastic = getElasticService();
-    const canUseElastic = elastic?.isOperational?.() === true;
-
-    const elasticPromise = canUseElastic
-      ? elastic
-          .search(trimmed, pageNumber, limitNumber)
-          .catch((error) => {
-            console.error('Erreur recherche Elasticsearch:', error);
-            return null;
-          })
-      : Promise.resolve(null);
-
-    const [sqlResults, esResults] = await Promise.all([sqlPromise, elasticPromise]);
-
-    let results = sqlResults;
-
-    if (esResults && Array.isArray(esResults.hits)) {
-      const combined = new Map();
-      const addHits = (hits = []) => {
-        for (const hit of hits) {
-          if (!hit) continue;
-          const tableIdentifier = hit.table_name || `${hit.database}:${hit.table}`;
-          const primaryValues =
-            hit.primary_keys && typeof hit.primary_keys === 'object'
-              ? Object.values(hit.primary_keys).join(':')
-              : '';
-          const key = `${tableIdentifier}:${primaryValues}`;
-          if (!combined.has(key)) {
-            combined.set(key, hit);
-          }
-        }
-      };
-
-      if (sqlResults?.hits) {
-        addHits(sqlResults.hits);
-      }
-      addHits(esResults.hits);
-
-      const combinedHits = Array.from(combined.values());
-      const sortedCombinedHits = searchService.sortResults(combinedHits);
-      const offset = (pageNumber - 1) * limitNumber;
-      const paginatedCombinedHits = sortedCombinedHits.slice(offset, offset + limitNumber);
-      const totalCombined = sortedCombinedHits.length;
-      const tablesSearched = new Set([
-        ...(sqlResults?.tables_searched || []),
-        ...(esResults.tables_searched || [])
-      ]);
-
-      results = {
-        total: totalCombined,
-        page: pageNumber,
-        limit: limitNumber,
-        pages: limitNumber > 0 ? Math.ceil(totalCombined / limitNumber) : 0,
-        elapsed_ms: Math.max(sqlResults?.elapsed_ms ?? 0, esResults.elapsed_ms ?? 0),
-        hits: paginatedCombinedHits,
-        tables_searched: Array.from(tablesSearched)
-      };
-    }
-
-    if (!results && esResults) {
-      const totalEs = esResults.total ?? 0;
-      results = {
-        total: totalEs,
-        page: pageNumber,
-        limit: limitNumber,
-        pages: limitNumber > 0 ? Math.ceil(totalEs / limitNumber) : 0,
-        elapsed_ms: esResults.elapsed_ms ?? 0,
-        hits: esResults.hits || [],
-        tables_searched: esResults.tables_searched || []
-      };
-    }
-
-    if (!results) {
-      results = {
+    const normalizedResults =
+      results || {
         total: 0,
         page: pageNumber,
         limit: limitNumber,
@@ -179,9 +111,8 @@ router.post('/', authenticate, async (req, res) => {
         hits: [],
         tables_searched: []
       };
-    }
 
-    searchAccessManager.remember(req.user.id, results.hits || []);
+    searchAccessManager.remember(req.user.id, normalizedResults.hits || []);
 
     const searchTypeValue = typeof search_type === 'string' && search_type ? search_type : 'global';
     const userAgent = req.get('user-agent') || null;
@@ -191,16 +122,16 @@ router.post('/', authenticate, async (req, res) => {
       username: req.user.login,
       search_term: trimmed,
       search_type: searchTypeValue,
-      tables_searched: results.tables_searched,
-      results_count: results.total,
-      execution_time_ms: results.elapsed_ms,
+      tables_searched: normalizedResults.tables_searched,
+      results_count: normalizedResults.total,
+      execution_time_ms: normalizedResults.elapsed_ms,
       ip_address: ipAddress,
       user_agent: userAgent
     }).catch((err) => {
       console.error('Erreur journalisation recherche:', err);
     });
 
-    res.json(results);
+    res.json(normalizedResults);
   } catch (error) {
     console.error('Erreur recherche:', error);
     res.status(500).json({
