@@ -235,6 +235,31 @@ class ElasticSearchService {
     return Array.from(tokens);
   }
 
+  shouldUseFuzziness(query) {
+    if (!query) {
+      return false;
+    }
+
+    const text = String(query).trim();
+    if (!text) {
+      return false;
+    }
+
+    if (text.length <= 2) {
+      return false;
+    }
+
+    if (/^[0-9]+$/.test(text)) {
+      return false;
+    }
+
+    if (text.includes('@')) {
+      return false;
+    }
+
+    return true;
+  }
+
   buildFullTextFromValues(values = []) {
     const normalized = this.normalizeValues(values);
     if (!normalized.length) {
@@ -750,6 +775,83 @@ class ElasticSearchService {
 
     let hits;
     let took;
+
+    const normalizedQuery = query === null || query === undefined ? '' : String(query).trim();
+    const effectiveQuery = normalizedQuery || (query === null || query === undefined ? '' : String(query));
+    const baseTokens = normalizedQuery
+      ? this.buildTokensFromValues([normalizedQuery]).filter(Boolean)
+      : [];
+    const splitTokens = normalizedQuery
+      ? normalizedQuery
+          .split(/\s+/)
+          .map((part) => part.trim().toLowerCase())
+          .filter(Boolean)
+      : [];
+    const tokenSet = normalizedQuery
+      ? Array.from(new Set([...baseTokens, ...splitTokens]))
+      : [];
+
+    const shouldQueries = [];
+    const multiMatch = {
+      multi_match: {
+        query: effectiveQuery,
+        fields: [
+          'full_name^3',
+          'first_name^2',
+          'last_name^2',
+          'phone^4',
+          'email^4',
+          'search_tokens^3',
+          'full_text',
+          'raw_values'
+        ],
+        type: 'best_fields'
+      }
+    };
+
+    if (this.shouldUseFuzziness(effectiveQuery)) {
+      multiMatch.multi_match.fuzziness = 'AUTO';
+    }
+
+    shouldQueries.push(multiMatch);
+
+    if (effectiveQuery) {
+      shouldQueries.push({
+        term: {
+          'primary_value.keyword': {
+            value: effectiveQuery,
+            boost: 5
+          }
+        }
+      });
+    }
+
+    if (tokenSet.length) {
+      tokenSet.forEach((token) => {
+        shouldQueries.push({
+          term: {
+            'search_tokens.keyword': {
+              value: token,
+              boost: 4
+            }
+          }
+        });
+      });
+
+      tokenSet
+        .filter((token) => token.length >= 3 && !/\s/.test(token))
+        .forEach((token) => {
+          shouldQueries.push({
+            prefix: {
+              'search_tokens.keyword': {
+                value: token,
+                boost: 2
+              }
+            }
+          });
+        });
+    }
+
     try {
       const response = await client.search({
         index: indexes,
@@ -773,39 +875,11 @@ class ElasticSearchService {
           'primary_key',
           'primary_value',
           'primary_keys',
-          'preview',
-          'search_tokens',
-          'full_text',
-          'raw_values'
+          'preview'
         ],
         query: {
           bool: {
-            should: [
-              {
-                multi_match: {
-                  query,
-                  fields: [
-                    'full_name^2',
-                    'first_name',
-                    'last_name',
-                    'phone',
-                    'email',
-                    'search_tokens',
-                    'full_text',
-                    'raw_values'
-                  ],
-                  fuzziness: 'AUTO'
-                }
-              },
-              {
-                term: {
-                  'primary_value.keyword': {
-                    value: query,
-                    boost: 5
-                  }
-                }
-              }
-            ],
+            should: shouldQueries,
             minimum_should_match: 1
           }
         }
