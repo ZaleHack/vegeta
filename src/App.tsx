@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -158,8 +158,6 @@ interface SearchResponse {
   elapsed_ms: number;
   hits: SearchResult[];
   tables_searched: string[];
-  engine?: 'elasticsearch' | 'sql';
-  fallback_reason?: string | null;
 }
 
 type SearchResponseFromApi = Partial<Omit<SearchResponse, 'hits' | 'tables_searched'>> & {
@@ -233,19 +231,7 @@ const normalizeSearchResponse = (data: SearchResponseFromApi): SearchResponse =>
     elapsed_ms:
       typeof elapsed_ms === 'number' && Number.isFinite(elapsed_ms) ? elapsed_ms : 0,
     hits: mapPreviewEntries(hits),
-    tables_searched: Array.isArray(tables_searched) ? tables_searched : [],
-    engine:
-      data.engine === 'elasticsearch'
-        ? 'elasticsearch'
-        : data.engine === 'sql'
-        ? 'sql'
-        : undefined,
-    fallback_reason:
-      typeof data.fallback_reason === 'string'
-        ? data.fallback_reason
-        : data.fallback_reason === null
-        ? null
-        : undefined
+    tables_searched: Array.isArray(tables_searched) ? tables_searched : []
   };
 };
 
@@ -1274,32 +1260,6 @@ const App: React.FC = () => {
     totalResultsCount > displayedResultsCount
       ? `${displayedResultsCount} résultat(s) sur ${totalResultsCount}`
       : `${displayedResultsCount} résultat(s)`;
-
-  const searchEngineLabel = useMemo(() => {
-    if (!searchResults?.engine) {
-      return null;
-    }
-
-    return searchResults.engine === 'elasticsearch'
-      ? 'Elasticsearch'
-      : 'Moteur SQL';
-  }, [searchResults?.engine]);
-
-  const fallbackReasonLabel = useMemo(() => {
-    if (!searchResults?.fallback_reason) {
-      return null;
-    }
-
-    const labels: Record<string, string> = {
-      timeout: 'délai dépassé',
-      error: 'erreur Elasticsearch',
-      unavailable: 'service indisponible',
-      disabled: 'Elasticsearch désactivé',
-      invalid_response: 'réponse invalide'
-    };
-
-    return labels[searchResults.fallback_reason] ?? searchResults.fallback_reason;
-  }, [searchResults?.fallback_reason]);
 
   const resetProgressiveDisplay = useCallback(() => {
     if (progressiveTimerRef.current) {
@@ -2644,8 +2604,7 @@ const App: React.FC = () => {
         body: JSON.stringify({
           query: trimmedQuery,
           page: requestedPage,
-          limit: requestedLimit,
-          preferElastic: true
+          limit: requestedLimit
         }),
         signal: controller.signal
       });
@@ -2713,8 +2672,7 @@ const App: React.FC = () => {
         body: JSON.stringify({
           query: trimmedQuery,
           page: requestedPage,
-          limit: requestedLimit,
-          preferElastic: true
+          limit: requestedLimit
         }),
         signal: controller.signal
       });
@@ -2760,7 +2718,7 @@ const App: React.FC = () => {
       const response = await fetch('/api/search', {
         method: 'POST',
         headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ query, page: 1, limit: 20, preferElastic: true })
+        body: JSON.stringify({ query, page: 1, limit: 20 })
       });
       let data: SearchResponseFromApi = {
         hits: [],
@@ -6000,18 +5958,6 @@ useEffect(() => {
                             <Clock className="w-4 h-4 mr-1" />
                             {searchResults.elapsed_ms}ms
                           </span>
-                          {searchEngineLabel && (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white/20">
-                              <RefreshCw className="w-4 h-4 mr-1" />
-                              {searchEngineLabel}
-                            </span>
-                          )}
-                          {searchResults.engine === 'sql' && fallbackReasonLabel && (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white/20">
-                              <AlertTriangle className="w-4 h-4 mr-1" />
-                              Bascule SQL — {fallbackReasonLabel}
-                            </span>
-                          )}
                         </div>
                       </div>
                       <div className="flex space-x-2">
