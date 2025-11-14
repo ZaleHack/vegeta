@@ -61,7 +61,7 @@ npm run search:bootstrap
 
 Les scripts créent les index SQL sur toutes les colonnes déclarées `searchable`, puis lisent les tables référencées dans `server/config/tables-catalog.js` (dont `autres.profiles`) pour alimenter l'index `profiles` d'Elasticsearch en purgant l'index si besoin. Assurez-vous que la base MySQL contient les données à indexer avant de lancer cette opération.
 
-Par défaut, l'API attend jusqu'à 2 secondes la réponse d'Elasticsearch avant de basculer automatiquement sur le moteur SQL classique. Adaptez ce délai grâce à la variable `ELASTICSEARCH_SEARCH_TIMEOUT_MS` (valeur en millisecondes, définissez `0` pour désactiver la limite) si votre cluster met plus de temps à répondre.
+Par défaut, l'API attend jusqu'à 2 secondes la réponse d'Elasticsearch avant de basculer automatiquement sur le moteur SQL classique. Adaptez ce délai grâce à la variable `ELASTICSEARCH_SEARCH_TIMEOUT_MS` (valeur en millisecondes, définissez `0` pour désactiver la limite) si votre cluster met plus de temps à répondre. Pour éviter qu'une instance hors-ligne ne ralentisse l'application, le client Elasticsearch échoue désormais rapidement (`ELASTICSEARCH_REQUEST_TIMEOUT_MS`, par défaut `2000`) et ne tente pas de multiples reconnections (`ELASTICSEARCH_MAX_RETRIES`, par défaut `0`).
 
 ### Diagnostic : « Elasticsearch indisponible. Bascule sur le moteur de recherche local pour les CDR. »
 
@@ -71,8 +71,8 @@ Pour résoudre le problème :
 
 - Vérifiez que l'URL définie par `ELASTICSEARCH_URL` pointe vers une instance Elasticsearch accessible (par défaut `http://localhost:9200`).
 - Assurez-vous que l'instance est démarrée et accepte les connexions (testez avec `curl $ELASTICSEARCH_URL`).
-- Par défaut, les vérifications de santé attendent jusqu'à 5 secondes (`ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS=5000`).
-  Augmentez cette valeur si votre cluster met plus de temps à répondre pendant son démarrage.
+- Par défaut, les vérifications de santé attendent jusqu'à 2 secondes (`ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS=2000`).
+  Ajustez cette valeur si votre cluster met plus de temps à répondre pendant son démarrage.
 - Si Elasticsearch est volontairement inactif, laissez `USE_ELASTICSEARCH=false` dans votre configuration pour éviter le message de bascule.
 
 Une fois la connexion rétablie, redémarrez le serveur Node.js pour réactiver automatiquement la recherche Elasticsearch.

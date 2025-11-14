@@ -7,6 +7,24 @@ import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
 import { isElasticsearchEnabled } from '../config/environment.js';
 
+const parsePositiveInteger = (value, fallback) => {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.floor(parsed);
+  }
+  return fallback;
+};
+
+const REQUEST_TIMEOUT_MS = parsePositiveInteger(
+  process.env.ELASTICSEARCH_REQUEST_TIMEOUT_MS,
+  2000
+);
+
+const HEALTHCHECK_TIMEOUT_MS = parsePositiveInteger(
+  process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS,
+  Math.max(1000, REQUEST_TIMEOUT_MS)
+);
+
 class ElasticSearchService {
   constructor() {
     const ttlEnv = process.env.ELASTICSEARCH_CACHE_TTL_MS;
@@ -22,8 +40,7 @@ class ElasticSearchService {
     this.catalog = this.loadCatalog();
     this.configuredIndexes = this.resolveConfiguredIndexes();
     this.indexes = this.enabled ? this.getActiveIndexes(this.catalog) : [];
-    const timeoutEnv = Number(process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS);
-    this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 5000;
+    this.connectionTimeout = HEALTHCHECK_TIMEOUT_MS;
     this.connectionChecked = false;
     this.connectionCheckPromise = null;
     const retryEnv = Number(process.env.ELASTICSEARCH_RETRY_DELAY_MS);
