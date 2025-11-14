@@ -169,6 +169,24 @@ const resolveSqlConcurrency = () => {
   return Math.max(1, Math.floor(parsed));
 };
 
+const resolveEarlyExitMultiplier = () => {
+  const rawValue =
+    process.env.SEARCH_SQL_EARLY_EXIT_MULTIPLIER ||
+    process.env.SEARCH_SQL_EARLY_EXIT_OVERSCAN ||
+    process.env.SEARCH_SQL_EARLY_EXIT_FACTOR;
+
+  if (rawValue === undefined) {
+    return 2;
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return Infinity;
+  }
+
+  return Math.max(1, parsed);
+};
+
 class SearchService {
   constructor() {
     const __filename = fileURLToPath(import.meta.url);
@@ -183,6 +201,7 @@ class SearchService {
     this.priorityTables = this.resolvePriorityTables();
     this.maxSqlTables = resolveMaxSqlTables();
     this.sqlConcurrency = resolveSqlConcurrency();
+    this.earlyExitMultiplier = resolveEarlyExitMultiplier();
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
     }
@@ -270,6 +289,7 @@ class SearchService {
     this.priorityTables = this.resolvePriorityTables();
     this.maxSqlTables = resolveMaxSqlTables();
     this.sqlConcurrency = resolveSqlConcurrency();
+    this.earlyExitMultiplier = resolveEarlyExitMultiplier();
   }
 
   normalizeSearchType(searchType) {
@@ -754,7 +774,8 @@ class SearchService {
     const tableSearches = await this.runTableSearches(
       limitedCatalogEntries,
       searchTerms,
-      filters
+      filters,
+      { targetResults: limit }
     );
     for (const { tableName, tableResults } of tableSearches) {
       if (tableResults.length > 0) {
@@ -888,17 +909,25 @@ class SearchService {
     return response;
   }
 
-  async runTableSearches(entries, searchTerms, filters) {
+  async runTableSearches(entries, searchTerms, filters, options = {}) {
     if (!Array.isArray(entries) || entries.length === 0) {
       return [];
     }
 
     const results = [];
     let nextIndex = 0;
+    const { targetResults = Infinity } = options;
+    const hasTarget = Number.isFinite(targetResults) && targetResults > 0;
+    const multiplier = this.earlyExitMultiplier;
+    const effectiveMultiplier =
+      Number.isFinite(multiplier) && multiplier > 0 ? multiplier : Infinity;
+    const stopThreshold = hasTarget ? Math.ceil(targetResults * effectiveMultiplier) : Infinity;
+    let totalMatches = 0;
+    let shouldStop = false;
     const concurrency = Math.max(1, Math.min(this.sqlConcurrency, entries.length));
 
     const getNextEntry = () => {
-      if (nextIndex >= entries.length) {
+      if (shouldStop || nextIndex >= entries.length) {
         return null;
       }
       const entry = entries[nextIndex];
@@ -908,6 +937,10 @@ class SearchService {
 
     const worker = async () => {
       while (true) {
+        if (shouldStop) {
+          break;
+        }
+
         const entry = getNextEntry();
         if (!entry) {
           break;
@@ -921,7 +954,19 @@ class SearchService {
             searchTerms,
             filters
           );
-          results.push({ tableName, tableResults });
+          const normalizedResults = Array.isArray(tableResults)
+            ? tableResults
+            : [];
+
+          results.push({ tableName, tableResults: normalizedResults });
+
+          if (normalizedResults.length > 0) {
+            totalMatches += normalizedResults.length;
+
+            if (!shouldStop && totalMatches >= stopThreshold) {
+              shouldStop = true;
+            }
+          }
         } catch (error) {
           console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
           results.push({ tableName, tableResults: [] });
