@@ -775,7 +775,7 @@ class SearchService {
       limitedCatalogEntries,
       searchTerms,
       filters,
-      { targetResults: limit }
+      { targetResults: offset + limit }
     );
     for (const { tableName, tableResults } of tableSearches) {
       if (tableResults.length > 0) {
