@@ -13,40 +13,6 @@ const router = express.Router();
 const searchService = new SearchService();
 let elasticService = null;
 
-const ELASTICSEARCH_TIMEOUT_SYMBOL = Symbol('ELASTICSEARCH_TIMEOUT');
-const DEFAULT_ELASTIC_TIMEOUT_MS = 2000;
-const MIN_ELASTIC_TIMEOUT_MS = 250;
-const MAX_ELASTIC_TIMEOUT_MS = 10000;
-
-const getElasticTimeoutMs = () => {
-  const raw = Number(process.env.ELASTICSEARCH_SEARCH_TIMEOUT_MS);
-  if (Number.isFinite(raw)) {
-    if (raw <= 0) {
-      return 0;
-    }
-    return Math.min(Math.max(raw, MIN_ELASTIC_TIMEOUT_MS), MAX_ELASTIC_TIMEOUT_MS);
-  }
-  return DEFAULT_ELASTIC_TIMEOUT_MS;
-};
-
-const withTimeout = (promise, timeoutMs) => {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    return promise;
-  }
-
-  let timer;
-  return Promise.race([
-    promise,
-    new Promise((resolve) => {
-      timer = setTimeout(() => resolve(ELASTICSEARCH_TIMEOUT_SYMBOL), timeoutMs);
-    })
-  ]).finally(() => {
-    if (timer) {
-      clearTimeout(timer);
-    }
-  });
-};
-
 const getElasticService = () => {
   if (!isElasticsearchEnabled()) {
     elasticService = null;
@@ -129,7 +95,6 @@ router.post('/', authenticate, async (req, res) => {
         : true;
 
     let results = null;
-    let fallbackReason = null;
 
     if (!requiresSqlOnly && preferElasticSearch) {
       const elastic = getElasticService();
@@ -142,36 +107,18 @@ router.post('/', authenticate, async (req, res) => {
           } catch (error) {
             console.error('Erreur vérification Elasticsearch:', error);
             canUseElastic = false;
-            fallbackReason = 'unavailable';
           }
         } else if (typeof elastic.isOperational === 'function') {
           canUseElastic = elastic.isOperational();
-          if (!canUseElastic) {
-            fallbackReason = 'unavailable';
-          }
         }
 
         if (canUseElastic) {
-          let esResults = null;
-          try {
-            const timeoutMs = getElasticTimeoutMs();
-            const result = await withTimeout(
-              elastic.search(trimmed, pageNumber, limitNumber),
-              timeoutMs
-            );
-
-            if (result === ELASTICSEARCH_TIMEOUT_SYMBOL) {
-              fallbackReason = 'timeout';
-              console.warn(
-                `⏱️ Recherche Elasticsearch > ${timeoutMs}ms. Bascule sur le moteur SQL.`
-              );
-            } else {
-              esResults = result;
-            }
-          } catch (error) {
-            console.error('Erreur recherche Elasticsearch:', error);
-            fallbackReason = 'error';
-          }
+          const esResults = await elastic
+            .search(trimmed, pageNumber, limitNumber)
+            .catch((error) => {
+              console.error('Erreur recherche Elasticsearch:', error);
+              return null;
+            });
 
           if (esResults && Array.isArray(esResults.hits)) {
             const totalEs = esResults.total ?? 0;
@@ -185,13 +132,8 @@ router.post('/', authenticate, async (req, res) => {
               tables_searched: esResults.tables_searched || [],
               engine: 'elasticsearch'
             };
-            fallbackReason = null;
-          } else if (!fallbackReason) {
-            fallbackReason = 'invalid_response';
           }
         }
-      } else {
-        fallbackReason = 'disabled';
       }
     }
 
@@ -222,10 +164,6 @@ router.post('/', authenticate, async (req, res) => {
         tables_searched: [],
         engine: 'sql'
       };
-    }
-
-    if (fallbackReason && results.engine === 'sql') {
-      results.fallback_reason = fallbackReason;
     }
 
     searchAccessManager.remember(req.user.id, results.hits || []);
