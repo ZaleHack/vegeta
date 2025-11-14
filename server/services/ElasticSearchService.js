@@ -20,7 +20,8 @@ class ElasticSearchService {
     this.enabled = isElasticsearchEnabled();
     this.initiallyEnabled = this.enabled;
     this.catalog = this.loadCatalog();
-    this.indexes = this.enabled ? this.resolveIndexesFromCatalog(this.catalog) : [];
+    this.configuredIndexes = this.resolveConfiguredIndexes();
+    this.indexes = this.enabled ? this.getActiveIndexes(this.catalog) : [];
     const timeoutEnv = Number(process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS);
     this.connectionTimeout = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 5000;
     this.connectionChecked = false;
@@ -32,6 +33,40 @@ class ElasticSearchService {
     if (this.enabled) {
       this.scheduleConnectionVerification('initialisation');
     }
+  }
+
+  resolveConfiguredIndexes() {
+    const configured =
+      process.env.ELASTICSEARCH_SEARCH_INDEXES ||
+      process.env.ELASTICSEARCH_ALLOWED_INDEXES ||
+      process.env.ELASTICSEARCH_INDEXES;
+
+    if (!configured) {
+      return [];
+    }
+
+    const unique = new Set();
+    const indexes = [];
+    configured
+      .split(',')
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean)
+      .forEach((indexName) => {
+        if (!unique.has(indexName)) {
+          unique.add(indexName);
+          indexes.push(indexName);
+        }
+      });
+
+    return indexes;
+  }
+
+  getActiveIndexes(catalog = this.catalog) {
+    if (Array.isArray(this.configuredIndexes) && this.configuredIndexes.length > 0) {
+      return [...this.configuredIndexes];
+    }
+
+    return this.resolveIndexesFromCatalog(catalog);
   }
 
   isOperational() {
@@ -86,7 +121,7 @@ class ElasticSearchService {
       }
 
       this.enabled = true;
-      this.indexes = this.resolveIndexesFromCatalog(this.catalog);
+      this.indexes = this.getActiveIndexes(this.catalog);
       this.scheduleConnectionVerification('reconnexion automatique');
     }, effectiveDelay);
 

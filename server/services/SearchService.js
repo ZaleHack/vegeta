@@ -127,6 +127,48 @@ const resolveMaxExtraSearches = () => {
 
 const MAX_EXTRA_SEARCHES = resolveMaxExtraSearches();
 
+const parseList = (value) =>
+  String(value || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+const resolveMaxSqlTables = () => {
+  const rawValue =
+    process.env.SEARCH_MAX_TABLES_PER_QUERY ||
+    process.env.SEARCH_SQL_TABLE_LIMIT ||
+    process.env.SEARCH_SQL_MAX_TABLES;
+
+  if (!rawValue) {
+    return Infinity;
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return Infinity;
+  }
+
+  return Math.floor(parsed);
+};
+
+const resolveSqlConcurrency = () => {
+  const rawValue =
+    process.env.SEARCH_SQL_CONCURRENCY ||
+    process.env.SEARCH_SQL_PARALLELISM ||
+    process.env.SEARCH_PARALLEL_TABLES;
+
+  if (rawValue === undefined) {
+    return 4;
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 1;
+  }
+
+  return Math.max(1, Math.floor(parsed));
+};
+
 class SearchService {
   constructor() {
     const __filename = fileURLToPath(import.meta.url);
@@ -138,6 +180,9 @@ class SearchService {
     this.columnCache = new Map();
     this.unavailableTables = new Map();
     this.unavailableTableTtl = UNAVAILABLE_TABLE_TTL_MS;
+    this.priorityTables = this.resolvePriorityTables();
+    this.maxSqlTables = resolveMaxSqlTables();
+    this.sqlConcurrency = resolveSqlConcurrency();
     if (fs.existsSync(this.catalogPath)) {
       fs.watch(this.catalogPath, () => this.refreshCatalog());
     }
@@ -190,6 +235,94 @@ class SearchService {
     }
 
     return tableName.trim().toLowerCase();
+  }
+
+  resolvePriorityTables() {
+    const rawValue =
+      process.env.SEARCH_PRIORITY_TABLES ||
+      process.env.SEARCH_SQL_PRIORITY_TABLES ||
+      process.env.SEARCH_SQL_FALLBACK_TABLES;
+
+    if (!rawValue) {
+      return new Set();
+    }
+
+    const priorityEntries = parseList(rawValue);
+    const normalized = new Set();
+
+    priorityEntries.forEach((entry) => {
+      const normalizedEntry = this.normalizeTableKey(entry);
+      if (!normalizedEntry) {
+        return;
+      }
+      normalized.add(normalizedEntry);
+      const [, withoutSchema = normalizedEntry] = normalizedEntry.split('.');
+      if (withoutSchema) {
+        normalized.add(withoutSchema);
+      }
+    });
+
+    return normalized;
+  }
+
+  refreshCatalog() {
+    this.catalog = this.loadCatalog();
+    this.priorityTables = this.resolvePriorityTables();
+    this.maxSqlTables = resolveMaxSqlTables();
+    this.sqlConcurrency = resolveSqlConcurrency();
+  }
+
+  normalizeSearchType(searchType) {
+    if (typeof searchType !== 'string') {
+      return '';
+    }
+
+    return searchType.trim().toLowerCase();
+  }
+
+  limitTablesForSearch(entries, searchType = 'global') {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return [];
+    }
+
+    let filteredEntries = entries;
+    const normalizedType = this.normalizeSearchType(searchType);
+    if (normalizedType && normalizedType !== 'global') {
+      const themeMatches = entries.filter(([, config]) =>
+        this.normalizeSearchType(config?.theme) === normalizedType
+      );
+
+      if (themeMatches.length > 0) {
+        filteredEntries = themeMatches;
+      }
+    }
+
+    if (this.priorityTables.size > 0) {
+      const prioritized = [];
+      const regular = [];
+
+      filteredEntries.forEach((entry) => {
+        const [tableName] = entry;
+        const normalizedTable = this.normalizeTableKey(tableName);
+        const [, withoutSchema = normalizedTable] = normalizedTable.split('.');
+        if (
+          this.priorityTables.has(normalizedTable) ||
+          this.priorityTables.has(withoutSchema)
+        ) {
+          prioritized.push(entry);
+        } else {
+          regular.push(entry);
+        }
+      });
+
+      filteredEntries = [...prioritized, ...regular];
+    }
+
+    if (Number.isFinite(this.maxSqlTables) && this.maxSqlTables > 0) {
+      return filteredEntries.slice(0, this.maxSqlTables);
+    }
+
+    return filteredEntries;
   }
 
   isTableTemporarilyUnavailable(tableName) {
@@ -502,10 +635,6 @@ class SearchService {
     return catalog;
   }
 
-  refreshCatalog() {
-    this.catalog = this.loadCatalog();
-  }
-
   async getPrimaryKey(tableName, config = {}) {
     if (config.primaryKey) {
       this.primaryKeyCache.set(tableName, config.primaryKey);
@@ -609,6 +738,11 @@ class SearchService {
       ([tableName]) => !this.isTableExcluded(tableName)
     );
 
+    const limitedCatalogEntries = this.limitTablesForSearch(
+      searchableCatalogEntries,
+      searchType
+    );
+
     if (!query || query.trim().length === 0) {
       throw new Error('Le terme de recherche ne peut pas être vide');
     }
@@ -617,17 +751,11 @@ class SearchService {
     const searchTerms = this.parseSearchQuery(query);
 
     // Lancer les recherches en parallèle sur toutes les tables du catalogue
-    const searchPromises = searchableCatalogEntries.map(
-      ([tableName, config]) =>
-        this.searchInTable(tableName, config, searchTerms, filters)
-          .then((tableResults) => ({ tableName, tableResults }))
-          .catch((error) => {
-            console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
-            return { tableName, tableResults: [] };
-          }),
+    const tableSearches = await this.runTableSearches(
+      limitedCatalogEntries,
+      searchTerms,
+      filters
     );
-
-    const tableSearches = await Promise.all(searchPromises);
     for (const { tableName, tableResults } of tableSearches) {
       if (tableResults.length > 0) {
         const enrichedResults = tableResults.map(result => ({
@@ -758,6 +886,53 @@ class SearchService {
     }
 
     return response;
+  }
+
+  async runTableSearches(entries, searchTerms, filters) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return [];
+    }
+
+    const results = [];
+    let nextIndex = 0;
+    const concurrency = Math.max(1, Math.min(this.sqlConcurrency, entries.length));
+
+    const getNextEntry = () => {
+      if (nextIndex >= entries.length) {
+        return null;
+      }
+      const entry = entries[nextIndex];
+      nextIndex += 1;
+      return entry;
+    };
+
+    const worker = async () => {
+      while (true) {
+        const entry = getNextEntry();
+        if (!entry) {
+          break;
+        }
+
+        const [tableName, config] = entry;
+        try {
+          const tableResults = await this.searchInTable(
+            tableName,
+            config,
+            searchTerms,
+            filters
+          );
+          results.push({ tableName, tableResults });
+        } catch (error) {
+          console.error(`❌ Erreur recherche table ${tableName}:`, error.message);
+          results.push({ tableName, tableResults: [] });
+        }
+      }
+    };
+
+    const workers = Array.from({ length: concurrency }, () => worker());
+    await Promise.all(workers);
+
+    return results;
   }
 
   parseSearchQuery(query) {
