@@ -808,21 +808,11 @@ class ElasticSearchService {
     }
 
     if (!this.enabled) {
-      return {
-        total: 0,
-        hits: [],
-        elapsed_ms: 0,
-        tables_searched: []
-      };
+      return null;
     }
 
     if (!(await this.ensureOperational('search'))) {
-      return {
-        total: 0,
-        hits: [],
-        elapsed_ms: 0,
-        tables_searched: []
-      };
+      return null;
     }
 
     let hits;
@@ -942,12 +932,7 @@ class ElasticSearchService {
       if (this.isConnectionError(error)) {
         console.error('❌ Recherche Elasticsearch indisponible:', error.message);
         this.disableForSession('search', error);
-        return {
-          total: 0,
-          hits: [],
-          elapsed_ms: 0,
-          tables_searched: []
-        };
+        return null;
       }
       throw error;
     }

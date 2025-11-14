@@ -14,7 +14,7 @@
     "build": "tsc && vite build",
     "lint": "NODE_OPTIONS=\"--loader ./stubs/alias-loader.mjs\" eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "test": "NODE_OPTIONS=\"--loader ./stubs/alias-loader.mjs\" node --test tests/cgiBtsEnrichment.test.js tests/realtimeCdrService.integration.test.js tests/filter-utils.test.js"
+    "test": "NODE_OPTIONS=\"--loader ./stubs/alias-loader.mjs\" node --test tests/cgiBtsEnrichment.test.js tests/realtimeCdrService.integration.test.js tests/filter-utils.test.js tests/unifiedSearchFallback.test.js"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^8.13.0",
