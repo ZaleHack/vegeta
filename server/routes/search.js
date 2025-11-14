@@ -1,30 +1,15 @@
 import express from 'express';
+import UnifiedSearchService from '../services/UnifiedSearchService.js';
 import SearchService from '../services/SearchService.js';
-import ElasticSearchService from '../services/ElasticSearchService.js';
-import { isElasticsearchEnabled } from '../config/environment.js';
 import { authenticate } from '../middleware/auth.js';
 import Blacklist from '../models/Blacklist.js';
 import UserLog from '../models/UserLog.js';
 import SearchLog from '../models/SearchLog.js';
 import searchAccessManager from '../utils/search-access-manager.js';
-import { hasActiveFilters } from '../utils/filter-utils.js';
 
 const router = express.Router();
+const unifiedSearchService = new UnifiedSearchService();
 const searchService = new SearchService();
-let elasticService = null;
-
-const getElasticService = () => {
-  if (!isElasticsearchEnabled()) {
-    elasticService = null;
-    return null;
-  }
-
-  if (!elasticService) {
-    elasticService = new ElasticSearchService();
-  }
-
-  return elasticService;
-};
 
 // Route de recherche principale
 router.post('/', authenticate, async (req, res) => {
@@ -84,91 +69,23 @@ router.post('/', authenticate, async (req, res) => {
     const pageNumber = parseInt(page);
     const limitNumber = parseInt(limit);
     const depthNumber = parseInt(depth);
+    const searchTypeValue =
+      typeof search_type === 'string' && search_type ? search_type : 'global';
 
-    const activeFilters = hasActiveFilters(filters);
-    const requiresSqlOnly = followLinks === true || activeFilters;
-    const preferElasticSearch =
-      typeof preferElastic === 'boolean'
-        ? preferElastic
-        : typeof preferElastic === 'string'
-        ? preferElastic !== 'false'
-        : true;
-
-    let results = null;
-
-    if (!requiresSqlOnly && preferElasticSearch) {
-      const elastic = getElasticService();
-      if (elastic) {
-        let canUseElastic = true;
-
-        if (typeof elastic.ensureOperational === 'function') {
-          try {
-            canUseElastic = await elastic.ensureOperational('search-route');
-          } catch (error) {
-            console.error('Erreur vérification Elasticsearch:', error);
-            canUseElastic = false;
-          }
-        } else if (typeof elastic.isOperational === 'function') {
-          canUseElastic = elastic.isOperational();
-        }
-
-        if (canUseElastic) {
-          const esResults = await elastic
-            .search(trimmed, pageNumber, limitNumber)
-            .catch((error) => {
-              console.error('Erreur recherche Elasticsearch:', error);
-              return null;
-            });
-
-          if (esResults && Array.isArray(esResults.hits)) {
-            const totalEs = esResults.total ?? 0;
-            results = {
-              total: totalEs,
-              page: pageNumber,
-              limit: limitNumber,
-              pages: limitNumber > 0 ? Math.ceil(totalEs / limitNumber) : 0,
-              elapsed_ms: esResults.elapsed_ms ?? 0,
-              hits: esResults.hits || [],
-              tables_searched: esResults.tables_searched || [],
-              engine: 'elasticsearch'
-            };
-          }
-        }
-      }
-    }
-
-    if (!results) {
-      const sqlResults = await searchService
-        .search(trimmed, filters, pageNumber, limitNumber, req.user, search_type, {
-          followLinks,
-          maxDepth: depthNumber
-        })
-        .catch((error) => {
-          console.error('Erreur recherche SQL:', error);
-          return null;
-        });
-
-      if (sqlResults) {
-        results = { ...sqlResults, engine: 'sql' };
-      }
-    }
-
-    if (!results) {
-      results = {
-        total: 0,
-        page: pageNumber,
-        limit: limitNumber,
-        pages: 0,
-        elapsed_ms: 0,
-        hits: [],
-        tables_searched: [],
-        engine: 'sql'
-      };
-    }
+    const results = await unifiedSearchService.search({
+      query: trimmed,
+      filters,
+      page: pageNumber,
+      limit: limitNumber,
+      user: req.user,
+      searchType: searchTypeValue,
+      followLinks,
+      depth: depthNumber,
+      preferElastic
+    });
 
     searchAccessManager.remember(req.user.id, results.hits || []);
 
-    const searchTypeValue = typeof search_type === 'string' && search_type ? search_type : 'global';
     const userAgent = req.get('user-agent') || null;
     const ipAddress = req.ip || null;
     SearchLog.create({
