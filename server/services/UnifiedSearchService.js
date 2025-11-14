@@ -133,21 +133,92 @@ class UnifiedSearchService {
     const requiresSqlOnly = followLinks === true || hasActiveFilters(filters);
     const preferElasticSearch = normalizeBooleanPreference(preferElastic);
 
-    let results = null;
-
-    if (!requiresSqlOnly && preferElasticSearch) {
-      results = await this.#runElasticSearch(trimmedQuery, pageNumber, limitNumber);
-    }
-
-    if (!results) {
-      results = await this.#runSqlSearch(trimmedQuery, filters, pageNumber, limitNumber, user, searchType, {
+    const sqlPromise = this.#runSqlSearch(
+      trimmedQuery,
+      filters,
+      pageNumber,
+      limitNumber,
+      user,
+      searchType,
+      {
         followLinks,
         maxDepth: depthNumber
-      });
+      }
+    );
+
+    const shouldQueryElastic = !requiresSqlOnly && preferElasticSearch;
+    const elasticPromise = shouldQueryElastic
+      ? this.#runElasticSearch(trimmedQuery, pageNumber, limitNumber)
+      : Promise.resolve(null);
+
+    const [sqlResults, esResults] = await Promise.all([sqlPromise, elasticPromise]);
+
+    let results = sqlResults;
+
+    if (esResults && Array.isArray(esResults.hits) && esResults.hits.length > 0) {
+      const combined = new Map();
+      const addHits = (hits = []) => {
+        for (const hit of hits) {
+          if (!hit) {
+            continue;
+          }
+
+          const tableIdentifier =
+            hit.table_name ||
+            (hit.database && hit.table ? `${hit.database}.${hit.table}` : hit.table || '');
+          const primaryValues =
+            hit.primary_keys && typeof hit.primary_keys === 'object'
+              ? Object.values(hit.primary_keys).join(':')
+              : '';
+          const key = `${tableIdentifier}:${primaryValues}`;
+
+          if (!combined.has(key)) {
+            combined.set(key, hit);
+          }
+        }
+      };
+
+      if (Array.isArray(sqlResults?.hits)) {
+        addHits(sqlResults.hits);
+      }
+
+      addHits(esResults.hits);
+
+      const combinedHits = Array.from(combined.values());
+      const sortedCombinedHits =
+        typeof this.searchService.sortResults === 'function'
+          ? this.searchService.sortResults(combinedHits)
+          : combinedHits;
+      const offset = (pageNumber - 1) * limitNumber;
+      const paginatedCombinedHits = sortedCombinedHits.slice(offset, offset + limitNumber);
+      const totalCombined = sortedCombinedHits.length;
+
+      const tablesSearched = new Set([
+        ...(Array.isArray(sqlResults?.tables_searched) ? sqlResults.tables_searched : []),
+        ...(Array.isArray(esResults.tables_searched) ? esResults.tables_searched : [])
+      ]);
+
+      results = {
+        total: totalCombined,
+        page: pageNumber,
+        limit: limitNumber,
+        pages: limitNumber > 0 ? Math.ceil(totalCombined / limitNumber) : 0,
+        elapsed_ms: Math.max(sqlResults?.elapsed_ms ?? 0, esResults.elapsed_ms ?? 0),
+        hits: paginatedCombinedHits,
+        tables_searched: Array.from(tablesSearched),
+        engine: sqlResults && esResults ? 'mixed' : esResults.engine || 'elasticsearch'
+      };
+    }
+
+    if (!results && esResults) {
+      results = {
+        ...esResults,
+        engine: esResults.engine || 'elasticsearch'
+      };
     }
 
     if (!results) {
-      return buildDefaultResponse(pageNumber, limitNumber);
+      results = buildDefaultResponse(pageNumber, limitNumber);
     }
 
     if (!Array.isArray(results.hits)) {

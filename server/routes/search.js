@@ -23,6 +23,10 @@ const getElasticService = () => {
     elasticService = new ElasticSearchService();
   }
 
+  if (typeof elasticService.isOperational === 'function' && !elasticService.isOperational()) {
+    return null;
+  }
+
   return elasticService;
 };
 
