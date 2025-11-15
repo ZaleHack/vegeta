@@ -7,7 +7,7 @@ import { parse as parseDate, format as formatDate } from 'date-fns';
 import chokidar from 'chokidar';
 import client from '../config/elasticsearch.js';
 import Case from '../models/Case.js';
-import { isElasticsearchEnabled } from '../config/environment.js';
+import { isElasticsearchEnabled, isElasticsearchForced } from '../config/environment.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +94,19 @@ class CdrService {
     CdrService.instance = this;
   }
 
+  #disableElasticsearch(context = 'operation') {
+    if (isElasticsearchForced()) {
+      console.warn(
+        `⚠️ USE_ELASTICSEARCH=force actif : la désactivation Elasticsearch est ignorée (${context}).`
+      );
+      this.elasticEnabled = true;
+      return false;
+    }
+
+    this.elasticEnabled = false;
+    return true;
+  }
+
   async ensureBaseDirectory() {
     await ensureDirectory(this.baseDir);
   }
@@ -178,7 +191,7 @@ class CdrService {
         console.warn(
           '⚠️ Elasticsearch indisponible. Bascule sur le moteur de recherche local pour les CDR.'
         );
-        this.elasticEnabled = false;
+        this.#disableElasticsearch('initialisation index CDR');
         CdrService.indexEnsured = false;
         return;
       }
@@ -331,7 +344,7 @@ class CdrService {
     } catch (error) {
       if (isConnectionError(error)) {
         console.error('Erreur indexation Elasticsearch CDR:', error.message);
-        this.elasticEnabled = false;
+        this.#disableElasticsearch('indexation bulk CDR');
         return { inserted: records.length, indexed: false };
       }
       throw error;
@@ -1065,7 +1078,7 @@ class CdrService {
     } catch (error) {
       if (isConnectionError(error)) {
         console.error('Erreur recherche Elasticsearch CDR:', error.message);
-        this.elasticEnabled = false;
+        this.#disableElasticsearch('recherche CDR');
         return performLocalSearch(false);
       }
       throw error;
@@ -1141,7 +1154,7 @@ class CdrService {
       } catch (error) {
         if (isConnectionError(error)) {
           console.error('Erreur recherche contacts communs Elasticsearch:', error.message);
-          this.elasticEnabled = false;
+          this.#disableElasticsearch('recherche contacts communs');
           return await this.loadRecordsForCase(caseId);
         }
         throw error;
@@ -1316,7 +1329,7 @@ class CdrService {
       } catch (error) {
         if (isConnectionError(error)) {
           console.error('Erreur scroll Elasticsearch lors de la détection de changements:', error.message);
-          this.elasticEnabled = false;
+          this.#disableElasticsearch('scroll détection changements');
           const localRecords = await this.loadRecordsForCase(caseId);
           return localRecords.filter((record) => dateMatches(record));
         }
@@ -1449,7 +1462,7 @@ class CdrService {
     } catch (error) {
       if (isConnectionError(error)) {
         console.error('Erreur agrégation localisations Elasticsearch:', error.message);
-        this.elasticEnabled = false;
+        this.#disableElasticsearch('agrégation localisations');
         return [];
       }
       throw error;
@@ -1490,7 +1503,7 @@ class CdrService {
     } catch (error) {
       if (isConnectionError(error)) {
         console.error('Erreur récupération paires IMEI/numéros Elasticsearch:', error.message);
-        this.elasticEnabled = false;
+        this.#disableElasticsearch('récupération paires IMEI/numéros');
         return [];
       }
       throw error;
@@ -1543,7 +1556,7 @@ class CdrService {
         } catch (error) {
           if (isConnectionError(error)) {
             console.error('Erreur suppression index Elasticsearch pour fichier CDR:', error.message);
-            this.elasticEnabled = false;
+            this.#disableElasticsearch('suppression index fichier CDR');
           } else {
             console.error('Erreur suppression index Elasticsearch pour fichier CDR:', error);
           }
@@ -1589,7 +1602,7 @@ class CdrService {
         } catch (error) {
           if (isConnectionError(error)) {
             console.error('Erreur suppression index Elasticsearch dossier CDR:', error.message);
-            this.elasticEnabled = false;
+            this.#disableElasticsearch('suppression index dossier CDR');
           } else {
             console.error('Erreur suppression index Elasticsearch dossier CDR:', error);
           }

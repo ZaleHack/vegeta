@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import baseCatalog from '../config/tables-catalog.js';
-import { isElasticsearchEnabled } from '../config/environment.js';
+import { isElasticsearchEnabled, isElasticsearchForced } from '../config/environment.js';
 
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number(value);
@@ -105,6 +105,16 @@ class ElasticSearchService {
       return;
     }
     const reason = error?.message || error?.name || 'Erreur inconnue';
+    if (isElasticsearchForced()) {
+      console.warn(
+        `⚠️ USE_ELASTICSEARCH=force actif : désactivation Elasticsearch ignorée (${context}): ${reason}`
+      );
+      this.cache.clear();
+      this.connectionChecked = false;
+      this.scheduleReconnect();
+      return;
+    }
+
     console.warn(
       `⚠️ Elasticsearch désactivé pour la session actuelle (${context}): ${reason}`
     );
