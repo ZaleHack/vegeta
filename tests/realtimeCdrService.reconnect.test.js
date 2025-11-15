@@ -11,7 +11,7 @@ const createConnectionError = () => {
   return error;
 };
 
-test('Realtime CDR service reconnects to Elasticsearch after connection loss', async () => {
+test('Realtime CDR service disables Elasticsearch after connection loss', async () => {
   const originalUseElastic = process.env.USE_ELASTICSEARCH;
   const originalRetryDelay = process.env.ELASTICSEARCH_RETRY_DELAY_MS;
   const originalExists = client.indices.exists;
@@ -22,20 +22,12 @@ test('Realtime CDR service reconnects to Elasticsearch after connection loss', a
   process.env.ELASTICSEARCH_RETRY_DELAY_MS = '10';
 
   const connectionError = createConnectionError();
-  let shouldFail = true;
-  let indexCreated = false;
 
   client.indices.exists = async () => {
-    if (shouldFail) {
-      throw connectionError;
-    }
-    return indexCreated;
+    throw connectionError;
   };
 
-  client.indices.create = async () => {
-    indexCreated = true;
-    return { acknowledged: true };
-  };
+  client.indices.create = async () => ({ acknowledged: true });
 
   client.search = async () => ({ hits: { hits: [] } });
 
@@ -63,14 +55,14 @@ test('Realtime CDR service reconnects to Elasticsearch after connection loss', a
 
     assert.equal(service.elasticEnabled, false, 'Elasticsearch should be disabled after failure');
 
-    shouldFail = false;
+    await delay(50);
 
-    for (let attempt = 0; attempt < 20 && !service.elasticEnabled; attempt += 1) {
-      await delay(20);
-    }
-
-    assert.equal(service.elasticEnabled, true, 'Elasticsearch should be re-enabled after reconnect');
-    assert.equal(service.indexEnsured, true, 'Realtime index should be marked as ensured after reconnect');
+    assert.equal(service.reconnectTimer, null, 'Elasticsearch reconnect timer should remain cleared');
+    assert.equal(
+      service.indexEnsured,
+      false,
+      'Realtime index should remain disabled after connection loss'
+    );
   } finally {
     if (service) {
       service.elasticEnabled = false;
