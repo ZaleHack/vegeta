@@ -1204,7 +1204,16 @@ class RealtimeCdrService {
     this.initializationPromise = null;
     this.#clearIndexTimer();
 
-    if (!this.initialElasticEnabled && !forced) {
+    if (!forced) {
+      if (this.initialElasticEnabled) {
+        console.warn(
+          `⚠️ Elasticsearch temps réel désactivé après échec (${context}). Redémarrage requis pour réactiver cette fonctionnalité.`
+        );
+      }
+      return;
+    }
+
+    if (!this.initialElasticEnabled) {
       return;
     }
 
