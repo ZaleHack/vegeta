@@ -133,103 +133,95 @@ class UnifiedSearchService {
     const requiresSqlOnly = followLinks === true || hasActiveFilters(filters);
     const preferElasticSearch = normalizeBooleanPreference(preferElastic);
 
-    const sqlPromise = this.#runSqlSearch(
-      trimmedQuery,
-      filters,
-      pageNumber,
-      limitNumber,
-      user,
-      searchType,
-      {
-        followLinks,
-        maxDepth: depthNumber
-      }
-    );
-
-    const shouldQueryElastic = !requiresSqlOnly && preferElasticSearch;
-    const elasticPromise = shouldQueryElastic
-      ? this.#runElasticSearch(trimmedQuery, pageNumber, limitNumber)
-      : Promise.resolve(null);
-
-    const [sqlResults, esResults] = await Promise.all([sqlPromise, elasticPromise]);
-
-    let results = sqlResults;
-
-    if (esResults && Array.isArray(esResults.hits) && esResults.hits.length > 0) {
-      const combined = new Map();
-      const addHits = (hits = []) => {
-        for (const hit of hits) {
-          if (!hit) {
-            continue;
-          }
-
-          const tableIdentifier =
-            hit.table_name ||
-            (hit.database && hit.table ? `${hit.database}.${hit.table}` : hit.table || '');
-          const primaryValues =
-            hit.primary_keys && typeof hit.primary_keys === 'object'
-              ? Object.values(hit.primary_keys).join(':')
-              : '';
-          const key = `${tableIdentifier}:${primaryValues}`;
-
-          if (!combined.has(key)) {
-            combined.set(key, hit);
-          }
+    const runSqlSearch = () =>
+      this.#runSqlSearch(
+        trimmedQuery,
+        filters,
+        pageNumber,
+        limitNumber,
+        user,
+        searchType,
+        {
+          followLinks,
+          maxDepth: depthNumber
         }
+      );
+
+    const runElasticSearch = () => this.#runElasticSearch(trimmedQuery, pageNumber, limitNumber);
+
+    const hasHits = (result) => Array.isArray(result?.hits) && result.hits.length > 0;
+
+    const finalizeResults = (result, fallbackEngine) => {
+      if (!result) {
+        return buildDefaultResponse(pageNumber, limitNumber);
+      }
+
+      const normalized = {
+        ...result,
+        engine: result.engine || fallbackEngine
       };
 
-      if (Array.isArray(sqlResults?.hits)) {
-        addHits(sqlResults.hits);
+      if (!Array.isArray(normalized.hits)) {
+        normalized.hits = [];
       }
 
-      addHits(esResults.hits);
+      if (!Array.isArray(normalized.tables_searched)) {
+        normalized.tables_searched = [];
+      }
 
-      const combinedHits = Array.from(combined.values());
-      const sortedCombinedHits =
-        typeof this.searchService.sortResults === 'function'
-          ? this.searchService.sortResults(combinedHits)
-          : combinedHits;
-      const offset = (pageNumber - 1) * limitNumber;
-      const paginatedCombinedHits = sortedCombinedHits.slice(offset, offset + limitNumber);
-      const totalCombined = sortedCombinedHits.length;
+      return normalized;
+    };
 
-      const tablesSearched = new Set([
-        ...(Array.isArray(sqlResults?.tables_searched) ? sqlResults.tables_searched : []),
-        ...(Array.isArray(esResults.tables_searched) ? esResults.tables_searched : [])
+    if (requiresSqlOnly) {
+      const sqlResults = await runSqlSearch();
+      return finalizeResults(sqlResults, 'sql');
+    }
+
+    const primaryEngine = preferElasticSearch ? 'elasticsearch' : 'sql';
+    const secondaryEngine = preferElasticSearch ? 'sql' : 'elasticsearch';
+
+    const runPrimary = primaryEngine === 'elasticsearch' ? runElasticSearch : runSqlSearch;
+    const runSecondary = secondaryEngine === 'elasticsearch' ? runElasticSearch : runSqlSearch;
+
+    let primaryResults = await runPrimary();
+
+    if (hasHits(primaryResults)) {
+      return finalizeResults(primaryResults, primaryEngine);
+    }
+
+    const secondaryResults = await runSecondary();
+
+    if (hasHits(secondaryResults)) {
+      const tables = new Set([
+        ...(Array.isArray(primaryResults?.tables_searched) ? primaryResults.tables_searched : []),
+        ...(Array.isArray(secondaryResults.tables_searched) ? secondaryResults.tables_searched : [])
       ]);
 
-      results = {
-        total: totalCombined,
-        page: pageNumber,
-        limit: limitNumber,
-        pages: limitNumber > 0 ? Math.ceil(totalCombined / limitNumber) : 0,
-        elapsed_ms: Math.max(sqlResults?.elapsed_ms ?? 0, esResults.elapsed_ms ?? 0),
-        hits: paginatedCombinedHits,
-        tables_searched: Array.from(tablesSearched),
-        engine: sqlResults && esResults ? 'mixed' : esResults.engine || 'elasticsearch'
-      };
+      return finalizeResults(
+        {
+          ...secondaryResults,
+          tables_searched: Array.from(tables)
+        },
+        secondaryEngine
+      );
     }
 
-    if (!results && esResults) {
-      results = {
-        ...esResults,
-        engine: esResults.engine || 'elasticsearch'
-      };
+    if (primaryResults && secondaryResults) {
+      const tables = new Set([
+        ...(Array.isArray(primaryResults.tables_searched) ? primaryResults.tables_searched : []),
+        ...(Array.isArray(secondaryResults.tables_searched) ? secondaryResults.tables_searched : [])
+      ]);
+
+      return finalizeResults(
+        {
+          ...primaryResults,
+          tables_searched: Array.from(tables)
+        },
+        primaryEngine
+      );
     }
 
-    if (!results) {
-      results = buildDefaultResponse(pageNumber, limitNumber);
-    }
-
-    if (!Array.isArray(results.hits)) {
-      results.hits = [];
-    }
-
-    if (!Array.isArray(results.tables_searched)) {
-      results.tables_searched = [];
-    }
-
-    return results;
+    return finalizeResults(primaryResults ?? secondaryResults, primaryEngine);
   }
 }
 
