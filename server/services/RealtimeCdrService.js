@@ -1,6 +1,6 @@
 import database from '../config/database.js';
 import client from '../config/elasticsearch.js';
-import { isElasticsearchEnabled } from '../config/environment.js';
+import { isElasticsearchEnabled, isElasticsearchForced } from '../config/environment.js';
 import {
   REALTIME_CDR_TABLE_NAME,
   REALTIME_CDR_TABLE_SCHEMA,
@@ -1189,13 +1189,22 @@ class RealtimeCdrService {
   }
 
   #handleConnectionLoss(context = 'operation', error = null) {
-    this.elasticEnabled = false;
+    const forced = isElasticsearchForced();
+
+    if (forced) {
+      console.warn(
+        `⚠️ USE_ELASTICSEARCH=force actif : maintien de l\'indexation malgré l'échec (${context}).`
+      );
+      this.elasticEnabled = true;
+    } else {
+      this.elasticEnabled = false;
+    }
     this.indexEnsured = false;
     this.indexReady = false;
     this.initializationPromise = null;
     this.#clearIndexTimer();
 
-    if (!this.initialElasticEnabled) {
+    if (!this.initialElasticEnabled && !forced) {
       return;
     }
 

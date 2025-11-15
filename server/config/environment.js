@@ -19,7 +19,9 @@ const ensureSearchConfiguration = () => {
     );
   }
 
-  if (process.env.USE_ELASTICSEARCH === 'true' && !process.env.ELASTICSEARCH_URL) {
+  const useElastic = process.env.USE_ELASTICSEARCH;
+
+  if ((useElastic === 'true' || useElastic === 'force') && !process.env.ELASTICSEARCH_URL) {
     process.env.ELASTICSEARCH_URL = 'http://localhost:9200';
     console.warn(
       '⚠️ ELASTICSEARCH_URL non défini. Utilisation de http://localhost:9200 comme valeur par défaut.'
@@ -29,7 +31,13 @@ const ensureSearchConfiguration = () => {
 
 export const isElasticsearchEnabled = () => {
   ensureSearchConfiguration();
-  return process.env.USE_ELASTICSEARCH === 'true';
+  const value = process.env.USE_ELASTICSEARCH;
+  return value === 'true' || value === 'force';
+};
+
+export const isElasticsearchForced = () => {
+  ensureSearchConfiguration();
+  return process.env.USE_ELASTICSEARCH === 'force';
 };
 
 export const getJwtSecret = () => {

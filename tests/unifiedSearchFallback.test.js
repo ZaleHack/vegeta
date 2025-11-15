@@ -71,4 +71,16 @@ describe('UnifiedSearchService Elasticsearch fallback', () => {
     assert.equal(results.hits.length, 1);
     assert.equal(results.hits[0].primary_keys.id, 42);
   });
+
+  it('keeps Elasticsearch enabled when USE_ELASTICSEARCH is forced', async () => {
+    process.env.USE_ELASTICSEARCH = 'force';
+    const service = new ElasticSearchService();
+
+    assert.equal(service.enabled, true, 'Elasticsearch should start enabled when forced');
+
+    service.disableForSession('test', new Error('ECONNREFUSED'));
+
+    assert.equal(service.enabled, true, 'Elasticsearch should remain enabled when forcing usage');
+    assert.equal(service.connectionChecked, false);
+  });
 });
