@@ -24,6 +24,10 @@ const normalizeBooleanPreference = (value) => {
   return true;
 };
 
+// Laisser le moteur principal démarrer avant d'amorcer la requête de secours
+// afin de ne pas solliciter inutilement les deux moteurs à chaque recherche.
+const SECONDARY_TRIGGER_DELAY_MS = 75;
+
 class UnifiedSearchService {
   constructor({ searchService = new SearchService(), elasticFactory = null } = {}) {
     this.searchService = searchService;
@@ -183,13 +187,38 @@ class UnifiedSearchService {
     const runPrimary = primaryEngine === 'elasticsearch' ? runElasticSearch : runSqlSearch;
     const runSecondary = secondaryEngine === 'elasticsearch' ? runElasticSearch : runSqlSearch;
 
-    let primaryResults = await runPrimary();
+    let secondaryPromise = null;
+    const startSecondaryExecution = () => {
+      if (!secondaryPromise) {
+        secondaryPromise = runSecondary().catch(() => null);
+      }
+      return secondaryPromise;
+    };
+
+    let fallbackTimer = null;
+    if (primaryEngine !== secondaryEngine) {
+      fallbackTimer = setTimeout(() => {
+        startSecondaryExecution();
+      }, SECONDARY_TRIGGER_DELAY_MS);
+      if (typeof fallbackTimer.unref === 'function') {
+        fallbackTimer.unref();
+      }
+    }
+
+    let primaryResults;
+    try {
+      primaryResults = await runPrimary();
+    } finally {
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+      }
+    }
 
     if (hasHits(primaryResults)) {
       return finalizeResults(primaryResults, primaryEngine);
     }
 
-    const secondaryResults = await runSecondary();
+    const secondaryResults = await startSecondaryExecution();
 
     if (hasHits(secondaryResults)) {
       const tables = new Set([
