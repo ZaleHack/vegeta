@@ -32,7 +32,7 @@ export const isCdrBtsDebugEnabled = () => {
   if (typeof flag === 'string') {
     return flag.trim().toLowerCase() === 'true';
   }
-  return process.env.NODE_ENV !== 'production';
+  return false;
 };
 
 export const getCdrBtsCacheSize = () => {

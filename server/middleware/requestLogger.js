@@ -1,3 +1,5 @@
+import { isRequestLoggingEnabled } from '../config/logging.js';
+
 const SENSITIVE_KEYS = new Set(['password', 'currentPassword', 'newPassword', 'token']);
 
 const redactValue = (value) => {
@@ -51,6 +53,10 @@ const shouldSkipLogging = (url = '') => {
 };
 
 export const requestLogger = (req, res, next) => {
+  if (!isRequestLoggingEnabled()) {
+    return next();
+  }
+
   if (shouldSkipLogging(req.originalUrl)) {
     return next();
   }
