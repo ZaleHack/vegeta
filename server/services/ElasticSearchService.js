@@ -166,7 +166,9 @@ class ElasticSearchService {
             console.warn(
               `⚠️ Nouvelle tentative de connexion Elasticsearch échouée (${effectiveDelay}ms): ${error.message}`
             );
-            this.enabled = false;
+            if (!isElasticsearchForced()) {
+              this.enabled = false;
+            }
             this.connectionChecked = false;
             const nextDelay = Math.min(
               this.maxReconnectDelay,
