@@ -45,6 +45,11 @@ class ElasticSearchService {
     this.connectionCheckPromise = null;
     const retryEnv = Number(process.env.ELASTICSEARCH_RETRY_DELAY_MS);
     this.retryDelayMs = Number.isFinite(retryEnv) && retryEnv >= 0 ? retryEnv : 15000;
+    this.currentReconnectDelay = this.retryDelayMs;
+    const maxReconnectEnv = Number(process.env.ELASTICSEARCH_MAX_RECONNECT_DELAY_MS);
+    this.maxReconnectDelay = Number.isFinite(maxReconnectEnv) && maxReconnectEnv > 0
+      ? maxReconnectEnv
+      : 5 * 60 * 1000;
     this.reconnectTimer = null;
 
     if (this.enabled) {
@@ -122,6 +127,7 @@ class ElasticSearchService {
     this.indexes = [];
     this.cache.clear();
     this.connectionChecked = false;
+    this.currentReconnectDelay = this.retryDelayMs;
     this.scheduleReconnect();
   }
 
@@ -142,14 +148,41 @@ class ElasticSearchService {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-
       if (!this.initiallyEnabled || process.env.USE_ELASTICSEARCH === 'false') {
         return;
       }
 
-      this.enabled = true;
-      this.indexes = this.getActiveIndexes(this.catalog);
-      this.scheduleConnectionVerification('reconnexion automatique');
+      const attemptReconnect = async () => {
+        try {
+          await client.ping({ requestTimeout: this.connectionTimeout });
+          this.enabled = true;
+          this.indexes = this.getActiveIndexes(this.catalog);
+          this.connectionChecked = true;
+          this.cache.clear();
+          this.currentReconnectDelay = this.retryDelayMs;
+          console.info('✅ Connexion Elasticsearch rétablie.');
+        } catch (error) {
+          if (this.isConnectionError(error)) {
+            console.warn(
+              `⚠️ Nouvelle tentative de connexion Elasticsearch échouée (${effectiveDelay}ms): ${error.message}`
+            );
+            this.enabled = false;
+            this.connectionChecked = false;
+            const nextDelay = Math.min(
+              this.maxReconnectDelay,
+              Math.max(this.retryDelayMs, this.currentReconnectDelay * 2)
+            );
+            this.currentReconnectDelay = nextDelay;
+            this.scheduleReconnect(nextDelay);
+            return;
+          }
+
+          console.error('❌ Erreur inattendue pendant la reconnexion Elasticsearch:', error);
+          this.scheduleReconnect(this.currentReconnectDelay);
+        }
+      };
+
+      attemptReconnect();
     }, effectiveDelay);
 
     if (typeof this.reconnectTimer.unref === 'function') {
