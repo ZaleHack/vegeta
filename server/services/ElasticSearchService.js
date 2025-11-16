@@ -137,6 +137,7 @@ class ElasticSearchService {
       return;
     }
     const reason = error?.message || error?.name || 'Erreur inconnue';
+
     if (isElasticsearchForced()) {
       console.warn(
         `⚠️ USE_ELASTICSEARCH=force actif : désactivation Elasticsearch ignorée (${context}): ${reason}`
@@ -145,6 +146,19 @@ class ElasticSearchService {
       this.connectionChecked = false;
       this.scheduleReconnect();
       return;
+    }
+
+    const shouldPersistDisable = this.initiallyEnabled && !this.autoReconnectEnabled;
+    const normalizedPreference = (process.env.USE_ELASTICSEARCH || '')
+      .toString()
+      .trim()
+      .toLowerCase();
+
+    if (shouldPersistDisable && normalizedPreference !== 'false') {
+      process.env.USE_ELASTICSEARCH = 'false';
+      console.warn(
+        `⚠️ USE_ELASTICSEARCH automatiquement désactivé après l'échec (${context}).`
+      );
     }
 
     console.warn(
