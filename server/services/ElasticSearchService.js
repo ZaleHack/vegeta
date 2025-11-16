@@ -25,6 +25,32 @@ const HEALTHCHECK_TIMEOUT_MS = parsePositiveInteger(
   Math.max(1000, REQUEST_TIMEOUT_MS)
 );
 
+const normalizeAutoReconnectPreference = () => {
+  if (isElasticsearchForced()) {
+    return true;
+  }
+
+  const raw = process.env.ELASTICSEARCH_AUTO_RECONNECT;
+  if (typeof raw === 'undefined' || raw === null) {
+    return false;
+  }
+
+  const normalized = String(raw).trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  if (['true', '1', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+
+  if (['false', '0', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  return false;
+};
+
 class ElasticSearchService {
   constructor() {
     const ttlEnv = process.env.ELASTICSEARCH_CACHE_TTL_MS;
@@ -43,6 +69,7 @@ class ElasticSearchService {
     this.connectionTimeout = HEALTHCHECK_TIMEOUT_MS;
     this.connectionChecked = false;
     this.connectionCheckPromise = null;
+    this.autoReconnectEnabled = normalizeAutoReconnectPreference();
     const retryEnv = Number(process.env.ELASTICSEARCH_RETRY_DELAY_MS);
     this.retryDelayMs = Number.isFinite(retryEnv) && retryEnv >= 0 ? retryEnv : 15000;
     this.currentReconnectDelay = this.retryDelayMs;
@@ -128,10 +155,16 @@ class ElasticSearchService {
     this.cache.clear();
     this.connectionChecked = false;
     this.currentReconnectDelay = this.retryDelayMs;
-    this.scheduleReconnect();
+    if (this.autoReconnectEnabled) {
+      this.scheduleReconnect();
+    }
   }
 
   scheduleReconnect(delay = this.retryDelayMs) {
+    if (!this.autoReconnectEnabled) {
+      return;
+    }
+
     if (!this.initiallyEnabled) {
       return;
     }

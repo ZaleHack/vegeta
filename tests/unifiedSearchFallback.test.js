@@ -44,12 +44,15 @@ class EmptyElasticService {
 describe('UnifiedSearchService Elasticsearch fallback', () => {
   let previousUseElastic;
   let previousUrl;
+  let previousAutoReconnect;
 
   beforeEach(() => {
     previousUseElastic = process.env.USE_ELASTICSEARCH;
     previousUrl = process.env.ELASTICSEARCH_URL;
+    previousAutoReconnect = process.env.ELASTICSEARCH_AUTO_RECONNECT;
     process.env.USE_ELASTICSEARCH = 'false';
     delete process.env.ELASTICSEARCH_URL;
+    delete process.env.ELASTICSEARCH_AUTO_RECONNECT;
   });
 
   afterEach(() => {
@@ -63,6 +66,12 @@ describe('UnifiedSearchService Elasticsearch fallback', () => {
       delete process.env.ELASTICSEARCH_URL;
     } else {
       process.env.ELASTICSEARCH_URL = previousUrl;
+    }
+
+    if (typeof previousAutoReconnect === 'undefined') {
+      delete process.env.ELASTICSEARCH_AUTO_RECONNECT;
+    } else {
+      process.env.ELASTICSEARCH_AUTO_RECONNECT = previousAutoReconnect;
     }
   });
 
@@ -97,6 +106,36 @@ describe('UnifiedSearchService Elasticsearch fallback', () => {
 
     assert.equal(service.enabled, true, 'Elasticsearch should remain enabled when forcing usage');
     assert.equal(service.connectionChecked, false);
+  });
+
+  it('does not schedule reconnect attempts when auto reconnect is disabled', () => {
+    const service = new ElasticSearchService();
+    service.enabled = true;
+    service.initiallyEnabled = true;
+    service.retryDelayMs = 1;
+
+    service.disableForSession('test', new Error('ECONNREFUSED'));
+
+    assert.equal(service.reconnectTimer, null, 'No reconnect timer should be scheduled');
+  });
+
+  it('allows opting-in to reconnect attempts via ELASTICSEARCH_AUTO_RECONNECT', () => {
+    process.env.ELASTICSEARCH_AUTO_RECONNECT = 'true';
+    const service = new ElasticSearchService();
+    service.enabled = true;
+    service.initiallyEnabled = true;
+    service.retryDelayMs = 1;
+
+    try {
+      service.disableForSession('test', new Error('ECONNREFUSED'));
+
+      assert.ok(service.reconnectTimer, 'Reconnect timer should be scheduled when opt-in is enabled');
+    } finally {
+      if (service.reconnectTimer) {
+        clearTimeout(service.reconnectTimer);
+        service.reconnectTimer = null;
+      }
+    }
   });
 
   it('exposes diagnostics metadata when requested', async () => {
