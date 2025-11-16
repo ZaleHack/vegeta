@@ -119,6 +119,21 @@ describe('UnifiedSearchService Elasticsearch fallback', () => {
     assert.equal(service.reconnectTimer, null, 'No reconnect timer should be scheduled');
   });
 
+  it('forces USE_ELASTICSEARCH=false when disabling without auto reconnect', () => {
+    const service = new ElasticSearchService();
+    process.env.USE_ELASTICSEARCH = 'true';
+    service.enabled = true;
+    service.initiallyEnabled = true;
+
+    service.disableForSession('test', new Error('ECONNREFUSED'));
+
+    assert.equal(
+      process.env.USE_ELASTICSEARCH,
+      'false',
+      'Environment flag should be turned off to avoid repeated failures'
+    );
+  });
+
   it('allows opting-in to reconnect attempts via ELASTICSEARCH_AUTO_RECONNECT', () => {
     process.env.ELASTICSEARCH_AUTO_RECONNECT = 'true';
     const service = new ElasticSearchService();
