@@ -8,15 +8,45 @@ let cachedPayloadEncryptionKey;
 const sanitizeList = (value = '') =>
   value
     .split(',')
-    .map(origin => origin.trim())
+    .map((origin) => origin.trim())
     .filter(Boolean);
 
+const normalizeElasticPreference = (value) => {
+  if (typeof value === 'undefined' || value === null) {
+    return undefined;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized === 'force') {
+    return 'force';
+  }
+
+  if (['true', '1', 'yes', 'on'].includes(normalized)) {
+    return 'true';
+  }
+
+  if (['false', '0', 'no', 'off'].includes(normalized)) {
+    return 'false';
+  }
+
+  return normalized;
+};
+
 const ensureSearchConfiguration = () => {
-  if (typeof process.env.USE_ELASTICSEARCH === 'undefined') {
+  const normalizedPreference = normalizeElasticPreference(process.env.USE_ELASTICSEARCH);
+
+  if (typeof normalizedPreference === 'undefined') {
     process.env.USE_ELASTICSEARCH = 'true';
     console.warn(
       '⚠️ USE_ELASTICSEARCH non défini. Activation par défaut d\'Elasticsearch pour accélérer les recherches.'
     );
+  } else if (normalizedPreference !== process.env.USE_ELASTICSEARCH) {
+    process.env.USE_ELASTICSEARCH = normalizedPreference;
   }
 
   const useElastic = process.env.USE_ELASTICSEARCH;
@@ -31,13 +61,14 @@ const ensureSearchConfiguration = () => {
 
 export const isElasticsearchEnabled = () => {
   ensureSearchConfiguration();
-  const value = process.env.USE_ELASTICSEARCH;
+  const value = (process.env.USE_ELASTICSEARCH || '').toString().trim().toLowerCase();
   return value === 'true' || value === 'force';
 };
 
 export const isElasticsearchForced = () => {
   ensureSearchConfiguration();
-  return process.env.USE_ELASTICSEARCH === 'force';
+  const value = (process.env.USE_ELASTICSEARCH || '').toString().trim().toLowerCase();
+  return value === 'force';
 };
 
 export const getJwtSecret = () => {
