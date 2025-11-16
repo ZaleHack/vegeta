@@ -628,40 +628,6 @@ export default {
     theme: 'pro'
   },
 
-  'autres.edu_sn': {
-    display: 'edu_sn',
-    database: 'autres',
-    searchable: [
-      'cni',
-      'prenom',
-      'nom',
-      'date_naissance',
-      'lieu_naissance',
-      'sexe',
-      'email',
-      'email2',
-      'teelphone1',
-      'telephone2',
-      'adresse_residence',
-      'diplome_academique',
-      'discipline_diplome_academique',
-      'diplome_profesionnel',
-      'specialite_diplome_professionel',
-      'ordre_enseignement_choisi',
-      'experience_enseignement'
-    ],
-    preview: ['cni', 'prenom', 'nom', 'teelphone1', 'telephone2', 'email'],
-    filters: {
-      sexe: 'enum',
-      date_naissance: 'date',
-      ordre_enseignement_choisi: 'string',
-      experience_enseignement: 'string',
-      ia_depot: 'string',
-      ief_depot: 'string'
-    },
-    theme: 'education'
-  },
-
   'autres.esolde_new': {
     display: 'esolde_new',
     database: 'autres',
@@ -845,36 +811,6 @@ export default {
     filters: {
       case_id: 'number',
       user_id: 'number'
-    },
-    theme: 'telecom'
-  },
-
-  'autres.cdr_de_test': {
-    display: 'cdr_de_test',
-    database: 'autres',
-    searchable: [
-      'oce',
-      'type_cdr',
-      'cdr_numb',
-      'numero_intl_appelant',
-      'numero_intl_appele',
-      'numero_intl_appele_original',
-      'imei_appelant',
-      'imei_appele',
-      'imei_appele_original',
-      'imsi_appelant',
-      'imsi_appele',
-      'cgi_appelant',
-      'cgi_appele',
-      'cgi_appele_original',
-      'nom_localisation'
-    ],
-    preview: ['oce', 'type_cdr', 'numero_intl_appelant', 'numero_intl_appele', 'cdr_numb'],
-    filters: {
-      date_debut: 'date',
-      date_fin: 'date',
-      latitude: 'number',
-      longitude: 'number'
     },
     theme: 'telecom'
   },
