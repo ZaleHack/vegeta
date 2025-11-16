@@ -14,14 +14,20 @@ const buildDefaultResponse = (page, limit) => ({
   engine: 'sql'
 });
 
-const normalizeBooleanPreference = (value) => {
+const normalizeBooleanPreference = (value, defaultValue = true) => {
   if (typeof value === 'boolean') {
     return value;
   }
   if (typeof value === 'string') {
-    return value !== 'false';
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) {
+      return true;
+    }
+    if (['false', '0', 'no', 'off'].includes(normalized)) {
+      return false;
+    }
   }
-  return true;
+  return defaultValue;
 };
 
 // Laisser le moteur principal démarrer avant d'amorcer la requête de secours
@@ -127,7 +133,8 @@ class UnifiedSearchService {
     searchType = 'global',
     followLinks = false,
     depth = 1,
-    preferElastic = true
+    preferElastic = true,
+    diagnostic = false
   }) {
     const trimmedQuery = typeof query === 'string' ? query.trim() : '';
     const pageNumber = Number.isFinite(Number(page)) ? parseInt(page, 10) : 1;
@@ -136,6 +143,7 @@ class UnifiedSearchService {
 
     const requiresSqlOnly = followLinks === true || hasActiveFilters(filters);
     const preferElasticSearch = normalizeBooleanPreference(preferElastic);
+    const includeDiagnostics = normalizeBooleanPreference(diagnostic, false);
 
     const runSqlSearch = () =>
       this.#runSqlSearch(
@@ -155,15 +163,35 @@ class UnifiedSearchService {
 
     const hasHits = (result) => Array.isArray(result?.hits) && result.hits.length > 0;
 
+    const searchStartedAt = Date.now();
+
+    const finalizeDiagnostics = (resolvedEngine) => {
+      if (!includeDiagnostics || !diagnostics) {
+        return;
+      }
+      diagnostics.resolved_by = resolvedEngine;
+      diagnostics.total_elapsed_ms = Date.now() - searchStartedAt;
+    };
+
     const finalizeResults = (result, fallbackEngine) => {
       if (!result) {
-        return buildDefaultResponse(pageNumber, limitNumber);
+        const defaultResponse = buildDefaultResponse(pageNumber, limitNumber);
+        if (includeDiagnostics && diagnostics) {
+          finalizeDiagnostics(defaultResponse.engine);
+          defaultResponse.diagnostics = diagnostics;
+        }
+        return defaultResponse;
       }
 
       const normalized = {
         ...result,
         engine: result.engine || fallbackEngine
       };
+
+      if (includeDiagnostics && diagnostics) {
+        finalizeDiagnostics(normalized.engine);
+        normalized.diagnostics = diagnostics;
+      }
 
       if (!Array.isArray(normalized.hits)) {
         normalized.hits = [];
@@ -176,20 +204,117 @@ class UnifiedSearchService {
       return normalized;
     };
 
-    if (requiresSqlOnly) {
-      const sqlResults = await runSqlSearch();
-      return finalizeResults(sqlResults, 'sql');
-    }
-
     const primaryEngine = preferElasticSearch ? 'elasticsearch' : 'sql';
     const secondaryEngine = preferElasticSearch ? 'sql' : 'elasticsearch';
 
-    const runPrimary = primaryEngine === 'elasticsearch' ? runElasticSearch : runSqlSearch;
-    const runSecondary = secondaryEngine === 'elasticsearch' ? runElasticSearch : runSqlSearch;
+    const diagnostics = includeDiagnostics
+      ? {
+          started_at: new Date(searchStartedAt).toISOString(),
+          preferElastic: preferElasticSearch,
+          requiresSqlOnly,
+          primary_engine: primaryEngine,
+          secondary_engine: primaryEngine === secondaryEngine ? null : secondaryEngine,
+          attempts: [],
+          fallback:
+            primaryEngine === secondaryEngine
+              ? null
+              : {
+                  delay_ms: SECONDARY_TRIGGER_DELAY_MS,
+                  started_at_ms: null,
+                  reason: null
+                },
+          resolved_by: null,
+          total_elapsed_ms: null
+        }
+      : null;
+
+    const trackAttempt = (engine, role) => {
+      if (!includeDiagnostics || !diagnostics) {
+        return null;
+      }
+      const startedAt = Date.now();
+      const attempt = {
+        engine,
+        role,
+        started_at: new Date(startedAt).toISOString(),
+        start_offset_ms: startedAt - searchStartedAt,
+        status: 'pending'
+      };
+      diagnostics.attempts.push(attempt);
+      return {
+        attempt,
+        startedAt
+      };
+    };
+
+    const finalizeAttempt = (tracker, result, error) => {
+      if (!tracker?.attempt) {
+        return;
+      }
+      const { attempt, startedAt } = tracker;
+      attempt.duration_ms = Date.now() - startedAt;
+      if (error) {
+        attempt.status = 'error';
+        attempt.error = error.message || String(error);
+        attempt.hits = 0;
+        attempt.total = null;
+        attempt.has_hits = false;
+        return;
+      }
+
+      attempt.status = 'success';
+      attempt.total = typeof result?.total === 'number' ? result.total : null;
+      attempt.hits = Array.isArray(result?.hits) ? result.hits.length : 0;
+      attempt.has_hits = hasHits(result);
+      attempt.engine_elapsed_ms =
+        typeof result?.elapsed_ms === 'number' ? result.elapsed_ms : null;
+    };
+
+    const runEngineAttempt = (engine, role, runner) => {
+      if (!includeDiagnostics) {
+        return runner();
+      }
+      const tracker = trackAttempt(engine, role);
+      return runner()
+        .then((result) => {
+          finalizeAttempt(tracker, result, null);
+          return result;
+        })
+        .catch((error) => {
+          finalizeAttempt(tracker, null, error);
+          throw error;
+        });
+    };
+
+    const markFallbackStart = (reason) => {
+      if (!diagnostics?.fallback) {
+        return;
+      }
+      if (typeof diagnostics.fallback.started_at_ms === 'number') {
+        return;
+      }
+      diagnostics.fallback.started_at_ms = Date.now() - searchStartedAt;
+      diagnostics.fallback.reason = reason;
+    };
+
+    if (requiresSqlOnly) {
+      const sqlResults = await runEngineAttempt('sql', 'solo', runSqlSearch);
+      return finalizeResults(sqlResults, 'sql');
+    }
+
+    const runPrimary = () =>
+      runEngineAttempt(primaryEngine, 'primary', () =>
+        primaryEngine === 'elasticsearch' ? runElasticSearch() : runSqlSearch()
+      );
+    const runSecondary = () =>
+      runEngineAttempt(secondaryEngine, 'secondary', () =>
+        secondaryEngine === 'elasticsearch' ? runElasticSearch() : runSqlSearch()
+      );
 
     let secondaryPromise = null;
-    const startSecondaryExecution = () => {
+    const startSecondaryExecution = (reason) => {
       if (!secondaryPromise) {
+        markFallbackStart(reason);
         secondaryPromise = runSecondary().catch(() => null);
       }
       return secondaryPromise;
@@ -198,7 +323,7 @@ class UnifiedSearchService {
     let fallbackTimer = null;
     if (primaryEngine !== secondaryEngine) {
       fallbackTimer = setTimeout(() => {
-        startSecondaryExecution();
+        startSecondaryExecution('timer');
       }, SECONDARY_TRIGGER_DELAY_MS);
       if (typeof fallbackTimer.unref === 'function') {
         fallbackTimer.unref();
@@ -218,7 +343,9 @@ class UnifiedSearchService {
       return finalizeResults(primaryResults, primaryEngine);
     }
 
-    const secondaryResults = await startSecondaryExecution();
+    const secondaryResults = await startSecondaryExecution(
+      primaryResults && !hasHits(primaryResults) ? 'primary_empty' : 'primary_failed'
+    );
 
     if (hasHits(secondaryResults)) {
       const tables = new Set([

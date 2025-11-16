@@ -26,6 +26,21 @@ class FakeSearchService {
   }
 }
 
+class EmptyElasticService {
+  async ensureOperational() {
+    return true;
+  }
+
+  async search() {
+    return {
+      total: 0,
+      hits: [],
+      elapsed_ms: 4,
+      tables_searched: ['autres.profiles']
+    };
+  }
+}
+
 describe('UnifiedSearchService Elasticsearch fallback', () => {
   let previousUseElastic;
   let previousUrl;
@@ -82,5 +97,31 @@ describe('UnifiedSearchService Elasticsearch fallback', () => {
 
     assert.equal(service.enabled, true, 'Elasticsearch should remain enabled when forcing usage');
     assert.equal(service.connectionChecked, false);
+  });
+
+  it('exposes diagnostics metadata when requested', async () => {
+    const unified = new UnifiedSearchService({
+      searchService: new FakeSearchService(),
+      elasticFactory: () => new EmptyElasticService()
+    });
+
+    const results = await unified.search({
+      query: 'jean',
+      page: 1,
+      limit: 20,
+      preferElastic: true,
+      diagnostic: true
+    });
+
+    assert.equal(results.engine, 'sql');
+    assert.ok(results.diagnostics, 'Diagnostics payload should be present');
+    assert.equal(results.diagnostics.primary_engine, 'elasticsearch');
+    assert.equal(results.diagnostics.secondary_engine, 'sql');
+    assert.equal(results.diagnostics.resolved_by, 'sql');
+    assert.ok(results.diagnostics.attempts.length >= 2);
+    const sqlAttempt = results.diagnostics.attempts.find((attempt) => attempt.engine === 'sql');
+    assert.ok(sqlAttempt, 'SQL attempt should be recorded');
+    assert.equal(sqlAttempt.status, 'success');
+    assert.equal(sqlAttempt.has_hits, true);
   });
 });
