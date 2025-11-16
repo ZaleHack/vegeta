@@ -45,7 +45,8 @@ router.post('/', authenticate, async (req, res) => {
       limit = 20,
       search_type = 'global',
       followLinks = false,
-      depth = 1
+      depth = 1,
+      diagnostic = false
     } = req.body;
 
     if (!query || query.trim().length === 0) {
@@ -93,6 +94,9 @@ router.post('/', authenticate, async (req, res) => {
     const limitNumber = parseInt(limit);
     const depthNumber = parseInt(depth);
 
+    const canRequestDiagnostics = req.user?.admin === 1 || req.user?.admin === '1';
+    const diagnosticFlag = canRequestDiagnostics ? diagnostic : false;
+
     const results = await unifiedSearchService.search({
       query: trimmed,
       filters,
@@ -102,7 +106,8 @@ router.post('/', authenticate, async (req, res) => {
       searchType: search_type,
       followLinks,
       depth: depthNumber,
-      preferElastic: req.body?.preferElastic
+      preferElastic: req.body?.preferElastic,
+      diagnostic: diagnosticFlag
     });
 
     const normalizedResults =
