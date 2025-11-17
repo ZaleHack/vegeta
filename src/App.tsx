@@ -943,10 +943,8 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
   const explicitSource = normalizeOptionalTextField(record.source);
   if (explicitSource) {
     normalized.source = explicitSource;
-  } else if (trackedId) {
-    normalized.source = trackedId;
   } else {
-    normalized.source = caller || undefined;
+    normalized.source = caller || trackedId;
   }
 
   const explicitTracked = normalizeOptionalTextField(record.tracked);
