@@ -140,6 +140,31 @@ interface TriangulationCell {
 
 const NO_SOURCE_KEY = '__no_source__';
 
+const hasValidCoordinates = (point: Point): boolean => {
+  const lat = parseFloat(point.latitude);
+  const lng = parseFloat(point.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng);
+};
+
+const findLatestPointWithCoordinates = (
+  candidates: Point[],
+  source: string | null
+): Point | null => {
+  let latest: { point: Point; timestamp: number } | null = null;
+
+  candidates.forEach((point) => {
+    if (!doesPointMatchSource(point, source)) return;
+    if (!hasValidCoordinates(point)) return;
+    const ts = getPointTimestamp(point);
+    if (ts === null) return;
+    if (!latest || ts > latest.timestamp) {
+      latest = { point, timestamp: ts };
+    }
+  });
+
+  return latest?.point ?? null;
+};
+
 const computeOffsetPosition = (
   lat: number,
   lng: number,
@@ -1600,21 +1625,16 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
 
   const latestLocationPoint = useMemo(() => {
-    let latest: { point: Point; timestamp: number } | null = null;
-    callerPoints.forEach((point) => {
-      if (!isLocationEventType(point.type)) return;
-      if (!doesPointMatchSource(point, selectedSource)) return;
-      const lat = parseFloat(point.latitude);
-      const lng = parseFloat(point.longitude);
-      if (Number.isNaN(lat) || Number.isNaN(lng)) return;
-      const ts = getPointTimestamp(point);
-      if (ts === null) return;
-      if (!latest || ts > latest.timestamp) {
-        latest = { point, timestamp: ts };
-      }
-    });
-    return latest?.point ?? null;
-  }, [callerPoints, selectedSource]);
+    const primaryCandidates = callerPoints.filter((point) =>
+      isLocationEventType(point.type)
+    );
+    const primary = findLatestPointWithCoordinates(primaryCandidates, selectedSource);
+    if (primary) {
+      return primary;
+    }
+
+    return findLatestPointWithCoordinates(points, selectedSource);
+  }, [callerPoints, points, selectedSource]);
 
   const latestLocationDetails = useMemo(() => {
     if (!latestLocationPoint) return null;
