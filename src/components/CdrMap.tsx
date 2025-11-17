@@ -1625,6 +1625,26 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     return parts.length > 0 ? parts.join(' • ') : null;
   }, [latestLocationPoint]);
 
+  const latestLocationLabel = useMemo(() => {
+    if (!latestLocationPoint) return null;
+    if (latestLocationPoint.nom && latestLocationPoint.nom.trim().length > 0) {
+      return latestLocationPoint.nom.trim();
+    }
+    const lat = parseFloat(latestLocationPoint.latitude);
+    const lng = parseFloat(latestLocationPoint.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    }
+    return 'Coordonnées indisponibles';
+  }, [latestLocationPoint]);
+
+  const latestLocationSourceLabel = useMemo(() => {
+    if (!latestLocationPoint) return null;
+    const source = getPointSourceValue(latestLocationPoint);
+    if (!source) return null;
+    return formatPhoneForDisplay(source);
+  }, [latestLocationPoint]);
+
   const latestLocationPosition = useMemo<[number, number] | null>(() => {
     if (!latestLocationPoint) return null;
     const lat = parseFloat(latestLocationPoint.latitude);
@@ -1700,6 +1720,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   }, [latestLocationPoint, latestLocationPosition, setShowZoneInfo, setActiveInfo]);
 
   const hasLatestLocation = Boolean(latestLocationPosition);
+  const speedControlPosition = hasLatestLocation ? 'bottom-32' : 'bottom-12';
 
   const contactPoints = useMemo(() => {
     const matchesVisible = (point: Point): boolean => {
@@ -3230,7 +3251,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         </div>
 
       {showBaseMarkers && showRoute && (
-        <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
+        <div
+          className={`pointer-events-none absolute ${speedControlPosition} left-0 right-0 z-[1000] flex justify-center`}
+        >
           <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
             <Car className="w-4 h-4 text-indigo-500" />
             <label htmlFor="speed" className="font-semibold text-sm">
@@ -3245,6 +3268,46 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               onChange={(e) => setSpeed(Number(e.target.value))}
               className="w-24"
             />
+          </div>
+        </div>
+      )}
+
+      {latestLocationPoint && latestLocationPosition && (
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-[1200] w-full max-w-2xl -translate-x-1/2 px-4">
+          <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/20 bg-gradient-to-r from-indigo-600/90 via-purple-600/90 to-pink-600/90 px-6 py-4 text-white shadow-2xl shadow-indigo-900/40 backdrop-blur-xl">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15">
+                <MapPin className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-white/70">
+                  Dernière localisation
+                </p>
+                <p className="text-lg font-semibold leading-tight">{latestLocationLabel}</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/80">
+                  {latestLocationDetails && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      {latestLocationDetails}
+                    </span>
+                  )}
+                  {latestLocationSourceLabel && (
+                    <span className="flex items-center gap-1">
+                      <Users className="h-4 w-4" />
+                      {latestLocationSourceLabel}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleFocusLatestLocation}
+              className="flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold uppercase tracking-wide transition hover:bg-white/20"
+            >
+              <span>Voir sur la carte</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
           </div>
         </div>
       )}
