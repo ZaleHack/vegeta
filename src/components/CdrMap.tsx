@@ -308,7 +308,7 @@ const getPointColor = (type: string, direction?: string) => {
 const getIcon = (
   type: string,
   direction: string | undefined,
-  _colorOverride?: string
+  colorOverride?: string
 ) => {
   const size = 32;
   let inner: React.ReactElement;
@@ -331,7 +331,7 @@ const getIcon = (
   const icon = (
     <div
       style={{
-        backgroundColor: getPointColor(type, direction),
+        backgroundColor: colorOverride ?? getPointColor(type, direction),
         borderRadius: '9999px',
         width: size,
         height: size,
@@ -1770,10 +1770,20 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     }));
   }, [usePerNumberColors, sourceNumbers, colorMap]);
 
+  const getLocationMarkerColor = useCallback(
+    (loc: LocationMarker) => {
+      if (usePerNumberColors && loc.source) {
+        return colorMap.get(loc.source) || '#94a3b8';
+      }
+      return activeInfo === 'popular' ? '#9333ea' : '#f97316';
+    },
+    [usePerNumberColors, colorMap, activeInfo]
+  );
+
   const renderLocationStatPopup = useCallback(
     (loc: LocationMarker) => {
       const showSource = selectedSource === null && sourceNumbers.length > 1 && loc.source;
-      const accent = showSource && loc.source ? colorMap.get(loc.source) || '#f97316' : '#f97316';
+      const accent = showSource && loc.source ? getLocationMarkerColor(loc) : '#f97316';
       const modeLabel =
         activeInfo === 'popular'
           ? 'Fréquentation'
@@ -1827,7 +1837,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         </div>
       );
     },
-    [selectedSource, sourceNumbers, colorMap, activeInfo]
+    [selectedSource, sourceNumbers, activeInfo, getLocationMarkerColor]
   );
 
   const renderTriangulationPopup = useCallback((zone: TriangulationZone) => {
@@ -3010,21 +3020,12 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           <Marker
             key={`stat-${idx}`}
             position={[parseFloat(loc.latitude), parseFloat(loc.longitude)]}
-            icon={createLabelIcon(
-              String(loc.count),
-            selectedSource === null &&
-            sourceNumbers.length > 1 &&
-            (activeInfo === 'recent' || activeInfo === 'popular')
-              ? colorMap.get(loc.source || '') || '#f97316'
-              : activeInfo === 'popular'
-              ? '#9333ea'
-              : '#f97316'
-          )}
-          zIndexOffset={1000}
-        >
-          <Popup className="cdr-popup">
-            {renderLocationStatPopup(loc)}
-          </Popup>
+            icon={createLabelIcon(String(loc.count), getLocationMarkerColor(loc))}
+            zIndexOffset={1000}
+          >
+            <Popup className="cdr-popup">
+              {renderLocationStatPopup(loc)}
+            </Popup>
         </Marker>
       ))}
       {isMapReady && latestLocationPoint && latestLocationPosition && (
