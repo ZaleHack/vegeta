@@ -370,13 +370,6 @@ const getPointSourceValue = (point: Point): string | undefined => {
   return trimmed || undefined;
 };
 
-const getPointSourceKey = (point: Point): string | undefined => {
-  const value = getPointSourceValue(point);
-  if (!value) return undefined;
-  const normalized = normalizePhoneDigits(value);
-  return normalized || value;
-};
-
 const normalizeSourceKey = (value?: string | null): string | undefined => {
   if (!value) return undefined;
   const trimmed = value.trim();
@@ -1279,17 +1272,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   if (points.length === 0) return null;
 
-  const trackedSourceCount = useMemo(() => {
-    const values = new Set<string>();
-    points.forEach((point) => {
-      const key = getPointSourceKey(point);
-      if (key) {
-        values.add(key);
-      }
-    });
-    return values.size;
-  }, [points]);
-
   const callerPoints = useMemo(
     () =>
       points.filter((p) => {
@@ -1297,14 +1279,10 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           return true;
         }
 
-        if (trackedSourceCount >= 2) {
-          return true;
-        }
-
         const direction = (p.direction || '').toString().toLowerCase();
         return direction === 'outgoing';
       }),
-    [points, trackedSourceCount]
+    [points]
   );
 
   const referencePoints = useMemo(
