@@ -640,10 +640,12 @@ class RealtimeCdrService {
     const variantList = Array.from(identifierVariants);
     if (variantList.length > 0) {
       if (searchType === 'imei') {
-        const imeiConditions = variantList.map(() => 'c.imei_appelant = ?');
+        const imeiConditions = variantList.map(
+          () => '(c.imei_appelant = ? OR c.imei_appele = ?)'
+        );
         conditions.push(`(${imeiConditions.join(' OR ')})`);
         variantList.forEach((variant) => {
-          params.push(variant);
+          params.push(variant, variant);
         });
       } else {
         const numberConditions = variantList.map(
@@ -711,6 +713,7 @@ class RealtimeCdrService {
         c.numero_appelant,
         c.imei_appelant,
         c.numero_appele,
+        c.imei_appele,
         c.imsi_appelant,
         c.cgi,
         c.route_reseau,
@@ -966,11 +969,21 @@ class RealtimeCdrService {
       return null;
     }
 
-    const filterClauses = [
-      searchType === 'imei'
-        ? { terms: { imei_appelant: variantList } }
-        : { terms: { identifiers: variantList } }
-    ];
+    const filterClauses = [];
+
+    if (searchType === 'imei') {
+      filterClauses.push({
+        bool: {
+          should: [
+            { terms: { imei_appelant: variantList } },
+            { terms: { imei_appele: variantList } }
+          ],
+          minimum_should_match: 1
+        }
+      });
+    } else {
+      filterClauses.push({ terms: { identifiers: variantList } });
+    }
 
     if (filters.startDate) {
       filterClauses.push({ range: { date_debut_appel: { gte: filters.startDate } } });
@@ -1027,6 +1040,7 @@ class RealtimeCdrService {
             source.numero_appelant ?? source.numero_appelant_normalized ?? null,
           imei_appelant: source.imei_appelant ?? null,
           numero_appele: source.numero_appele ?? source.numero_appele_normalized ?? null,
+          imei_appele: source.imei_appele ?? null,
           imsi_appelant: source.imsi_appelant ?? null,
           cgi: source.cgi ?? null,
           route_reseau: source.route_reseau ?? null,
@@ -1087,6 +1101,7 @@ class RealtimeCdrService {
               callee_variants: { type: 'keyword' },
               identifiers: { type: 'keyword' },
               imei_appelant: { type: 'keyword' },
+              imei_appele: { type: 'keyword' },
               imsi_appelant: { type: 'keyword' },
               cgi: { type: 'keyword' },
               route_reseau: { type: 'keyword' },
@@ -1183,6 +1198,7 @@ class RealtimeCdrService {
           c.numero_appelant,
           c.imei_appelant,
           c.numero_appele,
+          c.imei_appele,
           c.imsi_appelant,
           c.cgi,
           c.route_reseau,
@@ -1625,6 +1641,7 @@ class RealtimeCdrService {
     const calleeVariants = buildIdentifierVariants(rawCallee);
     const identifiers = new Set([...callerVariants, ...calleeVariants]);
     const imeiValue = sanitizeImei(row.imei_appelant);
+    const calleeImeiValue = sanitizeImei(row.imei_appele);
 
     const dateStart = normalizeDateInput(row.date_debut_appel);
     const dateEnd = normalizeDateInput(row.date_fin_appel);
@@ -1655,6 +1672,7 @@ class RealtimeCdrService {
       callee_variants: Array.from(calleeVariants),
       identifiers: Array.from(identifiers),
       imei_appelant: imeiValue || normalizeString(row.imei_appelant),
+      imei_appele: calleeImeiValue || normalizeString(row.imei_appele),
       imsi_appelant: normalizeString(row.imsi_appelant),
       cgi: normalizeString(row.cgi),
       route_reseau: normalizeString(row.route_reseau),
@@ -1693,7 +1711,7 @@ class RealtimeCdrService {
           : matchesIdentifier(identifierSet, row.numero_appelant, 'phone');
       let matchesCallee =
         normalizedType === 'imei'
-          ? false
+          ? matchesIdentifier(identifierSet, row.imei_appele, 'imei')
           : matchesIdentifier(identifierSet, row.numero_appele, 'phone');
 
       const eventType = resolveEventType(row.type_appel);
@@ -1764,7 +1782,7 @@ class RealtimeCdrService {
           duration: formatDuration(row.duree_appel),
           imsiCaller: row.imsi_appelant ? String(row.imsi_appelant).trim() : undefined,
           imeiCaller: row.imei_appelant ? String(row.imei_appelant).trim() : undefined,
-          imeiCalled: undefined,
+          imeiCalled: row.imei_appele ? String(row.imei_appele).trim() : undefined,
           cgi: row.cgi ? String(row.cgi).trim() : undefined,
           azimut: azimut || undefined,
           seqNumber: row.seq_number ? String(row.seq_number).trim() : undefined,
