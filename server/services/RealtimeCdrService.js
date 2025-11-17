@@ -21,7 +21,6 @@ const EMPTY_RESULT = {
 const REALTIME_INDEX = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
 const MAX_BATCH_SIZE = 5000;
 const DEFAULT_RECONNECT_DELAY_MS = 15000;
-const LAST_LOCATION_LOOKBACK_LIMIT = 200;
 
 const parseNonNegativeInteger = (value, fallback) => {
   const parsed = Number(value);
@@ -613,31 +612,6 @@ class RealtimeCdrService {
     return this.#buildResult(rows, identifierVariants, searchType);
   }
 
-  async getLastLocation(identifier, options = {}) {
-    const trimmedIdentifier = typeof identifier === 'string' ? identifier.trim() : '';
-    if (!trimmedIdentifier) {
-      return null;
-    }
-
-    const identifierVariants = buildIdentifierVariants(trimmedIdentifier, 'phone');
-    if (identifierVariants.size === 0) {
-      return null;
-    }
-
-    const rows = await this.#fetchRecentLocationRows(identifierVariants, options.limit);
-    const locationEntry = this.#pickFirstValidLocation(rows);
-    if (!locationEntry) {
-      return null;
-    }
-
-    const normalizedTarget = normalizeForOutput(trimmedIdentifier) || trimmedIdentifier;
-
-    return {
-      number: normalizedTarget,
-      ...locationEntry
-    };
-  }
-
   async enrichMissingCoordinates(options = {}) {
     const { dryRun = false } = options;
 
@@ -752,128 +726,6 @@ class RealtimeCdrService {
     `;
 
     return this.database.query(sql, params);
-  }
-
-  async #fetchRecentLocationRows(identifierVariants, limitOverride) {
-    const coordinateSelect = await this.#getCoordinateSelectClause();
-    const btsSegments = await this.#getBtsLookupSegments();
-    const unionSegments = btsSegments.length
-      ? btsSegments.join('\n        UNION ALL\n        ')
-      : 'SELECT NULL AS CGI, NULL AS NOM_BTS, NULL AS LONGITUDE, NULL AS LATITUDE, NULL AS AZIMUT, 1 AS priority FROM (SELECT 1) AS empty WHERE 1 = 0';
-
-    const variants = Array.from(identifierVariants).filter((value) => Boolean(value));
-    if (variants.length === 0) {
-      return [];
-    }
-
-    const limitValue = Math.min(
-      Math.max(Number.parseInt(limitOverride ?? LAST_LOCATION_LOOKBACK_LIMIT, 10) || LAST_LOCATION_LOOKBACK_LIMIT, 1),
-      1000
-    );
-
-    const numberConditions = variants.map(() => '(c.numero_appelant = ? OR c.numero_appele = ?)');
-    const params = [];
-    variants.forEach((variant) => {
-      params.push(variant, variant);
-    });
-
-    const whereClause = numberConditions.length ? `WHERE (${numberConditions.join(' OR ')})` : '';
-
-    const sql = `
-      WITH prioritized_bts AS (
-        ${unionSegments}
-      ),
-      best_bts AS (
-        SELECT
-          p.CGI AS cgi,
-          p.NOM_BTS AS nom_bts,
-          p.LONGITUDE AS longitude,
-          p.LATITUDE AS latitude,
-          p.AZIMUT AS azimut
-        FROM prioritized_bts p
-        INNER JOIN (
-          SELECT CGI, MIN(priority) AS min_priority
-          FROM prioritized_bts
-          GROUP BY CGI
-        ) ranked ON ranked.CGI = p.CGI AND ranked.min_priority = p.priority
-      )
-      SELECT
-        c.id,
-        c.seq_number,
-        c.type_appel,
-        c.statut_appel,
-        c.cause_liberation,
-        c.facturation,
-        c.date_debut AS date_debut_appel,
-        c.date_fin AS date_fin_appel,
-        c.heure_debut AS heure_debut_appel,
-        c.heure_fin AS heure_fin_appel,
-        c.duree_sec AS duree_appel,
-        c.numero_appelant,
-        c.imei_appelant,
-        c.numero_appele,
-        c.imsi_appelant,
-        c.cgi,
-        c.route_reseau,
-        c.device_id,
-        ${coordinateSelect},
-        c.fichier_source AS source_file,
-        c.inserted_at
-      FROM ${REALTIME_CDR_TABLE_SQL} AS c
-      LEFT JOIN best_bts AS coords ON coords.cgi = c.cgi
-      ${whereClause}
-      ORDER BY c.date_debut DESC, c.heure_debut DESC, c.id DESC
-      LIMIT ?
-    `;
-
-    params.push(limitValue);
-
-    return this.database.query(sql, params);
-  }
-
-  #pickFirstValidLocation(rows) {
-    if (!Array.isArray(rows)) {
-      return null;
-    }
-
-    for (const row of rows) {
-      const entry = this.#formatLocationEntry(row);
-      if (entry) {
-        return entry;
-      }
-    }
-
-    return null;
-  }
-
-  #formatLocationEntry(row) {
-    if (!row || typeof row !== 'object') {
-      return null;
-    }
-
-    const latitudeText = toTrimmedString(getFirstDefinedValue(row, LATITUDE_FIELD_CANDIDATES));
-    const longitudeText = toTrimmedString(getFirstDefinedValue(row, LONGITUDE_FIELD_CANDIDATES));
-
-    const latitude = Number.parseFloat(latitudeText);
-    const longitude = Number.parseFloat(longitudeText);
-
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return null;
-    }
-
-    const label = toTrimmedString(getFirstDefinedValue(row, NOM_FIELD_CANDIDATES)) || null;
-    const timestamp = buildCallTimestampValue(row.date_debut_appel, row.heure_debut_appel);
-
-    return {
-      latitude,
-      longitude,
-      label,
-      date: formatDateValue(row.date_debut_appel),
-      time: formatTimeValue(row.heure_debut_appel),
-      timestamp: timestamp || null,
-      cgi: normalizeString(row.cgi) || undefined,
-      source: normalizeString(row.source_file) || undefined
-    };
   }
 
   async #getCoordinateSelectClause() {
