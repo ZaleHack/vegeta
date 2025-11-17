@@ -377,25 +377,19 @@
 }
 
 .latest-location-circle {
+  stroke: rgba(239, 68, 68, 0.9) !important;
+  stroke-width: 3px !important;
+  fill: rgba(239, 68, 68, 0.2);
   animation: latest-location-circle-pulse 1.6s ease-in-out infinite;
   transform-box: fill-box;
   transform-origin: center;
   cursor: pointer;
-  filter: drop-shadow(0 0 12px rgba(15, 23, 42, 0.2));
+  filter: drop-shadow(0 0 18px rgba(239, 68, 68, 0.35));
   pointer-events: auto;
-  transition: filter 0.4s ease, transform 0.4s ease;
 }
 
 .latest-location-circle:hover {
-  filter: drop-shadow(0 0 18px rgba(99, 102, 241, 0.35));
-}
-
-.latest-location-circle--highlight {
-  stroke: #f43f5e !important;
-  stroke-width: 3px !important;
-  fill: rgba(244, 63, 94, 0.25) !important;
-  filter: drop-shadow(0 0 18px rgba(244, 63, 94, 0.6));
-  animation: latest-location-circle-focus 1.2s ease-in-out infinite;
+  fill: rgba(239, 68, 68, 0.32);
 }
 
 .latest-location-pulse {
@@ -406,30 +400,6 @@
   align-items: center;
   justify-content: center;
   filter: drop-shadow(0 0 14px rgba(244, 63, 94, 0.45));
-}
-
-.latest-location-pulse-icon--alert .latest-location-pulse__ring,
-.latest-location-pulse--alert .latest-location-pulse__ring {
-  background: radial-gradient(
-    circle,
-    rgba(252, 165, 165, 0.75) 0%,
-    rgba(244, 63, 94, 0.5) 40%,
-    rgba(244, 63, 94, 0.08) 100%
-  );
-  box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.25);
-  animation-duration: 1.4s;
-}
-
-.latest-location-pulse--alert .latest-location-pulse__glow {
-  animation-duration: 1.4s;
-  opacity: 1;
-  background: radial-gradient(circle at 40% 40%, #fff5f7 0%, rgba(254, 202, 202, 0.45) 65%, rgba(244, 63, 94, 0.15) 100%),
-    radial-gradient(circle, rgba(244, 63, 94, 0.95) 0%, rgba(244, 63, 94, 0.55) 60%, rgba(244, 63, 94, 0.05) 100%);
-}
-
-.latest-location-pulse--alert .latest-location-pulse__dot {
-  background: linear-gradient(135deg, #fff1f2, #fb7185 45%, #be123c 100%);
-  animation-duration: 0.95s;
 }
 
 .latest-location-pulse__ring {
@@ -548,44 +518,6 @@
   50% {
     transform: scale(1.1);
     opacity: 0.4;
-  }
-}
-
-@keyframes latest-location-circle-focus {
-  0%,
-  100% {
-    transform: scale(0.95);
-    opacity: 0.9;
-  }
-  50% {
-    transform: scale(1.12);
-    opacity: 0.5;
-  }
-}
-
-.cdr-map--latest-focus {
-  position: relative;
-  overflow: hidden;
-  filter: saturate(1.05);
-}
-
-.cdr-map--latest-focus::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at center, rgba(255, 255, 255, 0) 35%, rgba(244, 63, 94, 0.08) 100%);
-  mix-blend-mode: screen;
-  pointer-events: none;
-  animation: latest-location-focus-vignette 3s ease-in-out infinite;
-}
-
-@keyframes latest-location-focus-vignette {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 0.7;
   }
 }
 
