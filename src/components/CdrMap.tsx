@@ -1264,23 +1264,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           return true;
         }
 
-        const trackedDigits = normalizePhoneDigits(p.tracked);
-        if (trackedDigits) {
-          const callerDigits = normalizePhoneDigits(p.caller);
-          const calleeDigits = normalizePhoneDigits(p.callee);
-          const numberDigits = normalizePhoneDigits(p.number);
-          const sourceDigits = normalizePhoneDigits(p.source);
-
-          if (
-            callerDigits === trackedDigits ||
-            calleeDigits === trackedDigits ||
-            numberDigits === trackedDigits ||
-            sourceDigits === trackedDigits
-          ) {
-            return true;
-          }
-        }
-
         const direction = (p.direction || '').toString().toLowerCase();
         return direction === 'outgoing';
       }),
@@ -3199,16 +3182,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                 <span>Position</span>
               </li>
             </ul>
-          </div>
-        </div>
-
-        <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] max-w-xs">
-          <div className="pointer-events-auto rounded-2xl bg-white/90 backdrop-blur-md p-4 text-xs text-slate-600 shadow-lg ring-1 ring-slate-900/5 dark:bg-slate-900/80 dark:text-slate-200 dark:ring-white/10">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Interprétation des localisations</p>
-            <p className="mt-1 leading-relaxed">
-              Les points cartographiques correspondent uniquement aux données sortantes disponibles pour le numéro suivi. Pour les
-              CDR, chaque localisation affichée se réfère toujours à l'appelant.
-            </p>
           </div>
         </div>
         {showMeetingPoints && meetingPoints.length > 0 && (
