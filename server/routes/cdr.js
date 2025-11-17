@@ -137,4 +137,58 @@ router.get('/realtime/search', authenticate, async (req, res) => {
   }
 });
 
+router.get('/realtime/last-location', authenticate, async (req, res) => {
+  try {
+    const primary = typeof req.query.number === 'string' ? req.query.number.trim() : '';
+    const fallback = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
+    const targetNumber = primary || fallback;
+
+    if (!targetNumber) {
+      return res.status(400).json({ error: 'Numéro requis' });
+    }
+
+    const variants = new Set([targetNumber]);
+    const normalized = normalizePhoneNumber(targetNumber);
+    if (normalized) {
+      variants.add(normalized);
+    }
+
+    let isBlacklisted = false;
+    for (const candidate of variants) {
+      if (candidate && (await Blacklist.exists(candidate))) {
+        isBlacklisted = true;
+        break;
+      }
+    }
+
+    if (isBlacklisted) {
+      try {
+        await UserLog.create({
+          user_id: req.user.id,
+          action: 'blacklist_search_attempt',
+          details: JSON.stringify({
+            alert: true,
+            number: targetNumber,
+            page: 'cdr-last-location',
+            message: 'Tentative de localisation sur un numéro blacklisté'
+          })
+        });
+      } catch (logError) {
+        console.error('Erreur log blacklist (last location):', logError);
+      }
+      return res.status(403).json({ error: 'Aucun résultat trouvé' });
+    }
+
+    const lastLocation = await realtimeCdrService.getLastLocation(targetNumber);
+    if (!lastLocation) {
+      return res.status(404).json({ error: 'Aucune localisation disponible' });
+    }
+
+    res.json(lastLocation);
+  } catch (error) {
+    console.error('Erreur dernière localisation CDR temps réel:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération de la localisation' });
+  }
+});
+
 export default router;
