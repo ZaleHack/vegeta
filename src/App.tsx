@@ -74,7 +74,6 @@ import ProfileList, { ProfileListItem } from './components/ProfileList';
 import ProfileForm from './components/ProfileForm';
 import BulkProfileImportModal, { BulkProfilePrefillData } from './components/BulkProfileImportModal';
 import CdrMap from './components/CdrMap';
-import LastLocationWidget from './components/LastLocationWidget';
 import LinkDiagram from './components/LinkDiagram';
 import SoraLogo from './components/SoraLogo';
 import ConfirmDialog, { ConfirmDialogOptions } from './components/ConfirmDialog';
@@ -2044,20 +2043,6 @@ const App: React.FC = () => {
     const alertCount = Array.isArray(globalFraudResult.numbers) ? globalFraudResult.numbers.length : 0;
     return { totalImeis: imeiCount, totalNumbers: numbersCount, alerts: alertCount };
   }, [globalFraudResult]);
-
-  const lastLocationDefaultNumber = useMemo(() => {
-    if (cdrIdentifierType !== 'phone') {
-      return '';
-    }
-    const trimmedInput = cdrIdentifierInput.trim();
-    if (trimmedInput) {
-      return trimmedInput;
-    }
-    if (cdrIdentifiers.length > 0) {
-      return cdrIdentifiers[cdrIdentifiers.length - 1];
-    }
-    return '';
-  }, [cdrIdentifierInput, cdrIdentifierType, cdrIdentifiers]);
 
   useEffect(() => {
     setFraudResult(null);
@@ -5171,9 +5156,7 @@ useEffect(() => {
 
           <div
             className={`grid gap-6 ${
-              showDetectionPanel
-                ? 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] xl:items-start'
-                : 'lg:grid-cols-[minmax(0,1.45fr)_minmax(0,0.95fr)]'
+              showDetectionPanel ? 'xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:items-start' : ''
             }`}
           >
             <form
@@ -5329,141 +5312,138 @@ useEffect(() => {
                 </div>
               </div>
             </form>
-            <div className="space-y-6">
-              {showDetectionPanel && (
-                <div className="space-y-6 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-6 text-sm shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
-                  {fraudError && (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
-                      {fraudError}
-                    </div>
-                  )}
-                  {!hasFraudDetectionNumbers ? (
-                    <div className="rounded-xl border border-dashed border-slate-300/70 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
-                      Importez des CDR ou ajoutez un numéro à la recherche pour lancer l’analyse de fraude.
-                    </div>
-                  ) : fraudLoading ? (
-                    <div className="flex items-center justify-center py-10">
-                      <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-slate-100" />
-                    </div>
-                  ) : fraudResult ? (
-                    <div className="space-y-6">
-                      <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        <span>Dernière analyse&nbsp;: {formatFraudDateTime(fraudResult.updatedAt)}</span>
-                        {hasFraudSuspiciousNumbers && (
-                          <span className="inline-flex items-center gap-2 rounded-full bg-rose-500/10 px-3 py-1 text-rose-600 dark:text-rose-300">
-                            <AlertTriangle className="h-3.5 w-3.5" /> Anomalies détectées
-                          </span>
-                        )}
-                      </div>
-                      {fraudResult.imeis.length === 0 ? (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700 shadow-inner dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100">
-                          Aucun changement de numéro détecté pour les identifiants recherchés.
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {fraudResult.imeis.map((imeiEntry) => (
-                            <div
-                              key={imeiEntry.imei}
-                              className="space-y-4 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/60"
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">IMEI {imeiEntry.imei}</p>
-                                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''} détecté{imeiEntry.numbers.length > 1 ? 's' : ''}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-3 text-xs">
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100/70 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
-                                    <Activity className="h-3.5 w-3.5" /> {imeiEntry.numbers.reduce((acc, item) => acc + item.occurrences, 0)} occurrences
-                                  </span>
-                                </div>
-                              </div>
-                              {imeiEntry.numbers.length === 0 ? (
-                                <div className="rounded-xl border border-dashed border-slate-300/70 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
-                                  Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
-                                </div>
-                              ) : (
-                                <div className="space-y-3">
-                                  {imeiEntry.numbers.map((numberEntry) => {
-                                    const isNew = numberEntry.status === 'nouveau';
-                                    return (
-                                      <div
-                                        key={`${imeiEntry.imei}-${numberEntry.number}`}
-                                        className={`rounded-2xl border px-4 py-3 transition shadow-sm ${
-                                          isNew
-                                            ? 'border-rose-200 bg-rose-50 dark:border-rose-500/40 dark:bg-rose-500/10'
-                                            : 'border-slate-200 bg-slate-50/70 dark:border-slate-700/60 dark:bg-slate-900/50'
-                                        }`}
-                                      >
-                                        <div className="flex flex-wrap items-center justify-between gap-3">
-                                          <div>
-                                            <p className="text-base font-semibold text-slate-800 dark:text-slate-100">{numberEntry.number}</p>
-                                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                                              <span
-                                                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold ${
-                                                  isNew
-                                                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-200'
-                                                    : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-200'
-                                                }`}
-                                              >
-                                                {isNew ? 'Nouveau numéro détecté' : 'Numéro attendu'}
-                                              </span>
-                                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
-                                                <Clock className="h-3.5 w-3.5" /> {numberEntry.occurrences} occurrence{numberEntry.occurrences > 1 ? 's' : ''}
-                                              </span>
-                                            </div>
-                                          </div>
-                                          <div className="flex flex-col items-end text-xs text-slate-500 dark:text-slate-300">
-                                            <span>
-                                              Première vue :{' '}
-                                              <span className="font-semibold text-slate-700 dark:text-slate-100">
-                                                {formatFraudDate(numberEntry.firstSeen)}
-                                              </span>
-                                            </span>
-                                            <span>
-                                              Dernière vue :{' '}
-                                              <span className="font-semibold text-slate-700 dark:text-slate-100">
-                                                {formatFraudDate(numberEntry.lastSeen)}
-                                              </span>
-                                            </span>
-                                          </div>
-                                        </div>
-                                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                                          {numberEntry.roles.length === 0 ? (
-                                            <span className="rounded-full bg-slate-200/80 px-3 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
-                                              Aucun rôle identifié
-                                            </span>
-                                          ) : (
-                                            numberEntry.roles.map((role) => (
-                                              <span
-                                                key={role}
-                                                className="rounded-full bg-slate-200/80 px-3 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-200"
-                                              >
-                                                {FRAUD_ROLE_LABELS[role] || role}
-                                              </span>
-                                            ))
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+            {showDetectionPanel && (
+              <div className="space-y-6 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-6 text-sm shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
+                {fraudError && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+                    {fraudError}
+                  </div>
+                )}
+                {!hasFraudDetectionNumbers ? (
+                  <div className="rounded-xl border border-dashed border-slate-300/70 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                    Importez des CDR ou ajoutez un numéro à la recherche pour lancer l’analyse de fraude.
+                  </div>
+                ) : fraudLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-slate-100" />
+                  </div>
+                ) : fraudResult ? (
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      <span>Dernière analyse&nbsp;: {formatFraudDateTime(fraudResult.updatedAt)}</span>
+                      {hasFraudSuspiciousNumbers && (
+                        <span className="inline-flex items-center gap-2 rounded-full bg-rose-500/10 px-3 py-1 text-rose-600 dark:text-rose-300">
+                          <AlertTriangle className="h-3.5 w-3.5" /> Anomalies détectées
+                        </span>
                       )}
                     </div>
-                  ) : (
-                    <div className="rounded-xl border border-slate-300/70 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
-                      Lancez une analyse pour détecter les nouveaux numéros associés aux identifiants recherchés.
-                    </div>
-                  )}
-                </div>
-              )}
-              <LastLocationWidget defaultNumber={lastLocationDefaultNumber} />
-            </div>
+                    {fraudResult.imeis.length === 0 ? (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700 shadow-inner dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100">
+                        Aucun changement de numéro détecté pour les identifiants recherchés.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {fraudResult.imeis.map((imeiEntry) => (
+                          <div
+                            key={imeiEntry.imei}
+                            className="space-y-4 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/60"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">IMEI {imeiEntry.imei}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {imeiEntry.numbers.length} numéro{imeiEntry.numbers.length > 1 ? 's' : ''} détecté{imeiEntry.numbers.length > 1 ? 's' : ''}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100/70 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                                  <Activity className="h-3.5 w-3.5" /> {imeiEntry.numbers.reduce((acc, item) => acc + item.occurrences, 0)} occurrences
+                                </span>
+                              </div>
+                            </div>
+                            {imeiEntry.numbers.length === 0 ? (
+                              <div className="rounded-xl border border-dashed border-slate-300/70 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                                Aucun numéro détecté pour cet IMEI sur la période sélectionnée.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {imeiEntry.numbers.map((numberEntry) => {
+                                  const isNew = numberEntry.status === 'nouveau';
+                                  return (
+                                    <div
+                                      key={`${imeiEntry.imei}-${numberEntry.number}`}
+                                      className={`rounded-2xl border px-4 py-3 transition shadow-sm ${
+                                        isNew
+                                          ? 'border-rose-200 bg-rose-50 dark:border-rose-500/40 dark:bg-rose-500/10'
+                                          : 'border-slate-200 bg-slate-50/70 dark:border-slate-700/60 dark:bg-slate-900/50'
+                                      }`}
+                                    >
+                                      <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                          <p className="text-base font-semibold text-slate-800 dark:text-slate-100">{numberEntry.number}</p>
+                                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                                            <span
+                                              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold ${
+                                                isNew
+                                                  ? 'bg-rose-500/20 text-rose-600 dark:text-rose-200'
+                                                  : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-200'
+                                              }`}
+                                            >
+                                              {isNew ? 'Nouveau numéro détecté' : 'Numéro attendu'}
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-3 py-1 font-medium text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                                              <Clock className="h-3.5 w-3.5" /> {numberEntry.occurrences} occurrence{numberEntry.occurrences > 1 ? 's' : ''}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-col items-end text-xs text-slate-500 dark:text-slate-300">
+                                          <span>
+                                            Première vue :{' '}
+                                            <span className="font-semibold text-slate-700 dark:text-slate-100">
+                                              {formatFraudDate(numberEntry.firstSeen)}
+                                            </span>
+                                          </span>
+                                          <span>
+                                            Dernière vue :{' '}
+                                            <span className="font-semibold text-slate-700 dark:text-slate-100">
+                                              {formatFraudDate(numberEntry.lastSeen)}
+                                            </span>
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                        {numberEntry.roles.length === 0 ? (
+                                          <span className="rounded-full bg-slate-200/80 px-3 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                                            Aucun rôle identifié
+                                          </span>
+                                        ) : (
+                                          numberEntry.roles.map((role) => (
+                                            <span
+                                              key={role}
+                                              className="rounded-full bg-slate-200/80 px-3 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-200"
+                                            >
+                                              {FRAUD_ROLE_LABELS[role] || role}
+                                            </span>
+                                          ))
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-slate-300/70 bg-white px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                    Lancez une analyse pour détecter les nouveaux numéros associés aux identifiants recherchés.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </section>
