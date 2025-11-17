@@ -1,5 +1,12 @@
 import React from 'react';
 import { PhoneIncoming, PhoneOutgoing, MessageSquare, MapPin } from 'lucide-react';
+import {
+  INCOMING_CALL_COLOR,
+  OUTGOING_CALL_COLOR,
+  SMS_COLOR,
+  LOCATION_COLOR,
+  APPROX_LOCATION_COLOR
+} from './mapColors';
 
 type NumberLegendItem = {
   label: string;
@@ -11,11 +18,11 @@ interface MapLegendProps {
 }
 
 const eventLegendItems = [
-  { icon: PhoneIncoming, label: 'Appel entrant', color: '#16a34a' },
-  { icon: PhoneOutgoing, label: 'Appel sortant', color: '#2563eb' },
-  { icon: MessageSquare, label: 'SMS', color: '#16a34a' },
-  { icon: MapPin, label: 'Position', color: '#dc2626' },
-  { icon: MapPin, label: 'Localisation approximative', color: '#f87171' }
+  { icon: PhoneIncoming, label: 'Appel entrant', color: INCOMING_CALL_COLOR },
+  { icon: PhoneOutgoing, label: 'Appel sortant', color: OUTGOING_CALL_COLOR },
+  { icon: MessageSquare, label: 'SMS', color: SMS_COLOR },
+  { icon: MapPin, label: 'Position', color: LOCATION_COLOR },
+  { icon: MapPin, label: 'Localisation approximative', color: APPROX_LOCATION_COLOR }
 ];
 
 const MapLegend: React.FC<MapLegendProps> = ({ numberItems = [] }) => {
@@ -42,13 +49,21 @@ const MapLegend: React.FC<MapLegendProps> = ({ numberItems = [] }) => {
           </p>
           <ul className="mt-2 space-y-2 pr-1">
             {numberItems.map((item) => (
-              <li key={`${item.label}-${item.color}`} className="flex items-center gap-2">
-                <span
-                  className="h-3.5 w-3.5 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                  aria-hidden
-                />
-                <span className="text-sm font-medium">{item.label}</span>
+              <li
+                key={`${item.label}-${item.color}`}
+                className="flex items-center justify-between gap-3 rounded-lg border border-gray-100/80 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm backdrop-blur-sm dark:border-gray-700/70 dark:bg-gray-800/60 dark:text-gray-200"
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <span
+                    className="h-3 w-3 rounded-full"
+                    style={{ backgroundColor: item.color }}
+                    aria-hidden
+                  />
+                  {item.label}
+                </span>
+                <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Carte
+                </span>
               </li>
             ))}
           </ul>

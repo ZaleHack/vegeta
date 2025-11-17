@@ -32,6 +32,14 @@ import {
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import MapLegend, { NumberLegendItem } from './MapLegend';
+import {
+  INCOMING_CALL_COLOR,
+  OUTGOING_CALL_COLOR,
+  SMS_COLOR,
+  LOCATION_COLOR,
+  APPROX_LOCATION_COLOR,
+  NUMBER_COLOR_PALETTE
+} from './mapColors';
 
 interface Point {
   latitude: string;
@@ -291,18 +299,18 @@ const getPointColor = (type: string, direction?: string) => {
   const normalizedType = type.trim().toLowerCase();
 
   if (isLocationEventType(type)) {
-    return '#dc2626';
+    return LOCATION_COLOR;
   }
 
   if (normalizedType === 'sms') {
-    return '#16a34a';
+    return SMS_COLOR;
   }
 
   if (direction && direction.toLowerCase() === 'outgoing') {
-    return '#2563eb';
+    return OUTGOING_CALL_COLOR;
   }
 
-  return '#16a34a';
+  return INCOMING_CALL_COLOR;
 };
 
 const getIcon = (
@@ -427,10 +435,10 @@ const getGroupIcon = (
   count: number,
   type: string,
   direction: string | undefined,
-  _colorOverride?: string
+  colorOverride?: string
 ) => {
   const size = 32;
-  const color = getPointColor(type, direction);
+  const color = colorOverride ?? getPointColor(type, direction);
   const icon = (
     <div className="relative">
       <div
@@ -452,16 +460,7 @@ const getGroupIcon = (
   });
 };
 
-const numberColors = [
-  '#ef4444',
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6',
-  '#f43f5e'
-];
+const numberColors = NUMBER_COLOR_PALETTE;
 
 const EARTH_RADIUS = 6_378_137;
 
@@ -1783,7 +1782,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const renderLocationStatPopup = useCallback(
     (loc: LocationMarker) => {
       const showSource = selectedSource === null && sourceNumbers.length > 1 && loc.source;
-      const accent = showSource && loc.source ? getLocationMarkerColor(loc) : '#f97316';
+      const accent = getLocationMarkerColor(loc);
       const modeLabel =
         activeInfo === 'popular'
           ? 'Fréquentation'
@@ -2718,8 +2717,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     }
   };
 
-  const startIcon = useMemo(() => createLabelIcon('Départ', '#16a34a'), []);
-  const endIcon = useMemo(() => createLabelIcon('Arrivée', '#dc2626'), []);
+  const startIcon = useMemo(() => createLabelIcon('Départ', INCOMING_CALL_COLOR), []);
+  const endIcon = useMemo(() => createLabelIcon('Arrivée', LOCATION_COLOR), []);
   const latestLocationPopupPoint = latestLocationPoint;
   const latestLocationPopupDetails = latestLocationDetails;
   const groupedPoints = useMemo<GroupedPoint[]>(() => {
@@ -2986,7 +2985,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                 key={`similar-${idx}-${src}`}
                 positions={seg.positions}
                 pathOptions={{
-                  color: colorMap.get(src) || '#8b5cf6',
+                  color: colorMap.get(src) || OUTGOING_CALL_COLOR,
                   weight: 2.5,
                   opacity: 0.7,
                   dashArray: '4 8',
@@ -3034,9 +3033,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             center={latestLocationPosition}
             radius={18}
             pathOptions={{
-              color: '#ef4444',
+              color: LOCATION_COLOR,
               weight: 2,
-              fillColor: '#fca5a5',
+              fillColor: APPROX_LOCATION_COLOR,
               fillOpacity: 0.2,
               className: 'latest-location-circle'
             }}
@@ -3070,16 +3069,16 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       )}
       {triangulationZones.map((zone, idx) => (
         <React.Fragment key={`tri-${idx}`}>
-          <Polygon positions={zone.polygon} pathOptions={{ color: '#dc2626', weight: 2, fillOpacity: 0.2 }} />
+          <Polygon positions={zone.polygon} pathOptions={{ color: LOCATION_COLOR, weight: 2, fillOpacity: 0.2 }} />
           {zone.cells.map((cell, i) => (
             <CircleMarker
               key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
               center={cell.position}
               radius={4}
-              pathOptions={{ color: '#dc2626' }}
+              pathOptions={{ color: LOCATION_COLOR }}
             />
           ))}
-          <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), '#dc2626')}>
+          <Marker position={zone.barycenter} icon={createLabelIcon(String(idx + 1), LOCATION_COLOR)}>
             <Popup className="cdr-popup">{renderTriangulationPopup(zone)}</Popup>
           </Marker>
         </React.Fragment>
