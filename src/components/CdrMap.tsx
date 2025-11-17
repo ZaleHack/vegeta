@@ -31,6 +31,7 @@ import {
   Minus
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import MapLegend, { NumberLegendItem } from './MapLegend';
 
 interface Point {
   latitude: string;
@@ -1759,6 +1760,16 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     [usePerNumberColors, colorMap]
   );
 
+  const numberLegendItems = useMemo<NumberLegendItem[]>(() => {
+    if (!usePerNumberColors) {
+      return [];
+    }
+    return sourceNumbers.map((num) => ({
+      label: formatPhoneForDisplay(num),
+      color: colorMap.get(num) || '#94a3b8'
+    }));
+  }, [usePerNumberColors, sourceNumbers, colorMap]);
+
   const renderLocationStatPopup = useCallback(
     (loc: LocationMarker) => {
       const showSource = selectedSource === null && sourceNumbers.length > 1 && loc.source;
@@ -3213,36 +3224,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       )}
 
       <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
-          <div className="pointer-events-auto max-h-full overflow-y-auto overflow-x-hidden bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-4 text-sm text-gray-700">
-            <p className="font-bold text-base mb-3 border-b border-gray-200 pb-2">Légende</p>
-            <ul className="space-y-2">
-              <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
-                  <PhoneIncoming className="w-4 h-4 text-white" />
-                </span>
-                <span>Appel entrant</span>
-              </li>
-              <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#2563eb' }}>
-                  <PhoneOutgoing className="w-4 h-4 text-white" />
-                </span>
-                <span>Appel sortant</span>
-              </li>
-              <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16a34a' }}>
-                  <MessageSquare className="w-4 h-4 text-white" />
-                </span>
-                <span>SMS</span>
-              </li>
-              <li className="flex items-center space-x-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>
-                  <MapPin className="w-4 h-4 text-white" />
-                </span>
-                <span>Position</span>
-              </li>
-            </ul>
-          </div>
-        </div>
+        <MapLegend numberItems={numberLegendItems} />
+      </div>
         {showMeetingPoints && meetingPoints.length > 0 && (
         <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-72 overflow-y-auto">
           <div className="mb-2 flex items-center justify-between gap-3">
