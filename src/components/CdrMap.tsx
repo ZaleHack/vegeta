@@ -28,7 +28,8 @@ import {
   Crosshair,
   History,
   Plus,
-  Minus
+  Minus,
+  X
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import MapLegend, { NumberLegendItem } from './MapLegend';
@@ -72,6 +73,19 @@ interface Point {
   insertedAt?: string;
 }
 
+interface ContactCallDetail {
+  id: string;
+  timestamp?: number | null;
+  date?: string;
+  time?: string;
+  duration?: string | null;
+  direction?: string;
+  type?: string;
+  location?: string;
+  source?: string;
+  cell?: string;
+}
+
 interface Contact {
   id: string;
   tracked?: string;
@@ -81,6 +95,7 @@ interface Contact {
   smsCount: number;
   callDuration: string;
   total: number;
+  events: ContactCallDetail[];
 }
 
 interface LocationStat {
@@ -137,6 +152,24 @@ interface TriangulationCell {
 }
 
 const NO_SOURCE_KEY = '__no_source__';
+
+type ContactAccumulator = {
+  tracked?: string;
+  contact?: string;
+  contactNormalized?: string;
+  callCount: number;
+  smsCount: number;
+  callDurationSeconds: number;
+  events: ContactCallDetail[];
+};
+
+type LatestLocationHighlight = {
+  key: string;
+  label: string;
+  value: string;
+  sub?: string | null;
+  icon: React.ComponentType<{ className?: string }>;
+};
 
 const computeOffsetPosition = (
   lat: number,
@@ -1317,6 +1350,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
   const [activeMeetingNumber, setActiveMeetingNumber] = useState<string | null>(null);
   const [isSatellite, setIsSatellite] = useState(false);
+  const [showLatestLocationDetailsPanel, setShowLatestLocationDetailsPanel] = useState(false);
+  const [activeContactDetailsId, setActiveContactDetailsId] = useState<string | null>(null);
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
       const { compact = false } = options;
@@ -1425,6 +1460,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const closeInfoPanels = useCallback(() => {
     setShowZoneInfo(false);
     setActiveInfo(null);
+    setActiveContactDetailsId(null);
   }, []);
 
   const sourceNumbers = useMemo(() => {
@@ -1464,6 +1500,12 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   }, [sourceNumbers]);
 
   useEffect(() => {
+    if (activeInfo !== 'contacts' && activeContactDetailsId) {
+      setActiveContactDetailsId(null);
+    }
+  }, [activeInfo, activeContactDetailsId]);
+
+  useEffect(() => {
     if (sourceNumbers.length < 2 && showMeetingPoints && onToggleMeetingPoints) {
       onToggleMeetingPoints();
       setActiveMeetingNumber(null);
@@ -1485,9 +1527,21 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular' | 'history') => {
     if (showMeetingPoints) onToggleMeetingPoints?.();
     setShowZoneInfo(false);
-    setActiveInfo((prev) => (prev === key ? null : key));
-    if (key === 'contacts') setContactPage(1);
+    setActiveInfo((prev) => {
+      const next = prev === key ? null : key;
+      if (key === 'contacts' && next === 'contacts') {
+        setContactPage(1);
+      }
+      if (next !== 'contacts') {
+        setActiveContactDetailsId(null);
+      }
+      return next;
+    });
     if (key !== 'recent' && key !== 'popular') setShowOthers(true);
+  };
+
+  const handleContactDetailsToggle = (contactId: string) => {
+    setActiveContactDetailsId((prev) => (prev === contactId ? null : contactId));
   };
 
   const handleMeetingPointsClick = () => {
@@ -1599,6 +1653,81 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     return parts.length > 0 ? parts.join(' • ') : null;
   }, [latestLocationPoint]);
 
+  const latestLocationHighlights = useMemo<LatestLocationHighlight[]>(() => {
+    if (!latestLocationPoint) return [];
+    const isLocationEvent = isLocationEventType(latestLocationPoint.type);
+    const direction = (latestLocationPoint.direction || '').trim().toLowerCase();
+    const durationLabel = formatPointDuration(latestLocationPoint) ?? null;
+    const EventIcon = isLocationEvent
+      ? MapPin
+      : direction === 'outgoing'
+        ? PhoneOutgoing
+        : PhoneIncoming;
+    const directionLabel =
+      direction === 'outgoing'
+        ? 'Appel sortant'
+        : direction === 'incoming'
+          ? 'Appel entrant'
+          : '';
+    const eventValue = isLocationEvent ? 'Position suivie' : directionLabel || 'Interaction vocale';
+    const dateLabel = latestLocationPoint.callDate ? formatDate(latestLocationPoint.callDate) : null;
+    const timeLabel = latestLocationPoint.startTime || latestLocationPoint.endTime || null;
+    const lat = Number.parseFloat(latestLocationPoint.latitude);
+    const lng = Number.parseFloat(latestLocationPoint.longitude);
+    const coordsLabel =
+      Number.isFinite(lat) && Number.isFinite(lng) ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : null;
+
+    return [
+      {
+        key: 'event',
+        label: 'Interaction',
+        value: eventValue,
+        sub: isLocationEvent
+          ? latestLocationPoint.nom || latestLocationPoint.cgi || null
+          : durationLabel
+            ? `Durée ${durationLabel}`
+            : null,
+        icon: EventIcon
+      },
+      {
+        key: 'time',
+        label: 'Observé le',
+        value: dateLabel || 'Date inconnue',
+        sub: timeLabel ? `à ${timeLabel}` : null,
+        icon: Clock
+      },
+      {
+        key: 'coords',
+        label: 'Coordonnées',
+        value: coordsLabel || 'Indisponibles',
+        sub: latestLocationPoint.cgi ? `Cellule ${latestLocationPoint.cgi}` : null,
+        icon: Crosshair
+      }
+    ];
+  }, [latestLocationPoint]);
+
+  const latestLocationContactBadges = useMemo(() => {
+    if (!latestLocationPoint) return [] as { label: string; value: string }[];
+    const badges: { label: string; value: string }[] = [];
+    if (latestLocationPoint.tracked) {
+      badges.push({ label: 'Numéro suivi', value: formatPhoneForDisplay(latestLocationPoint.tracked) });
+    }
+    if (latestLocationPoint.caller) {
+      badges.push({ label: 'Appelant', value: formatPhoneForDisplay(latestLocationPoint.caller) });
+    }
+    if (latestLocationPoint.callee) {
+      badges.push({ label: 'Destinataire', value: formatPhoneForDisplay(latestLocationPoint.callee) });
+    }
+    const source = getPointSourceValue(latestLocationPoint);
+    if (source && source !== latestLocationPoint.tracked) {
+      badges.push({ label: 'Source', value: formatPhoneForDisplay(source) });
+    }
+    if (latestLocationPoint.deviceId) {
+      badges.push({ label: 'Appareil', value: latestLocationPoint.deviceId });
+    }
+    return badges;
+  }, [latestLocationPoint]);
+
   const latestLocationPosition = useMemo<[number, number] | null>(() => {
     if (!latestLocationPoint) return null;
     const lat = parseFloat(latestLocationPoint.latitude);
@@ -1646,6 +1775,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     }
     setShowZoneInfo(false);
     setActiveInfo(null);
+    setShowLatestLocationDetailsPanel(true);
     latestLocationMarkerRef.current?.openPopup();
   }, [latestLocationPoint, latestLocationPosition, setActiveInfo, setShowZoneInfo]);
 
@@ -1664,6 +1794,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     });
     setShowZoneInfo(false);
     setActiveInfo(null);
+    setShowLatestLocationDetailsPanel(true);
     if (typeof window !== 'undefined') {
       window.setTimeout(() => {
         latestLocationMarkerRef.current?.openPopup();
@@ -1674,6 +1805,12 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   }, [latestLocationPoint, latestLocationPosition, setShowZoneInfo, setActiveInfo]);
 
   const hasLatestLocation = Boolean(latestLocationPosition);
+
+  useEffect(() => {
+    if (!latestLocationPoint) {
+      setShowLatestLocationDetailsPanel(false);
+    }
+  }, [latestLocationPoint]);
 
   const contactPoints = useMemo(() => {
     const matchesVisible = (point: Point): boolean => {
@@ -1914,16 +2051,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   };
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
-    const contactMap = new Map<
-      string,
-      {
-        caller?: string;
-        callee?: string;
-        callCount: number;
-        smsCount: number;
-        callDuration: number;
-      }
-    >();
+    const contactMap = new Map<string, ContactAccumulator>();
     const locationMap = new Map<string, LocationStat>();
     const displayedSet = new Set(displayedPoints);
     const normalizedSelected = normalizePhoneDigits(selectedSource ?? '');
@@ -2012,7 +2140,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                   contactNormalized,
                   callCount: 0,
                   smsCount: 0,
-                  callDurationSeconds: 0
+                  callDurationSeconds: 0,
+                  events: []
                 };
 
               if (!entry.tracked && trackedRaw) {
@@ -2031,6 +2160,19 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               } else {
                 entry.callCount += 1;
                 entry.callDurationSeconds += getPointDurationInSeconds(p);
+                const timestamp = getPointTimestamp(p);
+                entry.events.push({
+                  id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
+                  timestamp,
+                  date: p.callDate,
+                  time: p.startTime || p.endTime,
+                  duration: formatPointDuration(p),
+                  direction: p.direction,
+                  type: p.type,
+                  location: p.nom,
+                  source: getPointSourceValue(p),
+                  cell: p.cgi
+                });
               }
 
               contactMap.set(key, entry);
@@ -2097,7 +2239,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         callCount: c.callCount,
         smsCount: c.smsCount,
         callDuration: formatDuration(c.callDurationSeconds),
-        total: c.callCount + c.smsCount
+        total: c.callCount + c.smsCount,
+        events: c.events.slice().sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
       }))
       .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total);
@@ -2129,6 +2272,12 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     selectedSource,
     zoneShape
   ]);
+
+  useEffect(() => {
+    if (activeContactDetailsId && !topContacts.some((c) => c.id === activeContactDetailsId)) {
+      setActiveContactDetailsId(null);
+    }
+  }, [activeContactDetailsId, topContacts]);
 
   const toggleLocationVisibility = (loc: LocationStat) => {
     const key = `${loc.latitude},${loc.longitude},${loc.nom || ''}`;
@@ -2423,6 +2572,16 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     const start = (contactPage - 1) * pageSize;
     return topContacts.slice(start, start + pageSize);
   }, [topContacts, contactPage, pageSize]);
+
+  const selectedContactDetails = useMemo(() => {
+    if (!activeContactDetailsId) return null;
+    return topContacts.find((c) => c.id === activeContactDetailsId) ?? null;
+  }, [activeContactDetailsId, topContacts]);
+
+  const contactDetailEvents = useMemo(() => {
+    if (!selectedContactDetails) return [] as ContactCallDetail[];
+    return selectedContactDetails.events.slice(0, 6);
+  }, [selectedContactDetails]);
 
   const historyEvents = useMemo(() => {
     return displayedPoints
@@ -3050,6 +3209,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             zIndexOffset={4000}
             pane="latest-location-pane"
             ref={latestLocationMarkerRef}
+            eventHandlers={{
+              click: handleLatestLocationRingClick
+            }}
           >
             <Popup className="cdr-popup">
               <div className="space-y-1">
@@ -3204,7 +3366,11 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         </div>
 
       {showBaseMarkers && showRoute && (
-        <div className="pointer-events-none absolute bottom-12 left-0 right-0 z-[1000] flex justify-center">
+        <div
+          className={`pointer-events-none absolute ${
+            showLatestLocationDetailsPanel ? 'bottom-40' : 'bottom-12'
+          } left-0 right-0 z-[1000] flex justify-center`}
+        >
           <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
             <Car className="w-4 h-4 text-indigo-500" />
             <label htmlFor="speed" className="font-semibold text-sm">
@@ -3219,6 +3385,67 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               onChange={(e) => setSpeed(Number(e.target.value))}
               className="w-24"
             />
+          </div>
+        </div>
+      )}
+
+      {showLatestLocationDetailsPanel && latestLocationPoint && (
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-[1000] flex w-full max-w-2xl -translate-x-1/2 justify-center px-4">
+          <div className="pointer-events-auto w-full rounded-3xl border border-white/50 bg-white/95 p-6 shadow-2xl ring-1 ring-black/5 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.35em] text-blue-500">Dernière localisation</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">
+                  {latestLocationPoint.nom?.trim() || 'Position inconnue'}
+                </p>
+                {latestLocationDetails && (
+                  <p className="text-sm text-slate-500 dark:text-slate-300">{latestLocationDetails}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLatestLocationDetailsPanel(false)}
+                className="rounded-full border border-white/70 bg-white/50 p-1 text-slate-600 transition hover:bg-white dark:border-slate-600 dark:bg-slate-800/80 dark:text-white"
+                aria-label="Fermer les détails de la localisation"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {latestLocationHighlights.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={item.key}
+                    className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-800/60"
+                  >
+                    <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      <Icon className="h-4 w-4 text-blue-500" />
+                      {item.label}
+                    </div>
+                    <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{item.value}</p>
+                    {item.sub && (
+                      <p className="text-sm text-slate-500 dark:text-slate-300">{item.sub}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {latestLocationContactBadges.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {latestLocationContactBadges.map((badge) => (
+                  <span
+                    key={`${badge.label}-${badge.value}`}
+                    className="inline-flex flex-col rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 text-[10px] uppercase tracking-wide text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300"
+                  >
+                    {badge.label}
+                    <span className="text-base font-semibold normal-case text-slate-900 dark:text-white">
+                      {badge.value}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3338,6 +3565,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                     <th className="pr-4">Durée</th>
                     <th className="pr-4">SMS</th>
                     <th className="pr-4">Rencontres</th>
+                    <th className="pr-4">Détails</th>
                     <th>Total</th>
                   </tr>
                 </thead>
@@ -3360,6 +3588,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                     const isActiveMeeting =
                       toggleKey && showMeetingPoints && activeMeetingNumber === toggleKey;
                     const toggleValue = contactNumber || toggleKey;
+                    const isActiveDetails = activeContactDetailsId === c.id;
                     return (
                       <tr
                         key={c.id}
@@ -3385,12 +3614,131 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                             </button>
                           )}
                         </td>
+                        <td className="pr-4">
+                          <button
+                            type="button"
+                            onClick={() => handleContactDetailsToggle(c.id)}
+                            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                              isActiveDetails
+                                ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-500/40'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                          >
+                            Voir
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                        </td>
                         <td>{c.total}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              {selectedContactDetails && (
+                <div className="mt-4 rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-2xl">
+                  <div className="flex items-start justify-between gap-3 p-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.35em] text-white/70">Contact sélectionné</p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {formatPhoneForDisplay(selectedContactDetails.contact)}
+                      </p>
+                      <p className="text-sm text-white/80">
+                        Suivi via {formatPhoneForDisplay(selectedContactDetails.tracked)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveContactDetailsId(null)}
+                      className="rounded-full border border-white/40 p-1 text-white transition hover:bg-white/20"
+                      aria-label="Fermer les détails du contact"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="grid gap-3 px-4 pb-4 text-sm text-white/90 md:grid-cols-4">
+                    {[{
+                      label: 'Appels',
+                      value: selectedContactDetails.callCount
+                    },
+                    {
+                      label: 'Durée cumulée',
+                      value: selectedContactDetails.callDuration
+                    },
+                    {
+                      label: 'SMS',
+                      value: selectedContactDetails.smsCount
+                    },
+                    {
+                      label: 'Total interactions',
+                      value: selectedContactDetails.total
+                    }].map((stat) => (
+                      <div key={stat.label} className="rounded-2xl bg-white/15 p-3 text-center">
+                        <p className="text-[11px] uppercase tracking-wide text-white/70">{stat.label}</p>
+                        <p className="mt-1 text-2xl font-semibold">{stat.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mx-4 mb-4 rounded-2xl bg-white text-slate-900 shadow-xl dark:bg-slate-900 dark:text-white">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-slate-800">
+                      <span>Derniers appels</span>
+                      <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                        {contactDetailEvents.length}/{selectedContactDetails.callCount} listés
+                      </span>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                      {contactDetailEvents.length > 0 ? (
+                        contactDetailEvents.map((event) => {
+                          const direction = (event.direction || '').toLowerCase();
+                          const Icon = direction === 'outgoing' ? PhoneOutgoing : PhoneIncoming;
+                          const toneClasses =
+                            direction === 'outgoing'
+                              ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200'
+                              : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200';
+                          const dateLabel = event.date ? formatDate(event.date) : 'Date inconnue';
+                          return (
+                            <div key={event.id} className="flex items-start gap-3 px-4 py-3">
+                              <div className={`rounded-2xl p-2 ${toneClasses}`}>
+                                <Icon className="h-4 w-4" />
+                              </div>
+                              <div className="flex-1 text-sm">
+                                <div className="flex items-center justify-between text-sm font-semibold">
+                                  <span>{direction === 'outgoing' ? 'Appel sortant' : 'Appel entrant'}</span>
+                                  <span className="text-xs text-slate-500 dark:text-slate-300">
+                                    {event.duration || 'Durée inconnue'}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {dateLabel}
+                                  {event.time ? ` • ${event.time}` : ''}
+                                </p>
+                                {event.location && (
+                                  <p className="text-sm text-slate-700 dark:text-slate-200">{event.location}</p>
+                                )}
+                                <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                  {event.cell && (
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
+                                      Cellule {event.cell}
+                                    </span>
+                                  )}
+                                  {event.source && (
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
+                                      {formatPhoneForDisplay(event.source)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="px-4 py-6 text-sm text-slate-500 dark:text-slate-300">
+                          Aucun appel détaillé pour ce contact.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="flex justify-center items-center space-x-2 mt-2">
                 <button
                   className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
