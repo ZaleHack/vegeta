@@ -1288,6 +1288,7 @@ class CaseService {
     const numberStatsMap = new Map();
     const locationMap = new Map();
     const events = [];
+    const enforceOutgoingLocations = uniqueNumbers.length >= 2;
     let lastActivity = null;
 
     const ensureNumberEntry = (number) => {
@@ -1357,6 +1358,15 @@ class CaseService {
       });
 
       (result.path || []).forEach((point) => {
+        if (enforceOutgoingLocations) {
+          const normalizedDirection =
+            typeof point.direction === 'string'
+              ? point.direction.toLowerCase().trim()
+              : '';
+          if (['incoming', 'entrant', 'entrante'].includes(normalizedDirection)) {
+            return;
+          }
+        }
         const lat = parseFloat(point.latitude);
         const lng = parseFloat(point.longitude);
         if (Number.isNaN(lat) || Number.isNaN(lng)) return;
