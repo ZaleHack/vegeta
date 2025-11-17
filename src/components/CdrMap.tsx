@@ -1334,6 +1334,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | 'history' | null>(null);
   const [showOthers, setShowOthers] = useState(true);
+  const [latestLocationFocusActive, setLatestLocationFocusActive] = useState(false);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
   const [showZoneInfo, setShowZoneInfo] = useState(false);
@@ -1653,6 +1654,14 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     return [lat, lng];
   }, [latestLocationPoint]);
 
+  const isLatestLocationFocusMode = latestLocationFocusActive && Boolean(latestLocationPosition);
+
+  useEffect(() => {
+    if (!latestLocationPosition) {
+      setLatestLocationFocusActive(false);
+    }
+  }, [latestLocationPosition]);
+
   useEffect(() => {
     if (!isMapReady || !mapRef.current) return;
     const paneId = 'latest-location-pane';
@@ -1668,23 +1677,34 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const latestLocationMarkerRef = useRef<L.Marker | null>(null);
 
-  const latestLocationIcon = useMemo(
-    () =>
-      L.divIcon({
-        className: 'latest-location-pulse-icon',
-        html: `
-          <div class="latest-location-pulse">
-            <span class="latest-location-pulse__ring"></span>
-            <span class="latest-location-pulse__ring latest-location-pulse__ring--delayed"></span>
-            <span class="latest-location-pulse__glow"></span>
-            <span class="latest-location-pulse__dot"></span>
-          </div>
-        `.trim(),
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-      }),
-    []
-  );
+  const latestLocationIcon = useMemo(() => {
+    const wrapperClass = [
+      'latest-location-pulse-icon',
+      isLatestLocationFocusMode ? 'latest-location-pulse-icon--alert' : ''
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const pulseClass = [
+      'latest-location-pulse',
+      isLatestLocationFocusMode ? 'latest-location-pulse--alert' : ''
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return L.divIcon({
+      className: wrapperClass,
+      html: `
+        <div class="${pulseClass}">
+          <span class="latest-location-pulse__ring"></span>
+          <span class="latest-location-pulse__ring latest-location-pulse__ring--delayed"></span>
+          <span class="latest-location-pulse__glow"></span>
+          <span class="latest-location-pulse__dot"></span>
+        </div>
+      `.trim(),
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
+    });
+  }, [isLatestLocationFocusMode]);
 
   const handleLatestLocationRingClick = useCallback(() => {
     if (!latestLocationPoint || !latestLocationPosition) {
@@ -1692,6 +1712,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     }
     setShowZoneInfo(false);
     setActiveInfo(null);
+    setLatestLocationFocusActive(true);
     latestLocationMarkerRef.current?.openPopup();
   }, [latestLocationPoint, latestLocationPosition, setActiveInfo, setShowZoneInfo]);
 
@@ -1710,6 +1731,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     });
     setShowZoneInfo(false);
     setActiveInfo(null);
+    setLatestLocationFocusActive(true);
     if (typeof window !== 'undefined') {
       window.setTimeout(() => {
         latestLocationMarkerRef.current?.openPopup();
@@ -1717,7 +1739,19 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     } else {
       latestLocationMarkerRef.current?.openPopup();
     }
-  }, [latestLocationPoint, latestLocationPosition, setShowZoneInfo, setActiveInfo]);
+  }, [latestLocationPoint, latestLocationPosition, setShowZoneInfo, setActiveInfo, setLatestLocationFocusActive]);
+
+  const handleExitLatestLocationFocus = useCallback(() => {
+    setLatestLocationFocusActive(false);
+  }, []);
+
+  const handleLatestLocationButtonClick = useCallback(() => {
+    if (isLatestLocationFocusMode) {
+      handleExitLatestLocationFocus();
+      return;
+    }
+    handleFocusLatestLocation();
+  }, [handleExitLatestLocationFocus, handleFocusLatestLocation, isLatestLocationFocusMode]);
 
   const hasLatestLocation = Boolean(latestLocationPosition);
   const speedControlPosition = hasLatestLocation ? 'bottom-32' : 'bottom-12';
@@ -2321,10 +2355,13 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
+  const showBaseMarkers = useMemo(
+    () => showOthers && !isLatestLocationFocusMode,
+    [showOthers, isLatestLocationFocusMode]
+  );
   const showLocationMarkers = useMemo(
-    () => showOthers || activeInfo === 'recent' || activeInfo === 'popular',
-    [showOthers, activeInfo]
+    () => (showOthers || activeInfo === 'recent' || activeInfo === 'popular') && !isLatestLocationFocusMode,
+    [showOthers, activeInfo, isLatestLocationFocusMode]
   );
 
   const routePositions = useMemo(() => {
@@ -2900,7 +2937,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           center={center}
           zoom={13}
           zoomControl={false}
-          className="w-full h-full"
+          className={`w-full h-full ${isLatestLocationFocusMode ? 'cdr-map--latest-focus' : ''}`}
           style={{
             position: 'relative',
             cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined
@@ -2930,8 +2967,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         )}
-        <ZoneSelector />
-      {drawing && currentPoints.length > 0 && (
+        {!isLatestLocationFocusMode && <ZoneSelector />}
+      {!isLatestLocationFocusMode && drawing && currentPoints.length > 0 && (
         <Polyline
           positions={currentPoints}
           pathOptions={{
@@ -2943,7 +2980,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           }}
         />
       )}
-      {zoneShape && (
+      {!isLatestLocationFocusMode && zoneShape && (
         <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
       )}
       {showBaseMarkers && (
@@ -3078,13 +3115,15 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         <>
           <CircleMarker
             center={latestLocationPosition}
-            radius={18}
+            radius={isLatestLocationFocusMode ? 22 : 18}
             pathOptions={{
-              color: LOCATION_COLOR,
-              weight: 2,
-              fillColor: APPROX_LOCATION_COLOR,
-              fillOpacity: 0.2,
-              className: 'latest-location-circle'
+              color: isLatestLocationFocusMode ? '#ef4444' : LOCATION_COLOR,
+              weight: isLatestLocationFocusMode ? 3 : 2,
+              fillColor: isLatestLocationFocusMode ? '#fee2e2' : APPROX_LOCATION_COLOR,
+              fillOpacity: isLatestLocationFocusMode ? 0.35 : 0.2,
+              className: `latest-location-circle ${
+                isLatestLocationFocusMode ? 'latest-location-circle--highlight' : ''
+              }`
             }}
             pane="latest-location-pane"
             eventHandlers={{
@@ -3114,12 +3153,13 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           </Marker>
         </>
       )}
-      {triangulationZones.map((zone, idx) => (
-        <React.Fragment key={`tri-${idx}`}>
-          <Polygon positions={zone.polygon} pathOptions={{ color: LOCATION_COLOR, weight: 2, fillOpacity: 0.2 }} />
-          {zone.cells.map((cell, i) => (
-            <CircleMarker
-              key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
+      {!isLatestLocationFocusMode &&
+        triangulationZones.map((zone, idx) => (
+          <React.Fragment key={`tri-${idx}`}>
+            <Polygon positions={zone.polygon} pathOptions={{ color: LOCATION_COLOR, weight: 2, fillOpacity: 0.2 }} />
+            {zone.cells.map((cell, i) => (
+              <CircleMarker
+                key={`tri-cell-${idx}-${cell.cgi ?? cell.rawCgi ?? i}`}
               center={cell.position}
               radius={4}
               pathOptions={{ color: LOCATION_COLOR }}
@@ -3131,16 +3171,46 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         </React.Fragment>
       ))}
       </MapContainer>
+      {isLatestLocationFocusMode && latestLocationLabel && (
+        <div className="pointer-events-none absolute top-5 left-1/2 z-[1300] w-full max-w-3xl -translate-x-1/2 px-4">
+          <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-rose-200/80 bg-white/95 px-6 py-4 text-slate-900 shadow-2xl shadow-rose-200/70 backdrop-blur">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-500">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-rose-400">Focus localisation</p>
+                <p className="text-lg font-semibold leading-tight text-slate-900">{latestLocationLabel}</p>
+                {latestLocationDetails && (
+                  <p className="text-sm text-slate-500">{latestLocationDetails}</p>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleExitLatestLocationFocus}
+              className="inline-flex items-center gap-2 rounded-full border border-rose-200/80 bg-white/60 px-4 py-2 text-sm font-semibold uppercase tracking-wide text-rose-500 transition hover:bg-rose-50"
+            >
+              <span>Revenir à la vue complète</span>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
       <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-3">
         <MapControlButton
           title={
             hasLatestLocation
-              ? 'Centrer sur la dernière localisation connue'
+              ? isLatestLocationFocusMode
+                ? 'Afficher toutes les données'
+                : 'Centrer sur la dernière localisation connue'
               : 'Aucune localisation exploitable'
           }
           icon={<MapPin className="h-5 w-5" />}
-          onClick={handleFocusLatestLocation}
+          onClick={handleLatestLocationButtonClick}
           disabled={!hasLatestLocation}
+          active={isLatestLocationFocusMode}
+          isToggle
         />
         <MapControlButton
           title="Localisation approximative de la personne"
@@ -3302,20 +3372,22 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             </div>
             <button
               type="button"
-              onClick={handleFocusLatestLocation}
+              onClick={handleLatestLocationButtonClick}
               className="flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold uppercase tracking-wide transition hover:bg-white/20"
             >
-              <span>Voir sur la carte</span>
-              <ArrowRight className="h-4 w-4" />
+              <span>{isLatestLocationFocusMode ? 'Afficher toutes les données' : 'Voir sur la carte'}</span>
+              {isLatestLocationFocusMode ? <X className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
             </button>
           </div>
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
-        <MapLegend numberItems={numberLegendItems} />
-      </div>
-        {showMeetingPoints && meetingPoints.length > 0 && (
+      {!isLatestLocationFocusMode && (
+        <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
+          <MapLegend numberItems={numberLegendItems} />
+        </div>
+      )}
+      {!isLatestLocationFocusMode && showMeetingPoints && meetingPoints.length > 0 && (
         <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-72 overflow-y-auto">
           <div className="mb-2 flex items-center justify-between gap-3">
             <p className="font-semibold">Points de rencontre</p>
