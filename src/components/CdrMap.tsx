@@ -2953,7 +2953,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             }
             setIsMapReady(true);
           }}
-          ref={mapRef}
         >
         {isSatellite ? (
           <TileLayer
