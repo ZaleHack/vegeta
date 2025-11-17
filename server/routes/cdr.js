@@ -54,47 +54,55 @@ const normalizePhoneNumber = (value) => {
 
 router.get('/realtime/search', authenticate, async (req, res) => {
   try {
-    const identifier = typeof req.query.phone === 'string'
-      ? req.query.phone
-      : typeof req.query.number === 'string'
-      ? req.query.number
-      : '';
+    let searchType = 'phone';
+    let identifier = '';
+
+    if (typeof req.query.phone === 'string') {
+      identifier = req.query.phone;
+    } else if (typeof req.query.number === 'string') {
+      identifier = req.query.number;
+    } else if (typeof req.query.imei === 'string') {
+      identifier = req.query.imei;
+      searchType = 'imei';
+    }
 
     if (!identifier || !identifier.trim()) {
-      return res.status(400).json({ error: 'Numéro requis' });
+      return res.status(400).json({ error: 'Identifiant requis' });
     }
 
     const sanitizedIdentifier = identifier.trim();
-    const identifierVariants = new Set([sanitizedIdentifier]);
-    const normalizedIdentifier = normalizePhoneNumber(sanitizedIdentifier);
-    if (normalizedIdentifier) {
-      identifierVariants.add(normalizedIdentifier);
-    }
-
-    let isBlacklisted = false;
-    for (const value of identifierVariants) {
-      if (value && (await Blacklist.exists(value))) {
-        isBlacklisted = true;
-        break;
+    if (searchType === 'phone') {
+      const identifierVariants = new Set([sanitizedIdentifier]);
+      const normalizedIdentifier = normalizePhoneNumber(sanitizedIdentifier);
+      if (normalizedIdentifier) {
+        identifierVariants.add(normalizedIdentifier);
       }
-    }
 
-    if (isBlacklisted) {
-      try {
-        await UserLog.create({
-          user_id: req.user.id,
-          action: 'blacklist_search_attempt',
-          details: JSON.stringify({
-            alert: true,
-            number: sanitizedIdentifier,
-            page: 'cdr-realtime',
-            message: 'Tentative de recherche sur un numéro blacklisté'
-          })
-        });
-      } catch (logError) {
-        console.error('Erreur log blacklist:', logError);
+      let isBlacklisted = false;
+      for (const value of identifierVariants) {
+        if (value && (await Blacklist.exists(value))) {
+          isBlacklisted = true;
+          break;
+        }
       }
-      return res.status(403).json({ error: 'Aucun résultat trouvé' });
+
+      if (isBlacklisted) {
+        try {
+          await UserLog.create({
+            user_id: req.user.id,
+            action: 'blacklist_search_attempt',
+            details: JSON.stringify({
+              alert: true,
+              number: sanitizedIdentifier,
+              page: 'cdr-realtime',
+              message: 'Tentative de recherche sur un numéro blacklisté'
+            })
+          });
+        } catch (logError) {
+          console.error('Erreur log blacklist:', logError);
+        }
+        return res.status(403).json({ error: 'Aucun résultat trouvé' });
+      }
     }
 
     const start = typeof req.query.start === 'string' ? req.query.start.trim() : '';
@@ -118,7 +126,8 @@ router.get('/realtime/search', authenticate, async (req, res) => {
       startDate: start || null,
       endDate: end || null,
       startTime: startTime || null,
-      endTime: endTime || null
+      endTime: endTime || null,
+      searchType
     });
 
     res.json(result);
