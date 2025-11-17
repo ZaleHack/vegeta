@@ -47,7 +47,8 @@ import {
   Scan,
   MapPinOff,
   CheckCircle2,
-  History
+  History,
+  Fingerprint
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
@@ -1923,6 +1924,7 @@ const App: React.FC = () => {
   // États CDR
   const [cdrIdentifiers, setCdrIdentifiers] = useState<string[]>([]);
   const [cdrIdentifierInput, setCdrIdentifierInput] = useState('');
+  const [cdrIdentifierType, setCdrIdentifierType] = useState<'phone' | 'imei'>('phone');
   const [cdrStart, setCdrStart] = useState('');
   const [cdrEnd, setCdrEnd] = useState('');
   const [cdrStartTime, setCdrStartTime] = useState('');
@@ -2066,13 +2068,31 @@ const App: React.FC = () => {
     return sanitized ? `221${sanitized}` : '';
   }, []);
 
+  const normalizeImei = useCallback((value: string) => {
+    let sanitized = value.trim();
+    if (!sanitized) return '';
+    sanitized = sanitized.replace(/\s+/g, '');
+    sanitized = sanitized.replace(/[^0-9]/g, '');
+    return sanitized;
+  }, []);
+
+  const normalizeCdrIdentifier = useCallback(
+    (value: string) => {
+      if (cdrIdentifierType === 'imei') {
+        return normalizeImei(value);
+      }
+      return normalizeCdrNumber(value);
+    },
+    [cdrIdentifierType, normalizeCdrNumber, normalizeImei]
+  );
+
   const dedupeCdrIdentifiers = useCallback(
     (values: string[]) => {
       const seen = new Set<string>();
       const result: string[] = [];
 
       values.forEach((value) => {
-        const normalized = normalizeCdrNumber(value);
+        const normalized = normalizeCdrIdentifier(value);
         if (!normalized || seen.has(normalized)) {
           return;
         }
@@ -2082,7 +2102,7 @@ const App: React.FC = () => {
 
       return result;
     },
-    [normalizeCdrNumber]
+    [normalizeCdrIdentifier]
   );
 
   const getEffectiveCdrIdentifiers = useCallback(() => {
@@ -2092,6 +2112,21 @@ const App: React.FC = () => {
 
     return dedupeCdrIdentifiers(combined);
   }, [cdrIdentifierInput, cdrIdentifiers, dedupeCdrIdentifiers]);
+
+  const handleCdrIdentifierTypeChange = useCallback(
+    (nextType: 'phone' | 'imei') => {
+      if (cdrIdentifierType === nextType) {
+        return;
+      }
+      setCdrIdentifierType(nextType);
+      setCdrIdentifiers([]);
+      setCdrIdentifierInput('');
+      setCdrResult(null);
+      setCdrError('');
+      setCdrInfoMessage('');
+    },
+    [cdrIdentifierType]
+  );
 
   const commitCdrIdentifiers = useCallback(
     (next: string[]) => {
@@ -2167,7 +2202,7 @@ const App: React.FC = () => {
   }, [cardOrder]);
 
   const addCdrIdentifier = () => {
-    const normalized = normalizeCdrNumber(cdrIdentifierInput);
+    const normalized = normalizeCdrIdentifier(cdrIdentifierInput);
     if (normalized && !cdrIdentifiers.includes(normalized)) {
       setCdrIdentifiers([...cdrIdentifiers, normalized]);
       setCdrIdentifierInput('');
@@ -3815,6 +3850,8 @@ useEffect(() => {
     const ids = dedupeCdrIdentifiers(identifiersOverride ?? cdrIdentifiers).filter(
       (identifier) => Boolean(identifier)
     );
+    const isPhoneSearch = cdrIdentifierType === 'phone';
+    const requestParam = isPhoneSearch ? 'phone' : 'imei';
 
     if (ids.length === 0) {
       setLinkDiagram(null);
@@ -3839,7 +3876,7 @@ useEffect(() => {
 
       for (const id of ids) {
         const params = new URLSearchParams();
-        params.append('phone', id);
+        params.append(requestParam, id);
         if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
         if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
         if (cdrStartTime) params.append('startTime', cdrStartTime);
@@ -3875,12 +3912,14 @@ useEffect(() => {
       }
 
       const trackedNumbersSet = new Set<string>();
-      ids.forEach((value) => {
-        const normalized = normalizeCdrNumber(value);
-        if (normalized) {
-          trackedNumbersSet.add(normalized);
-        }
-      });
+      if (isPhoneSearch) {
+        ids.forEach((value) => {
+          const normalized = normalizeCdrNumber(value);
+          if (normalized) {
+            trackedNumbersSet.add(normalized);
+          }
+        });
+      }
       const excludeTrackedContacts = trackedNumbersSet.size >= 2;
 
       const contactsMap = new Map<
@@ -3893,7 +3932,7 @@ useEffect(() => {
         const isLocationEvent = eventType === 'web' || eventType === 'position';
         if (!isLocationEvent) {
           const trackedRaw = (p.tracked ?? '').toString().trim();
-          const trackedNormalized = normalizeCdrNumber(trackedRaw);
+          const trackedNormalized = isPhoneSearch ? normalizeCdrNumber(trackedRaw) : '';
           if (trackedNormalized) {
             const rawNumber = (p.number ?? '').toString().trim();
             const rawCaller = (p.caller ?? '').toString().trim();
@@ -4126,7 +4165,7 @@ useEffect(() => {
     }
     const identifiers = getEffectiveCdrIdentifiers();
     if (identifiers.length === 0) {
-      setCdrError('Numéro requis');
+      setCdrError('Identifiant requis');
       return;
     }
     if (cdrIdentifierInput) {
@@ -4140,7 +4179,11 @@ useEffect(() => {
     if (!selectedCase) return;
     const identifiers = getEffectiveCdrIdentifiers();
     if (identifiers.length === 0) {
-      setCdrError('Numéro requis');
+      setCdrError('Identifiant requis');
+      return;
+    }
+    if (cdrIdentifierType !== 'phone') {
+      setCdrError('Le diagramme des liens est disponible uniquement pour les numéros de téléphone');
       return;
     }
     if (cdrIdentifierInput) {
@@ -5123,6 +5166,37 @@ useEffect(() => {
 
               <div>
                 <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Entrer la cible</label>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <span className="uppercase tracking-wide">Rechercher par</span>
+                  <div className="inline-flex rounded-full bg-slate-100/80 p-1 shadow-inner dark:bg-slate-800/60">
+                    <button
+                      type="button"
+                      onClick={() => handleCdrIdentifierTypeChange('phone')}
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 transition ${
+                        cdrIdentifierType === 'phone'
+                          ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
+                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                      aria-pressed={cdrIdentifierType === 'phone'}
+                    >
+                      <Phone className="h-3.5 w-3.5" />
+                      <span>Téléphone</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCdrIdentifierTypeChange('imei')}
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 transition ${
+                        cdrIdentifierType === 'imei'
+                          ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
+                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                      aria-pressed={cdrIdentifierType === 'imei'}
+                    >
+                      <Fingerprint className="h-3.5 w-3.5" />
+                      <span>IMEI</span>
+                    </button>
+                  </div>
+                </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-dashed border-slate-300/70 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700/60 dark:bg-slate-900/60">
                   {cdrIdentifiers.map((id, idx) => (
                     <span
@@ -5143,14 +5217,17 @@ useEffect(() => {
                     type="text"
                     value={cdrIdentifierInput}
                     onChange={(e) => setCdrIdentifierInput(e.target.value)}
-                    onBlur={(e) => setCdrIdentifierInput(normalizeCdrNumber(e.target.value))}
+                    onBlur={(e) => setCdrIdentifierInput(normalizeCdrIdentifier(e.target.value))}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         addCdrIdentifier();
                       }
                     }}
-                    placeholder="Ajouter un numéro"
+                    placeholder={
+                      cdrIdentifierType === 'imei' ? 'Ajouter un IMEI' : 'Ajouter un numéro'
+                    }
+                    inputMode={cdrIdentifierType === 'imei' ? 'numeric' : 'tel'}
                     className="flex-1 min-w-[150px] border-none bg-transparent py-1 text-sm focus:outline-none focus:ring-0"
                   />
                 </div>
@@ -5222,7 +5299,7 @@ useEffect(() => {
                     <Search className="h-4 w-4" />
                     <span>Rechercher</span>
                   </button>
-                  {effectiveCdrIdentifiers.length >= 2 && (
+                  {cdrIdentifierType === 'phone' && effectiveCdrIdentifiers.length >= 2 && (
                     <button
                       type="button"
                       className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"

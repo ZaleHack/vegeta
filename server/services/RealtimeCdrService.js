@@ -175,6 +175,19 @@ const sanitizeNumber = (value) => {
   return text;
 };
 
+const sanitizeImei = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  let text = String(value).trim();
+  if (!text) {
+    return '';
+  }
+  text = text.replace(/\s+/g, '');
+  text = text.replace(/[^0-9]/g, '');
+  return text;
+};
+
 const normalizePhoneNumber = (value) => {
   const sanitized = sanitizeNumber(value);
   if (!sanitized) {
@@ -187,8 +200,19 @@ const normalizePhoneNumber = (value) => {
   return trimmed ? `221${trimmed}` : '';
 };
 
-const buildIdentifierVariants = (value) => {
+const buildIdentifierVariants = (value, type = 'phone') => {
   const variants = new Set();
+  if (type === 'imei') {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    if (trimmed) {
+      variants.add(trimmed);
+    }
+    const sanitized = sanitizeImei(value);
+    if (sanitized) {
+      variants.add(sanitized);
+    }
+    return variants;
+  }
   const sanitized = sanitizeNumber(value);
   if (!sanitized) {
     return variants;
@@ -207,8 +231,19 @@ const buildIdentifierVariants = (value) => {
   return variants;
 };
 
-const matchesIdentifier = (identifierSet, value) => {
+const matchesIdentifier = (identifierSet, value, type = 'phone') => {
   if (!value) {
+    return false;
+  }
+  if (type === 'imei') {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    if (trimmed && identifierSet.has(trimmed)) {
+      return true;
+    }
+    const sanitized = sanitizeImei(value);
+    if (sanitized && identifierSet.has(sanitized)) {
+      return true;
+    }
     return false;
   }
   const sanitized = sanitizeNumber(value);
@@ -520,7 +555,10 @@ class RealtimeCdrService {
       return { ...EMPTY_RESULT };
     }
 
-    const identifierVariants = buildIdentifierVariants(trimmedIdentifier);
+    const requestedType = typeof options.searchType === 'string' ? options.searchType.toLowerCase() : 'phone';
+    const searchType = requestedType === 'imei' ? 'imei' : 'phone';
+
+    const identifierVariants = buildIdentifierVariants(trimmedIdentifier, searchType);
     if (identifierVariants.size === 0) {
       return { ...EMPTY_RESULT };
     }
@@ -554,11 +592,12 @@ class RealtimeCdrService {
           startTimeBound,
           endTimeBound,
           limit: limitValue
-        }
+        },
+        searchType
       );
 
       if (Array.isArray(rowsFromElasticsearch)) {
-        return this.#buildResult(rowsFromElasticsearch, identifierVariants);
+        return this.#buildResult(rowsFromElasticsearch, identifierVariants, searchType);
       }
     }
 
@@ -567,9 +606,10 @@ class RealtimeCdrService {
       endDate,
       startTimeBound,
       endTimeBound,
-      limit: limitValue
+      limit: limitValue,
+      searchType
     });
-    return this.#buildResult(rows, identifierVariants);
+    return this.#buildResult(rows, identifierVariants, searchType);
   }
 
   async enrichMissingCoordinates(options = {}) {
@@ -594,15 +634,26 @@ class RealtimeCdrService {
     const conditions = [];
     const params = [];
 
+    const searchType = typeof filters.searchType === 'string' && filters.searchType.toLowerCase() === 'imei'
+      ? 'imei'
+      : 'phone';
     const variantList = Array.from(identifierVariants);
     if (variantList.length > 0) {
-      const numberConditions = variantList.map(
-        () => '(c.numero_appelant = ? OR c.numero_appele = ?)'
-      );
-      conditions.push(`(${numberConditions.join(' OR ')})`);
-      variantList.forEach((variant) => {
-        params.push(variant, variant);
-      });
+      if (searchType === 'imei') {
+        const imeiConditions = variantList.map(() => 'c.imei_appelant = ?');
+        conditions.push(`(${imeiConditions.join(' OR ')})`);
+        variantList.forEach((variant) => {
+          params.push(variant);
+        });
+      } else {
+        const numberConditions = variantList.map(
+          () => '(c.numero_appelant = ? OR c.numero_appele = ?)'
+        );
+        conditions.push(`(${numberConditions.join(' OR ')})`);
+        variantList.forEach((variant) => {
+          params.push(variant, variant);
+        });
+      }
     }
 
     if (filters.startDate) {
@@ -906,7 +957,7 @@ class RealtimeCdrService {
     }
   }
 
-  async #searchElasticsearch(variantList, filters) {
+  async #searchElasticsearch(variantList, filters, searchType = 'phone') {
     if (!Array.isArray(variantList) || variantList.length === 0) {
       return [];
     }
@@ -915,7 +966,11 @@ class RealtimeCdrService {
       return null;
     }
 
-    const filterClauses = [{ terms: { identifiers: variantList } }];
+    const filterClauses = [
+      searchType === 'imei'
+        ? { terms: { imei_appelant: variantList } }
+        : { terms: { identifiers: variantList } }
+    ];
 
     if (filters.startDate) {
       filterClauses.push({ range: { date_debut_appel: { gte: filters.startDate } } });
@@ -1569,6 +1624,7 @@ class RealtimeCdrService {
     const callerVariants = buildIdentifierVariants(rawCaller);
     const calleeVariants = buildIdentifierVariants(rawCallee);
     const identifiers = new Set([...callerVariants, ...calleeVariants]);
+    const imeiValue = sanitizeImei(row.imei_appelant);
 
     const dateStart = normalizeDateInput(row.date_debut_appel);
     const dateEnd = normalizeDateInput(row.date_fin_appel);
@@ -1598,7 +1654,7 @@ class RealtimeCdrService {
       caller_variants: Array.from(callerVariants),
       callee_variants: Array.from(calleeVariants),
       identifiers: Array.from(identifiers),
-      imei_appelant: normalizeString(row.imei_appelant),
+      imei_appelant: imeiValue || normalizeString(row.imei_appelant),
       imsi_appelant: normalizeString(row.imsi_appelant),
       cgi: normalizeString(row.cgi),
       route_reseau: normalizeString(row.route_reseau),
@@ -1615,7 +1671,7 @@ class RealtimeCdrService {
     };
   }
 
-  async #buildResult(rows, identifierSet) {
+  async #buildResult(rows, identifierSet, searchType = 'phone') {
     if (!Array.isArray(rows) || rows.length === 0) {
       return { ...EMPTY_RESULT };
     }
@@ -1625,13 +1681,20 @@ class RealtimeCdrService {
     const contactsMap = new Map();
     const locationsMap = new Map();
     const path = [];
+    const normalizedType = searchType === 'imei' ? 'imei' : 'phone';
 
     for (const row of rows) {
       const caller = row.numero_appelant ? normalizeForOutput(row.numero_appelant) : '';
       const callee = row.numero_appele ? normalizeForOutput(row.numero_appele) : '';
 
-      const matchesCaller = matchesIdentifier(identifierSet, row.numero_appelant);
-      let matchesCallee = matchesIdentifier(identifierSet, row.numero_appele);
+      const matchesCaller =
+        normalizedType === 'imei'
+          ? matchesIdentifier(identifierSet, row.imei_appelant, 'imei')
+          : matchesIdentifier(identifierSet, row.numero_appelant, 'phone');
+      let matchesCallee =
+        normalizedType === 'imei'
+          ? false
+          : matchesIdentifier(identifierSet, row.numero_appele, 'phone');
 
       const eventType = resolveEventType(row.type_appel);
 
