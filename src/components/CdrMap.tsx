@@ -387,6 +387,31 @@ const normalizeSourceKey = (value?: string | null): string | undefined => {
   return normalized || trimmed;
 };
 
+const doesPointMatchSource = (point: Point, source: string | null): boolean => {
+  if (!source) return true;
+
+  const trimmedSource = source.trim();
+  if (!trimmedSource) return false;
+
+  const normalizedSource = normalizePhoneDigits(trimmedSource);
+  const candidates = [point.tracked, point.caller, point.callee, point.number, getPointSourceValue(point)];
+
+  return candidates.some((candidate) => {
+    if (!candidate) return false;
+    const trimmedCandidate = candidate.trim();
+    if (!trimmedCandidate) return false;
+
+    if (normalizedSource) {
+      const normalizedCandidate = normalizePhoneDigits(trimmedCandidate);
+      if (normalizedCandidate && normalizedCandidate === normalizedSource) {
+        return true;
+      }
+    }
+
+    return trimmedCandidate === trimmedSource;
+  });
+};
+
 const formatPhoneForDisplay = (value?: string): string => {
   const normalized = normalizePhoneDigits(value);
   if (normalized) return normalized;
@@ -1575,6 +1600,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     let latest: { point: Point; timestamp: number } | null = null;
     callerPoints.forEach((point) => {
       if (!isLocationEventType(point.type)) return;
+      if (!doesPointMatchSource(point, selectedSource)) return;
       const lat = parseFloat(point.latitude);
       const lng = parseFloat(point.longitude);
       if (Number.isNaN(lat) || Number.isNaN(lng)) return;
@@ -1585,7 +1611,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       }
     });
     return latest?.point ?? null;
-  }, [callerPoints]);
+  }, [callerPoints, selectedSource]);
 
   const latestLocationDetails = useMemo(() => {
     if (!latestLocationPoint) return null;
