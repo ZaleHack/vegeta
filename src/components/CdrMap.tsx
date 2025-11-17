@@ -1264,6 +1264,23 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           return true;
         }
 
+        const trackedDigits = normalizePhoneDigits(p.tracked);
+        if (trackedDigits) {
+          const callerDigits = normalizePhoneDigits(p.caller);
+          const calleeDigits = normalizePhoneDigits(p.callee);
+          const numberDigits = normalizePhoneDigits(p.number);
+          const sourceDigits = normalizePhoneDigits(p.source);
+
+          if (
+            callerDigits === trackedDigits ||
+            calleeDigits === trackedDigits ||
+            numberDigits === trackedDigits ||
+            sourceDigits === trackedDigits
+          ) {
+            return true;
+          }
+        }
+
         const direction = (p.direction || '').toString().toLowerCase();
         return direction === 'outgoing';
       }),
