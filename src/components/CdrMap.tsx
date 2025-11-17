@@ -363,6 +363,28 @@ const normalizePhoneDigits = (value?: string): string => {
   return digits;
 };
 
+const getPointSourceValue = (point: Point): string | undefined => {
+  const raw = point.tracked || point.source;
+  if (!raw) return undefined;
+  const trimmed = raw.trim();
+  return trimmed || undefined;
+};
+
+const getPointSourceKey = (point: Point): string | undefined => {
+  const value = getPointSourceValue(point);
+  if (!value) return undefined;
+  const normalized = normalizePhoneDigits(value);
+  return normalized || value;
+};
+
+const normalizeSourceKey = (value?: string | null): string | undefined => {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const normalized = normalizePhoneDigits(trimmed);
+  return normalized || trimmed;
+};
+
 const formatPhoneForDisplay = (value?: string): string => {
   const normalized = normalizePhoneDigits(value);
   if (normalized) return normalized;
@@ -762,7 +784,7 @@ const computeTriangulation = (pts: Point[]): TriangulationZone[] => {
     const cellKey = parsedCgi?.normalized ?? `${lat.toFixed(6)},${lng.toFixed(6)}`;
     if (!cellKey) return;
 
-    const groupingKey = (point.tracked || point.source)?.trim();
+    const groupingKey = getPointSourceValue(point);
     if (!groupingKey) return;
 
     const event: TriangulationEvent = {
@@ -1215,7 +1237,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           latitude: lat,
           longitude: lng,
           nom: point.nom || undefined,
-          source: point.source || point.tracked || undefined
+          source: getPointSourceValue(point)
         });
       } else {
         invalidDetails.push({
@@ -1223,7 +1245,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           latitude: point.latitude,
           longitude: point.longitude,
           nom: point.nom || undefined,
-          source: point.source || point.tracked || undefined
+          source: getPointSourceValue(point)
         });
       }
     });
@@ -1257,6 +1279,17 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   if (points.length === 0) return null;
 
+  const trackedSourceCount = useMemo(() => {
+    const values = new Set<string>();
+    points.forEach((point) => {
+      const key = getPointSourceKey(point);
+      if (key) {
+        values.add(key);
+      }
+    });
+    return values.size;
+  }, [points]);
+
   const callerPoints = useMemo(
     () =>
       points.filter((p) => {
@@ -1264,10 +1297,14 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           return true;
         }
 
+        if (trackedSourceCount >= 2) {
+          return true;
+        }
+
         const direction = (p.direction || '').toString().toLowerCase();
         return direction === 'outgoing';
       }),
-    [points]
+    [points, trackedSourceCount]
   );
 
   const referencePoints = useMemo(
@@ -1415,9 +1452,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const sourceNumbers = useMemo(() => {
     const numbers = new Set<string>();
     callerPoints.forEach((point) => {
-      const rawSource = point.source || point.tracked;
-      if (rawSource) {
-        numbers.add(rawSource);
+      const value = getPointSourceValue(point);
+      if (value) {
+        numbers.add(value);
       }
     });
     return Array.from(numbers);
@@ -1528,9 +1565,30 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const displayedPoints = useMemo(() => {
     let filtered = callerPoints;
     if (selectedSource) {
-      filtered = filtered.filter((p) => p.source === selectedSource);
+      const selectedKey = normalizeSourceKey(selectedSource);
+      filtered = filtered.filter((p) => {
+        const value = getPointSourceValue(p);
+        if (!value) return false;
+        if (value === selectedSource) return true;
+        const pointKey = normalizeSourceKey(value);
+        if (selectedKey && pointKey) {
+          return pointKey === selectedKey;
+        }
+        return pointKey ? pointKey === selectedSource : false;
+      });
     } else if (visibleSources.size > 0) {
-      filtered = filtered.filter((p) => !p.source || visibleSources.has(p.source));
+      filtered = filtered.filter((p) => {
+        const value = getPointSourceValue(p);
+        if (!value) return false;
+        if (visibleSources.has(value)) {
+          return true;
+        }
+        const key = normalizeSourceKey(value);
+        if (!key) {
+          return false;
+        }
+        return visibleSources.has(key) || normalizedVisibleSources.has(key);
+      });
     }
     return filtered.filter(isPointWithinZone);
   }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
@@ -1640,39 +1698,29 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const hasLatestLocation = Boolean(latestLocationPosition);
 
   const contactPoints = useMemo(() => {
-    const matchesVisible = (raw?: string): boolean => {
+    const matchesVisible = (point: Point): boolean => {
       if (visibleSources.size === 0) {
         return true;
       }
-      const value = (raw || '').trim();
+      const value = getPointSourceValue(point);
       if (!value) {
         return false;
       }
       if (visibleSources.has(value)) {
         return true;
       }
-      const normalized = normalizePhoneDigits(value);
-      if (!normalized) {
+      const key = normalizeSourceKey(value);
+      if (!key) {
         return false;
       }
-      if (normalizedVisibleSources.has(normalized)) {
-        return true;
-      }
-      if (visibleSources.has(normalized)) {
-        return true;
-      }
-      return false;
+      return visibleSources.has(key) || normalizedVisibleSources.has(key);
     };
 
     const base = points.filter((point) => {
       if (!isPointWithinZone(point)) return false;
 
-      if (!selectedSource) {
-        const trackedVisible = matchesVisible(point.tracked);
-        const sourceVisible = matchesVisible(point.source);
-        if (!trackedVisible && !sourceVisible) {
-          return false;
-        }
+      if (!selectedSource && !matchesVisible(point)) {
+        return false;
       }
 
       return !isLocationEventType(point.type);
@@ -1692,7 +1740,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       const callerNormalized = normalizePhoneDigits(point.caller);
       const calleeNormalized = normalizePhoneDigits(point.callee);
       const numberNormalized = normalizePhoneDigits(point.number);
-      const sourceNormalized = normalizePhoneDigits(point.source);
+      const sourceNormalized = normalizePhoneDigits(getPointSourceValue(point));
 
       return (
         trackedNormalized === normalizedSelected ||
@@ -1715,8 +1763,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const activeSourceCount = useMemo(() => {
     const set = new Set<string>();
     displayedPoints.forEach((p) => {
-      if (p.source) {
-        set.add(p.source);
+      const src = getPointSourceValue(p);
+      if (src) {
+        set.add(src);
       }
     });
     return set.size;
@@ -2107,7 +2156,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     if (selectedSource === null && sourceNumbers.length > 1) {
       const perSource = new Map<string, Map<string, LocationStat>>();
       displayedPoints.forEach((p) => {
-        const src = p.source || 'unknown';
+        const src = getPointSourceValue(p) || 'unknown';
         let map = perSource.get(src);
         if (!map) {
           map = new Map();
@@ -2280,8 +2329,15 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       { positions: [number, number][]; counts: Map<string, number> }
     >();
     sourceNumbers.forEach((src) => {
+      const srcKey = normalizeSourceKey(src) || src;
       const pts = callerPoints
-        .filter((p) => p.source === src)
+        .filter((p) => {
+          const value = getPointSourceValue(p);
+          if (!value) return false;
+          if (value === src) return true;
+          const pointKey = normalizeSourceKey(value);
+          return pointKey ? pointKey === srcKey : false;
+        })
         .sort((a, b) => {
           const dateA = new Date(`${a.callDate}T${a.startTime}`);
           const dateB = new Date(`${b.callDate}T${b.startTime}`);
@@ -2335,9 +2391,18 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const similarPoints = useMemo(
     () =>
-      callerPoints.filter(
-        (p) => p.source && visibleSimilar.has(p.source)
-      ),
+      callerPoints.filter((p) => {
+        const value = getPointSourceValue(p);
+        if (!value) return false;
+        if (visibleSimilar.has(value)) {
+          return true;
+        }
+        const key = normalizeSourceKey(value);
+        if (!key) {
+          return false;
+        }
+        return visibleSimilar.has(key);
+      }),
     [callerPoints, visibleSimilar]
   );
 
@@ -2473,7 +2538,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       { lat: number; lng: number; nom: string; events: Point[] }
     >();
     displayedPoints.forEach((p) => {
-      if (!p.source) return;
+      const src = getPointSourceValue(p);
+      if (!src) return;
       const key = `${p.latitude},${p.longitude}`;
       if (!locationMap.has(key)) {
         locationMap.set(key, {
@@ -2520,7 +2586,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
       const getActiveSources = () =>
         new Set(
-          Array.from(active).map((i) => evs[i].source).filter(Boolean) as string[]
+          Array.from(active)
+            .map((i) => getPointSourceValue(evs[i]))
+            .filter(Boolean) as string[]
         );
 
       timeline.forEach(({ time, type, index }) => {
@@ -2549,13 +2617,17 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         });
 
         const numbers = Array.from(
-          new Set(groupEvents.map((e) => e.source!).filter(Boolean))
+          new Set(
+            groupEvents
+              .map((e) => getPointSourceValue(e))
+              .filter((value): value is string => Boolean(value))
+          )
         );
         if (numbers.length < 2) return;
 
         const perNumber = numbers.map((num) => {
           const evts = groupEvents
-            .filter((e) => e.source === num)
+            .filter((e) => getPointSourceValue(e) === num)
             .map((e) => {
               const s = new Date(`${e.callDate}T${e.startTime}`);
               const en = new Date(`${e.endDate || e.callDate}T${e.endTime}`);
@@ -2672,12 +2744,13 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         groups.set(key, group);
       }
 
-      const sourceKey = p.source ?? NO_SOURCE_KEY;
+      const sourceValue = getPointSourceValue(p);
+      const sourceKey = sourceValue ?? NO_SOURCE_KEY;
       const entry = group.perSource.get(sourceKey);
       if (entry) {
         entry.events.push(p);
       } else {
-        group.perSource.set(sourceKey, { source: p.source, events: [p] });
+        group.perSource.set(sourceKey, { source: sourceValue, events: [p] });
       }
     });
 
@@ -2697,7 +2770,11 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           <Marker
             key={key}
             position={position}
-            icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
+            icon={getIcon(
+              loc.type,
+              loc.direction,
+              resolveSourceColor(getPointSourceValue(loc))
+            )}
           >
             <Popup className="cdr-popup">{renderEventPopupContent(loc)}</Popup>
           </Marker>
@@ -2708,7 +2785,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       const uniqueSources = Array.from(
         new Set(
           events
-            .map((ev) => ev.source)
+            .map((ev) => getPointSourceValue(ev))
             .filter((src): src is string => Boolean(src))
         )
       );
@@ -2721,7 +2798,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             events.length,
             first.type,
             first.direction,
-            resolveSourceColor(first.source)
+            resolveSourceColor(getPointSourceValue(first))
           )}
         >
           <Popup className="cdr-popup">
@@ -2928,7 +3005,11 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               parseFloat(loc.latitude),
               parseFloat(loc.longitude)
             ]}
-            icon={getIcon(loc.type, loc.direction, resolveSourceColor(loc.source))}
+            icon={getIcon(
+              loc.type,
+              loc.direction,
+              resolveSourceColor(getPointSourceValue(loc))
+            )}
           >
             <Popup className="cdr-popup">
               {renderEventPopupContent(loc)}
