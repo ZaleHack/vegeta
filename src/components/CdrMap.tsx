@@ -1572,8 +1572,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
 
   const latestLocationPoint = useMemo(() => {
+    const searchPoints = callerPoints.length > 0 ? callerPoints : points;
     let latest: { point: Point; timestamp: number } | null = null;
-    callerPoints.forEach((point) => {
+    searchPoints.forEach((point) => {
       if (!isLocationEventType(point.type)) return;
       const lat = parseFloat(point.latitude);
       const lng = parseFloat(point.longitude);
@@ -1585,7 +1586,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       }
     });
     return latest?.point ?? null;
-  }, [callerPoints]);
+  }, [callerPoints, points]);
 
   const latestLocationDetails = useMemo(() => {
     if (!latestLocationPoint) return null;
