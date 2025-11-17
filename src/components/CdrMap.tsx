@@ -28,7 +28,9 @@ import {
   Crosshair,
   History,
   Plus,
-  Minus
+  Minus,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import MapLegend, { NumberLegendItem } from './MapLegend';
