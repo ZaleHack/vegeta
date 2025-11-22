@@ -64,7 +64,7 @@ const EXCLUDED_SEARCH_TABLES = new Set(
 );
 
 const shouldExcludeRealtimeCdr =
-  process.env.EXCLUDE_REALTIME_CDR_FROM_SEARCH === 'true';
+  process.env.EXCLUDE_REALTIME_CDR_FROM_SEARCH !== 'false';
 
 if (shouldExcludeRealtimeCdr) {
   const realtimeExclusions = getRealtimeCdrTableIdentifiers();
