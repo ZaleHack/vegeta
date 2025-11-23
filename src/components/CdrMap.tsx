@@ -1747,6 +1747,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     }
     if (pane) {
       pane.style.zIndex = '1200';
+      pane.style.pointerEvents = 'auto';
     }
   }, [isMapReady]);
 
@@ -1755,7 +1756,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const latestLocationIcon = useMemo(
     () =>
       L.divIcon({
-        className: 'latest-location-pulse-icon',
+        className: 'latest-location-pulse-icon leaflet-div-icon',
         html: `
           <div class="latest-location-pulse">
             <span class="latest-location-pulse__ring"></span>
@@ -1764,8 +1765,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             <span class="latest-location-pulse__dot"></span>
           </div>
         `.trim(),
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
       }),
     []
   );
@@ -1783,7 +1784,8 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   useEffect(() => {
     if (!isMapReady || !latestLocationPosition) return;
     latestLocationMarkerRef.current?.bringToFront();
-  }, [isMapReady, latestLocationPosition]);
+    latestLocationMarkerRef.current?.setOpacity(1);
+  }, [isMapReady, latestLocationPosition, showOnlyLatestLocation]);
 
   const handleToggleLatestLocationView = useCallback(() => {
     if (!latestLocationPoint || !latestLocationPosition) return;
