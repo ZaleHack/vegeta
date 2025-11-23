@@ -1628,17 +1628,23 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const latestLocationPoint = useMemo(() => {
     let latest: { point: Point; timestamp: number } | null = null;
+    let lastWithCoords: Point | null = null;
+
     points.forEach((point) => {
       const lat = parseFloat(point.latitude);
       const lng = parseFloat(point.longitude);
       if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+      lastWithCoords = point;
+
       const ts = getPointTimestamp(point);
       if (ts === null) return;
       if (!latest || ts > latest.timestamp) {
         latest = { point, timestamp: ts };
       }
     });
-    return latest?.point ?? null;
+
+    return latest?.point ?? lastWithCoords;
   }, [points]);
 
   const latestLocationDetails = useMemo(() => {
