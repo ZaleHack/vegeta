@@ -231,6 +231,28 @@ const buildIdentifierVariants = (value, type = 'phone') => {
   return variants;
 };
 
+const normalizeDateValue = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString();
+  }
+
+  return text;
+};
+
 const matchesIdentifier = (identifierSet, value, type = 'phone') => {
   if (!value) {
     return false;
@@ -610,6 +632,153 @@ class RealtimeCdrService {
       searchType
     });
     return this.#buildResult(rows, identifierVariants, searchType);
+  }
+
+  async findAssociations(identifier, options = {}) {
+    const trimmedIdentifier = typeof identifier === 'string' ? identifier.trim() : '';
+    if (!trimmedIdentifier) {
+      return { imeis: [], numbers: [], updatedAt: new Date().toISOString() };
+    }
+
+    const sanitizedImei = sanitizeImei(trimmedIdentifier);
+    const sanitizedNumber = sanitizeNumber(trimmedIdentifier);
+    const searchType = sanitizedImei && sanitizedImei.length >= 14 ? 'imei' : 'phone';
+    const variants = buildIdentifierVariants(trimmedIdentifier, searchType);
+
+    if (variants.size === 0) {
+      return { imeis: [], numbers: [], updatedAt: new Date().toISOString() };
+    }
+
+    const conditions = [];
+    const params = [];
+    const variantList = Array.from(variants);
+
+    if (searchType === 'imei') {
+      conditions.push(`c.imei_appelant IN (${variantList.map(() => '?').join(', ')})`);
+    } else {
+      conditions.push(`c.numero_appelant IN (${variantList.map(() => '?').join(', ')})`);
+    }
+    params.push(...variantList);
+
+    const startDate = typeof options.startDate === 'string' && options.startDate.trim() ? options.startDate.trim() : null;
+    const endDate = typeof options.endDate === 'string' && options.endDate.trim() ? options.endDate.trim() : null;
+
+    if (startDate) {
+      conditions.push('c.date_debut >= ?');
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      conditions.push('c.date_debut <= ?');
+      params.push(endDate);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const sql = searchType === 'imei'
+      ? `
+        SELECT
+          c.numero_appelant AS number,
+          COUNT(*) AS occurrences,
+          MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
+          MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
+        FROM ${REALTIME_CDR_TABLE_SQL} AS c
+        ${whereClause}
+        GROUP BY c.numero_appelant
+        HAVING c.numero_appelant IS NOT NULL AND c.numero_appelant <> ''
+        ORDER BY last_seen DESC, occurrences DESC
+      `
+      : `
+        SELECT
+          c.imei_appelant AS imei,
+          COUNT(*) AS occurrences,
+          MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
+          MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
+        FROM ${REALTIME_CDR_TABLE_SQL} AS c
+        ${whereClause}
+        GROUP BY c.imei_appelant
+        HAVING c.imei_appelant IS NOT NULL AND c.imei_appelant <> ''
+        ORDER BY last_seen DESC, occurrences DESC
+      `;
+
+    let rows = [];
+    try {
+      rows = await this.database.query(sql, params, {
+        suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+        suppressErrorLog: true
+      });
+    } catch (error) {
+      console.error('Erreur recherche associations CDR temps réel:', error);
+      return { imeis: [], numbers: [], updatedAt: new Date().toISOString() };
+    }
+
+    const updatedAt = new Date().toISOString();
+
+    if (searchType === 'imei') {
+      const imeiValue = sanitizedImei || trimmedIdentifier;
+      const numbers = rows
+        .map((row) => {
+          const normalizedNumber = normalizePhoneNumber(row.number) || sanitizeNumber(row.number) || '';
+          if (!normalizedNumber) {
+            return null;
+          }
+
+          return {
+            number: normalizedNumber,
+            occurrences: Number(row.occurrences) || 0,
+            firstSeen: normalizeDateValue(row.first_seen),
+            lastSeen: normalizeDateValue(row.last_seen),
+            roles: [],
+            cases: []
+          };
+        })
+        .filter(Boolean);
+
+      return {
+        imeis: [
+          {
+            imei: imeiValue,
+            numbers,
+            roleSummary: { caller: numbers.length, callee: 0 },
+            cases: []
+          }
+        ],
+        numbers: [],
+        updatedAt
+      };
+    }
+
+    const normalizedNumber = normalizePhoneNumber(sanitizedNumber) || sanitizedNumber || trimmedIdentifier;
+    const imeis = rows
+      .map((row) => {
+        const imei = row.imei ? String(row.imei).trim() : '';
+        if (!imei) {
+          return null;
+        }
+
+        return {
+          imei,
+          occurrences: Number(row.occurrences) || 0,
+          firstSeen: normalizeDateValue(row.first_seen),
+          lastSeen: normalizeDateValue(row.last_seen),
+          roles: [],
+          cases: []
+        };
+      })
+      .filter(Boolean);
+
+    return {
+      imeis: [],
+      numbers: [
+        {
+          number: normalizedNumber,
+          imeis,
+          roleSummary: { caller: imeis.length, callee: 0 },
+          cases: []
+        }
+      ],
+      updatedAt
+    };
   }
 
   async enrichMissingCoordinates(options = {}) {

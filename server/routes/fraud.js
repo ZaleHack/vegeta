@@ -1,9 +1,8 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-import FraudDetectionService from '../services/FraudDetectionService.js';
+import realtimeCdrService from '../services/RealtimeCdrService.js';
 
 const router = express.Router();
-const fraudService = new FraudDetectionService();
 
 const isValidDate = (value) => {
   if (!value) return false;
@@ -32,14 +31,10 @@ router.get('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'La date de début doit précéder la date de fin' });
     }
 
-    const result = await fraudService.detectAcrossCases(
-      {
-        startDate: start || null,
-        endDate: end || null,
-        identifier: trimmedIdentifier,
-      },
-      req.user
-    );
+    const result = await realtimeCdrService.findAssociations(trimmedIdentifier, {
+      startDate: start || null,
+      endDate: end || null,
+    });
 
     res.json(result);
   } catch (error) {
