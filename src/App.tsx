@@ -7018,7 +7018,7 @@ useEffect(() => {
                         <button
                           type="submit"
                           disabled={globalFraudLoading}
-                          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 via-purple-500 to-blue-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {globalFraudLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
                           <span>Lancer l'analyse</span>
@@ -7026,7 +7026,7 @@ useEffect(() => {
                         <button
                           type="button"
                           onClick={resetGlobalFraudSearch}
-                          className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-6 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500"
+                          className="inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-blue-50/80 px-6 py-2.5 text-sm font-semibold text-blue-700 transition hover:border-blue-300 hover:text-blue-800 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-100 dark:hover:border-blue-400"
                         >
                           <X className="h-4 w-4" />
                           <span>Réinitialiser</span>
@@ -7064,7 +7064,7 @@ useEffect(() => {
                   </section>
                 ) : (
                   <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
-                    <div className="border-b border-slate-200/70 bg-gradient-to-r from-rose-500 via-purple-500 to-blue-500 px-8 py-6 text-white dark:border-slate-700/60">
+                    <div className="border-b border-slate-200/70 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-500 px-8 py-6 text-white dark:border-slate-700/60">
                       <div className="space-y-4">
                         <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
                           <div>
@@ -7099,7 +7099,7 @@ useEffect(() => {
                           <div key={imeiEntry.imei} className="space-y-5 p-6">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                               <div className="flex items-start gap-4">
-                                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 via-purple-500 to-blue-500 text-white shadow-lg shadow-purple-400/40">
+                                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-500 text-white shadow-lg shadow-blue-400/40">
                                   <AlertTriangle className="h-7 w-7" />
                                 </div>
                                 <div>
@@ -7134,7 +7134,6 @@ useEffect(() => {
                                 <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/5 dark:text-slate-400">
                                   <tr>
                                     <th className="px-4 py-3 text-left">Numéro</th>
-                                    <th className="px-4 py-3 text-left">Rôles</th>
                                     <th className="px-4 py-3 text-left">Occurrences</th>
                                     <th className="px-4 py-3 text-left">Première apparition</th>
                                     <th className="px-4 py-3 text-left">Dernière apparition</th>
@@ -7148,24 +7147,6 @@ useEffect(() => {
                                     >
                                       <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">
                                         {numberEntry.number}
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        {numberEntry.roles.length === 0 ? (
-                                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 dark:bg-white/5 dark:text-slate-400">
-                                            -
-                                          </span>
-                                        ) : (
-                                          <div className="flex flex-wrap gap-2">
-                                            {numberEntry.roles.map((role) => (
-                                              <span
-                                                key={role}
-                                                className="inline-flex items-center rounded-full bg-blue-100/80 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
-                                              >
-                                                {FRAUD_ROLE_LABELS[role] || role}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        )}
                                       </td>
                                       <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{numberEntry.occurrences}</td>
                                       <td className="px-4 py-3 text-slate-500 dark:text-slate-300">
@@ -7228,7 +7209,6 @@ useEffect(() => {
                                   <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/5 dark:text-slate-400">
                                     <tr>
                                       <th className="px-4 py-3 text-left">IMEI</th>
-                                      <th className="px-4 py-3 text-left">Rôles</th>
                                       <th className="px-4 py-3 text-left">Occurrences</th>
                                       <th className="px-4 py-3 text-left">Première apparition</th>
                                       <th className="px-4 py-3 text-left">Dernière apparition</th>
@@ -7242,24 +7222,6 @@ useEffect(() => {
                                       >
                                         <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">
                                           {imeiInfo.imei}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                          {imeiInfo.roles.length === 0 ? (
-                                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 dark:bg-white/5 dark:text-slate-400">
-                                              -
-                                            </span>
-                                          ) : (
-                                            <div className="flex flex-wrap gap-2">
-                                              {imeiInfo.roles.map((role) => (
-                                                <span
-                                                  key={role}
-                                                  className="inline-flex items-center rounded-full bg-blue-100/80 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
-                                                >
-                                                  {FRAUD_ROLE_LABELS[role] || role}
-                                                </span>
-                                              ))}
-                                            </div>
-                                          )}
                                         </td>
                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{imeiInfo.occurrences}</td>
                                         <td className="px-4 py-3 text-slate-500 dark:text-slate-300">
