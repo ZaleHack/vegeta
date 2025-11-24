@@ -2036,12 +2036,21 @@ const App: React.FC = () => {
     if (!globalFraudResult) {
       return { totalImeis: 0, totalNumbers: 0, alerts: 0 };
     }
-    const imeiCount = Array.isArray(globalFraudResult.imeis) ? globalFraudResult.imeis.length : 0;
-    const numbersCount = Array.isArray(globalFraudResult.imeis)
+    const imeiCountFromImeis = Array.isArray(globalFraudResult.imeis) ? globalFraudResult.imeis.length : 0;
+    const imeiCountFromNumbers = Array.isArray(globalFraudResult.numbers)
+      ? globalFraudResult.numbers.reduce((acc, entry) => acc + entry.imeis.length, 0)
+      : 0;
+    const numbersCountFromImeis = Array.isArray(globalFraudResult.imeis)
       ? globalFraudResult.imeis.reduce((acc, entry) => acc + entry.numbers.length, 0)
       : 0;
-    const alertCount = Array.isArray(globalFraudResult.numbers) ? globalFraudResult.numbers.length : 0;
-    return { totalImeis: imeiCount, totalNumbers: numbersCount, alerts: alertCount };
+    const numbersCountFromNumbers = Array.isArray(globalFraudResult.numbers) ? globalFraudResult.numbers.length : 0;
+    const alertCount = Math.max(numbersCountFromNumbers, imeiCountFromImeis);
+
+    return {
+      totalImeis: Math.max(imeiCountFromImeis, imeiCountFromNumbers),
+      totalNumbers: Math.max(numbersCountFromImeis, numbersCountFromNumbers),
+      alerts: alertCount,
+    };
   }, [globalFraudResult]);
 
   useEffect(() => {
