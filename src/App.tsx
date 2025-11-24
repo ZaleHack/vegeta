@@ -6939,99 +6939,101 @@ useEffect(() => {
 
               <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-rose-500/10 via-purple-500/10 to-blue-500/10" />
-                <div className="relative p-8 space-y-6">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                        Analyse transversale des CDR
-                      </h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-300">
-                        Surveillez les comportements critiques sans exposer les paramètres de détection.
-                      </p>
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur dark:bg-white/10 dark:text-slate-200">
-                      <Scan className="h-4 w-4" />
-                      Analyse globale
-                    </div>
-                  </div>
-
-                  <form onSubmit={handleGlobalFraudSearch} className="space-y-6">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                          Numéro ou IMEI à analyser
-                        </label>
-                        <div className="relative">
-                          <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
-                            <Search className="h-4 w-4" />
-                          </div>
-                          <input
-                            type="text"
-                            value={globalFraudIdentifier}
-                            onChange={(e) => {
-                              setGlobalFraudIdentifier(e.target.value);
-                              if (globalFraudError) setGlobalFraudError('');
-                            }}
-                            placeholder="Ex : 221771234567 ou 356789104567890"
-                            className="w-full rounded-2xl border border-slate-200/80 bg-white/80 px-12 py-3 text-base shadow-inner focus:border-transparent focus:outline-none focus:ring-4 focus:ring-purple-500/30 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
-                          />
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          L'analyse s'effectue sur l'ensemble des données importées disponibles.
+                <div className="relative p-8">
+                  <div className="mx-auto max-w-3xl space-y-8">
+                    <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                          Analyse transversale des CDR
+                        </h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-300">
+                          Surveillez les comportements critiques sans exposer les paramètres de détection.
                         </p>
                       </div>
-
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                            Date de début (optionnel)
-                          </label>
-                          <input
-                            type="date"
-                            value={globalFraudStart}
-                            onChange={(e) => {
-                              setGlobalFraudStart(e.target.value);
-                              if (globalFraudError) setGlobalFraudError('');
-                            }}
-                            className="w-full rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/60"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                            Date de fin (optionnel)
-                          </label>
-                          <input
-                            type="date"
-                            value={globalFraudEnd}
-                            onChange={(e) => {
-                              setGlobalFraudEnd(e.target.value);
-                              if (globalFraudError) setGlobalFraudError('');
-                            }}
-                            className="w-full rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/60"
-                          />
-                        </div>
+                      <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200/80 backdrop-blur dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
+                        <Scan className="h-4 w-4" />
+                        Analyse globale
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        type="submit"
-                        disabled={globalFraudLoading}
-                        className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 via-purple-500 to-blue-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {globalFraudLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
-                        <span>Lancer l'analyse</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={resetGlobalFraudSearch}
-                        className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-6 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-slate-500"
-                      >
-                        <X className="h-4 w-4" />
-                        <span>Réinitialiser</span>
-                      </button>
-                    </div>
-                  </form>
+                    <form onSubmit={handleGlobalFraudSearch} className="space-y-5 rounded-2xl border border-white/60 bg-white/80 p-6 shadow-lg shadow-slate-200/50 backdrop-blur dark:border-white/10 dark:bg-white/5 dark:shadow-black/40">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                            Numéro ou IMEI à analyser
+                          </label>
+                          <div className="relative">
+                            <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+                              <Search className="h-4 w-4" />
+                            </div>
+                            <input
+                              type="text"
+                              value={globalFraudIdentifier}
+                              onChange={(e) => {
+                                setGlobalFraudIdentifier(e.target.value);
+                                if (globalFraudError) setGlobalFraudError('');
+                              }}
+                              placeholder="Ex : 221771234567 ou 356789104567890"
+                              className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-12 py-3 text-base font-medium text-slate-800 shadow-inner focus:border-transparent focus:outline-none focus:ring-4 focus:ring-purple-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                            />
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            L'analyse s'effectue sur l'ensemble des données importées disponibles.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                              Date de début (optionnel)
+                            </label>
+                            <input
+                              type="date"
+                              value={globalFraudStart}
+                              onChange={(e) => {
+                                setGlobalFraudStart(e.target.value);
+                                if (globalFraudError) setGlobalFraudError('');
+                              }}
+                              className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                              Date de fin (optionnel)
+                            </label>
+                            <input
+                              type="date"
+                              value={globalFraudEnd}
+                              onChange={(e) => {
+                                setGlobalFraudEnd(e.target.value);
+                                if (globalFraudError) setGlobalFraudError('');
+                              }}
+                              className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap justify-center gap-3 sm:justify-start">
+                        <button
+                          type="submit"
+                          disabled={globalFraudLoading}
+                          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 via-purple-500 to-blue-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {globalFraudLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scan className="h-4 w-4" />}
+                          <span>Lancer l'analyse</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetGlobalFraudSearch}
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-6 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500"
+                        >
+                          <X className="h-4 w-4" />
+                          <span>Réinitialiser</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </section>
 
