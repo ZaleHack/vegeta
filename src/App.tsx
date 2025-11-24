@@ -1181,7 +1181,7 @@ interface BlacklistEntry {
 }
 
 const App: React.FC = () => {
-  const { notifySuccess, notifyError, notifyWarning } = useNotifications();
+  const { notifySuccess, notifyError, notifyWarning, notifyInfo } = useNotifications();
   const { currentPage, navigateToPage } = usePageNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
   // États principaux
