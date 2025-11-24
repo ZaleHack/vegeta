@@ -28,6 +28,7 @@ import {
   UploadCloud,
   Phone,
   PhoneIncoming,
+  PhoneOutgoing,
   Building2,
   Globe,
   Car,
