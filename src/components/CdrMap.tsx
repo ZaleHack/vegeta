@@ -3223,9 +3223,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
                 {latestLocationPopupCoords && (
                   <p className="text-sm text-slate-700">{latestLocationPopupCoords}</p>
                 )}
-                {latestLocationTrackedNumber && (
-                  <p className="text-xs text-slate-500">Numéro suivi : {latestLocationTrackedNumber}</p>
-                )}
               </div>
             </Popup>
           </Marker>

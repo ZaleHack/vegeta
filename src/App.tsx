@@ -5071,12 +5071,22 @@ useEffect(() => {
     );
   }
 
-  const renderCdrSearchForm = () => {
+  const renderCdrSearchForm = (variant: 'standalone' | 'map' = 'standalone') => {
     const showDetectionPanel = false;
+    const isStandalone = variant === 'standalone';
+
+    const sectionClassName = isStandalone
+      ? 'relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-slate-100 shadow-2xl shadow-slate-200/60 ring-1 ring-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:from-slate-900/80 dark:via-slate-900 dark:to-slate-950 dark:shadow-black/40 dark:ring-slate-800/60'
+      : 'rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/50 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40';
+
+    const contentClassName = isStandalone ? 'space-y-6 p-6 sm:p-8' : 'space-y-8 p-6 sm:p-8';
 
     const combinedSection = (
-      <section className="rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/50 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
-        <div className="space-y-8 p-6 sm:p-8">
+      <section className={sectionClassName}>
+        {isStandalone && (
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-100/40 via-transparent to-indigo-100/60 dark:from-blue-500/10 dark:to-indigo-500/10" aria-hidden />
+        )}
+        <div className={contentClassName}>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-4">
@@ -7356,7 +7366,7 @@ useEffect(() => {
 
               {!showCdrMap && (
                 <div className="grid grid-cols-1 gap-6">
-                  {renderCdrSearchForm()}
+                  {renderCdrSearchForm('standalone')}
                 </div>
               )}
 
@@ -7370,7 +7380,7 @@ useEffect(() => {
               {showCdrMap && cdrResult && !cdrLoading && (
                 <>
                   <div className="fixed inset-0 z-0 flex">
-                    {renderCdrSearchForm()}
+                    {renderCdrSearchForm('map')}
                     <div className="flex-1 relative h-screen">
                       {cdrResult.total > 0 ? (
                         <CdrMap
