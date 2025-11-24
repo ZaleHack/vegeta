@@ -1742,6 +1742,24 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     return [lat, lng];
   }, [latestLocationPoint]);
 
+  const latestLocationPopupDate = useMemo(() => {
+    if (!latestLocationPoint?.callDate) return null;
+    const dateLabel = formatDate(latestLocationPoint.callDate);
+    const timeLabel = latestLocationPoint.startTime || latestLocationPoint.endTime;
+    return timeLabel ? `${dateLabel} à ${timeLabel}` : dateLabel;
+  }, [latestLocationPoint]);
+
+  const latestLocationPopupCoords = useMemo(() => {
+    if (!latestLocationPosition) return null;
+    const [lat, lng] = latestLocationPosition;
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }, [latestLocationPosition]);
+
+  const latestLocationTrackedNumber = useMemo(
+    () => (latestLocationPoint?.tracked ? formatPhoneForDisplay(latestLocationPoint.tracked) : null),
+    [latestLocationPoint]
+  );
+
   useEffect(() => {
     if (!isMapReady || !mapRef.current) return;
     const paneId = 'latest-location-pane';
@@ -2439,13 +2457,12 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(() => showOthers && !showOnlyLatestLocation, [showOthers, showOnlyLatestLocation]);
+  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
   const showLocationMarkers = useMemo(
     () => {
-      if (showOnlyLatestLocation) return false;
       return showOthers || activeInfo === 'recent' || activeInfo === 'popular';
     },
-    [showOthers, activeInfo, showOnlyLatestLocation]
+    [showOthers, activeInfo]
   );
 
   const routePositions = useMemo(() => {
@@ -2897,8 +2914,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const startIcon = useMemo(() => createLabelIcon('Départ', INCOMING_CALL_COLOR), []);
   const endIcon = useMemo(() => createLabelIcon('Arrivée', LOCATION_COLOR), []);
-  const latestLocationPopupPoint = latestLocationPoint;
-  const latestLocationPopupDetails = latestLocationDetails;
   const groupedPoints = useMemo<GroupedPoint[]>(() => {
     const groups = new Map<
       string,
@@ -3237,13 +3252,14 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
             <Popup className="cdr-popup">
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-red-600">Dernière localisation détectée</p>
-                {latestLocationPopupPoint?.nom && (
-                  <p className="text-sm font-medium text-slate-700">
-                    {latestLocationPopupPoint.nom}
-                  </p>
+                {latestLocationPopupDate && (
+                  <p className="text-sm font-medium text-slate-700">{latestLocationPopupDate}</p>
                 )}
-                {latestLocationPopupDetails && (
-                  <p className="text-xs text-slate-500">{latestLocationPopupDetails}</p>
+                {latestLocationPopupCoords && (
+                  <p className="text-sm text-slate-700">{latestLocationPopupCoords}</p>
+                )}
+                {latestLocationTrackedNumber && (
+                  <p className="text-xs text-slate-500">Numéro suivi : {latestLocationTrackedNumber}</p>
                 )}
               </div>
             </Popup>
