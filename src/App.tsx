@@ -1996,6 +1996,19 @@ const App: React.FC = () => {
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
   const [showMeetingPoints, setShowMeetingPoints] = useState(false);
   const [zoneMode, setZoneMode] = useState(false);
+  const [monitoringInput, setMonitoringInput] = useState('');
+  const [monitoringType, setMonitoringType] = useState<MonitoringType>('number');
+  const [monitoringTargets, setMonitoringTargets] = useState<FraudMonitoringTarget[]>([]);
+  const [monitoringAlerts, setMonitoringAlerts] = useState<FraudMonitoringAlert[]>([]);
+  const [fraudResult, setFraudResult] = useState<FraudDetectionResult | null>(null);
+  const [fraudLoading, setFraudLoading] = useState(false);
+  const [fraudError, setFraudError] = useState('');
+  const [globalFraudIdentifier, setGlobalFraudIdentifier] = useState('');
+  const [globalFraudStart, setGlobalFraudStart] = useState('');
+  const [globalFraudEnd, setGlobalFraudEnd] = useState('');
+  const [globalFraudLoading, setGlobalFraudLoading] = useState(false);
+  const [globalFraudError, setGlobalFraudError] = useState('');
+  const [globalFraudResult, setGlobalFraudResult] = useState<GlobalFraudDetectionResult | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -2033,19 +2046,6 @@ const App: React.FC = () => {
     if (typeof window === 'undefined') return;
     localStorage.setItem('fraudMonitoringAlerts', JSON.stringify(monitoringAlerts.slice(0, 40)));
   }, [monitoringAlerts]);
-  const [fraudResult, setFraudResult] = useState<FraudDetectionResult | null>(null);
-  const [fraudLoading, setFraudLoading] = useState(false);
-  const [fraudError, setFraudError] = useState('');
-  const [globalFraudIdentifier, setGlobalFraudIdentifier] = useState('');
-  const [globalFraudStart, setGlobalFraudStart] = useState('');
-  const [globalFraudEnd, setGlobalFraudEnd] = useState('');
-  const [globalFraudLoading, setGlobalFraudLoading] = useState(false);
-  const [globalFraudError, setGlobalFraudError] = useState('');
-  const [globalFraudResult, setGlobalFraudResult] = useState<GlobalFraudDetectionResult | null>(null);
-  const [monitoringInput, setMonitoringInput] = useState('');
-  const [monitoringType, setMonitoringType] = useState<MonitoringType>('number');
-  const [monitoringTargets, setMonitoringTargets] = useState<FraudMonitoringTarget[]>([]);
-  const [monitoringAlerts, setMonitoringAlerts] = useState<FraudMonitoringAlert[]>([]);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTargetCase, setShareTargetCase] = useState<CdrCase | null>(null);
   const [shareDivisionUsers, setShareDivisionUsers] = useState<CaseShareUser[]>([]);
