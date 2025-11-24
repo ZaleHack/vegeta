@@ -1661,21 +1661,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
   const latestLocationHighlights = useMemo<LatestLocationHighlight[]>(() => {
     if (!latestLocationPoint) return [];
-    const isLocationEvent = isLocationEventType(latestLocationPoint.type);
-    const direction = (latestLocationPoint.direction || '').trim().toLowerCase();
-    const durationLabel = formatPointDuration(latestLocationPoint) ?? null;
-    const EventIcon = isLocationEvent
-      ? MapPin
-      : direction === 'outgoing'
-        ? PhoneOutgoing
-        : PhoneIncoming;
-    const directionLabel =
-      direction === 'outgoing'
-        ? 'Appel sortant'
-        : direction === 'incoming'
-          ? 'Appel entrant'
-          : '';
-    const eventValue = isLocationEvent ? 'Position suivie' : directionLabel || 'Interaction vocale';
     const dateLabel = latestLocationPoint.callDate ? formatDate(latestLocationPoint.callDate) : null;
     const timeLabel = latestLocationPoint.startTime || latestLocationPoint.endTime || null;
     const lat = Number.parseFloat(latestLocationPoint.latitude);
@@ -1684,17 +1669,6 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
       Number.isFinite(lat) && Number.isFinite(lng) ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : null;
 
     return [
-      {
-        key: 'event',
-        label: 'Interaction',
-        value: eventValue,
-        sub: isLocationEvent
-          ? latestLocationPoint.nom || latestLocationPoint.cgi || null
-          : durationLabel
-            ? `Durée ${durationLabel}`
-            : null,
-        icon: EventIcon
-      },
       {
         key: 'time',
         label: 'Observé le',
@@ -1718,18 +1692,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     if (latestLocationPoint.tracked) {
       badges.push({ label: 'Numéro suivi', value: formatPhoneForDisplay(latestLocationPoint.tracked) });
     }
-    if (latestLocationPoint.caller) {
-      badges.push({ label: 'Appelant', value: formatPhoneForDisplay(latestLocationPoint.caller) });
-    }
-    if (latestLocationPoint.callee) {
-      badges.push({ label: 'Destinataire', value: formatPhoneForDisplay(latestLocationPoint.callee) });
-    }
     const source = getPointSourceValue(latestLocationPoint);
     if (source && source !== latestLocationPoint.tracked) {
       badges.push({ label: 'Source', value: formatPhoneForDisplay(source) });
-    }
-    if (latestLocationPoint.deviceId) {
-      badges.push({ label: 'Appareil', value: latestLocationPoint.deviceId });
     }
     return badges;
   }, [latestLocationPoint]);
