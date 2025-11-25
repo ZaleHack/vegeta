@@ -28,6 +28,8 @@ const TEXT_TYPES = new Set(['text', 'mediumtext', 'longtext', 'tinytext']);
 const BLOB_TYPES = new Set(['blob', 'mediumblob', 'longblob', 'tinyblob']);
 const UNSUPPORTED_TYPES = new Set(['json']);
 
+const ADDITIONAL_INDEXING_TABLES = ['autres.data_orange'];
+
 const sanitizeIdentifier = (name) => name.replace(/[^a-zA-Z0-9_]/g, '_');
 
 class DatabaseIndexingService {
@@ -234,6 +236,14 @@ class DatabaseIndexingService {
 
   async ensureIndexes({ dryRun = false } = {}) {
     const catalog = this.loadCatalog();
+
+    for (const table of ADDITIONAL_INDEXING_TABLES) {
+      if (!catalog[table]) {
+        const [schema = 'autres', tableName = ''] = table.split('.');
+        const resolvedTable = tableName || schema;
+        catalog[table] = { database: schema, display: resolvedTable };
+      }
+    }
     const summary = {
       tablesProcessed: 0,
       columnsEvaluated: 0,
