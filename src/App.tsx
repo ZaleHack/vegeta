@@ -1146,6 +1146,8 @@ interface FraudMonitoringTarget {
   value: string;
   knownPeers: string[];
   createdAt: string;
+  createdById?: number;
+  createdByLogin?: string;
   lastAlertAt?: string;
 }
 
@@ -2022,40 +2024,80 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    if (!currentUser) {
+      setMonitoringTargets([]);
+      setMonitoringAlerts([]);
+      return;
+    }
+
+    const targetKey = `fraudMonitoringTargets_${currentUser.login}`;
+    const alertKey = `fraudMonitoringAlerts_${currentUser.login}`;
+
     try {
-      const storedTargets = JSON.parse(localStorage.getItem('fraudMonitoringTargets') || '[]');
-      if (Array.isArray(storedTargets)) {
+      const storedTargets = JSON.parse(localStorage.getItem(targetKey) || '[]');
+      const legacyTargets = JSON.parse(localStorage.getItem('fraudMonitoringTargets') || '[]');
+      const usedLegacyTargets =
+        (!Array.isArray(storedTargets) || storedTargets.length === 0) &&
+        Array.isArray(legacyTargets) &&
+        legacyTargets.length > 0;
+      const sourceTargets = Array.isArray(storedTargets) && storedTargets.length ? storedTargets : legacyTargets;
+
+      if (Array.isArray(sourceTargets)) {
         setMonitoringTargets(
-          storedTargets
+          sourceTargets
             .filter((item) => typeof item.value === 'string' && (item.type === 'number' || item.type === 'imei'))
+            .filter((item) => {
+              if (item.createdByLogin && item.createdByLogin !== currentUser.login) return false;
+              if (item.createdById && item.createdById !== currentUser.id) return false;
+              return true;
+            })
             .map((item) => ({
               ...item,
               knownPeers: Array.isArray(item.knownPeers) ? item.knownPeers : [],
+              createdById: item.createdById ?? currentUser.id,
+              createdByLogin: item.createdByLogin ?? currentUser.login,
             }))
         );
+        if (usedLegacyTargets) {
+          localStorage.removeItem('fraudMonitoringTargets');
+        }
       }
-      const storedAlerts = JSON.parse(localStorage.getItem('fraudMonitoringAlerts') || '[]');
-      if (Array.isArray(storedAlerts)) {
+
+      const storedAlerts = JSON.parse(localStorage.getItem(alertKey) || '[]');
+      const legacyAlerts = JSON.parse(localStorage.getItem('fraudMonitoringAlerts') || '[]');
+      const usedLegacyAlerts =
+        (!Array.isArray(storedAlerts) || storedAlerts.length === 0) &&
+        Array.isArray(legacyAlerts) &&
+        legacyAlerts.length > 0;
+      const sourceAlerts = Array.isArray(storedAlerts) && storedAlerts.length ? storedAlerts : legacyAlerts;
+
+      if (Array.isArray(sourceAlerts)) {
         setMonitoringAlerts(
-          storedAlerts
+          sourceAlerts
             .filter((alert) => typeof alert.targetValue === 'string' && (alert.targetType === 'number' || alert.targetType === 'imei'))
             .slice(0, 40)
         );
+        if (usedLegacyAlerts) {
+          localStorage.removeItem('fraudMonitoringAlerts');
+        }
       }
     } catch (error) {
       console.error('Erreur chargement surveillance fraude:', error);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('fraudMonitoringTargets', JSON.stringify(monitoringTargets));
-  }, [monitoringTargets]);
+    if (typeof window === 'undefined' || !currentUser) return;
+    const targetKey = `fraudMonitoringTargets_${currentUser.login}`;
+    localStorage.setItem(targetKey, JSON.stringify(monitoringTargets));
+  }, [currentUser, monitoringTargets]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('fraudMonitoringAlerts', JSON.stringify(monitoringAlerts.slice(0, 40)));
-  }, [monitoringAlerts]);
+    if (typeof window === 'undefined' || !currentUser) return;
+    const alertKey = `fraudMonitoringAlerts_${currentUser.login}`;
+    localStorage.setItem(alertKey, JSON.stringify(monitoringAlerts.slice(0, 40)));
+  }, [currentUser, monitoringAlerts]);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTargetCase, setShareTargetCase] = useState<CdrCase | null>(null);
   const [shareDivisionUsers, setShareDivisionUsers] = useState<CaseShareUser[]>([]);
@@ -2209,6 +2251,11 @@ const App: React.FC = () => {
       return;
     }
 
+    if (!currentUser) {
+      notifyWarning('Connectez-vous pour gérer vos veilles.');
+      return;
+    }
+
     setMonitoringTargets((prev) => {
       if (prev.some((target) => target.value === normalizedValue && target.type === monitoringType)) {
         notifyInfo('Cette cible est déjà surveillée.');
@@ -2225,18 +2272,41 @@ const App: React.FC = () => {
           value: normalizedValue,
           knownPeers: [],
           createdAt: now,
+          createdById: currentUser.id,
+          createdByLogin: currentUser.login,
         },
         ...prev,
       ];
     });
 
     setMonitoringInput('');
-  }, [monitoringInput, monitoringType, normalizeMonitoringValue, notifyInfo, notifySuccess, notifyWarning]);
+  }, [currentUser, monitoringInput, monitoringType, normalizeMonitoringValue, notifyInfo, notifySuccess, notifyWarning]);
 
-  const handleRemoveMonitoringTarget = useCallback((id: string) => {
-    setMonitoringTargets((prev) => prev.filter((target) => target.id !== id));
-    setMonitoringAlerts((prev) => prev.filter((alert) => alert.targetId !== id));
-  }, []);
+  const handleRemoveMonitoringTarget = useCallback(
+    (target: FraudMonitoringTarget) => {
+      if (!currentUser) {
+        notifyWarning('Connectez-vous pour gérer vos veilles.');
+        return;
+      }
+
+      if (
+        (target.createdByLogin && target.createdByLogin !== currentUser.login) ||
+        (target.createdById && target.createdById !== currentUser.id)
+      ) {
+        notifyWarning('Vous ne pouvez supprimer que vos propres veilles.');
+        return;
+      }
+
+      const label = `${target.type === 'imei' ? "l'IMEI" : 'le numéro'} ${target.value}`;
+      if (!window.confirm(`Confirmez-vous la suppression de la veille pour ${label} ?`)) {
+        return;
+      }
+
+      setMonitoringTargets((prev) => prev.filter((item) => item.id !== target.id));
+      setMonitoringAlerts((prev) => prev.filter((alert) => alert.targetId !== target.id));
+    },
+    [currentUser, notifyWarning]
+  );
 
   const handleClearMonitoringAlerts = useCallback(() => {
     setMonitoringAlerts([]);
@@ -7190,7 +7260,7 @@ useEffect(() => {
                     <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
                       <div className="space-y-1">
                         <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                          Analyse transversale des CDR
+                          Détection de changement de numéro ou d'appareil
                         </h3>
                         <p className="text-sm text-slate-500 dark:text-slate-300">
                           Surveillez les comportements critiques sans exposer les paramètres de détection.
@@ -7224,7 +7294,7 @@ useEffect(() => {
                             />
                           </div>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
-                            L'analyse s'effectue sur l'ensemble des données importées disponibles.
+                            L'analyse s'effectue sur l'ensemble du réseau mobile.
                           </p>
                         </div>
 
@@ -7658,7 +7728,7 @@ useEffect(() => {
                                   </span>
                                   <button
                                     type="button"
-                                    onClick={() => handleRemoveMonitoringTarget(target.id)}
+                                    onClick={() => handleRemoveMonitoringTarget(target)}
                                     className="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/80 p-2 text-slate-500 transition hover:text-rose-600 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:text-rose-300"
                                     title="Arrêter la surveillance"
                                   >
