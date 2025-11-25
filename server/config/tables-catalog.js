@@ -815,6 +815,25 @@ export default {
     theme: 'telecom'
   },
 
+  'data_orange.data_orange': {
+    display: 'data_orange',
+    database: 'data_orange',
+    searchable: [
+      'msisdn',
+      'imsi',
+      'imei',
+      'cgi',
+      'adresse_ip',
+      'ip_address'
+    ],
+    preview: ['msisdn', 'imsi', 'imei', 'cgi', 'adresse_ip'],
+    filters: {
+      date_debut: 'date',
+      date_fin: 'date'
+    },
+    theme: 'telecom'
+  },
+
   'autres.cdr_records': {
     display: 'cdr_records',
     database: 'autres',
