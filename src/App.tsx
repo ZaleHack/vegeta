@@ -7390,7 +7390,7 @@ useEffect(() => {
                             </p>
                           </div>
                           <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-white/80">
-                            <Scan className="h-3.5 w-3.5" /> Analyse globale des CDR
+                            <Scan className="h-3.5 w-3.5" /> Analyse globale
                           </span>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-3">
