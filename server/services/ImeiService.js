@@ -32,9 +32,13 @@ export const checkImei = async (imei) => {
       throw new ImeiFunctionalError('IMEI not found or invalid');
     }
 
-    const { object = {}, status, result } = data;
+    const { object = {}, status, result, count_free_checks_today } = data;
 
     return {
+      status,
+      result,
+      count_free_checks_today,
+      object,
       imei,
       brand: object.brand ?? '',
       model: object.model ?? '',
