@@ -3051,13 +3051,16 @@ const App: React.FC = () => {
 
       try {
         const response = await fetch(
-          `https://alpha.imeicheck.com/api/modelBrandName?imei=${encodeURIComponent(normalizedImei)}&format=json`
+          `/api/imei/check?imei=${encodeURIComponent(normalizedImei)}`,
+          { headers: createAuthHeaders() }
         );
 
         const data: ImeiCheckResult = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.result || "Impossible de vérifier cet IMEI pour le moment.");
+          throw new Error(
+            data.result || data.error || "Impossible de vérifier cet IMEI pour le moment."
+          );
         }
 
         const status = data.status?.toLowerCase() ?? '';

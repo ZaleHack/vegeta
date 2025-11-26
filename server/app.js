@@ -29,6 +29,7 @@ import logsRoutes from './routes/logs.js';
 import divisionsRoutes from './routes/divisions.js';
 import notificationsRoutes from './routes/notifications.js';
 import fraudRoutes from './routes/fraud.js';
+import imeiRoutes from './routes/imei.js';
 import { authenticate } from './middleware/auth.js';
 import { payloadEncryptionMiddleware } from './middleware/payloadEncryption.js';
 import requestLogger from './middleware/requestLogger.js';
@@ -176,6 +177,7 @@ app.use('/api/logs', logsRoutes);
 app.use('/api/divisions', divisionsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/fraud-detection', fraudRoutes);
+app.use('/api/imei', imeiRoutes);
 
 app.get('/api/public/payload-encryption-key', (req, res) => {
   try {
