@@ -1,5 +1,8 @@
-const IMEICHECK_ENDPOINT = process.env.IMEICHECK_ENDPOINT || 'https://alpha.imeicheck.com/api/modelBrandName';
-const IMEICHECK_API_KEY = process.env.IMEICHECK_API_KEY || '';
+const DEFAULT_API_KEY = 'oSITd-991tn-215ys-p5x2A-y19Ti-9C1ME';
+const IMEICHECK_ENDPOINT =
+  process.env.IMEICHECK_ENDPOINT || 'https://alpha.imeicheck.com/api/php-api/create';
+const IMEICHECK_API_KEY = process.env.IMEICHECK_API_KEY || DEFAULT_API_KEY;
+const IMEICHECK_SERVICE_ID = process.env.IMEICHECK_SERVICE_ID || '1';
 const REQUEST_TIMEOUT_MS = 10000;
 
 export class ImeiFunctionalError extends Error {
@@ -27,16 +30,22 @@ const isSuccessfulStatus = (status) => {
 };
 
 export const checkImei = async (imei) => {
+  if (!IMEICHECK_API_KEY) {
+    throw createApiAuthError();
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const url = `${IMEICHECK_ENDPOINT}?imei=${encodeURIComponent(imei)}&format=json`;
-    const headers = { Accept: 'application/json' };
+    const query = new URLSearchParams({
+      key: IMEICHECK_API_KEY,
+      service: IMEICHECK_SERVICE_ID,
+      imei
+    });
 
-    if (IMEICHECK_API_KEY) {
-      headers.Authorization = `Bearer ${IMEICHECK_API_KEY}`;
-    }
+    const url = `${IMEICHECK_ENDPOINT}?${query.toString()}`;
+    const headers = { Accept: 'application/json' };
 
     const response = await fetch(url, { method: 'GET', signal: controller.signal, headers });
 
@@ -54,7 +63,19 @@ export const checkImei = async (imei) => {
 
     const data = await response.json();
 
-    if (!data || !isSuccessfulStatus(data.status)) {
+    if (!data) {
+      throw createApiUnavailableError();
+    }
+
+    if (data.status?.toLowerCase() === 'error') {
+      throw createApiUnavailableError();
+    }
+
+    if (data.status?.toLowerCase() === 'failed') {
+      throw new ImeiFunctionalError('IMEI not found or invalid');
+    }
+
+    if (!isSuccessfulStatus(data.status)) {
       throw new ImeiFunctionalError('IMEI not found or invalid');
     }
 
@@ -65,6 +86,9 @@ export const checkImei = async (imei) => {
       brand: object.brand ?? '',
       model: object.model ?? '',
       name: object.name ?? '',
+      status,
+      result,
+      object,
       rawStatus: status,
       rawResult: result
     };
