@@ -5,6 +5,7 @@ export type AppPage =
   | 'login'
   | 'dashboard'
   | 'search'
+  | 'imei-check'
   | 'annuaire'
   | 'ong'
   | 'entreprises'
@@ -24,6 +25,7 @@ export const pageToPath: Record<AppPage, string> = {
   login: '/login',
   dashboard: '/',
   search: '/recherche',
+  'imei-check': '/imei-check',
   annuaire: '/annuaire',
   ong: '/ong',
   entreprises: '/entreprises',
