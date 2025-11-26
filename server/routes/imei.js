@@ -1,44 +1,37 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { checkImei, ImeiFunctionalError } from '../services/ImeiService.js';
 
 const router = express.Router();
 
-const IMEICHECK_ENDPOINT = 'https://alpha.imeicheck.com/api/modelBrandName';
-const REQUEST_TIMEOUT_MS = 10000;
+const parseImei = (value) => (typeof value === 'string' ? value.replace(/\D/g, '') : '');
 
-router.get('/check', authenticate, async (req, res) => {
-  const rawImei = typeof req.query.imei === 'string' ? req.query.imei : '';
-  const imei = rawImei.replace(/\D/g, '');
+const handleImeiCheck = async (rawImei, res) => {
+  const imei = parseImei(rawImei);
 
   if (!imei) {
     return res.status(400).json({ error: 'Paramètre IMEI manquant ou invalide' });
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
   try {
-    const url = `${IMEICHECK_ENDPOINT}?imei=${encodeURIComponent(imei)}&format=json`;
-    const response = await fetch(url, { signal: controller.signal });
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      const message = data?.result || data?.error || "Impossible de vérifier cet IMEI pour le moment.";
-      return res.status(response.status).json({ error: message });
-    }
-
-    return res.json({ ...data, imei });
+    const result = await checkImei(imei);
+    return res.json(result);
   } catch (error) {
-    if (error?.name === 'AbortError') {
-      return res.status(504).json({ error: 'Délai dépassé lors de la vérification IMEI' });
+    if (error instanceof ImeiFunctionalError) {
+      return res.status(404).json({ error: error.message });
     }
 
     console.error('Erreur lors de la vérification IMEI:', error);
-    return res.status(502).json({ error: 'Erreur lors de la communication avec le service IMEI' });
-  } finally {
-    clearTimeout(timeoutId);
+    return res.status(502).json({ error: 'IMEI check API unavailable' });
   }
+};
+
+router.get('/check', authenticate, async (req, res) => {
+  return handleImeiCheck(req.query.imei, res);
+});
+
+router.get('/:imei', authenticate, async (req, res) => {
+  return handleImeiCheck(req.params.imei, res);
 });
 
 export default router;
-
