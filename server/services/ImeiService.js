@@ -1,7 +1,10 @@
+import crypto from 'crypto';
+
 const DEFAULT_API_KEY = '';
 const IMEICHECK_ENDPOINT =
   process.env.IMEICHECK_ENDPOINT || 'https://alpha.imeicheck.com/api/modelBrandName';
 const IMEICHECK_API_KEY = process.env.IMEICHECK_API_KEY || DEFAULT_API_KEY;
+const IMEICHECK_SIGNATURE_SECRET = process.env.IMEICHECK_SIGNATURE_SECRET || '';
 const DEFAULT_FORMAT = process.env.IMEICHECK_RESPONSE_FORMAT || 'json';
 const REQUEST_TIMEOUT_MS = 10000;
 
@@ -29,18 +32,38 @@ const isSuccessfulStatus = (status) => {
   return ['succes', 'success', 'ok', '200', 'true'].includes(normalized);
 };
 
+const createRequestSignature = (imei, timestamp) => {
+  const hasSigningConfig = Boolean(IMEICHECK_API_KEY || IMEICHECK_SIGNATURE_SECRET);
+
+  if (!hasSigningConfig) {
+    return undefined;
+  }
+
+  const base = `${IMEICHECK_API_KEY}${IMEICHECK_SIGNATURE_SECRET}${timestamp}${imei}`;
+  return crypto.createHash('md5').update(base).digest('hex');
+};
+
 export const checkImei = async (imei) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
+    const timestamp = Date.now().toString();
     const query = new URLSearchParams({
-      imei,
+      identifier: imei,
       format: DEFAULT_FORMAT
     });
 
+    query.set('time', timestamp);
+
     if (IMEICHECK_API_KEY) {
       query.set('key', IMEICHECK_API_KEY);
+    }
+
+    const signature = createRequestSignature(imei, timestamp);
+
+    if (signature) {
+      query.set('signature', signature);
     }
 
     const url = `${IMEICHECK_ENDPOINT}?${query.toString()}`;
