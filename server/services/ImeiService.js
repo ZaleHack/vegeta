@@ -1,8 +1,8 @@
-const DEFAULT_API_KEY = 'oSITd-991tn-215ys-p5x2A-y19Ti-9C1ME';
+const DEFAULT_API_KEY = '';
 const IMEICHECK_ENDPOINT =
-  process.env.IMEICHECK_ENDPOINT || 'https://alpha.imeicheck.com/api/php-api/create';
+  process.env.IMEICHECK_ENDPOINT || 'https://alpha.imeicheck.com/api/modelBrandName';
 const IMEICHECK_API_KEY = process.env.IMEICHECK_API_KEY || DEFAULT_API_KEY;
-const IMEICHECK_SERVICE_ID = process.env.IMEICHECK_SERVICE_ID || '1';
+const DEFAULT_FORMAT = process.env.IMEICHECK_RESPONSE_FORMAT || 'json';
 const REQUEST_TIMEOUT_MS = 10000;
 
 export class ImeiFunctionalError extends Error {
@@ -26,23 +26,22 @@ const createApiAuthError = () => {
 
 const isSuccessfulStatus = (status) => {
   const normalized = (status || '').toLowerCase();
-  return ['succes', 'success', 'ok'].includes(normalized);
+  return ['succes', 'success', 'ok', '200', 'true'].includes(normalized);
 };
 
 export const checkImei = async (imei) => {
-  if (!IMEICHECK_API_KEY) {
-    throw createApiAuthError();
-  }
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
     const query = new URLSearchParams({
-      key: IMEICHECK_API_KEY,
-      service: IMEICHECK_SERVICE_ID,
-      imei
+      imei,
+      format: DEFAULT_FORMAT
     });
+
+    if (IMEICHECK_API_KEY) {
+      query.set('key', IMEICHECK_API_KEY);
+    }
 
     const url = `${IMEICHECK_ENDPOINT}?${query.toString()}`;
     const headers = { Accept: 'application/json' };
@@ -67,30 +66,62 @@ export const checkImei = async (imei) => {
       throw createApiUnavailableError();
     }
 
-    if (data.status?.toLowerCase() === 'error') {
+    const normalizedObject =
+      (typeof data.object === 'object' && data.object !== null && data.object) ||
+      (typeof data.data === 'object' && data.data !== null && data.data) ||
+      (typeof data.result === 'object' && data.result !== null && data.result) ||
+      (typeof data === 'object' && data !== null ? data : {});
+
+    const status = data.status ?? data.msg ?? data.message;
+    const resultText =
+      typeof data.result === 'string'
+        ? data.result
+        : typeof data.msg === 'string'
+          ? data.msg
+          : typeof data.message === 'string'
+            ? data.message
+            : undefined;
+
+    const brand =
+      normalizedObject.brand ??
+      normalizedObject.brandName ??
+      normalizedObject.make ??
+      normalizedObject.oem ??
+      '';
+    const model = normalizedObject.model ?? normalizedObject.modelName ?? normalizedObject.deviceName ?? '';
+    const name =
+      normalizedObject.name ??
+      normalizedObject.modelBrandName ??
+      normalizedObject.title ??
+      [brand, model].filter(Boolean).join(' ').trim();
+
+    if (status?.toLowerCase() === 'error') {
       throw createApiUnavailableError();
     }
 
-    if (data.status?.toLowerCase() === 'failed') {
+    if (status?.toLowerCase() === 'failed') {
       throw new ImeiFunctionalError('IMEI not found or invalid');
     }
 
-    if (!isSuccessfulStatus(data.status)) {
+    const hasPayload = Boolean(brand || model || name);
+    const isSuccess = isSuccessfulStatus(status) || hasPayload;
+
+    if (!isSuccess) {
       throw new ImeiFunctionalError('IMEI not found or invalid');
     }
-
-    const { object = {}, status, result } = data;
 
     return {
       imei,
-      brand: object.brand ?? '',
-      model: object.model ?? '',
-      name: object.name ?? '',
+      brand,
+      model,
+      name,
       status,
-      result,
-      object,
+      result: resultText ?? name ?? '',
+      object: { ...normalizedObject, brand, model, name },
       rawStatus: status,
-      rawResult: result
+      rawResult: resultText,
+      count_free_checks_today:
+        typeof data.count_free_checks_today === 'number' ? data.count_free_checks_today : undefined
     };
   } catch (error) {
     if (error instanceof ImeiFunctionalError) {
