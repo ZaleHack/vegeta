@@ -24,8 +24,20 @@ const createApiAuthError = () => {
   return error;
 };
 
+const normalizeStatus = (status) => {
+  if (status === null || status === undefined) {
+    return '';
+  }
+
+  try {
+    return String(status).toLowerCase();
+  } catch (_error) {
+    return '';
+  }
+};
+
 const isSuccessfulStatus = (status) => {
-  const normalized = (status || '').toLowerCase();
+  const normalized = normalizeStatus(status);
   return ['succes', 'success', 'ok', '200', 'true'].includes(normalized);
 };
 
@@ -73,6 +85,7 @@ export const checkImei = async (imei) => {
       (typeof data === 'object' && data !== null ? data : {});
 
     const status = data.status ?? data.msg ?? data.message;
+    const statusLower = normalizeStatus(status);
     const resultText =
       typeof data.result === 'string'
         ? data.result
@@ -95,11 +108,11 @@ export const checkImei = async (imei) => {
       normalizedObject.title ??
       [brand, model].filter(Boolean).join(' ').trim();
 
-    if (status?.toLowerCase() === 'error') {
+    if (statusLower === 'error') {
       throw createApiUnavailableError();
     }
 
-    if (status?.toLowerCase() === 'failed') {
+    if (statusLower === 'failed') {
       throw new ImeiFunctionalError('IMEI not found or invalid');
     }
 
