@@ -21,6 +21,11 @@ const handleImeiCheck = async (rawImei, res) => {
       return res.status(404).json({ error: error.message });
     }
 
+    if (error?.name === 'ImeiAuthError') {
+      console.error('Erreur authentification API IMEI:', error);
+      return res.status(502).json({ error: error.message });
+    }
+
     console.error('Erreur lors de la vérification IMEI:', error);
     return res.status(502).json({ error: 'IMEI check API unavailable' });
   }
