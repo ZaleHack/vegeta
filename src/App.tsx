@@ -27,6 +27,7 @@ import {
   Upload,
   UploadCloud,
   Phone,
+  Smartphone,
   PhoneIncoming,
   PhoneOutgoing,
   Building2,
@@ -1183,6 +1184,20 @@ interface BlacklistEntry {
   created_at: string;
 }
 
+interface ImeiCheckObject {
+  brand?: string;
+  name?: string;
+  model?: string;
+}
+
+interface ImeiCheckResult {
+  status?: string;
+  result?: string;
+  imei?: string;
+  count_free_checks_today?: number;
+  object?: ImeiCheckObject;
+}
+
 const App: React.FC = () => {
   const { notifySuccess, notifyError, notifyWarning, notifyInfo } = useNotifications();
   const { currentPage, navigateToPage } = usePageNavigation();
@@ -1293,6 +1308,11 @@ const App: React.FC = () => {
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionPage, setSessionPage] = useState(1);
   const [sessionLoading, setSessionLoading] = useState(false);
+
+  const [imeiInput, setImeiInput] = useState('');
+  const [imeiResult, setImeiResult] = useState<ImeiCheckResult | null>(null);
+  const [imeiError, setImeiError] = useState('');
+  const [imeiLoading, setImeiLoading] = useState(false);
 
   const displayedResultsCount = displayedHits.length;
   const totalResultsCount = searchResults?.total ?? searchResults?.hits?.length ?? 0;
@@ -3014,6 +3034,53 @@ const App: React.FC = () => {
     handleSearch,
     setSearchParams
   ]);
+
+  const handleImeiLookup = useCallback(
+    async (event?: React.FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+
+      const normalizedImei = imeiInput.replace(/\D/g, '');
+      if (!normalizedImei) {
+        setImeiError('Veuillez saisir un IMEI valide.');
+        setImeiResult(null);
+        return;
+      }
+
+      setImeiError('');
+      setImeiLoading(true);
+
+      try {
+        const response = await fetch(
+          `https://alpha.imeicheck.com/api/modelBrandName?imei=${encodeURIComponent(normalizedImei)}&format=json`
+        );
+
+        const data: ImeiCheckResult = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.result || "Impossible de vérifier cet IMEI pour le moment.");
+        }
+
+        const status = data.status?.toLowerCase() ?? '';
+        const isSuccess = status.startsWith('succes');
+
+        if (!isSuccess) {
+          setImeiError(data.result || "La vérification n'a pas abouti. Veuillez réessayer.");
+          setImeiResult(null);
+          return;
+        }
+
+        setImeiResult({ ...data, imei: normalizedImei });
+        setImeiInput(normalizedImei);
+      } catch (error) {
+        console.error('Erreur vérification IMEI:', error);
+        setImeiError("Une erreur est survenue lors de la vérification. Veuillez réessayer.");
+        setImeiResult(null);
+      } finally {
+        setImeiLoading(false);
+      }
+    },
+    [imeiInput]
+  );
 
   const handleRequestIdentification = async () => {
     const normalizedSearchPhone = searchQuery.replace(/\D/g, '');
@@ -5854,6 +5921,19 @@ useEffect(() => {
             </button>
 
             <button
+              onClick={() => navigateToPage('imei-check')}
+              title="Imei Check"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'imei-check'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <Smartphone className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Imei Check</span>}
+            </button>
+
+            <button
               onClick={() => navigateToPage('annuaire')}
               title="Annuaire Gendarmerie"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
@@ -6568,11 +6648,231 @@ useEffect(() => {
                 </div>
               )}
             </div>
-          )}
+            )}
 
-          {currentPage === 'annuaire' && (
-            <div className="space-y-6">
-              <PageHeader icon={<Phone className="h-6 w-6" />} title="Annuaire Gendarmerie" />
+            {currentPage === 'imei-check' && (
+              <div className="space-y-8">
+                <PageHeader
+                  icon={<Fingerprint className="h-6 w-6" />}
+                  title="Imei Check"
+                  subtitle="Analyse instantanée d'un terminal mobile via son IMEI"
+                />
+
+                <div className="grid gap-6 lg:grid-cols-3">
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-gradient-to-br from-slate-50 via-white to-blue-50/60 p-8 shadow-xl dark:border-slate-800/70 dark:from-slate-900 dark:via-slate-900/80 dark:to-blue-950/60">
+                      <div className="pointer-events-none absolute -left-10 top-0 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl" />
+                      <div className="pointer-events-none absolute bottom-0 right-0 h-56 w-56 rounded-full bg-indigo-500/10 blur-3xl" />
+                      <div className="relative space-y-6">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-blue-600 dark:text-blue-300">Nouvelle vérification</p>
+                            <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Scanner un IMEI</h3>
+                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                              Saisissez l'IMEI complet pour récupérer la marque et le modèle du terminal via l'API publique
+                              d'ImeiCheck.
+                            </p>
+                          </div>
+                          <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-white/60 backdrop-blur dark:bg-slate-800/70 dark:text-slate-100 dark:ring-slate-700/70">
+                            <Sparkles className="h-4 w-4 text-amber-500" />
+                            Accès instantané
+                          </div>
+                        </div>
+
+                        <form onSubmit={handleImeiLookup} className="space-y-4">
+                          <div className="flex flex-col gap-4 sm:flex-row">
+                            <div className="flex-1">
+                              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                                Numéro IMEI
+                              </label>
+                              <div className="relative mt-2">
+                                <div className="absolute left-3 top-1/2 flex h-10 -translate-y-1/2 items-center rounded-xl bg-white/80 px-3 text-xs font-semibold uppercase tracking-wide text-blue-600 ring-1 ring-blue-100 shadow-sm dark:bg-slate-800/70 dark:text-blue-300 dark:ring-slate-700">
+                                  IMEI
+                                </div>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  maxLength={18}
+                                  className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-4 pl-20 text-lg font-medium text-slate-900 shadow-sm transition focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:focus:border-blue-400 dark:focus:ring-blue-900"
+                                  placeholder="Ex: 353843245663428"
+                                  value={imeiInput}
+                                  onChange={(e) => setImeiInput(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-end">
+                              <button
+                                type="submit"
+                                disabled={imeiLoading}
+                                className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:opacity-60 disabled:shadow-none"
+                              >
+                                {imeiLoading ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    Vérification...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Scan className="mr-2 h-5 w-5" />
+                                    Lancer le scan
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </form>
+
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 text-sm font-semibold text-slate-700 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100">
+                            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              <Fingerprint className="h-4 w-4" />
+                              Authenticité
+                            </div>
+                            <p className="mt-2 text-lg">IMEI normalisé</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Les espaces et caractères spéciaux sont ignorés.</p>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 text-sm font-semibold text-slate-700 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100">
+                            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              <Radar className="h-4 w-4" />
+                              Couverture mondiale
+                            </div>
+                            <p className="mt-2 text-lg">Modèle et marque détectés</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Basé sur la base de données publique ImeiCheck.</p>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 text-sm font-semibold text-slate-700 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100">
+                            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              <Clock className="h-4 w-4" />
+                              Temps réel
+                            </div>
+                            <p className="mt-2 text-lg">Réponse instantanée</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Accédez aux données dès la soumission du formulaire.</p>
+                          </div>
+                        </div>
+
+                        {imeiError && (
+                          <div className="rounded-2xl border border-rose-100 bg-rose-50/80 p-4 text-sm text-rose-700 shadow-inner dark:border-rose-900/60 dark:bg-rose-900/40 dark:text-rose-100">
+                            <div className="flex items-center gap-2 font-semibold">
+                              <AlertTriangle className="h-4 w-4" />
+                              {imeiError}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {imeiResult ? (
+                      <div className="grid gap-6 md:grid-cols-2">
+                        <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-800/70 dark:bg-slate-900/80 dark:shadow-black/30">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Identité de l'appareil</p>
+                              <h4 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">{imeiResult.object?.brand || 'Inconnu'}</h4>
+                              <p className="text-sm text-slate-500 dark:text-slate-300">{imeiResult.object?.name || imeiResult.object?.model || 'Modèle non communiqué'}</p>
+                            </div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30">
+                              <Smartphone className="h-6 w-6" />
+                            </div>
+                          </div>
+                          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                            <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 text-sm shadow-inner dark:border-slate-700/60 dark:bg-slate-800/60">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Modèle complet</p>
+                              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{imeiResult.object?.model || 'Non renseigné'}</p>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 text-sm shadow-inner dark:border-slate-700/60 dark:bg-slate-800/60">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">IMEI interrogé</p>
+                              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{imeiResult.imei}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-800/70 dark:bg-slate-900/80 dark:shadow-black/30">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Résultat brut</p>
+                              <h4 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">Réponse API</h4>
+                              <p className="text-sm text-slate-500 dark:text-slate-300">Nettoyage automatique des balises HTML</p>
+                            </div>
+                            {typeof imeiResult.count_free_checks_today === 'number' && (
+                              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:ring-emerald-800/80">
+                                {imeiResult.count_free_checks_today.toLocaleString()} vérifications restantes
+                              </span>
+                            )}
+                          </div>
+                          <pre className="mt-4 whitespace-pre-line rounded-2xl border border-slate-200 bg-slate-50/90 p-4 text-sm leading-relaxed text-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100">
+                            {(imeiResult.result || '').replace(/<br>/g, '\n').trim() || 'Aucun détail supplémentaire fourni.'}
+                          </pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-3xl border border-dashed border-slate-300 bg-white/80 p-8 text-center shadow-inner dark:border-slate-700 dark:bg-slate-900/60">
+                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30">
+                          <Scan className="h-8 w-8" />
+                        </div>
+                        <h4 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-100">Prêt à scanner</h4>
+                        <p className="mt-2 text-sm text-slate-500 dark:text-slate-300">
+                          Lancez une vérification pour afficher ici les informations détaillées de l'appareil.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-800/70 dark:bg-slate-900/80 dark:shadow-black/30">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/30">
+                          <Sparkles className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Conseils</p>
+                          <h4 className="text-lg font-bold text-slate-900 dark:text-slate-50">Optimiser vos recherches</h4>
+                        </div>
+                      </div>
+                      <ul className="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="mt-1 h-4 w-4 text-emerald-500" />
+                          Préférez un IMEI complet sur 15 chiffres pour des résultats précis.
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="mt-1 h-4 w-4 text-emerald-500" />
+                          Supprimez les espaces, tirets ou caractères spéciaux avant envoi.
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <CheckCircle2 className="mt-1 h-4 w-4 text-emerald-500" />
+                          Comparez la marque et le modèle obtenus avec les déclarations de l'utilisateur.
+                        </li>
+                      </ul>
+                    </div>
+
+                    {imeiResult && (
+                      <div className="rounded-3xl border border-blue-200/70 bg-blue-50/80 p-6 shadow-inner dark:border-blue-900/60 dark:bg-blue-950/30">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-200">Synthèse</p>
+                            <h4 className="text-lg font-bold text-blue-900 dark:text-blue-50">Profil détecté</h4>
+                            <p className="text-sm text-blue-800/80 dark:text-blue-200/80">IMEI {imeiResult.imei}</p>
+                          </div>
+                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/90 text-blue-600 shadow-lg shadow-blue-500/30 dark:bg-blue-900/60 dark:text-blue-200">
+                            <Fingerprint className="h-6 w-6" />
+                          </div>
+                        </div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-2xl bg-white/90 p-4 text-sm font-semibold text-blue-900 shadow-sm ring-1 ring-white/70 dark:bg-blue-900/40 dark:text-blue-50 dark:ring-blue-800/60">
+                            {imeiResult.object?.brand || 'Marque inconnue'}
+                          </div>
+                          <div className="rounded-2xl bg-white/90 p-4 text-sm text-blue-900 shadow-sm ring-1 ring-white/70 dark:bg-blue-900/40 dark:text-blue-50 dark:ring-blue-800/60">
+                            {imeiResult.object?.model || imeiResult.object?.name || 'Modèle non communiqué'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentPage === 'annuaire' && (
+              <div className="space-y-6">
+                <PageHeader icon={<Phone className="h-6 w-6" />} title="Annuaire Gendarmerie" />
               <input
                 type="text"
                 placeholder="Rechercher..."
