@@ -174,6 +174,39 @@ type SearchResponseFromApi = Partial<Omit<SearchResponse, 'hits' | 'tables_searc
   error?: string;
 };
 
+interface PhoneIdentifierDevice {
+  number: string;
+  imsi: string | null;
+  imei: string;
+  occurrences: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  imeiInfo: {
+    brand?: string;
+    model?: string;
+    name?: string;
+    status?: string;
+    result?: string;
+    error?: string;
+  } | null;
+}
+
+interface PhoneIdentifierResult {
+  query: {
+    input: string;
+    normalized: string;
+    variants: string[];
+  };
+  stats: {
+    totalAssociations: number;
+    uniqueImeis: number;
+    uniqueImsis: number;
+    lastSeen: string | null;
+    firstSeen: string | null;
+  };
+  devices: PhoneIdentifierDevice[];
+}
+
 const extractHitsFromPayload = (hits: RawHitsPayload): RawSearchResult[] => {
   if (Array.isArray(hits)) {
     return hits;
@@ -1313,6 +1346,11 @@ const App: React.FC = () => {
   const [imeiResult, setImeiResult] = useState<ImeiCheckResult | null>(null);
   const [imeiError, setImeiError] = useState('');
   const [imeiLoading, setImeiLoading] = useState(false);
+
+  const [phoneIdentifierInput, setPhoneIdentifierInput] = useState('');
+  const [phoneIdentifierResult, setPhoneIdentifierResult] = useState<PhoneIdentifierResult | null>(null);
+  const [phoneIdentifierLoading, setPhoneIdentifierLoading] = useState(false);
+  const [phoneIdentifierError, setPhoneIdentifierError] = useState('');
 
   const displayedResultsCount = displayedHits.length;
   const totalResultsCount = searchResults?.total ?? searchResults?.hits?.length ?? 0;
@@ -3084,6 +3122,57 @@ const App: React.FC = () => {
     },
     [imeiInput]
   );
+
+  const handlePhoneIdentifierSearch = useCallback(
+    async (event?: React.FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+
+      const value = phoneIdentifierInput.trim();
+      if (!value) {
+        setPhoneIdentifierError('Veuillez saisir un numéro valide.');
+        setPhoneIdentifierResult(null);
+        return;
+      }
+
+      setPhoneIdentifierError('');
+      setPhoneIdentifierLoading(true);
+
+      try {
+        const params = new URLSearchParams({ number: value });
+        const response = await fetch(`/api/phone-identifier/search?${params.toString()}`, {
+          headers: createAuthHeaders()
+        });
+
+        const data: PhoneIdentifierResult & { error?: string } = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Impossible de lancer la recherche pour ce numéro.");
+        }
+
+        setPhoneIdentifierResult(data);
+      } catch (error) {
+        console.error('Erreur identification téléphone:', error);
+        const message = error instanceof Error ? error.message : "Une erreur est survenue.";
+        setPhoneIdentifierError(message);
+        setPhoneIdentifierResult(null);
+      } finally {
+        setPhoneIdentifierLoading(false);
+      }
+    },
+    [phoneIdentifierInput, createAuthHeaders]
+  );
+
+  const formatPhoneIdentifierDate = useCallback((value: string | null) => {
+    if (!value) return 'Non renseignée';
+    try {
+      const parsed = parseISO(value);
+      const absolute = format(parsed, "dd MMM yyyy 'à' HH:mm", { locale: fr });
+      const relative = formatDistanceToNow(parsed, { locale: fr, addSuffix: true });
+      return `${absolute} · ${relative}`;
+    } catch (error) {
+      return value;
+    }
+  }, []);
 
   const handleRequestIdentification = async () => {
     const normalizedSearchPhone = searchQuery.replace(/\D/g, '');
@@ -6001,6 +6090,19 @@ useEffect(() => {
               {sidebarOpen && <span className="ml-3">Géolocalisation</span>}
             </button>
 
+            <button
+              onClick={() => navigateToPage('phone-identifier')}
+              title="Identifier Téléphone"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'phone-identifier'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <SatelliteDish className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Identifier Téléphone</span>}
+            </button>
+
             <div className="space-y-1">
               <button
                 type="button"
@@ -8249,6 +8351,289 @@ useEffect(() => {
               )}
               </div>
             )}
+
+          {currentPage === 'phone-identifier' && (
+            <div className="space-y-10">
+              <PageHeader
+                icon={<SatelliteDish className="h-6 w-6" />}
+                title="Identifier Téléphone"
+                subtitle="Associez un numéro aux terminaux observés et enrichissez automatiquement chaque IMEI."
+              />
+
+              <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-blue-50 via-white to-indigo-50/70 p-8 shadow-xl shadow-blue-200/60 dark:border-slate-700/60 dark:from-slate-900 dark:via-slate-900/80 dark:to-indigo-950/50">
+                  <div className="pointer-events-none absolute -left-24 top-0 h-56 w-56 rounded-full bg-blue-500/15 blur-3xl" />
+                  <div className="pointer-events-none absolute bottom-0 right-0 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl" />
+                  <div className="relative space-y-6">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-blue-600 dark:text-blue-300">Recherche téléphonique</p>
+                        <h3 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Identifier un téléphone</h3>
+                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                          Analysez la table <span className="font-semibold text-blue-600 dark:text-blue-300">cdr_temps_reel</span>
+                          &nbsp;pour révéler toutes les IMEI et IMSI associées au numéro fourni, puis enrichir chaque terminal.
+                        </p>
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 ring-1 ring-white/70 backdrop-blur dark:bg-slate-900/70 dark:text-slate-200 dark:ring-slate-700/70">
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        Enrichissement IMEI
+                      </div>
+                    </div>
+
+                    <form onSubmit={handlePhoneIdentifierSearch} className="space-y-4">
+                      <div className="flex flex-col gap-4 sm:flex-row">
+                        <div className="flex-1">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                            Numéro à analyser
+                          </label>
+                          <div className="relative mt-2">
+                            <div className="absolute left-3 top-1/2 flex h-10 -translate-y-1/2 items-center rounded-xl bg-white/80 px-3 text-xs font-semibold uppercase tracking-wide text-blue-600 ring-1 ring-blue-100 shadow-sm dark:bg-slate-800/70 dark:text-blue-300 dark:ring-slate-700">
+                              NUM
+                            </div>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              className="w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-4 pl-20 text-lg font-medium text-slate-900 shadow-sm transition focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100 dark:focus:border-blue-400 dark:focus:ring-blue-900"
+                              placeholder="Ex: 77 123 45 67"
+                              value={phoneIdentifierInput}
+                              onChange={(e) => setPhoneIdentifierInput(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-end">
+                          <button
+                            type="submit"
+                            disabled={phoneIdentifierLoading}
+                            className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:opacity-60 disabled:shadow-none"
+                          >
+                            {phoneIdentifierLoading ? (
+                              <>
+                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                Recherche en cours...
+                              </>
+                            ) : (
+                              <>
+                                <Scan className="mr-2 h-5 w-5" />
+                                Lancer l'identification
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+
+                    {phoneIdentifierError && (
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm text-rose-700 shadow-inner dark:border-rose-900/60 dark:bg-rose-900/40 dark:text-rose-100">
+                        <div className="flex items-center gap-2 font-semibold">
+                          <AlertTriangle className="h-4 w-4" />
+                          {phoneIdentifierError}
+                        </div>
+                      </div>
+                    )}
+
+                    {phoneIdentifierResult && (
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 text-sm font-semibold text-slate-700 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100">
+                          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <Fingerprint className="h-4 w-4" />
+                            IMEI uniques
+                          </div>
+                          <p className="mt-2 text-2xl">{phoneIdentifierResult.stats.uniqueImeis}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Référencés pour ce numéro</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 text-sm font-semibold text-slate-700 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100">
+                          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <UserCheck className="h-4 w-4" />
+                            IMSI recensés
+                          </div>
+                          <p className="mt-2 text-2xl">{phoneIdentifierResult.stats.uniqueImsis}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Cartes SIM observées</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 text-sm font-semibold text-slate-700 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100">
+                          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <History className="h-4 w-4" />
+                            Dernière apparition
+                          </div>
+                          <p className="mt-2 text-base font-semibold text-slate-900 dark:text-slate-50">
+                            {formatPhoneIdentifierDate(phoneIdentifierResult.stats.lastSeen)}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Sur la ligne ciblée</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-4">
+                  <div className="rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-400/40">
+                        <Database className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Source live</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-slate-50">cdr_temps_reel</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-300">Extraction directe des enregistrements temps réel.</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+                      <div className="flex items-start gap-3 rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-700/60">
+                        <Fingerprint className="mt-1 h-4 w-4 text-blue-500" />
+                        <div>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">Corrélation IMEI / IMSI</p>
+                          <p className="text-sm">Chaque IMEI est enrichi par ImeiCheck pour exposer marque, modèle et nom de l'appareil.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-700/60">
+                        <Clock className="mt-1 h-4 w-4 text-indigo-500" />
+                        <div>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">Chronologie modernisée</p>
+                          <p className="text-sm">Affichage immédiat de la première et de la dernière apparition du terminal dans les CDR.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-100 dark:bg-slate-800/60 dark:ring-slate-700/60">
+                        <Shield className="mt-1 h-4 w-4 text-emerald-500" />
+                        <div>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">Vue prête pour l'enquête</p>
+                          <p className="text-sm">Badges dynamiques, regroupement par appareil et alertes en cas d'IMEI introuvable.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-slate-200/70 bg-gradient-to-br from-slate-900 via-slate-900/90 to-indigo-900/80 p-6 text-white shadow-xl shadow-indigo-500/20 dark:border-slate-700/60">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-indigo-200">Timeline</p>
+                        <p className="mt-2 text-xl font-bold">Synthèse chronologique</p>
+                        <p className="mt-1 text-sm text-indigo-100/90">Visualisez instantanément la période d'activité du terminal.</p>
+                      </div>
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white">
+                        <Activity className="h-6 w-6" />
+                      </div>
+                    </div>
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-white/10 p-4 shadow-inner shadow-indigo-800/30">
+                        <p className="text-xs uppercase tracking-wide text-indigo-100">Première trace</p>
+                        <p className="mt-1 text-sm font-semibold text-white">
+                          {formatPhoneIdentifierDate(phoneIdentifierResult?.stats.firstSeen ?? null)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white/10 p-4 shadow-inner shadow-indigo-800/30">
+                        <p className="text-xs uppercase tracking-wide text-indigo-100">Dernière trace</p>
+                        <p className="mt-1 text-sm font-semibold text-white">
+                          {formatPhoneIdentifierDate(phoneIdentifierResult?.stats.lastSeen ?? null)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Résultats détaillés</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-300">
+                      {phoneIdentifierResult
+                        ? `Numéro analysé : ${phoneIdentifierResult.query.normalized || phoneIdentifierResult.query.input}`
+                        : 'Les IMEI enrichies apparaîtront ici après la recherche.'}
+                    </p>
+                  </div>
+                  {phoneIdentifierResult && (
+                    <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                      <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
+                        <GripVertical className="h-3.5 w-3.5" /> {phoneIdentifierResult.stats.totalAssociations} associations
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-indigo-700 ring-1 ring-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-100 dark:ring-indigo-700/60">
+                        <Sparkles className="h-3.5 w-3.5" /> Enrichissement dynamique
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {phoneIdentifierLoading && (
+                  <div className="flex items-center justify-center rounded-2xl border border-slate-200/80 bg-white/90 p-10 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/70">
+                    <div className="flex items-center gap-3 text-blue-600 dark:text-blue-200">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="text-sm font-semibold">Analyse du numéro en cours...</span>
+                    </div>
+                  </div>
+                )}
+
+                {!phoneIdentifierLoading && !phoneIdentifierResult && (
+                  <div className="rounded-2xl border border-dashed border-slate-300/80 bg-white/80 p-10 text-center text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                    Saisissez un numéro pour afficher immédiatement les terminaux correspondants.
+                  </div>
+                )}
+
+                {!phoneIdentifierLoading && phoneIdentifierResult && phoneIdentifierResult.devices.length === 0 && (
+                  <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-10 text-center text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-300">
+                    Aucun terminal associé n'a été trouvé dans la table cdr_temps_reel.
+                  </div>
+                )}
+
+                {phoneIdentifierResult && phoneIdentifierResult.devices.length > 0 && (
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {phoneIdentifierResult.devices.map((device, index) => (
+                      <div
+                        key={`${device.imei}-${device.imsi}-${index}`}
+                        className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl dark:border-slate-700/60 dark:bg-slate-900/80"
+                      >
+                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-500/0 via-indigo-500/10 to-purple-500/20 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                        <div className="relative flex h-full flex-col gap-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">IMEI</p>
+                              <p className="text-lg font-bold text-slate-900 dark:text-slate-50">{device.imei}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">IMSI : {device.imsi || 'Non renseigné'}</p>
+                            </div>
+                            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-400/40">
+                              <Smartphone className="h-5 w-5" />
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 text-sm text-slate-600 dark:text-slate-300">
+                            <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-800/60">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Marque / Modèle</p>
+                              <p className="mt-1 font-semibold text-slate-900 dark:text-slate-100">
+                                {device.imeiInfo?.brand || 'Inconnu'} {device.imeiInfo?.model || ''}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                                {device.imeiInfo?.name || device.imeiInfo?.result || 'Description non disponible'}
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-800/60">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Occurences</p>
+                              <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{device.occurrences}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">Repérée dans les CDR</p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-3 text-sm shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              <History className="h-4 w-4" />
+                              Chronologie
+                            </div>
+                            <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">
+                              {formatPhoneIdentifierDate(device.lastSeen)}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Première apparition : {formatPhoneIdentifierDate(device.firstSeen)}</p>
+                          </div>
+
+                          {device.imeiInfo?.error && (
+                            <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 p-3 text-xs font-semibold text-amber-700 shadow-inner dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                              <AlertTriangle className="mr-2 inline h-3.5 w-3.5" /> {device.imeiInfo.error}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {currentPage === 'requests' && (
             <div className="space-y-8">
