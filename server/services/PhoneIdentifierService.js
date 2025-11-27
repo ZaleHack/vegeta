@@ -64,11 +64,32 @@ const normalizeDateTime = (value) => {
   }
 };
 
+const buildTacDetails = (imei, tacInfo, tac) => {
+  const brand = tacInfo?.brand || '';
+  const model = tacInfo?.model || '';
+  const name = tacInfo?.name || tacInfo?.deviceName || [brand, model].filter(Boolean).join(' ').trim();
+
+  return {
+    brand,
+    model,
+    name: name || tacInfo?.notes || '',
+    tac,
+    tacInfo,
+    status: 'tac_db',
+    result: tacInfo?.notes || 'Informations issues de la base TAC'
+  };
+};
+
 const resolveImeiDetails = async (imeis = []) => {
   const results = await Promise.all(
     imeis.map(async (imei) => {
       const tac = imei ? String(imei).replace(/\D/g, '').slice(0, 8) : '';
       const tacInfo = tac ? tacDbService.getTacInfo(tac) : null;
+
+      if (tacInfo) {
+        return [imei, buildTacDetails(imei, tacInfo, tac)];
+      }
+
       try {
         const data = await checkImei(imei);
         const brand = data.object?.brand || data.brand || '';
@@ -85,12 +106,16 @@ const resolveImeiDetails = async (imeis = []) => {
           result: data.result ?? data.rawResult ?? ''
         }];
       } catch (error) {
+        if (tacInfo) {
+          return [imei, buildTacDetails(imei, tacInfo, tac)];
+        }
+
         const reason =
           error instanceof ImeiFunctionalError
             ? 'IMEI introuvable ou invalide'
             : "Impossible de récupérer les informations IMEI";
 
-        return [imei, { brand: tacInfo?.brand || '', model: tacInfo?.model || '', name: '', tac, tacInfo, error: reason }];
+        return [imei, { brand: '', model: '', name: '', tac, tacInfo, error: reason }];
       }
     })
   );
