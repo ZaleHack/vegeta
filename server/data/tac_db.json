@@ -1,0 +1,35 @@
+{
+  "35391510": {
+    "brand": "Samsung",
+    "model": "Galaxy S23",
+    "deviceType": "smartphone",
+    "generation": "S23",
+    "os": "Android",
+    "releaseYear": 2023,
+    "radio": "4G/5G",
+    "manufacturer": "Samsung",
+    "notes": "Fallback entry (Samsung public TAC references)"
+  },
+  "35693803": {
+    "brand": "Apple",
+    "model": "iPhone 14",
+    "deviceType": "smartphone",
+    "generation": "14",
+    "os": "iOS",
+    "releaseYear": 2022,
+    "radio": "4G/5G",
+    "manufacturer": "Apple",
+    "notes": "Fallback entry (Apple public TAC references)"
+  },
+  "86064906": {
+    "brand": "Xiaomi",
+    "model": "Redmi Note 12",
+    "deviceType": "smartphone",
+    "generation": "Note 12",
+    "os": "Android",
+    "releaseYear": 2023,
+    "radio": "4G/5G",
+    "manufacturer": "Xiaomi",
+    "notes": "Fallback entry (Xiaomi public TAC references)"
+  }
+}

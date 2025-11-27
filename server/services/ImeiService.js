@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import tacDbService from './tacDbService.js';
 
 const DEFAULT_API_KEY = '';
 const IMEICHECK_ENDPOINT =
@@ -43,10 +44,18 @@ const createRequestSignature = (imei, timestamp) => {
   return crypto.createHash('md5').update(base).digest('hex');
 };
 
+const extractTac = (imei) => {
+  if (!imei) return '';
+  const normalized = String(imei).replace(/\D/g, '');
+  return normalized.length >= 8 ? normalized.slice(0, 8) : '';
+};
+
 const createStubResponse = (imei, reason) => {
   const brand = 'Mode démo';
   const model = 'Non configuré';
   const name = 'Simulation de vérification IMEI';
+  const tac = extractTac(imei);
+  const tacInfo = tac ? tacDbService.getTacInfo(tac) : null;
 
   if (reason) {
     console.warn('[IMEI] Réponse simulée:', reason);
@@ -54,12 +63,14 @@ const createStubResponse = (imei, reason) => {
 
   return {
     imei,
+    tac,
     brand,
     model,
     name,
+    tacInfo,
     status: 'success',
     result: reason || "Réponse simulée (API IMEI non configurée)",
-    object: { brand, model, name },
+    object: { brand, model, name, tac, tacInfo },
     rawStatus: 'success',
     rawResult: reason || 'stub',
     count_free_checks_today: undefined
@@ -153,7 +164,10 @@ export const checkImei = async (imei) => {
       throw new ImeiFunctionalError('IMEI not found or invalid');
     }
 
-    const hasPayload = Boolean(brand || model || name);
+    const tac = extractTac(imei);
+    const tacInfo = tac ? tacDbService.getTacInfo(tac) : null;
+
+    const hasPayload = Boolean(brand || model || name || tacInfo);
     const isSuccess = isSuccessfulStatus(status) || hasPayload;
 
     if (!isSuccess) {
@@ -162,12 +176,14 @@ export const checkImei = async (imei) => {
 
     return {
       imei,
+      tac,
       brand,
       model,
       name,
       status,
       result: resultText ?? name ?? '',
-      object: { ...normalizedObject, brand, model, name },
+      object: { ...normalizedObject, brand, model, name, tac, tacInfo },
+      tacInfo,
       rawStatus: status,
       rawResult: resultText,
       count_free_checks_today:
