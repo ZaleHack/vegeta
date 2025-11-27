@@ -1,6 +1,7 @@
 import database from '../config/database.js';
 import { REALTIME_CDR_TABLE_SQL } from '../config/realtime-table.js';
 import { checkImei, ImeiFunctionalError } from './ImeiService.js';
+import tacDbService from './tacDbService.js';
 
 const sanitizeNumber = (value) => {
   if (value === null || value === undefined) {
@@ -66,6 +67,8 @@ const normalizeDateTime = (value) => {
 const resolveImeiDetails = async (imeis = []) => {
   const results = await Promise.all(
     imeis.map(async (imei) => {
+      const tac = imei ? String(imei).replace(/\D/g, '').slice(0, 8) : '';
+      const tacInfo = tac ? tacDbService.getTacInfo(tac) : null;
       try {
         const data = await checkImei(imei);
         const brand = data.object?.brand || data.brand || '';
@@ -76,6 +79,8 @@ const resolveImeiDetails = async (imeis = []) => {
           brand,
           model,
           name,
+          tac,
+          tacInfo,
           status: data.status ?? data.rawStatus ?? '',
           result: data.result ?? data.rawResult ?? ''
         }];
@@ -85,7 +90,7 @@ const resolveImeiDetails = async (imeis = []) => {
             ? 'IMEI introuvable ou invalide'
             : "Impossible de récupérer les informations IMEI";
 
-        return [imei, { brand: '', model: '', name: '', error: reason }];
+        return [imei, { brand: tacInfo?.brand || '', model: tacInfo?.model || '', name: '', tac, tacInfo, error: reason }];
       }
     })
   );

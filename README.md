@@ -50,6 +50,52 @@ Les deux commandes peuvent être exécutées en parallèle pendant le développe
 - `node server/scripts/create-search-indexes.js` : crée les index SQL sur toutes les colonnes recherchées.
 - `node server/scripts/sync-all.js` : synchronise les données pour la recherche.
 - `npm run search:bootstrap` : enchaîne la création des index SQL et la synchronisation Elasticsearch.
+- `node server/scripts/buildTacDatabase.js [--schedule]` : reconstruit la base TAC locale à partir des sources publiques
+  (tacdb.net, dumps GitHub/constructeurs, imeidb.gsmaopen.com) et génère `server/data/tac_db.json` +
+  `server/data/tac_db_min.json`. L'option `--schedule` garde le processus vivant et lance un rafraîchissement hebdomadaire.
+
+### Base TAC (IMEI)
+
+Une base TAC locale (`server/data/tac_db.json`) est utilisée pour identifier n'importe quel IMEI à partir de son TAC (8
+chiffres). Le script `server/scripts/buildTacDatabase.js` agrège plusieurs sources publiques (API tacdb.net, dumps GitHub,
+référentiels constructeurs, imeidb.gsmaopen.com) et fusionne les données en supprimant les doublons. Un historique est conservé
+dans `server/data/tac_history/` et une version minifiée pour le front est générée (`tac_db_min.json`).
+
+**Format des entrées**
+
+```json
+{
+  "12345678": {
+    "brand": "",
+    "model": "",
+    "deviceType": "",
+    "generation": "",
+    "os": "",
+    "releaseYear": 2024,
+    "radio": "2G/3G/4G/5G",
+    "manufacturer": "",
+    "notes": ""
+  }
+}
+```
+
+**Mise à jour de la base**
+
+```bash
+# Mise à jour ponctuelle
+node server/scripts/buildTacDatabase.js
+
+# Surveillance et reconstruction hebdomadaire (processus long-vivant)
+node server/scripts/buildTacDatabase.js --schedule
+```
+
+Des routes REST sont exposées :
+
+- `GET /api/tac/:tac` → informations complètes sur une TAC.
+- `GET /api/tac/search?brand=Samsung` ou `GET /api/tac/search?model=iPhone%2014` → recherche par marque ou modèle (fuzzy search).
+
+`ImeiService` et `PhoneIdentifierService` consomment directement cette base pour enrichir les réponses IMEI (marque, modèle,
+année de sortie, type d'appareil, technologie radio).
 
 ### Indexation initiale Elasticsearch
 
