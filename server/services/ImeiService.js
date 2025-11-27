@@ -6,7 +6,6 @@ const IMEICHECK_ENDPOINT =
   process.env.IMEICHECK_ENDPOINT || 'https://alpha.imeicheck.com/api/modelBrandName';
 const IMEICHECK_API_KEY = process.env.IMEICHECK_API_KEY || DEFAULT_API_KEY;
 const IMEICHECK_SIGNATURE_SECRET = process.env.IMEICHECK_SIGNATURE_SECRET || '';
-const ENABLE_STUB_RESPONSE = process.env.IMEICHECK_ENABLE_STUB !== 'false';
 const HAS_SIGNING_CONFIG = Boolean(IMEICHECK_API_KEY || IMEICHECK_SIGNATURE_SECRET);
 const DEFAULT_FORMAT = process.env.IMEICHECK_RESPONSE_FORMAT || 'json';
 const REQUEST_TIMEOUT_MS = 10000;
@@ -50,16 +49,22 @@ const extractTac = (imei) => {
   return normalized.length >= 8 ? normalized.slice(0, 8) : '';
 };
 
-const createStubResponse = (imei, reason) => {
-  const brand = 'Mode démo';
-  const model = 'Non configuré';
-  const name = 'Simulation de vérification IMEI';
+const createTacFallbackResponse = (imei) => {
   const tac = extractTac(imei);
-  const tacInfo = tac ? tacDbService.getTacInfo(tac) : null;
 
-  if (reason) {
-    console.warn('[IMEI] Réponse simulée:', reason);
+  if (!tac) {
+    return null;
   }
+
+  const tacInfo = tacDbService.getTacInfo(tac);
+
+  if (!tacInfo) {
+    return null;
+  }
+
+  const brand = tacInfo.brand || '';
+  const model = tacInfo.model || '';
+  const name = tacInfo.name || tacInfo.deviceName || [brand, model].filter(Boolean).join(' ').trim();
 
   return {
     imei,
@@ -68,11 +73,11 @@ const createStubResponse = (imei, reason) => {
     model,
     name,
     tacInfo,
-    status: 'success',
-    result: reason || "Réponse simulée (API IMEI non configurée)",
-    object: { brand, model, name, tac, tacInfo },
-    rawStatus: 'success',
-    rawResult: reason || 'stub',
+    status: 'tac_db',
+    result: tacInfo.notes || 'Informations issues de la base TAC',
+    object: { ...tacInfo, brand, model, name, tac },
+    rawStatus: 'tac_db',
+    rawResult: tacInfo.notes || 'tac_db',
     count_free_checks_today: undefined
   };
 };
@@ -82,8 +87,13 @@ export const checkImei = async (imei) => {
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    if (!HAS_SIGNING_CONFIG && ENABLE_STUB_RESPONSE) {
-      return createStubResponse(imei, 'API IMEI non configurée. Activation du mode simulé.');
+    if (!HAS_SIGNING_CONFIG) {
+      const tacFallback = createTacFallbackResponse(imei);
+      if (tacFallback) {
+        return tacFallback;
+      }
+
+      throw createApiUnavailableError();
     }
 
     const timestamp = Date.now().toString();
@@ -190,12 +200,13 @@ export const checkImei = async (imei) => {
         typeof data.count_free_checks_today === 'number' ? data.count_free_checks_today : undefined
     };
   } catch (error) {
-    if (!HAS_SIGNING_CONFIG && ENABLE_STUB_RESPONSE) {
-      return createStubResponse(imei, 'API IMEI indisponible. Réponse simulée renvoyée.');
-    }
-
     if (error instanceof ImeiFunctionalError) {
       throw error;
+    }
+
+    const tacFallback = createTacFallbackResponse(imei);
+    if (tacFallback) {
+      return tacFallback;
     }
 
     if (error?.name === 'AbortError') {
