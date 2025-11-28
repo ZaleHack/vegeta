@@ -1725,6 +1725,22 @@ const App: React.FC = () => {
     }
   }, [hiddenRequestIds, isAdmin, currentUser]);
 
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIdentifyingRequest(null);
+      }
+    };
+
+    if (identifyingRequest) {
+      window.addEventListener('keydown', handleEscape);
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [identifyingRequest]);
+
   const [requestSearchInput, setRequestSearchInput] = useState('');
   const [requestSearch, setRequestSearch] = useState('');
   const [requestPage, setRequestPage] = useState(1);
@@ -8859,33 +8875,63 @@ useEffect(() => {
               </div>
 
               {identifyingRequest && (
-                <div className="relative overflow-hidden rounded-3xl border border-emerald-200/70 bg-emerald-50/70 p-6 shadow-lg shadow-emerald-200/50 dark:border-emerald-500/30 dark:bg-emerald-950/40">
-                  <div className="absolute -right-20 top-0 h-48 w-48 rounded-full bg-emerald-200/50 blur-3xl dark:bg-emerald-900/30" />
-                  <div className="absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-teal-200/50 blur-3xl dark:bg-teal-900/30" />
-                  <div className="relative z-10 space-y-6">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <h3 className="text-xl font-semibold text-emerald-700 dark:text-emerald-200">Identification en cours</h3>
-                        <p className="text-sm text-emerald-700/80 dark:text-emerald-200/80">
-                          Complétez le profil associé pour finaliser l'identification de ce numéro.
-                        </p>
+                <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-10">
+                  <div
+                    className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
+                    onClick={() => setIdentifyingRequest(null)}
+                  />
+                  <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-slate-50 shadow-2xl ring-1 ring-white/10 dark:border-slate-700/60 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
+                    <div className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl dark:bg-emerald-500/15" />
+                    <div className="pointer-events-none absolute -right-24 bottom-0 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl dark:bg-cyan-500/15" />
+                    <div className="relative z-10 space-y-6 p-8">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-2">
+                          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-emerald-200 ring-1 ring-emerald-400/40">
+                            Demande
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-400 to-cyan-500 text-slate-900 shadow-lg shadow-emerald-500/30">
+                              <Phone className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <h3 className="text-2xl font-bold text-white">Identification en cours</h3>
+                              <p className="text-sm text-slate-300">
+                                Complétez le profil associé pour finaliser l'identification de ce numéro.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-3 text-sm text-slate-200">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 font-semibold text-white ring-1 ring-white/20">
+                            <Phone className="h-4 w-4" />
+                            {identifyingRequest.phone}
+                          </span>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-200 transition hover:bg-white/15 hover:text-white"
+                            onClick={() => setIdentifyingRequest(null)}
+                          >
+                            <X className="h-4 w-4" />
+                            Fermer
+                          </button>
+                        </div>
                       </div>
-                      <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 bg-white/80 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm dark:border-emerald-500/40 dark:bg-slate-900/70 dark:text-emerald-200">
-                        <Phone className="h-4 w-4" />
-                        {identifyingRequest.phone}
-                      </span>
-                    </div>
-                    <div className="rounded-2xl border border-white/60 bg-white/95 p-4 shadow-inner dark:border-emerald-500/20 dark:bg-slate-950/60">
-                      <ProfileForm initialValues={identifyingInitialValues} onSaved={handleProfileSaved} />
-                    </div>
-                    <div className="flex justify-end">
-                      <button
-                        className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 bg-white/80 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:border-emerald-500 hover:text-emerald-800 dark:border-emerald-500/40 dark:bg-slate-900/60 dark:text-emerald-200 dark:hover:border-emerald-400 dark:hover:text-emerald-100"
-                        onClick={() => setIdentifyingRequest(null)}
-                      >
-                        <X className="h-4 w-4" />
-                        Annuler
-                      </button>
+                      <div className="rounded-2xl border border-white/15 bg-white/5 p-5 shadow-inner shadow-emerald-500/10 backdrop-blur">
+                        <ProfileForm initialValues={identifyingInitialValues} onSaved={handleProfileSaved} />
+                      </div>
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-emerald-300/70 hover:bg-emerald-400/20 hover:text-emerald-50"
+                          onClick={() => setIdentifyingRequest(null)}
+                        >
+                          <X className="h-4 w-4" />
+                          Annuler
+                        </button>
+                        <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg shadow-emerald-400/40">
+                          <Sparkles className="h-4 w-4" />
+                          Mode popup moderne
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
