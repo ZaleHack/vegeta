@@ -6915,11 +6915,6 @@ useEffect(() => {
                               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Résultats</p>
                               <h4 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">Détails de la réponse</h4>
                             </div>
-                            {typeof imeiResult.count_free_checks_today === 'number' && (
-                              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:ring-emerald-800/80">
-                                {imeiResult.count_free_checks_today.toLocaleString()} vérifications restantes
-                              </span>
-                            )}
                           </div>
                           <pre className="mt-4 whitespace-pre-line rounded-2xl border border-slate-200 bg-slate-50/90 p-4 text-sm leading-relaxed text-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100">
                             {formatImeiResultText(imeiResult.result) || 'Aucun détail supplémentaire fourni.'}
