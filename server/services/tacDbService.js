@@ -56,7 +56,6 @@ const loadDatabase = () => {
     }
 
     lastMtimeMs = stat.mtimeMs;
-    console.log(`🔄 TAC DB chargé (${cache.size} entrées)`);
   } catch (error) {
     console.warn('⚠️ Impossible de charger la base TAC locale:', error.message || error);
     cache = new Map();
