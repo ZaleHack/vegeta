@@ -8880,11 +8880,11 @@ useEffect(() => {
                     className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
                     onClick={() => setIdentifyingRequest(null)}
                   />
-                  <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-blue-100 bg-white text-slate-900 shadow-2xl ring-1 ring-blue-100">
+                  <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-blue-100 bg-white text-slate-900 shadow-2xl ring-1 ring-blue-100 dark:border-blue-100 dark:bg-white dark:text-slate-900 dark:ring-blue-100">
                     <div className="relative max-h-[80vh] space-y-6 overflow-y-auto p-8">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="space-y-3">
-                          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-blue-700 ring-1 ring-blue-200">
+                          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-blue-700 ring-1 ring-blue-200 dark:bg-blue-50 dark:text-blue-700 dark:ring-blue-200">
                             Demande
                           </div>
                           <div className="flex items-center gap-3">
@@ -8893,20 +8893,20 @@ useEffect(() => {
                             </div>
                             <div>
                               <h3 className="text-2xl font-bold text-slate-900">Identification en cours</h3>
-                              <p className="text-sm text-slate-600">
+                              <p className="text-sm text-slate-600 dark:text-slate-600">
                                 Complétez le profil associé pour finaliser l'identification de ce numéro.
                               </p>
                             </div>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-3 text-sm text-slate-700">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 font-semibold text-blue-700 ring-1 ring-blue-200">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 font-semibold text-blue-700 ring-1 ring-blue-200 dark:bg-blue-50 dark:text-blue-700 dark:ring-blue-200">
                             <Phone className="h-4 w-4" />
                             {identifyingRequest.phone}
                           </span>
                           <button
                             type="button"
-                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-blue-200 hover:text-blue-700"
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-blue-200 hover:text-blue-700 dark:border-slate-200 dark:bg-white dark:text-slate-600 dark:hover:border-blue-200 dark:hover:text-blue-700"
                             onClick={() => setIdentifyingRequest(null)}
                           >
                             <X className="h-4 w-4" />
@@ -8914,12 +8914,12 @@ useEffect(() => {
                           </button>
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-blue-100 bg-slate-50/60 p-5 shadow-inner">
+                      <div className="rounded-2xl border border-blue-100 bg-slate-50/60 p-5 shadow-inner dark:border-blue-100 dark:bg-slate-50/60">
                         <ProfileForm initialValues={identifyingInitialValues} onSaved={handleProfileSaved} />
                       </div>
                       <div className="flex items-center justify-end gap-3">
                         <button
-                          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:text-blue-700"
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:text-blue-700 dark:border-slate-200 dark:bg-white dark:text-slate-700 dark:hover:border-blue-200 dark:hover:text-blue-700"
                           onClick={() => setIdentifyingRequest(null)}
                         >
                           <X className="h-4 w-4" />

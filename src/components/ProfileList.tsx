@@ -1527,7 +1527,7 @@ const ProfileList: React.FC<ProfileListProps> = ({
                           </div>
                           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                             {folderLabel && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-3 py-1 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/60 bg-amber-100/80 px-3 py-1 text-amber-700 dark:border-amber-400/50 dark:bg-amber-500/20 dark:text-amber-100">
                                 <Folder className="h-3.5 w-3.5" /> {folderLabel}
                               </span>
                             )}
