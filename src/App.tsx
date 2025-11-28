@@ -1229,6 +1229,7 @@ interface ImeiCheckResult {
   imei?: string;
   count_free_checks_today?: number;
   object?: ImeiCheckObject;
+  error?: string;
 }
 
 const App: React.FC = () => {
@@ -3088,9 +3089,14 @@ const App: React.FC = () => {
       setImeiLoading(true);
 
       try {
+        const imeiCheckParams = new URLSearchParams({
+          key: 'F06A-ED7C-BE0F-C912-1C69-28KX',
+          imei: normalizedImei,
+          format: 'json'
+        });
+
         const response = await fetch(
-          `/api/imei/check?imei=${encodeURIComponent(normalizedImei)}`,
-          { headers: createAuthHeaders() }
+          `https://alpha.imeicheck.com/api/free_with_key/modelBrandName?${imeiCheckParams.toString()}`
         );
 
         const data: ImeiCheckResult = await response.json();
