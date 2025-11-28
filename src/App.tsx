@@ -55,7 +55,8 @@ import {
   Fingerprint,
   Radar,
   SatelliteDish,
-  Sparkles
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
@@ -1232,6 +1233,8 @@ interface ImeiCheckResult {
   error?: string;
 }
 
+const IMEICHECK_API_KEY = 'F06A-ED7C-BE0F-C912-1C69-28KX';
+
 const App: React.FC = () => {
   const { notifySuccess, notifyError, notifyWarning, notifyInfo } = useNotifications();
   const { currentPage, navigateToPage } = usePageNavigation();
@@ -1268,6 +1271,17 @@ const App: React.FC = () => {
       navigateToPage('login', { replace: true });
     }
   }, [isAuthenticated, currentPage, navigateToPage]);
+
+  const formatImeiResultText = useCallback((value?: string) => {
+    if (!value) return '';
+
+    return value
+      .replace(/<br>/gi, '\n')
+      .replace(/Model Name/gi, 'Nom du modèle')
+      .replace(/\bBrand\b/gi, 'Marque')
+      .replace(/\bModel\b/gi, 'Modèle')
+      .trim();
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -3090,7 +3104,7 @@ const App: React.FC = () => {
 
       try {
         const imeiCheckParams = new URLSearchParams({
-          key: 'F06A-ED7C-BE0F-C912-1C69-28KX',
+          key: IMEICHECK_API_KEY,
           imei: normalizedImei,
           format: 'json'
         });
@@ -6899,9 +6913,8 @@ useEffect(() => {
                         <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-800/70 dark:bg-slate-900/80 dark:shadow-black/30">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Résultat brut</p>
-                              <h4 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">Réponse API</h4>
-                              <p className="text-sm text-slate-500 dark:text-slate-300">Nettoyage automatique des balises HTML</p>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Résultats</p>
+                              <h4 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50">Détails de la réponse</h4>
                             </div>
                             {typeof imeiResult.count_free_checks_today === 'number' && (
                               <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:ring-emerald-800/80">
@@ -6910,7 +6923,7 @@ useEffect(() => {
                             )}
                           </div>
                           <pre className="mt-4 whitespace-pre-line rounded-2xl border border-slate-200 bg-slate-50/90 p-4 text-sm leading-relaxed text-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100">
-                            {(imeiResult.result || '').replace(/<br>/g, '\n').trim() || 'Aucun détail supplémentaire fourni.'}
+                            {formatImeiResultText(imeiResult.result) || 'Aucun détail supplémentaire fourni.'}
                           </pre>
                         </div>
                       </div>
@@ -8625,6 +8638,41 @@ useEffect(() => {
                               {formatPhoneIdentifierDate(device.lastSeen)}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">Première apparition : {formatPhoneIdentifierDate(device.firstSeen)}</p>
+                          </div>
+
+                          <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50 via-white to-blue-50 p-4 text-sm shadow-sm dark:border-indigo-800/50 dark:from-slate-900/60 dark:via-slate-900/70 dark:to-blue-950/40">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-200">
+                                <Sparkles className="h-4 w-4" />
+                                Détails ImeiCheck
+                              </div>
+                              <a
+                                href={`https://alpha.imeicheck.com/api/free_with_key/modelBrandName?${new URLSearchParams({ key: IMEICHECK_API_KEY, imei: device.imei, format: 'json' }).toString()}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-100 transition hover:bg-white dark:bg-slate-900/70 dark:text-indigo-100 dark:ring-indigo-700/70"
+                              >
+                                Voir l'API
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              <div className="rounded-xl border border-indigo-100 bg-white/90 p-3 shadow-sm dark:border-indigo-800/60 dark:bg-slate-900/70">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Marque</p>
+                                <p className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">{device.imeiInfo?.brand || 'Inconnue'}</p>
+                              </div>
+                              <div className="rounded-xl border border-indigo-100 bg-white/90 p-3 shadow-sm dark:border-indigo-800/60 dark:bg-slate-900/70">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Modèle</p>
+                                <p className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">{device.imeiInfo?.model || 'Non communiqué'}</p>
+                              </div>
+                              <div className="rounded-xl border border-indigo-100 bg-white/90 p-3 shadow-sm dark:border-indigo-800/60 dark:bg-slate-900/70">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Nom du modèle</p>
+                                <p className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                                  {device.imeiInfo?.name || device.imeiInfo?.result || 'Description non disponible'}
+                                </p>
+                              </div>
+                            </div>
                           </div>
 
                           {device.imeiInfo?.error && (
