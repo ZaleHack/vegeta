@@ -8893,13 +8893,13 @@ useEffect(() => {
                             </div>
                             <div>
                               <h3 className="text-2xl font-bold text-slate-900">Identification en cours</h3>
-                              <p className="text-sm text-slate-600 dark:text-slate-600">
+                              <p className="text-sm text-slate-700 dark:text-slate-900">
                                 Complétez le profil associé pour finaliser l'identification de ce numéro.
                               </p>
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-col items-end gap-3 text-sm text-slate-700">
+                        <div className="flex flex-col items-end gap-3 text-sm text-slate-800 dark:text-slate-900">
                           <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 font-semibold text-blue-700 ring-1 ring-blue-200 dark:bg-blue-50 dark:text-blue-700 dark:ring-blue-200">
                             <Phone className="h-4 w-4" />
                             {identifyingRequest.phone}
@@ -8914,7 +8914,7 @@ useEffect(() => {
                           </button>
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-blue-100 bg-slate-50/60 p-5 shadow-inner dark:border-blue-100 dark:bg-slate-50/60">
+                      <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-inner dark:border-blue-100 dark:bg-white">
                         <ProfileForm initialValues={identifyingInitialValues} onSaved={handleProfileSaved} />
                       </div>
                       <div className="flex items-center justify-end gap-3">
