@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import tacDbService from './tacDbService.js';
 
 const DEFAULT_API_KEY = '';
 const IMEICHECK_ENDPOINT =
@@ -49,50 +48,12 @@ const extractTac = (imei) => {
   return normalized.length >= 8 ? normalized.slice(0, 8) : '';
 };
 
-const createTacFallbackResponse = (imei) => {
-  const tac = extractTac(imei);
-
-  if (!tac) {
-    return null;
-  }
-
-  const tacInfo = tacDbService.getTacInfo(tac);
-
-  if (!tacInfo) {
-    return null;
-  }
-
-  const brand = tacInfo.brand || '';
-  const model = tacInfo.model || '';
-  const name = tacInfo.name || tacInfo.deviceName || [brand, model].filter(Boolean).join(' ').trim();
-
-  return {
-    imei,
-    tac,
-    brand,
-    model,
-    name,
-    tacInfo,
-    status: 'tac_db',
-    result: tacInfo.notes || 'Informations issues de la base TAC',
-    object: { ...tacInfo, brand, model, name, tac },
-    rawStatus: 'tac_db',
-    rawResult: tacInfo.notes || 'tac_db',
-    count_free_checks_today: undefined
-  };
-};
-
 export const checkImei = async (imei) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
     if (!HAS_SIGNING_CONFIG) {
-      const tacFallback = createTacFallbackResponse(imei);
-      if (tacFallback) {
-        return tacFallback;
-      }
-
       throw createApiUnavailableError();
     }
 
@@ -174,10 +135,7 @@ export const checkImei = async (imei) => {
       throw new ImeiFunctionalError('IMEI not found or invalid');
     }
 
-    const tac = extractTac(imei);
-    const tacInfo = tac ? tacDbService.getTacInfo(tac) : null;
-
-    const hasPayload = Boolean(brand || model || name || tacInfo);
+    const hasPayload = Boolean(brand || model || name);
     const isSuccess = isSuccessfulStatus(status) || hasPayload;
 
     if (!isSuccess) {
@@ -186,14 +144,14 @@ export const checkImei = async (imei) => {
 
     return {
       imei,
-      tac,
+      tac: extractTac(imei),
       brand,
       model,
       name,
       status,
       result: resultText ?? name ?? '',
-      object: { ...normalizedObject, brand, model, name, tac, tacInfo },
-      tacInfo,
+      object: { ...normalizedObject, brand, model, name },
+      tacInfo: null,
       rawStatus: status,
       rawResult: resultText,
       count_free_checks_today:
@@ -202,11 +160,6 @@ export const checkImei = async (imei) => {
   } catch (error) {
     if (error instanceof ImeiFunctionalError) {
       throw error;
-    }
-
-    const tacFallback = createTacFallbackResponse(imei);
-    if (tacFallback) {
-      return tacFallback;
     }
 
     if (error?.name === 'AbortError') {

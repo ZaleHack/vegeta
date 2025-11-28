@@ -31,7 +31,6 @@ import notificationsRoutes from './routes/notifications.js';
 import fraudRoutes from './routes/fraud.js';
 import imeiRoutes from './routes/imei.js';
 import phoneIdentifierRoutes from './routes/phone-identifier.js';
-import tacRoutes from './routes/tac.js';
 import { authenticate } from './middleware/auth.js';
 import { payloadEncryptionMiddleware } from './middleware/payloadEncryption.js';
 import requestLogger from './middleware/requestLogger.js';
@@ -181,7 +180,6 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/fraud-detection', fraudRoutes);
 app.use('/api/imei', imeiRoutes);
 app.use('/api/phone-identifier', phoneIdentifierRoutes);
-app.use('/api/tac', tacRoutes);
 
 app.get('/api/public/payload-encryption-key', (req, res) => {
   try {

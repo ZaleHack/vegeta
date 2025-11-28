@@ -1,7 +1,6 @@
 import database from '../config/database.js';
 import { REALTIME_CDR_TABLE_SQL } from '../config/realtime-table.js';
 import { checkImei, ImeiFunctionalError } from './ImeiService.js';
-import tacDbService from './tacDbService.js';
 
 const sanitizeNumber = (value) => {
   if (value === null || value === undefined) {
@@ -64,31 +63,10 @@ const normalizeDateTime = (value) => {
   }
 };
 
-const buildTacDetails = (imei, tacInfo, tac) => {
-  const brand = tacInfo?.brand || '';
-  const model = tacInfo?.model || '';
-  const name = tacInfo?.name || tacInfo?.deviceName || [brand, model].filter(Boolean).join(' ').trim();
-
-  return {
-    brand,
-    model,
-    name: name || tacInfo?.notes || '',
-    tac,
-    tacInfo,
-    status: 'tac_db',
-    result: tacInfo?.notes || 'Informations issues de la base TAC'
-  };
-};
-
 const resolveImeiDetails = async (imeis = []) => {
   const results = await Promise.all(
     imeis.map(async (imei) => {
       const tac = imei ? String(imei).replace(/\D/g, '').slice(0, 8) : '';
-      const tacInfo = tac ? tacDbService.getTacInfo(tac) : null;
-
-      if (tacInfo) {
-        return [imei, buildTacDetails(imei, tacInfo, tac)];
-      }
 
       try {
         const data = await checkImei(imei);
@@ -101,21 +79,17 @@ const resolveImeiDetails = async (imeis = []) => {
           model,
           name,
           tac,
-          tacInfo,
+          tacInfo: data.tacInfo ?? null,
           status: data.status ?? data.rawStatus ?? '',
           result: data.result ?? data.rawResult ?? ''
         }];
       } catch (error) {
-        if (tacInfo) {
-          return [imei, buildTacDetails(imei, tacInfo, tac)];
-        }
-
         const reason =
           error instanceof ImeiFunctionalError
             ? 'IMEI introuvable ou invalide'
             : "Impossible de récupérer les informations IMEI";
 
-        return [imei, { brand: '', model: '', name: '', tac, tacInfo, error: reason }];
+        return [imei, { brand: '', model: '', name: '', tac, tacInfo: null, error: reason }];
       }
     })
   );

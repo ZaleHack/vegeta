@@ -8877,38 +8877,36 @@ useEffect(() => {
               {identifyingRequest && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-10">
                   <div
-                    className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
+                    className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
                     onClick={() => setIdentifyingRequest(null)}
                   />
-                  <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-slate-50 shadow-2xl ring-1 ring-white/10 dark:border-slate-700/60 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
-                    <div className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl dark:bg-emerald-500/15" />
-                    <div className="pointer-events-none absolute -right-24 bottom-0 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl dark:bg-cyan-500/15" />
-                    <div className="relative z-10 space-y-6 p-8">
+                  <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-blue-100 bg-white text-slate-900 shadow-2xl ring-1 ring-blue-100">
+                    <div className="relative max-h-[80vh] space-y-6 overflow-y-auto p-8">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="space-y-2">
-                          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-emerald-200 ring-1 ring-emerald-400/40">
+                        <div className="space-y-3">
+                          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-blue-700 ring-1 ring-blue-200">
                             Demande
                           </div>
                           <div className="flex items-center gap-3">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-400 to-cyan-500 text-slate-900 shadow-lg shadow-emerald-500/30">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
                               <Phone className="h-5 w-5" />
                             </div>
                             <div>
-                              <h3 className="text-2xl font-bold text-white">Identification en cours</h3>
-                              <p className="text-sm text-slate-300">
+                              <h3 className="text-2xl font-bold text-slate-900">Identification en cours</h3>
+                              <p className="text-sm text-slate-600">
                                 Complétez le profil associé pour finaliser l'identification de ce numéro.
                               </p>
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-col items-end gap-3 text-sm text-slate-200">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 font-semibold text-white ring-1 ring-white/20">
+                        <div className="flex flex-col items-end gap-3 text-sm text-slate-700">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 font-semibold text-blue-700 ring-1 ring-blue-200">
                             <Phone className="h-4 w-4" />
                             {identifyingRequest.phone}
                           </span>
                           <button
                             type="button"
-                            className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-200 transition hover:bg-white/15 hover:text-white"
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-blue-200 hover:text-blue-700"
                             onClick={() => setIdentifyingRequest(null)}
                           >
                             <X className="h-4 w-4" />
@@ -8916,21 +8914,17 @@ useEffect(() => {
                           </button>
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-white/15 bg-white/5 p-5 shadow-inner shadow-emerald-500/10 backdrop-blur">
+                      <div className="rounded-2xl border border-blue-100 bg-slate-50/60 p-5 shadow-inner">
                         <ProfileForm initialValues={identifyingInitialValues} onSaved={handleProfileSaved} />
                       </div>
                       <div className="flex items-center justify-end gap-3">
                         <button
-                          className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-emerald-300/70 hover:bg-emerald-400/20 hover:text-emerald-50"
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:text-blue-700"
                           onClick={() => setIdentifyingRequest(null)}
                         >
                           <X className="h-4 w-4" />
                           Annuler
                         </button>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg shadow-emerald-400/40">
-                          <Sparkles className="h-4 w-4" />
-                          Mode popup moderne
-                        </div>
                       </div>
                     </div>
                   </div>
