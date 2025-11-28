@@ -55,8 +55,7 @@ import {
   Fingerprint,
   Radar,
   SatelliteDish,
-  Sparkles,
-  ExternalLink
+  Sparkles
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
@@ -6033,19 +6032,6 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => navigateToPage('imei-check')}
-              title="Imei Check"
-              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                currentPage === 'imei-check'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
-                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
-              } ${!sidebarOpen && 'justify-center px-0'}`}
-            >
-              <Smartphone className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
-              {sidebarOpen && <span className="ml-3">Imei Check</span>}
-            </button>
-
-            <button
               onClick={() => navigateToPage('annuaire')}
               title="Annuaire Gendarmerie"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
@@ -6108,6 +6094,19 @@ useEffect(() => {
             >
               <Clock className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Géolocalisation</span>}
+            </button>
+
+            <button
+              onClick={() => navigateToPage('imei-check')}
+              title="Imei Check"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'imei-check'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <Smartphone className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Imei Check</span>}
             </button>
 
             <button
@@ -8641,21 +8640,10 @@ useEffect(() => {
                           </div>
 
                           <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50 via-white to-blue-50 p-4 text-sm shadow-sm dark:border-indigo-800/50 dark:from-slate-900/60 dark:via-slate-900/70 dark:to-blue-950/40">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-200">
-                                <Sparkles className="h-4 w-4" />
-                                Détails ImeiCheck
-                              </div>
-                              <a
-                                href={`https://alpha.imeicheck.com/api/free_with_key/modelBrandName?${new URLSearchParams({ key: IMEICHECK_API_KEY, imei: device.imei, format: 'json' }).toString()}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-100 transition hover:bg-white dark:bg-slate-900/70 dark:text-indigo-100 dark:ring-indigo-700/70"
-                              >
-                                Voir l'API
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </a>
-                            </div>
+                          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-200">
+                            <Sparkles className="h-4 w-4" />
+                            Détails ImeiCheck
+                          </div>
 
                             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                               <div className="rounded-xl border border-indigo-100 bg-white/90 p-3 shadow-sm dark:border-indigo-800/60 dark:bg-slate-900/70">
