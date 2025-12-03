@@ -80,7 +80,8 @@ test('cgi enricher builds UNION ALL SQL when using database', async () => {
   assert.ok(results.get('CELL-1'));
   assert.match(capturedSql, /UNION ALL/);
   assert.ok(/WITH\s+unioned/i.test(capturedSql));
-  assert.match(capturedSql, /UPPER\(TRIM\(CGI\)\)\s+IN\s*\(/i);
+  // The CGI column may be quoted by the SQL builder (e.g., `CGI`).
+  assert.match(capturedSql, /UPPER\(TRIM\(`?CGI`?\)\)\s+IN\s*\(/i);
   assert.equal(
     capturedParams.length,
     2,
