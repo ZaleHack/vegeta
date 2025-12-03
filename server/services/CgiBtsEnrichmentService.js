@@ -469,8 +469,9 @@ class CgiBtsEnrichmentService {
     const unionSegments = sources
       .map((source, index) => {
         const columns = normalizeColumns(source.columns);
-        const cgiColumn = quoteIdentifier(columns.cgi);
-        const normalizedExpression = `UPPER(TRIM(${cgiColumn}))`;
+        const cgiColumnName = sanitizeTableIdentifier(columns.cgi);
+        const cgiColumn = quoteIdentifier(cgiColumnName);
+        const normalizedExpression = `UPPER(TRIM(${cgiColumnName}))`;
 
         const nomColumn = quoteIdentifier(columns.nom);
         const longitudeColumn = quoteIdentifier(columns.longitude);
