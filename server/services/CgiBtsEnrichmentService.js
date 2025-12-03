@@ -85,7 +85,11 @@ const RADIO_TABLE_CANDIDATES = [
       'radio_2g',
       'RADIO_2G',
       'radio2g',
-      'RADIO2G'
+      'RADIO2G',
+      {
+        identifier: 'bts_expresso.gsm',
+        columns: { nom: 'NOM_SITE' }
+      }
     ]
   },
   {
@@ -106,7 +110,11 @@ const RADIO_TABLE_CANDIDATES = [
       'radio_3g',
       'RADIO_3G',
       'radio3g',
-      'RADIO3G'
+      'RADIO3G',
+      {
+        identifier: 'bts_expresso.umts',
+        columns: { nom: 'NOM_SITE' }
+      }
     ]
   },
   {
@@ -160,6 +168,21 @@ const sanitizeTableIdentifier = (value) => {
   return value.replace(/`/g, '').trim();
 };
 
+const normalizeTableCandidate = (candidate) => {
+  if (typeof candidate === 'string') {
+    return { identifier: candidate, columns: null };
+  }
+
+  if (candidate && typeof candidate === 'object') {
+    const identifier = typeof candidate.identifier === 'string' ? candidate.identifier : '';
+    const columns = candidate.columns && typeof candidate.columns === 'object' ? candidate.columns : null;
+
+    return { identifier, columns };
+  }
+
+  return { identifier: '', columns: null };
+};
+
 const parseTableIdentifier = (value) => {
   const sanitized = sanitizeTableIdentifier(value);
   if (!sanitized) {
@@ -204,6 +227,24 @@ const toNullableNumber = (value) => {
   }
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
+};
+
+const normalizeColumns = (columns = {}) => {
+  const fallback = {
+    cgi: 'CGI',
+    nom: 'NOM_BTS',
+    longitude: 'LONGITUDE',
+    latitude: 'LATITUDE',
+    azimut: 'AZIMUT'
+  };
+
+  const source = columns && typeof columns === 'object' ? columns : {};
+
+  return Object.entries(fallback).reduce((acc, [key, defaultValue]) => {
+    const value = source[key];
+    acc[key] = typeof value === 'string' && value.trim().length > 0 ? value.trim() : defaultValue;
+    return acc;
+  }, {});
 };
 
 class CgiBtsEnrichmentService {
@@ -425,14 +466,20 @@ class CgiBtsEnrichmentService {
     }
 
     const placeholders = normalizedKeys.map(() => '?').join(', ');
-    const normalizedExpression = 'UPPER(TRIM(CGI))';
     const unionSegments = sources
-      .map(
-        (source, index) =>
-          `SELECT CGI, NOM_BTS, LONGITUDE, LATITUDE, AZIMUT, ${
-            source.priority ?? index + 1
-          } AS priority FROM ${source.tableSql} WHERE ${normalizedExpression} IN (${placeholders})`
-      )
+      .map((source, index) => {
+        const columns = normalizeColumns(source.columns);
+        const cgiColumn = quoteIdentifier(columns.cgi);
+        const normalizedExpression = `UPPER(TRIM(${cgiColumn}))`;
+
+        const nomColumn = quoteIdentifier(columns.nom);
+        const longitudeColumn = quoteIdentifier(columns.longitude);
+        const latitudeColumn = quoteIdentifier(columns.latitude);
+        const azimutColumn = quoteIdentifier(columns.azimut);
+        const priority = source.priority ?? index + 1;
+
+        return `SELECT ${cgiColumn} AS CGI, ${nomColumn} AS NOM_BTS, ${longitudeColumn} AS LONGITUDE, ${latitudeColumn} AS LATITUDE, ${azimutColumn} AS AZIMUT, ${priority} AS priority FROM ${source.tableSql} WHERE ${normalizedExpression} IN (${placeholders})`;
+      })
       .join('\n    UNION ALL\n');
 
     const sql = `
@@ -503,7 +550,8 @@ class CgiBtsEnrichmentService {
         tableSql: entry.tableSql,
         priority: entry.priority ?? index + 1,
         schema: entry.schema ?? null,
-        table: entry.table ?? null
+        table: entry.table ?? null,
+        columns: entry.columns ?? null
       }));
     }
 
@@ -522,7 +570,8 @@ class CgiBtsEnrichmentService {
 
     for (const definition of RADIO_TABLE_CANDIDATES) {
       for (const candidate of definition.candidates) {
-        const parsed = parseTableIdentifier(candidate);
+        const normalizedCandidate = normalizeTableCandidate(candidate);
+        const parsed = parseTableIdentifier(normalizedCandidate.identifier);
         if (!parsed || !parsed.table) {
           continue;
         }
@@ -543,7 +592,8 @@ class CgiBtsEnrichmentService {
           tableSql,
           priority: definition.priority,
           schema: parsed.schema,
-          table: parsed.table
+          table: parsed.table,
+          columns: normalizedCandidate.columns ?? null
         });
         break;
       }
