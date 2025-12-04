@@ -135,7 +135,11 @@ const RADIO_TABLE_CANDIDATES = [
       'radio_4g',
       'RADIO_4G',
       'radio4g',
-      'RADIO4G'
+      'RADIO4G',
+      {
+        identifier: 'bts_expresso.lte',
+        columns: { nom: 'NOM_SITE' }
+      }
     ]
   },
   {

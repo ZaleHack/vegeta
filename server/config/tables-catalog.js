@@ -946,6 +946,27 @@ export default {
     theme: 'telecom'
   },
 
+  'bts_expresso.lte': {
+    display: 'bts_expresso_lte',
+    database: 'bts_expresso',
+    primaryKey: 'CGI',
+    searchable: ['CGI', 'NOM_SITE', 'CELL_NAME'],
+    preview: ['CGI', 'NOM_SITE', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
+    filters: {
+      NOM_SITE: 'string',
+      CELL_NAME: 'string',
+      LONGITUDE: 'number',
+      LATITUDE: 'number',
+      AZIMUT: 'number',
+      ARCANGLE: 'number',
+      MCC: 'number',
+      MNC: 'number',
+      TAC: 'number',
+      CI: 'number'
+    },
+    theme: 'telecom'
+  },
+
   [REALTIME_TABLE_KEY]: {
     display: REALTIME_TABLE_DISPLAY,
     database: REALTIME_TABLE_DATABASE,
