@@ -95,6 +95,7 @@ interface Contact {
   contactNormalized?: string;
   callCount: number;
   smsCount: number;
+  ussdCount: number;
   callDuration: string;
   total: number;
   events: ContactCallDetail[];
@@ -161,6 +162,7 @@ type ContactAccumulator = {
   contactNormalized?: string;
   callCount: number;
   smsCount: number;
+  ussdCount: number;
   callDurationSeconds: number;
   events: ContactCallDetail[];
 };
@@ -2147,17 +2149,18 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           if (contactNormalized) {
             if (!excludeTrackedContacts || !trackedNumbersSet.has(contactNormalized)) {
               const key = `${trackedNormalized}|${contactNormalized}`;
-              const entry =
-                contactMap.get(key) ||
-                {
-                  tracked: trackedRaw || undefined,
-                  contact: contactRaw || undefined,
-                  contactNormalized,
-                  callCount: 0,
-                  smsCount: 0,
-                  callDurationSeconds: 0,
-                  events: []
-                };
+      const entry =
+        contactMap.get(key) ||
+        {
+          tracked: trackedRaw || undefined,
+          contact: contactRaw || undefined,
+          contactNormalized,
+          callCount: 0,
+          smsCount: 0,
+          ussdCount: 0,
+          callDurationSeconds: 0,
+          events: []
+        };
 
               if (!entry.tracked && trackedRaw) {
                 entry.tracked = trackedRaw;
@@ -2169,10 +2172,14 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
               const normalizedEventType = (p.type || '').trim().toLowerCase();
               const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
+              const isUssdEvent = isUssdEventType(p.type);
+              const isAudioEvent = !isSmsEvent && !isUssdEvent;
 
               if (isSmsEvent) {
                 entry.smsCount += 1;
-              } else {
+              } else if (isUssdEvent) {
+                entry.ussdCount += 1;
+              } else if (isAudioEvent) {
                 entry.callCount += 1;
                 entry.callDurationSeconds += getPointDurationInSeconds(p);
                 const timestamp = getPointTimestamp(p);
@@ -2253,8 +2260,9 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
         contactNormalized: c.contactNormalized,
         callCount: c.callCount,
         smsCount: c.smsCount,
-        callDuration: formatDuration(c.callDurationSeconds),
-        total: c.callCount + c.smsCount,
+        ussdCount: c.ussdCount,
+        callDuration: c.callCount > 0 ? formatDuration(c.callDurationSeconds) : '-',
+        total: c.callCount + c.smsCount + c.ussdCount,
         events: c.events.slice().sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
       }))
       .filter((c) => c.total > 0)
