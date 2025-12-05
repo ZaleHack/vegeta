@@ -499,7 +499,7 @@ class CgiBtsEnrichmentService {
         const azimutColumn = quoteIdentifier(columns.azimut);
         const priority = source.priority ?? index + 1;
 
-        return `SELECT ${cgiColumn} AS CGI, ${nomColumn} AS NOM_BTS, ${longitudeColumn} AS LONGITUDE, ${latitudeColumn} AS LATITUDE, ${azimutColumn} AS AZIMUT, ${priority} AS priority FROM ${source.tableSql} WHERE ${normalizedExpression} IN (${placeholders})`;
+        return `SELECT ${cgiColumn} AS CGI, ${normalizedExpression} AS normalized_cgi, ${nomColumn} AS NOM_BTS, ${longitudeColumn} AS LONGITUDE, ${latitudeColumn} AS LATITUDE, ${azimutColumn} AS AZIMUT, ${priority} AS priority FROM ${source.tableSql} WHERE ${normalizedExpression} IN (${placeholders})`;
       })
       .join('\n    UNION ALL\n');
 
@@ -510,10 +510,10 @@ class CgiBtsEnrichmentService {
       SELECT u.CGI, u.NOM_BTS, u.LONGITUDE, u.LATITUDE, u.AZIMUT
       FROM unioned u
       INNER JOIN (
-        SELECT CGI, MIN(priority) AS min_priority
+        SELECT normalized_cgi, MIN(priority) AS min_priority
         FROM unioned
-        GROUP BY CGI
-      ) best ON u.CGI = best.CGI AND u.priority = best.min_priority
+        GROUP BY normalized_cgi
+      ) best ON u.normalized_cgi = best.normalized_cgi AND u.priority = best.min_priority
     `;
 
     const params = [];
