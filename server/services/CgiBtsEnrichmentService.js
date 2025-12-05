@@ -251,22 +251,6 @@ const normalizeColumns = (columns = {}) => {
   }, {});
 };
 
-const buildCgiNormalizationExpression = (cgiColumn) => `
-  UPPER(
-    CONCAT_WS(
-      '-',
-      LPAD(RIGHT(REGEXP_SUBSTR(${cgiColumn}, '[0-9]+', 1, 1), 3), 3, '0'),
-      LPAD(
-        CAST(REGEXP_SUBSTR(${cgiColumn}, '[0-9]+', 1, 2) AS UNSIGNED),
-        LEAST(GREATEST(LENGTH(REGEXP_SUBSTR(${cgiColumn}, '[0-9]+', 1, 2)), 2), 3),
-        '0'
-      ),
-      CAST(REGEXP_SUBSTR(${cgiColumn}, '[0-9]+', 1, 3) AS UNSIGNED),
-      CAST(REGEXP_SUBSTR(${cgiColumn}, '[0-9]+', 1, 4) AS UNSIGNED)
-    )
-  )
-`;
-
 class CgiBtsEnrichmentService {
   constructor(options = {}) {
     const cacheConfig = getCdrBtsCacheConfiguration();
@@ -491,7 +475,7 @@ class CgiBtsEnrichmentService {
         const columns = normalizeColumns(source.columns);
         const cgiColumnName = sanitizeTableIdentifier(columns.cgi);
         const cgiColumn = quoteIdentifier(cgiColumnName);
-        const normalizedExpression = buildCgiNormalizationExpression(cgiColumn);
+        const normalizedExpression = `UPPER(TRIM(${cgiColumnName}))`;
 
         const nomColumn = quoteIdentifier(columns.nom);
         const longitudeColumn = quoteIdentifier(columns.longitude);
