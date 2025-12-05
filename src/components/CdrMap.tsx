@@ -206,6 +206,7 @@ interface Props {
   zoneMode?: boolean;
   onZoneModeChange?: (enabled: boolean) => void;
   onZoneCreated?: () => void;
+  monitoredNumbers?: string[];
 }
 
 const parseDurationToSeconds = (duration: string): number => {
@@ -1253,7 +1254,8 @@ const CdrMap: React.FC<Props> = ({
   onToggleMeetingPoints,
   zoneMode,
   onZoneModeChange,
-  onZoneCreated
+  onZoneCreated,
+  monitoredNumbers = []
 }) => {
   const points = useMemo<Point[]>(() => {
     if (!Array.isArray(rawPoints) || rawPoints.length === 0) {
@@ -2035,6 +2037,13 @@ const CdrMap: React.FC<Props> = ({
       color: colorMap.get(num) || '#94a3b8'
     }));
   }, [usePerNumberColors, sourceNumbers, colorMap]);
+
+  const monitoredNumberList = useMemo(() => {
+    const normalized = monitoredNumbers
+      .map((num) => num.trim())
+      .filter((num) => num.length > 0);
+    return Array.from(new Set(normalized));
+  }, [monitoredNumbers]);
 
   const getLocationMarkerColor = useCallback(
     (loc: LocationMarker) => {
@@ -3609,6 +3618,33 @@ const CdrMap: React.FC<Props> = ({
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {monitoredNumberList.length > 0 && (
+        <div className="pointer-events-none absolute bottom-44 right-4 z-[1000] w-80 max-h-[45vh]">
+          <div className="pointer-events-auto space-y-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/80">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                <Bell className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+                <span>Numéros sous surveillance</span>
+              </div>
+              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-100">
+                {monitoredNumberList.length}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {monitoredNumberList.map((num) => (
+                <div
+                  key={num}
+                  className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white/70 px-3 py-2 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-800/70"
+                >
+                  <span className="font-semibold text-slate-900 dark:text-white">{formatPhoneForDisplay(num)}</span>
+                  <span className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Actif</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
