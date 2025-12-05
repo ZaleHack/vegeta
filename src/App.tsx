@@ -48,6 +48,7 @@ import {
   Share2,
   GripVertical,
   X,
+  Info,
   Scan,
   MapPinOff,
   CheckCircle2,
@@ -2103,6 +2104,15 @@ const App: React.FC = () => {
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
+  const [linkDiagramInput, setLinkDiagramInput] = useState('');
+  const [linkDiagramNumbers, setLinkDiagramNumbers] = useState<string[]>([]);
+  const [linkDiagramStart, setLinkDiagramStart] = useState('');
+  const [linkDiagramEnd, setLinkDiagramEnd] = useState('');
+  const [linkDiagramStartTime, setLinkDiagramStartTime] = useState('');
+  const [linkDiagramEndTime, setLinkDiagramEndTime] = useState('');
+  const [linkDiagramLoading, setLinkDiagramLoading] = useState(false);
+  const [linkDiagramError, setLinkDiagramError] = useState('');
+  const [linkDiagramInfo, setLinkDiagramInfo] = useState('');
   const [showMeetingPoints, setShowMeetingPoints] = useState(false);
   const [zoneMode, setZoneMode] = useState(false);
   const [monitoringInput, setMonitoringInput] = useState('');
@@ -2524,6 +2534,21 @@ const App: React.FC = () => {
     },
     [setCdrIdentifiers]
   );
+
+  const addLinkDiagramNumbersFromInput = useCallback(() => {
+    if (!linkDiagramInput.trim()) return;
+    const candidates = linkDiagramInput
+      .split(/[\s,\n;]+/)
+      .map((value) => normalizeCdrNumber(value))
+      .filter(Boolean);
+    if (candidates.length === 0) return;
+    setLinkDiagramNumbers((prev) => Array.from(new Set([...prev, ...candidates])));
+    setLinkDiagramInput('');
+  }, [linkDiagramInput, normalizeCdrNumber]);
+
+  const removeLinkDiagramNumber = useCallback((value: string) => {
+    setLinkDiagramNumbers((prev) => prev.filter((item) => item !== value));
+  }, []);
 
   const effectiveCdrIdentifiers = useMemo(
     () => getEffectiveCdrIdentifiers(),
@@ -4782,6 +4807,57 @@ useEffect(() => {
     }
   };
 
+  const handleStandaloneLinkDiagram = async () => {
+    if (!selectedCase) {
+      setLinkDiagramError('Sélectionnez une opération pour interroger les CDR.');
+      return;
+    }
+
+    const normalizedNumbers = linkDiagramNumbers
+      .map((identifier) => normalizeCdrNumber(identifier))
+      .filter((n) => n && LINK_DIAGRAM_PREFIXES.some((prefix) => n.startsWith(prefix)));
+
+    const uniqueNumbers = Array.from(new Set(normalizedNumbers));
+
+    if (uniqueNumbers.length < 2) {
+      setLinkDiagramError('Ajoutez au moins deux numéros valides (préfixes 221).');
+      return;
+    }
+
+    try {
+      setLinkDiagramLoading(true);
+      setLinkDiagramError('');
+      setLinkDiagramInfo('');
+
+      const payload: Record<string, unknown> = { numbers: uniqueNumbers };
+      if (linkDiagramStart) payload.start = new Date(linkDiagramStart).toISOString().split('T')[0];
+      if (linkDiagramEnd) payload.end = new Date(linkDiagramEnd).toISOString().split('T')[0];
+      if (linkDiagramStartTime) payload.startTime = linkDiagramStartTime;
+      if (linkDiagramEndTime) payload.endTime = linkDiagramEndTime;
+
+      const res = await fetch(`/api/cases/${selectedCase.id}/link-diagram`, {
+        method: 'POST',
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.links && data.links.length > 0) {
+        setLinkDiagram(data);
+        setLinkDiagramInfo('');
+      } else {
+        setLinkDiagram(null);
+        setLinkDiagramInfo(data.error || 'Aucune liaison trouvée pour ces numéros.');
+      }
+    } catch (error) {
+      console.error('Erreur diagramme des liens (menu):', error);
+      setLinkDiagramError('Impossible de générer le diagramme pour le moment.');
+    } finally {
+      setLinkDiagramLoading(false);
+    }
+  };
+
   const fetchCases = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -5204,7 +5280,7 @@ useEffect(() => {
     if (currentPage === 'vehicules' && currentUser) {
       fetchVehicules();
     }
-    if (currentPage === 'cdr' && currentUser) {
+    if ((currentPage === 'cdr' || currentPage === 'link-diagram') && currentUser) {
       fetchCases();
     }
     if (currentPage === 'requests' && currentUser) {
@@ -5227,6 +5303,14 @@ useEffect(() => {
       fetchBlacklist();
     }
   }, [currentPage, isAdmin]);
+
+  useEffect(() => {
+    if (currentPage !== 'link-diagram') {
+      setLinkDiagramError('');
+      setLinkDiagramInfo('');
+      setLinkDiagramLoading(false);
+    }
+  }, [currentPage]);
 
   useEffect(() => {
     if (currentPage !== 'profiles') {
@@ -6203,6 +6287,19 @@ useEffect(() => {
             </button>
 
             <button
+              onClick={() => navigateToPage('link-diagram')}
+              title="Diagramme des liens"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'link-diagram'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <Share2 className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Diagramme des liens</span>}
+            </button>
+
+            <button
               onClick={() => navigateToPage('imei-check')}
               title="Imei Check"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
@@ -7176,6 +7273,257 @@ useEffect(() => {
                   </>
                 )}
               </div>
+            </div>
+          )}
+
+          {currentPage === 'link-diagram' && (
+            <div className="space-y-10">
+              <PageHeader
+                icon={<Share2 className="h-6 w-6" />}
+                title="Diagramme des liens"
+                subtitle="Explorez les interactions entre plusieurs numéros en quelques secondes."
+              />
+
+              <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-indigo-50/70 p-8 shadow-[0_30px_60px_-24px_rgba(79,70,229,0.35)] backdrop-blur dark:border-slate-700/60 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/50">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.12),transparent_25%),radial-gradient(circle_at_80%_0%,rgba(147,51,234,0.14),transparent_28%),radial-gradient(circle_at_50%_80%,rgba(16,185,129,0.12),transparent_30%)]" aria-hidden />
+                <div className="relative grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+                  <div className="space-y-6 rounded-3xl border border-white/60 bg-white/80 p-8 shadow-xl shadow-indigo-500/15 ring-1 ring-white/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:ring-slate-800/60">
+                    <div className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 dark:border-slate-700/60">
+                      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Configuration</p>
+                      <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Composez votre graphe</h2>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        Ajoutez plusieurs numéros (221) pour identifier les liens entre eux. Les filtres temporels affinent la
+                        période d'analyse.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Opération CDR</label>
+                        <div className="relative">
+                          <select
+                            className="w-full appearance-none rounded-2xl border border-slate-200/70 bg-white/90 px-4 py-3 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                            value={selectedCase?.id ?? ''}
+                            onChange={(event) => {
+                              const value = Number(event.target.value);
+                              const target = cases.find((item) => item.id === value) || null;
+                              setSelectedCase(target);
+                            }}
+                          >
+                            <option value="" disabled>
+                              Sélectionnez un dossier
+                            </option>
+                            {cases.map((cdrCase) => (
+                              <option key={cdrCase.id} value={cdrCase.id}>
+                                {cdrCase.name || `Opération #${cdrCase.id}`}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Utilisez un dossier actif pour interroger les CDR et générer le diagramme.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ajouter des numéros</label>
+                        <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50">
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <input
+                              type="text"
+                              placeholder="Ex: 221781234567, +22177..."
+                              value={linkDiagramInput}
+                              onChange={(event) => setLinkDiagramInput(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  addLinkDiagramNumbersFromInput();
+                                }
+                              }}
+                              className="flex-1 rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                            />
+                            <button
+                              type="button"
+                              onClick={addLinkDiagramNumbersFromInput}
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                            >
+                              <Plus className="h-4 w-4" />
+                              <span>Ajouter</span>
+                            </button>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Séparez les numéros par une virgule, un espace ou un retour à la ligne.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Numéros sélectionnés</label>
+                      {linkDiagramNumbers.length === 0 ? (
+                        <div className="flex items-center gap-3 rounded-2xl border border-dashed border-slate-300/70 bg-white/70 px-4 py-3 text-sm text-slate-500 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
+                          <Info className="h-4 w-4" />
+                          Ajoutez au moins deux numéros pour lancer la recherche.
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200/70 bg-white/70 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
+                          {linkDiagramNumbers.map((value) => (
+                            <span
+                              key={value}
+                              className="inline-flex items-center gap-2 rounded-full bg-indigo-600/10 px-3 py-1 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200/70 dark:bg-indigo-500/10 dark:text-indigo-100 dark:ring-indigo-500/30"
+                            >
+                              {value}
+                              <button
+                                type="button"
+                                onClick={() => removeLinkDiagramNumber(value)}
+                                className="text-indigo-500 transition hover:text-indigo-700 dark:hover:text-indigo-200"
+                                aria-label={`Retirer ${value}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Date de début</label>
+                        <input
+                          type="date"
+                          value={linkDiagramStart}
+                          onChange={(event) => setLinkDiagramStart(event.target.value)}
+                          className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Heure de début</label>
+                        <input
+                          type="time"
+                          value={linkDiagramStartTime}
+                          onChange={(event) => setLinkDiagramStartTime(event.target.value)}
+                          className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Date de fin</label>
+                        <input
+                          type="date"
+                          value={linkDiagramEnd}
+                          onChange={(event) => setLinkDiagramEnd(event.target.value)}
+                          className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Heure de fin</label>
+                        <input
+                          type="time"
+                          value={linkDiagramEndTime}
+                          onChange={(event) => setLinkDiagramEndTime(event.target.value)}
+                          className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                        />
+                      </div>
+                    </div>
+
+                    {linkDiagramError && (
+                      <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 shadow-sm dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-100">
+                        <AlertTriangle className="h-4 w-4" />
+                        {linkDiagramError}
+                      </div>
+                    )}
+                    {linkDiagramInfo && (
+                      <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100">
+                        <Info className="h-4 w-4" />
+                        {linkDiagramInfo}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={handleStandaloneLinkDiagram}
+                        disabled={linkDiagramLoading}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:-translate-y-0.5 hover:shadow-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {linkDiagramLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+                        <span>Générer le diagramme</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLinkDiagramNumbers([]);
+                          setLinkDiagramInput('');
+                          setLinkDiagramStart('');
+                          setLinkDiagramEnd('');
+                          setLinkDiagramStartTime('');
+                          setLinkDiagramEndTime('');
+                          setLinkDiagramError('');
+                          setLinkDiagramInfo('');
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:text-indigo-700 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:border-indigo-500/60 dark:hover:text-indigo-100"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        <span>Réinitialiser</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="overflow-hidden rounded-3xl border border-white/60 bg-white/80 p-6 shadow-xl shadow-indigo-500/15 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30">
+                          <Sparkles className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">Diagrame temps réel</p>
+                          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Visualisation immersive</h3>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                        Les liens sont mis en forme automatiquement pour révéler les points de convergence, la densité de trafic et les acteurs centraux.
+                      </p>
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Préfixes suivis</p>
+                          <p className="text-lg font-bold text-slate-900 dark:text-white">{LINK_DIAGRAM_PREFIXES.length}</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Numéros prêts</p>
+                          <p className="text-lg font-bold text-slate-900 dark:text-white">{linkDiagramNumbers.length}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-3xl border border-white/60 bg-gradient-to-br from-indigo-600 via-blue-600 to-purple-700 p-6 text-white shadow-2xl shadow-indigo-600/30 backdrop-blur dark:border-indigo-500/50">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-100/90">Conseils</p>
+                          <h3 className="text-xl font-bold leading-tight">Optimisez vos recherches</h3>
+                        </div>
+                        <Radar className="h-10 w-10 text-indigo-100/90" />
+                      </div>
+                      <ul className="mt-4 space-y-2 text-sm text-indigo-50">
+                        <li className="flex items-start gap-2">
+                          <span className="mt-1 h-2 w-2 rounded-full bg-white/80" aria-hidden />
+                          Combinez des numéros d'opérateurs différents pour révéler des passerelles inattendues.
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="mt-1 h-2 w-2 rounded-full bg-white/80" aria-hidden />
+                          Ajustez les heures pour isoler les échanges avant ou après un événement clé.
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="mt-1 h-2 w-2 rounded-full bg-white/80" aria-hidden />
+                          Pensez à renommer vos dossiers pour suivre l'historique des analyses.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {linkDiagram && (
+                <LinkDiagram data={linkDiagram} onClose={() => setLinkDiagram(null)} />
+              )}
             </div>
           )}
 
