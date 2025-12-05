@@ -198,6 +198,15 @@ const computeOffsetPosition = (
   return [lat + latOffset, lng + lngOffset];
 };
 
+type MonitoringTargetSummary = {
+  id: string;
+  type: 'number' | 'imei';
+  value: string;
+  createdAt?: string;
+  lastAlertAt?: string;
+  knownPeersCount?: number;
+};
+
 interface Props {
   points: Point[];
   showRoute?: boolean;
@@ -207,6 +216,8 @@ interface Props {
   onZoneModeChange?: (enabled: boolean) => void;
   onZoneCreated?: () => void;
   monitoredNumbers?: string[];
+  monitoringTargets?: MonitoringTargetSummary[];
+  onRemoveMonitoringTarget?: (targetId: string) => void;
 }
 
 const parseDurationToSeconds = (duration: string): number => {
@@ -1255,7 +1266,9 @@ const CdrMap: React.FC<Props> = ({
   zoneMode,
   onZoneModeChange,
   onZoneCreated,
-  monitoredNumbers = []
+  monitoredNumbers = [],
+  monitoringTargets = [],
+  onRemoveMonitoringTarget
 }) => {
   const points = useMemo<Point[]>(() => {
     if (!Array.isArray(rawPoints) || rawPoints.length === 0) {
@@ -1376,6 +1389,7 @@ const CdrMap: React.FC<Props> = ({
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
   const [showZoneInfo, setShowZoneInfo] = useState(false);
+  const [showGeofencingPanel, setShowGeofencingPanel] = useState(false);
   const [hiddenLocations, setHiddenLocations] = useState<Set<string>>(new Set());
   const [showSimilar, setShowSimilar] = useState(false);
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
@@ -2110,6 +2124,20 @@ const CdrMap: React.FC<Props> = ({
 
     return { rows, maxActivityCount: Math.max(maxActivityCount, 1) };
   }, [callerPoints, colorMap, monitoredNumberList, normalizedSourceSet]);
+
+  const geofencingTargets = useMemo(
+    () => monitoringTargets.filter((target) => target.type === 'number'),
+    [monitoringTargets]
+  );
+  const geofencingLimit = 3;
+  const hasReachedGeofencingLimit = geofencingTargets.length >= geofencingLimit;
+
+  const formatGeofencingDate = useCallback((value?: string) => {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  }, []);
 
   const getLocationMarkerColor = useCallback(
     (loc: LocationMarker) => {
@@ -3459,6 +3487,13 @@ const CdrMap: React.FC<Props> = ({
       </MapContainer>
       <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-3">
         <MapControlButton
+          title="Geofencing"
+          icon={<Shield className="h-5 w-5" />}
+          onClick={() => setShowGeofencingPanel((prev) => !prev)}
+          active={showGeofencingPanel}
+          isToggle
+        />
+        <MapControlButton
           title={
             hasLatestLocation
               ? 'Afficher la dernière localisation connue'
@@ -3517,6 +3552,85 @@ const CdrMap: React.FC<Props> = ({
           onClick={handleZoomOut}
         />
       </div>
+
+      {showGeofencingPanel && (
+        <div className="pointer-events-none absolute top-4 right-4 z-[1000] w-[28rem] max-h-[60vh]">
+          <div className="pointer-events-auto overflow-hidden rounded-3xl border border-white/10 bg-white/90 text-slate-800 shadow-2xl backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/90 dark:text-slate-100">
+            <div className="flex items-center justify-between gap-3 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 ring-1 ring-blue-100 dark:bg-blue-500/10 dark:text-blue-200 dark:ring-white/10">
+                  <Shield className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400 dark:text-slate-400">Geofencing</p>
+                  <p className="text-lg font-semibold">Surveillances actives</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-white/80 dark:bg-white/5 dark:text-slate-100 dark:ring-white/10">
+                <span>{geofencingTargets.length}</span>
+                <span className="text-slate-400">/ {geofencingLimit}</span>
+              </div>
+            </div>
+
+            <div className="border-t border-white/60 bg-white/60 px-5 py-3 text-xs font-semibold text-slate-600 backdrop-blur-sm dark:border-white/5 dark:bg-slate-900/70 dark:text-slate-200">
+              {hasReachedGeofencingLimit
+                ? 'Limite de 3 surveillances atteinte. Supprimez une entrée pour en ajouter une nouvelle.'
+                : 'Vous pouvez activer jusqu\'à 3 surveillances simultanées.'}
+            </div>
+
+            <div className="max-h-[32vh] overflow-y-auto">
+              {geofencingTargets.length === 0 ? (
+                <div className="px-5 py-6 text-sm text-slate-500 dark:text-slate-300">
+                  Aucun numéro n\'est actuellement surveillé. Activez une surveillance pour l\'afficher ici.
+                </div>
+              ) : (
+                <table className="min-w-full text-sm">
+                  <thead className="sticky top-0 bg-white/95 text-[11px] uppercase tracking-wide text-slate-500 backdrop-blur dark:bg-slate-900/95 dark:text-slate-300">
+                    <tr>
+                      <th className="px-5 py-2 text-left">Numéro</th>
+                      <th className="px-5 py-2 text-left">Créé</th>
+                      <th className="px-5 py-2 text-left">Dernière alerte</th>
+                      <th className="px-5 py-2 text-left">Correspondants</th>
+                      <th className="px-5 py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100/70 dark:divide-white/10">
+                    {geofencingTargets.map((target) => (
+                      <tr key={target.id} className="bg-white/70 text-slate-700 transition hover:bg-blue-50/80 dark:bg-slate-900/70 dark:text-slate-100">
+                        <td className="px-5 py-3 font-semibold">{formatPhoneForDisplay(target.value)}</td>
+                        <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-300">{formatGeofencingDate(target.createdAt)}</td>
+                        <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-300">{formatGeofencingDate(target.lastAlertAt)}</td>
+                        <td className="px-5 py-3 text-xs text-slate-600 dark:text-slate-300">{target.knownPeersCount ?? 0}</td>
+                        <td className="px-5 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => onRemoveMonitoringTarget?.(target.id)}
+                            className="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/80 p-2 text-slate-500 transition hover:border-rose-300 hover:text-rose-600 dark:border-white/10 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:text-rose-200"
+                            title="Supprimer la surveillance"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-white/60 bg-white/70 px-5 py-3 text-sm backdrop-blur dark:border-white/5 dark:bg-slate-900/70">
+              <p className="text-slate-600 dark:text-slate-300">Consultez ici toutes les surveillances géofencing actives.</p>
+              <button
+                type="button"
+                onClick={() => setShowGeofencingPanel(false)}
+                className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {zoneMode && (
         <div className="pointer-events-none absolute top-4 left-16 z-[1000] max-w-md">
