@@ -88,7 +88,7 @@ const RADIO_TABLE_CANDIDATES = [
       'RADIO2G',
       {
         identifier: 'bts_expresso.gsm',
-        columns: { nom: 'NOM_SITE' }
+        columns: { nom: 'NOM_BTS' }
       }
     ]
   },
@@ -113,7 +113,7 @@ const RADIO_TABLE_CANDIDATES = [
       'RADIO3G',
       {
         identifier: 'bts_expresso.umts',
-        columns: { nom: 'NOM_SITE' }
+        columns: { nom: 'NOM_BTS' }
       }
     ]
   },
@@ -138,7 +138,7 @@ const RADIO_TABLE_CANDIDATES = [
       'RADIO4G',
       {
         identifier: 'bts_expresso.lte',
-        columns: { nom: 'NOM_SITE' }
+        columns: { nom: 'NOM_BTS' }
       }
     ]
   },
