@@ -408,6 +408,9 @@ const formatDateValue = (value) => {
     return 'N/A';
   }
   if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return 'N/A';
+    }
     return value.toISOString().split('T')[0];
   }
   const text = String(value).trim();
