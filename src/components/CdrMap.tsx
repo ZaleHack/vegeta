@@ -12,23 +12,24 @@ import {
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import {
-  PhoneIncoming,
-  PhoneOutgoing,
-  MessageSquare,
-  MapPin,
+  Activity,
   ArrowRight,
+  Asterisk,
   Car,
-  Layers,
-  Users,
   Clock,
-  Flame,
+  Crosshair,
   Eye,
   EyeOff,
-  Activity,
-  Crosshair,
+  Flame,
   History,
-  Plus,
+  Layers,
+  MapPin,
+  MessageSquare,
   Minus,
+  PhoneIncoming,
+  PhoneOutgoing,
+  Plus,
+  Users,
   X
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -39,6 +40,7 @@ import {
   SMS_COLOR,
   LOCATION_COLOR,
   APPROX_LOCATION_COLOR,
+  USSD_COLOR,
   NUMBER_COLOR_PALETTE
 } from './mapColors';
 
@@ -328,6 +330,11 @@ const isLocationEventType = (type?: string): boolean => {
   return normalized === 'web' || normalized === 'position';
 };
 
+const isUssdEventType = (type?: string): boolean => {
+  if (!type) return false;
+  return type.trim().toLowerCase() === 'ussd';
+};
+
 const getPointColor = (type: string, direction?: string) => {
   const normalizedType = type.trim().toLowerCase();
 
@@ -337,6 +344,10 @@ const getPointColor = (type: string, direction?: string) => {
 
   if (normalizedType === 'sms') {
     return SMS_COLOR;
+  }
+
+  if (isUssdEventType(type)) {
+    return USSD_COLOR;
   }
 
   if (direction && direction.toLowerCase() === 'outgoing') {
@@ -360,6 +371,8 @@ const getIcon = (
     inner = <MapPin size={16} className="text-white" />;
   } else if (normalizedType === 'sms') {
     inner = <MessageSquare size={16} className="text-white" />;
+  } else if (isUssdEventType(type)) {
+    inner = <Asterisk size={16} className="text-white" />;
   } else {
     inner =
       direction === 'outgoing' ? (
@@ -1386,13 +1399,16 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
 
       const normalizedType = (point.type || '').toLowerCase();
       const isLocationEvent = isLocationEventType(point.type);
+      const isUssdEvent = isUssdEventType(point.type);
       const eventTypeBase = isLocationEvent
         ? 'Position'
         : normalizedType === 'sms'
-          ? 'SMS'
-          : 'Appel';
+            ? 'SMS'
+            : isUssdEvent
+              ? 'USSD'
+              : 'Appel';
       const directionLabel =
-        point.direction && !isLocationEvent
+        point.direction && !isLocationEvent && !isUssdEvent
           ? point.direction === 'outgoing'
             ? 'Sortant'
             : 'Entrant'
