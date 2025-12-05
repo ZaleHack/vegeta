@@ -1058,6 +1058,43 @@ class DatabaseManager {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
 
+      await query(`
+        CREATE TABLE IF NOT EXISTS autres.cdr_geofencing_zones (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          type ENUM('circle', 'polygon', 'antenna') NOT NULL,
+          geometry JSON NOT NULL,
+          metadata JSON NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_geofence_type (type),
+          INDEX idx_geofence_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await query(`
+        CREATE TABLE IF NOT EXISTS autres.cdr_geofencing_events (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          msisdn VARCHAR(32) NULL,
+          imsi VARCHAR(32) NULL,
+          imei VARCHAR(32) NULL,
+          cgi VARCHAR(64) NULL,
+          lac VARCHAR(32) NULL,
+          ci VARCHAR(32) NULL,
+          tac VARCHAR(32) NULL,
+          longitude DECIMAL(10, 7) NULL,
+          latitude DECIMAL(10, 7) NULL,
+          type_evenement ENUM('entree', 'sortie', 'interieur') NOT NULL,
+          zone_id INT NOT NULL,
+          zone_nom VARCHAR(255) NOT NULL,
+          timestamp_cdr DATETIME NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_geofence_device (msisdn, imsi, imei),
+          INDEX idx_geofence_zone_created (zone_id, created_at),
+          INDEX idx_geofence_event_type (type_evenement),
+          FOREIGN KEY (zone_id) REFERENCES autres.cdr_geofencing_zones(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
       console.log('✅ Tables système créées avec succès');
     } catch (error) {
       console.error('❌ Erreur création tables système:', error);
