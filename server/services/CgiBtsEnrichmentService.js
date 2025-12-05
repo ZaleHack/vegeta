@@ -616,7 +616,6 @@ class CgiBtsEnrichmentService {
           table: parsed.table,
           columns: normalizedCandidate.columns ?? null
         });
-        break;
       }
     }
 
