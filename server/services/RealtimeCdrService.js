@@ -485,6 +485,9 @@ const resolveEventType = (value) => {
   if (!text) {
     return 'call';
   }
+  if (text.includes('ussd')) {
+    return 'ussd';
+  }
   if (text.includes('sms')) {
     return 'sms';
   }
