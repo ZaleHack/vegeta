@@ -11,6 +11,7 @@ export type AppPage =
   | 'entreprises'
   | 'vehicules'
   | 'cdr'
+  | 'link-diagram'
   | 'phone-identifier'
   | 'cdr-case'
   | 'fraud-detection-form'
@@ -32,6 +33,7 @@ export const pageToPath: Record<AppPage, string> = {
   entreprises: '/entreprises',
   vehicules: '/vehicules',
   cdr: '/cdr',
+  'link-diagram': '/diagramme-liens',
   'phone-identifier': '/identifier-telephone',
   'cdr-case': '/cdr/dossier',
   'fraud-detection-form': '/fraude',
