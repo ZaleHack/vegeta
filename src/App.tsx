@@ -2276,21 +2276,6 @@ const App: React.FC = () => {
       ),
     [monitoringTargets]
   );
-
-  const monitoringTargetsForMap = useMemo(
-    () =>
-      monitoringTargets
-        .filter((target) => target.type === 'number')
-        .map((target) => ({
-          id: target.id,
-          type: target.type,
-          value: target.value,
-          createdAt: target.createdAt,
-          lastAlertAt: target.lastAlertAt,
-          knownPeersCount: target.knownPeers.length,
-        })),
-    [monitoringTargets]
-  );
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTargetCase, setShareTargetCase] = useState<CdrCase | null>(null);
   const [shareDivisionUsers, setShareDivisionUsers] = useState<CaseShareUser[]>([]);
@@ -2449,14 +2434,6 @@ const App: React.FC = () => {
       return;
     }
 
-    if (monitoringType === 'number') {
-      const activeNumberTargets = monitoringTargets.filter((target) => target.type === 'number').length;
-      if (activeNumberTargets >= 3) {
-        notifyWarning('Vous ne pouvez pas surveiller plus de 3 numéros simultanément.');
-        return;
-      }
-    }
-
     setMonitoringTargets((prev) => {
       if (prev.some((target) => target.value === normalizedValue && target.type === monitoringType)) {
         notifyInfo('Cette cible est déjà surveillée.');
@@ -2481,16 +2458,7 @@ const App: React.FC = () => {
     });
 
     setMonitoringInput('');
-  }, [
-    currentUser,
-    monitoringInput,
-    monitoringTargets,
-    monitoringType,
-    normalizeMonitoringValue,
-    notifyInfo,
-    notifySuccess,
-    notifyWarning
-  ]);
+  }, [currentUser, monitoringInput, monitoringType, normalizeMonitoringValue, notifyInfo, notifySuccess, notifyWarning]);
 
   const handleRemoveMonitoringTarget = useCallback(
     (target: FraudMonitoringTarget) => {
@@ -2516,16 +2484,6 @@ const App: React.FC = () => {
       setMonitoringAlerts((prev) => prev.filter((alert) => alert.targetId !== target.id));
     },
     [currentUser, notifyWarning]
-  );
-
-  const handleRemoveMonitoringTargetById = useCallback(
-    (targetId: string) => {
-      const target = monitoringTargets.find((entry) => entry.id === targetId);
-      if (target) {
-        handleRemoveMonitoringTarget(target);
-      }
-    },
-    [handleRemoveMonitoringTarget, monitoringTargets]
   );
 
   const handleClearMonitoringAlerts = useCallback(() => {
@@ -8479,8 +8437,6 @@ useEffect(() => {
                           onZoneModeChange={setZoneMode}
                           onZoneCreated={() => setZoneMode(false)}
                           monitoredNumbers={monitoredNumbersForMap}
-                          monitoringTargets={monitoringTargetsForMap}
-                          onRemoveMonitoringTarget={handleRemoveMonitoringTargetById}
                         />
                       ) : (
                         <div className="flex h-full w-full flex-col items-center justify-center bg-white/90 text-slate-600 dark:bg-slate-900/80 dark:text-slate-300">
