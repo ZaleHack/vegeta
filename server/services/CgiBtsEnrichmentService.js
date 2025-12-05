@@ -572,12 +572,18 @@ class CgiBtsEnrichmentService {
 
   async #detectLookupSources() {
     const detected = [];
+    const seenTables = new Set();
 
     for (const definition of RADIO_TABLE_CANDIDATES) {
       for (const candidate of definition.candidates) {
         const normalizedCandidate = normalizeTableCandidate(candidate);
         const parsed = parseTableIdentifier(normalizedCandidate.identifier);
         if (!parsed || !parsed.table) {
+          continue;
+        }
+
+        const tableKey = `${parsed.schema ?? 'default'}.${parsed.table}`;
+        if (seenTables.has(tableKey)) {
           continue;
         }
 
@@ -600,7 +606,7 @@ class CgiBtsEnrichmentService {
           table: parsed.table,
           columns: normalizedCandidate.columns ?? null
         });
-        break;
+        seenTables.add(tableKey);
       }
     }
 
