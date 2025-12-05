@@ -115,6 +115,7 @@ const FRAUD_ROLE_LABELS: Record<string, string> = {
   callee: 'Appelé',
   target: 'Cible'
 };
+const FRAUD_MONITORING_STORAGE_KEY = 'fraudMonitoringByUser';
 
 
 const getUploadModeLabel = (mode?: string | null) => {
@@ -1194,6 +1195,14 @@ interface FraudMonitoringAlert {
   newPeers: string[];
 }
 
+interface FraudMonitoringStorageEntry {
+  userId?: number;
+  targets: FraudMonitoringTarget[];
+  alerts: FraudMonitoringAlert[];
+}
+
+type FraudMonitoringStorage = Record<string, FraudMonitoringStorageEntry>;
+
 interface GraphNode {
   id: string;
   type: string;
@@ -2110,6 +2119,133 @@ const App: React.FC = () => {
   const [globalFraudError, setGlobalFraudError] = useState('');
   const [globalFraudResult, setGlobalFraudResult] = useState<GlobalFraudDetectionResult | null>(null);
 
+  const readMonitoringStorage = useCallback((): FraudMonitoringStorage => {
+    if (typeof window === 'undefined') return {};
+    const raw = localStorage.getItem(FRAUD_MONITORING_STORAGE_KEY);
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as FraudMonitoringStorage;
+      }
+    } catch (error) {
+      console.warn('Impossible de lire la configuration de surveillance:', error);
+    }
+    return {};
+  }, []);
+
+  const readStoredArray = useCallback((key: string) => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.warn(`Impossible de lire les données depuis ${key}:`, error);
+      return [];
+    }
+  }, []);
+
+  const sanitizeTargetsForUser = useCallback(
+    (targets: unknown, user: User): FraudMonitoringTarget[] => {
+      if (!Array.isArray(targets)) return [];
+      return targets
+        .filter((item): item is FraudMonitoringTarget =>
+          item && typeof item === 'object' &&
+          typeof (item as FraudMonitoringTarget).value === 'string' &&
+          ((item as FraudMonitoringTarget).type === 'number' || (item as FraudMonitoringTarget).type === 'imei')
+        )
+        .filter((item) => {
+          const matchesLogin = !item.createdByLogin || item.createdByLogin === user.login;
+          const matchesId = !item.createdById || item.createdById === user.id;
+          return matchesLogin && matchesId;
+        })
+        .map((item) => ({
+          ...item,
+          knownPeers: Array.isArray(item.knownPeers) ? item.knownPeers : [],
+          createdById: item.createdById ?? user.id,
+          createdByLogin: item.createdByLogin ?? user.login,
+        }));
+    },
+    []
+  );
+
+  const sanitizeAlertsForUser = useCallback(
+    (alerts: unknown, targets: FraudMonitoringTarget[]): FraudMonitoringAlert[] => {
+      if (!Array.isArray(alerts)) return [];
+      const targetIds = new Set(targets.map((target) => target.id));
+      return alerts
+        .filter((alert): alert is FraudMonitoringAlert =>
+          alert && typeof alert === 'object' &&
+          typeof (alert as FraudMonitoringAlert).targetValue === 'string' &&
+          ((alert as FraudMonitoringAlert).targetType === 'number' || (alert as FraudMonitoringAlert).targetType === 'imei')
+        )
+        .filter((alert) => targetIds.has(alert.targetId))
+        .map((alert) => ({
+          ...alert,
+          newPeers: Array.isArray(alert.newPeers) ? alert.newPeers : [],
+        }))
+        .slice(0, 40);
+    },
+    []
+  );
+
+  const loadMonitoringStateForUser = useCallback(
+    (user: User) => {
+      const storage = readMonitoringStorage();
+      const storedEntry = storage[user.login];
+
+      const legacyTargetKey = `fraudMonitoringTargets_${user.login}`;
+      const legacyAlertKey = `fraudMonitoringAlerts_${user.login}`;
+
+      const targetsFromStorage = sanitizeTargetsForUser(storedEntry?.targets, user);
+      const alertsFromStorage = sanitizeAlertsForUser(storedEntry?.alerts, targetsFromStorage);
+
+      if (targetsFromStorage.length > 0 || alertsFromStorage.length > 0) {
+        return { targets: targetsFromStorage, alerts: alertsFromStorage };
+      }
+
+      const storedTargets = readStoredArray(legacyTargetKey);
+      const legacyTargets = readStoredArray('fraudMonitoringTargets');
+      const sourceTargets = storedTargets.length > 0 ? storedTargets : legacyTargets;
+      const targets = sanitizeTargetsForUser(sourceTargets, user);
+
+      const storedAlerts = readStoredArray(legacyAlertKey);
+      const legacyAlerts = readStoredArray('fraudMonitoringAlerts');
+      const sourceAlerts = storedAlerts.length > 0 ? storedAlerts : legacyAlerts;
+      const alerts = sanitizeAlertsForUser(sourceAlerts, targets);
+
+      if (storedTargets.length > 0 || storedAlerts.length > 0) {
+        localStorage.removeItem(legacyTargetKey);
+        localStorage.removeItem(legacyAlertKey);
+      }
+      if (legacyTargets.length > 0 || legacyAlerts.length > 0) {
+        localStorage.removeItem('fraudMonitoringTargets');
+        localStorage.removeItem('fraudMonitoringAlerts');
+      }
+
+      return { targets, alerts };
+    },
+    [readMonitoringStorage, readStoredArray, sanitizeAlertsForUser, sanitizeTargetsForUser]
+  );
+
+  const persistMonitoringStateForUser = useCallback(
+    (user: User, targets: FraudMonitoringTarget[], alerts: FraudMonitoringAlert[]) => {
+      if (typeof window === 'undefined') return;
+
+      const storage = readMonitoringStorage();
+      storage[user.login] = {
+        userId: user.id,
+        targets: sanitizeTargetsForUser(targets, user),
+        alerts: sanitizeAlertsForUser(alerts, targets),
+      };
+
+      localStorage.setItem(FRAUD_MONITORING_STORAGE_KEY, JSON.stringify(storage));
+    },
+    [readMonitoringStorage, sanitizeAlertsForUser, sanitizeTargetsForUser]
+  );
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -2119,73 +2255,15 @@ const App: React.FC = () => {
       return;
     }
 
-    const targetKey = `fraudMonitoringTargets_${currentUser.login}`;
-    const alertKey = `fraudMonitoringAlerts_${currentUser.login}`;
-
-    try {
-      const storedTargets = JSON.parse(localStorage.getItem(targetKey) || '[]');
-      const legacyTargets = JSON.parse(localStorage.getItem('fraudMonitoringTargets') || '[]');
-      const usedLegacyTargets =
-        (!Array.isArray(storedTargets) || storedTargets.length === 0) &&
-        Array.isArray(legacyTargets) &&
-        legacyTargets.length > 0;
-      const sourceTargets = Array.isArray(storedTargets) && storedTargets.length ? storedTargets : legacyTargets;
-
-      if (Array.isArray(sourceTargets)) {
-        setMonitoringTargets(
-          sourceTargets
-            .filter((item) => typeof item.value === 'string' && (item.type === 'number' || item.type === 'imei'))
-            .filter((item) => {
-              if (item.createdByLogin && item.createdByLogin !== currentUser.login) return false;
-              if (item.createdById && item.createdById !== currentUser.id) return false;
-              return true;
-            })
-            .map((item) => ({
-              ...item,
-              knownPeers: Array.isArray(item.knownPeers) ? item.knownPeers : [],
-              createdById: item.createdById ?? currentUser.id,
-              createdByLogin: item.createdByLogin ?? currentUser.login,
-            }))
-        );
-        if (usedLegacyTargets) {
-          localStorage.removeItem('fraudMonitoringTargets');
-        }
-      }
-
-      const storedAlerts = JSON.parse(localStorage.getItem(alertKey) || '[]');
-      const legacyAlerts = JSON.parse(localStorage.getItem('fraudMonitoringAlerts') || '[]');
-      const usedLegacyAlerts =
-        (!Array.isArray(storedAlerts) || storedAlerts.length === 0) &&
-        Array.isArray(legacyAlerts) &&
-        legacyAlerts.length > 0;
-      const sourceAlerts = Array.isArray(storedAlerts) && storedAlerts.length ? storedAlerts : legacyAlerts;
-
-      if (Array.isArray(sourceAlerts)) {
-        setMonitoringAlerts(
-          sourceAlerts
-            .filter((alert) => typeof alert.targetValue === 'string' && (alert.targetType === 'number' || alert.targetType === 'imei'))
-            .slice(0, 40)
-        );
-        if (usedLegacyAlerts) {
-          localStorage.removeItem('fraudMonitoringAlerts');
-        }
-      }
-    } catch (error) {
-      console.error('Erreur chargement surveillance fraude:', error);
-    }
-  }, [currentUser]);
+    const { targets, alerts } = loadMonitoringStateForUser(currentUser);
+    setMonitoringTargets(targets);
+    setMonitoringAlerts(alerts);
+  }, [currentUser, loadMonitoringStateForUser]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !currentUser) return;
-    const targetKey = `fraudMonitoringTargets_${currentUser.login}`;
-    localStorage.setItem(targetKey, JSON.stringify(monitoringTargets));
-  }, [currentUser, monitoringTargets]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !currentUser) return;
-    const alertKey = `fraudMonitoringAlerts_${currentUser.login}`;
-    localStorage.setItem(alertKey, JSON.stringify(monitoringAlerts.slice(0, 40)));
-  }, [currentUser, monitoringAlerts]);
+    persistMonitoringStateForUser(currentUser, monitoringTargets, monitoringAlerts);
+  }, [currentUser, monitoringAlerts, monitoringTargets, persistMonitoringStateForUser]);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTargetCase, setShareTargetCase] = useState<CdrCase | null>(null);
   const [shareDivisionUsers, setShareDivisionUsers] = useState<CaseShareUser[]>([]);
