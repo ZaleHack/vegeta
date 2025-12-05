@@ -15,6 +15,7 @@ import {
   Activity,
   ArrowRight,
   Asterisk,
+  Bell,
   Car,
   Clock,
   Crosshair,
@@ -44,6 +45,7 @@ import {
   USSD_COLOR,
   NUMBER_COLOR_PALETTE
 } from './mapColors';
+import { useNotifications } from './NotificationProvider';
 
 interface Point {
   latitude: string;
@@ -1352,6 +1354,7 @@ const CdrMap: React.FC<Props> = ({
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const mapRef = useRef<L.Map | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const { notifySuccess, notifyInfo } = useNotifications();
 
   const handleZoomIn = () => {
     if (mapRef.current) {
@@ -1378,6 +1381,9 @@ const CdrMap: React.FC<Props> = ({
   const [isSatellite, setIsSatellite] = useState(false);
   const [showLatestLocationDetailsPanel, setShowLatestLocationDetailsPanel] = useState(false);
   const [activeContactDetailsId, setActiveContactDetailsId] = useState<string | null>(null);
+  const [monitorTarget, setMonitorTarget] = useState('');
+  const [isMonitoringTarget, setIsMonitoringTarget] = useState(false);
+  const [zoneAlertTriggered, setZoneAlertTriggered] = useState(false);
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
       const { compact = false } = options;
@@ -1529,6 +1535,12 @@ const CdrMap: React.FC<Props> = ({
   }, [sourceNumbers]);
 
   useEffect(() => {
+    if (!monitorTarget && sourceNumbers.length === 1) {
+      setMonitorTarget(sourceNumbers[0]);
+    }
+  }, [monitorTarget, sourceNumbers]);
+
+  useEffect(() => {
     if (activeInfo !== 'contacts' && activeContactDetailsId) {
       setActiveContactDetailsId(null);
     }
@@ -1596,6 +1608,23 @@ const CdrMap: React.FC<Props> = ({
     }
   }, [zoneMode]);
 
+  useEffect(() => {
+    if (selectedSource && !monitorTarget) {
+      setMonitorTarget(selectedSource);
+    }
+  }, [monitorTarget, selectedSource]);
+
+  useEffect(() => {
+    setZoneAlertTriggered(false);
+  }, [monitorTarget]);
+
+  useEffect(() => {
+    if (!zoneShape || zoneShape.length < 3) {
+      setIsMonitoringTarget(false);
+      setZoneAlertTriggered(false);
+    }
+  }, [zoneShape]);
+
   const pointInPolygon = (point: L.LatLng, polygon: L.LatLng[]) => {
     const x = point.lng;
     const y = point.lat;
@@ -1628,6 +1657,33 @@ const CdrMap: React.FC<Props> = ({
 
     onZoneModeChange?.(true);
   }, [handleResetZone, onZoneModeChange, zoneMode]);
+
+  const handleMonitorTargetChange = (value: string) => {
+    setMonitorTarget(value);
+    setZoneAlertTriggered(false);
+  };
+
+  const handleToggleTargetMonitoring = () => {
+    const normalized = normalizePhoneDigits(monitorTarget);
+    if (!normalized) {
+      notifyInfo('Sélectionnez un numéro à surveiller.');
+      return;
+    }
+
+    if (!zoneShape || zoneShape.length < 3) {
+      notifyInfo('Dessinez d’abord une zone pour activer la surveillance.');
+      return;
+    }
+
+    setZoneAlertTriggered(false);
+    setIsMonitoringTarget((prev) => {
+      const next = !prev;
+      if (next) {
+        notifySuccess(`Surveillance activée pour ${formatPhoneForDisplay(monitorTarget)}.`);
+      }
+      return next;
+    });
+  };
 
   const isPointWithinZone = useCallback(
     (point: Point) => {
@@ -1670,6 +1726,30 @@ const CdrMap: React.FC<Props> = ({
     }
     return filtered.filter(isPointWithinZone);
   }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
+
+  useEffect(() => {
+    if (!isMonitoringTarget || !zoneShape || zoneShape.length < 3) return;
+
+    const normalizedTarget = normalizePhoneDigits(monitorTarget);
+    if (!normalizedTarget) return;
+
+    const match = callerPoints.some((point) => {
+      const lat = parseFloat(point.latitude);
+      const lng = parseFloat(point.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+      if (!pointInPolygon(L.latLng(lat, lng), zoneShape)) return false;
+
+      const candidates = [point.tracked, point.source, point.number, point.caller, point.callee].map((value) =>
+        normalizePhoneDigits(value)
+      );
+      return candidates.some((candidate) => candidate === normalizedTarget);
+    });
+
+    if (match && !zoneAlertTriggered) {
+      notifySuccess(`La cible ${formatPhoneForDisplay(monitorTarget)} a été détectée dans la zone surveillée.`);
+      setZoneAlertTriggered(true);
+    }
+  }, [callerPoints, isMonitoringTarget, monitorTarget, notifySuccess, pointInPolygon, zoneAlertTriggered, zoneShape]);
 
   const latestLocationPoint = useMemo(() => {
     const trackedDigits = normalizePhoneDigits(points[0]?.tracked);
@@ -3647,7 +3727,70 @@ const CdrMap: React.FC<Props> = ({
               ))}
             </div>
           )}
-          {(showZoneInfo || activeInfo === 'contacts') && topContacts.length > 0 && (
+          {hasZoneShape && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-800 shadow-sm dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-slate-100">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="flex items-center gap-2 text-sm font-semibold">
+                    <Bell className="h-4 w-4" />
+                    Surveillance de cible
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    Recevez une alerte quand un numéro entre dans la zone tracée.
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                    isMonitoringTarget
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
+                      : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  {isMonitoringTarget ? 'Surveillance active' : 'Inactive'}
+                </span>
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  type="text"
+                  value={monitorTarget}
+                  onChange={(e) => handleMonitorTargetChange(e.target.value)}
+                  placeholder="Numéro à surveiller"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-800"
+                />
+                <button
+                  type="button"
+                  onClick={handleToggleTargetMonitoring}
+                  className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    isMonitoringTarget
+                      ? 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-500/15 dark:text-red-100'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {isMonitoringTarget ? 'Arrêter la surveillance' : 'Activer la surveillance'}
+                </button>
+              </div>
+              {sourceNumbers.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                  <span className="font-semibold text-slate-700 dark:text-slate-100">Numéros suivis :</span>
+                  {sourceNumbers.map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => handleMonitorTargetChange(n)}
+                      className="rounded-full border border-slate-200 px-2 py-1 font-semibold transition hover:border-blue-400 hover:text-blue-700 dark:border-slate-700 dark:text-slate-100 dark:hover:border-blue-500 dark:hover:text-blue-200"
+                    >
+                      {formatPhoneForDisplay(n)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {zoneAlertTriggered && (
+                <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
+                  Alerte envoyée pour cette cible dans la zone actuelle.
+                </p>
+              )}
+            </div>
+          )}
+          {activeInfo === 'contacts' && topContacts.length > 0 && (
             <div>
               <p className="font-semibold mb-2">Personnes en contact</p>
               <table className="min-w-full border-collapse">
