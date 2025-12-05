@@ -2264,6 +2264,18 @@ const App: React.FC = () => {
     if (typeof window === 'undefined' || !currentUser) return;
     persistMonitoringStateForUser(currentUser, monitoringTargets, monitoringAlerts);
   }, [currentUser, monitoringAlerts, monitoringTargets, persistMonitoringStateForUser]);
+
+  const monitoredNumbersForMap = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          monitoringTargets
+            .filter((target) => target.type === 'number')
+            .map((target) => target.value)
+        )
+      ),
+    [monitoringTargets]
+  );
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTargetCase, setShareTargetCase] = useState<CdrCase | null>(null);
   const [shareDivisionUsers, setShareDivisionUsers] = useState<CaseShareUser[]>([]);
@@ -8424,6 +8436,7 @@ useEffect(() => {
                           zoneMode={zoneMode}
                           onZoneModeChange={setZoneMode}
                           onZoneCreated={() => setZoneMode(false)}
+                          monitoredNumbers={monitoredNumbersForMap}
                         />
                       ) : (
                         <div className="flex h-full w-full flex-col items-center justify-center bg-white/90 text-slate-600 dark:bg-slate-900/80 dark:text-slate-300">
