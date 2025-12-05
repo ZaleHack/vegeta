@@ -29,6 +29,7 @@ import {
   PhoneIncoming,
   PhoneOutgoing,
   Plus,
+  Shield,
   Users,
   X
 } from 'lucide-react';
@@ -201,6 +202,7 @@ interface Props {
   showMeetingPoints?: boolean;
   onToggleMeetingPoints?: () => void;
   zoneMode?: boolean;
+  onZoneModeChange?: (enabled: boolean) => void;
   onZoneCreated?: () => void;
 }
 
@@ -1242,7 +1244,15 @@ const MapControlButton: React.FC<MapControlButtonProps> = ({
   );
 };
 
-const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoints, onToggleMeetingPoints, zoneMode, onZoneCreated }) => {
+const CdrMap: React.FC<Props> = ({
+  points: rawPoints,
+  showRoute,
+  showMeetingPoints,
+  onToggleMeetingPoints,
+  zoneMode,
+  onZoneModeChange,
+  onZoneCreated
+}) => {
   const points = useMemo<Point[]>(() => {
     if (!Array.isArray(rawPoints) || rawPoints.length === 0) {
       console.warn('[CdrMap] Aucun point fourni pour l\'affichage de la carte.');
@@ -1572,6 +1582,7 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   const [zoneShape, setZoneShape] = useState<L.LatLng[] | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [currentPoints, setCurrentPoints] = useState<L.LatLng[]>([]);
+  const hasZoneShape = zoneShape && zoneShape.length >= 3;
 
   useEffect(() => {
     setContactPage(1);
@@ -1601,6 +1612,22 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
     }
     return inside;
   };
+
+  const handleResetZone = useCallback(() => {
+    setZoneShape(null);
+    setShowZoneInfo(false);
+    setCurrentPoints([]);
+  }, []);
+
+  const handleToggleGeofencing = useCallback(() => {
+    if (zoneMode) {
+      handleResetZone();
+      onZoneModeChange?.(false);
+      return;
+    }
+
+    onZoneModeChange?.(true);
+  }, [handleResetZone, onZoneModeChange, zoneMode]);
 
   const isPointWithinZone = useCallback(
     (point: Point) => {
@@ -3289,6 +3316,19 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           isToggle
         />
         <MapControlButton
+          title={
+            zoneMode
+              ? 'Cliquez-glissez sur la carte pour dessiner votre zone'
+              : hasZoneShape
+                ? 'Redessiner ou réinitialiser la zone de géofencing'
+                : 'Activer le géofencing pour tracer une zone'
+          }
+          icon={<Shield className="h-5 w-5" />}
+          onClick={handleToggleGeofencing}
+          active={Boolean(zoneMode || hasZoneShape)}
+          isToggle
+        />
+        <MapControlButton
           title="Localisation approximative de la personne"
           icon={<Crosshair className="h-5 w-5" />}
           onClick={handleTriangulation}
@@ -3322,6 +3362,18 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
           onClick={handleZoomOut}
         />
       </div>
+
+      {zoneMode && (
+        <div className="pointer-events-none absolute top-4 left-16 z-[1000] max-w-md">
+          <div className="pointer-events-auto flex items-start gap-3 rounded-2xl border border-blue-200 bg-white/95 p-4 text-sm text-blue-800 shadow-lg ring-1 ring-blue-200 backdrop-blur dark:border-blue-900 dark:bg-slate-900/90 dark:text-blue-100">
+            <Shield className="h-5 w-5 text-blue-500" />
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Géofencing actif</p>
+              <p>Dessinez une zone sur la carte en maintenant le clic pour filtrer les évènements à l'intérieur.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
           <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
@@ -3549,13 +3601,24 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
               </p>
               <p className="text-xs text-slate-600 dark:text-slate-300">Total : {total}</p>
             </div>
-            <button
-              type="button"
-              onClick={closeInfoPanels}
-              className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700"
-            >
-              Fermer tableau
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {hasZoneShape && (
+                <button
+                  type="button"
+                  onClick={handleResetZone}
+                  className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-100"
+                >
+                  Réinitialiser la zone
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={closeInfoPanels}
+                className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                Fermer tableau
+              </button>
+            </div>
           </div>
           {sourceNumbers.length > 1 && (
             <div className="flex flex-wrap gap-2">

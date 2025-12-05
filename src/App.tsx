@@ -8344,6 +8344,7 @@ useEffect(() => {
                           showMeetingPoints={showMeetingPoints}
                           onToggleMeetingPoints={() => setShowMeetingPoints((v) => !v)}
                           zoneMode={zoneMode}
+                          onZoneModeChange={setZoneMode}
                           onZoneCreated={() => setZoneMode(false)}
                         />
                       ) : (
