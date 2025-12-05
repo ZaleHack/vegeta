@@ -1515,6 +1515,16 @@ const CdrMap: React.FC<Props> = ({
     sourceNumbers.forEach((n, i) => map.set(n, numberColors[i % numberColors.length]));
     return map;
   }, [sourceNumbers]);
+  const normalizedSourceSet = useMemo(() => {
+    const set = new Set<string>();
+    sourceNumbers.forEach((src) => {
+      const normalized = normalizePhoneDigits(src);
+      if (normalized) {
+        set.add(normalized);
+      }
+    });
+    return set;
+  }, [sourceNumbers]);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [visibleSources, setVisibleSources] = useState<Set<string>>(new Set());
   const normalizedVisibleSources = useMemo(() => {
@@ -2044,6 +2054,62 @@ const CdrMap: React.FC<Props> = ({
       .filter((num) => num.length > 0);
     return Array.from(new Set(normalized));
   }, [monitoredNumbers]);
+
+  const monitoredNumberInsights = useMemo(() => {
+    const activityMap = new Map<string, { count: number; lastSeenLabel?: string; lastTimestamp: number }>();
+
+    callerPoints.forEach((p) => {
+      const normalized = normalizePhoneDigits(getPointSourceValue(p));
+      if (!normalized) return;
+
+      const existing = activityMap.get(normalized) ?? { count: 0, lastTimestamp: -Infinity };
+      const timestamp = Date.parse(`${p.callDate}T${p.startTime || '00:00:00'}`);
+      const hasValidTimestamp = !Number.isNaN(timestamp);
+
+      if (hasValidTimestamp && timestamp > existing.lastTimestamp) {
+        existing.lastTimestamp = timestamp;
+        existing.lastSeenLabel = new Intl.DateTimeFormat('fr-FR', {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        }).format(new Date(timestamp));
+      }
+
+      existing.count += 1;
+      activityMap.set(normalized, existing);
+    });
+
+    let maxActivityCount = 0;
+
+    const rows = monitoredNumberList.map((num, idx) => {
+      const normalized = normalizePhoneDigits(num) || num.trim();
+      const stats = activityMap.get(normalized);
+      const activityCount = stats?.count ?? 0;
+      maxActivityCount = Math.max(maxActivityCount, activityCount);
+      const isOnMap = normalizedSourceSet.has(normalized);
+
+      const status = stats?.count ? 'Actif' : isOnMap ? 'En veille' : 'Hors carte';
+      const statusTone = stats?.count
+        ? 'bg-emerald-500/10 text-emerald-200 border border-emerald-400/40'
+        : isOnMap
+          ? 'bg-amber-500/10 text-amber-200 border border-amber-400/30'
+          : 'bg-slate-500/10 text-slate-200 border border-slate-400/30';
+
+      const accent = colorMap.get(num) || colorMap.get(normalized) || numberColors[idx % numberColors.length];
+
+      return {
+        id: `${normalized}-${idx}`,
+        display: formatPhoneForDisplay(num),
+        normalized,
+        accent,
+        activityCount,
+        lastSeen: stats?.lastSeenLabel ?? 'Aucune activité récente',
+        status,
+        statusTone
+      };
+    });
+
+    return { rows, maxActivityCount: Math.max(maxActivityCount, 1) };
+  }, [callerPoints, colorMap, monitoredNumberList, normalizedSourceSet]);
 
   const getLocationMarkerColor = useCallback(
     (loc: LocationMarker) => {
@@ -3622,28 +3688,69 @@ const CdrMap: React.FC<Props> = ({
         </div>
       )}
 
-      {monitoredNumberList.length > 0 && (
-        <div className="pointer-events-none absolute bottom-44 right-4 z-[1000] w-80 max-h-[45vh]">
-          <div className="pointer-events-auto space-y-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/80">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
-                <Bell className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                <span>Numéros sous surveillance</span>
-              </div>
-              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-100">
-                {monitoredNumberList.length}
-              </span>
-            </div>
-            <div className="space-y-2">
-              {monitoredNumberList.map((num) => (
-                <div
-                  key={num}
-                  className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white/70 px-3 py-2 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-800/70"
-                >
-                  <span className="font-semibold text-slate-900 dark:text-white">{formatPhoneForDisplay(num)}</span>
-                  <span className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Actif</span>
+      {monitoredNumberInsights.rows.length > 0 && (
+        <div className="pointer-events-none absolute bottom-44 right-4 z-[1000] w-[28rem] max-h-[50vh]">
+          <div className="pointer-events-auto overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/95 via-slate-900/90 to-blue-900/80 text-slate-50 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/5 text-blue-200 ring-1 ring-white/10">
+                  <Shield className="h-5 w-5" />
                 </div>
-              ))}
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Surveillance</p>
+                  <p className="text-lg font-semibold text-white">Numéros suivis</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-2xl bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 ring-1 ring-white/10">
+                <Bell className="h-4 w-4" />
+                <span>{monitoredNumberInsights.rows.length}</span>
+              </div>
+            </div>
+
+            <div className="divide-y divide-white/10 overflow-y-auto">
+              {monitoredNumberInsights.rows.map((row) => {
+                const progress = Math.max((row.activityCount / monitoredNumberInsights.maxActivityCount) * 100, row.activityCount > 0 ? 12 : 6);
+
+                return (
+                  <div key={row.id} className="px-5 py-4 transition hover:bg-white/5">
+                    <div className="flex items-start gap-3">
+                      <span
+                        className="mt-1 h-10 w-10 shrink-0 rounded-2xl bg-gradient-to-br from-white/30 via-white/10 to-transparent shadow-lg ring-2 ring-white/10"
+                        style={{ boxShadow: `0 10px 40px -12px ${row.accent}` }}
+                      >
+                        <span className="flex h-full w-full items-center justify-center rounded-2xl text-sm font-semibold text-white" style={{ background: `linear-gradient(135deg, ${row.accent}, ${row.accent}33)` }}>
+                          {row.display.slice(-2)}
+                        </span>
+                      </span>
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-white">{row.display}</p>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-300">{row.normalized}</p>
+                          </div>
+                          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${row.statusTone}`}>{row.status}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-blue-400 via-cyan-300 to-emerald-300"
+                              style={{ width: `${progress}%`, boxShadow: `0 4px 24px ${row.accent}66` }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-1 text-[11px] text-slate-200">
+                            <Activity className="h-3 w-3" />
+                            <span>{row.activityCount} évènement{row.activityCount > 1 ? 's' : ''}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-300">
+                          <Clock className="h-3.5 w-3.5 text-blue-200" />
+                          <span>Dernier signal : {row.lastSeen}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
