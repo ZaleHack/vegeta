@@ -132,6 +132,58 @@ test('Realtime CDR search treats position events as location points', async () =
   assert.equal(pathEntry?.longitude, '17.89');
 });
 
+test('Realtime CDR search surfaces USSD event types in map data', async () => {
+  const sampleRow = {
+    id: 4,
+    seq_number: 7,
+    type_appel: 'USSD',
+    statut_appel: null,
+    cause_liberation: null,
+    facturation: null,
+    date_debut_appel: '2024-07-01',
+    date_fin_appel: '2024-07-01',
+    heure_debut_appel: '09:00:00',
+    heure_fin_appel: '09:00:00',
+    duree_appel: '0',
+    numero_appelant: '773333333',
+    imei_appelant: null,
+    numero_appele: null,
+    imsi_appelant: null,
+    cgi: null,
+    route_reseau: null,
+    device_id: null,
+    longitude: 16.78,
+    latitude: -15.21,
+    azimut: null,
+    nom_bts: 'USSD Point',
+    source_file: null,
+    inserted_at: '2024-07-01T09:00:00Z'
+  };
+
+  const databaseStub = {
+    async query(sql) {
+      if (/INFORMATION_SCHEMA\.COLUMNS/i.test(sql)) {
+        return [];
+      }
+      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`)) {
+        return [JSON.parse(JSON.stringify(sampleRow))];
+      }
+      throw new Error(`Unexpected SQL in test: ${sql}`);
+    }
+  };
+
+  const service = new RealtimeCdrService({
+    autoStart: false,
+    databaseClient: databaseStub
+  });
+
+  const result = await service.search('773333333', { limit: 10 });
+  assert.equal(result.total, 1);
+  const pathEntry = result.path[0];
+  assert.equal(pathEntry?.type, 'ussd');
+  assert.equal(pathEntry?.nom, 'USSD Point');
+});
+
 test('Realtime CDR search ignores callee matches for position events', async () => {
   const sampleRow = {
     id: 3,
