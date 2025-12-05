@@ -1645,10 +1645,16 @@ const CdrMap: React.FC<Props> = ({ points: rawPoints, showRoute, showMeetingPoin
   }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
 
   const latestLocationPoint = useMemo(() => {
+    const trackedDigits = normalizePhoneDigits(points[0]?.tracked);
+
+    const candidatePoints = trackedDigits
+      ? points.filter((point) => normalizePhoneDigits(point.caller) === trackedDigits)
+      : points;
+
     let latest: { point: Point; timestamp: number } | null = null;
     let lastWithCoords: Point | null = null;
 
-    points.forEach((point) => {
+    candidatePoints.forEach((point) => {
       const lat = parseFloat(point.latitude);
       const lng = parseFloat(point.longitude);
       if (Number.isNaN(lat) || Number.isNaN(lng)) return;
