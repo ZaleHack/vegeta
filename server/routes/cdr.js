@@ -137,4 +137,26 @@ router.get('/realtime/search', authenticate, async (req, res) => {
   }
 });
 
+router.post('/realtime/link-diagram', authenticate, async (req, res) => {
+  try {
+    const { numbers = [], start: startDate, end: endDate, startTime, endTime } = req.body;
+
+    if (!Array.isArray(numbers) || numbers.length === 0) {
+      return res.status(400).json({ error: 'Liste de numéros requise' });
+    }
+
+    const result = await realtimeCdrService.buildLinkDiagram(numbers, {
+      startDate: typeof startDate === 'string' && startDate.trim() ? startDate.trim() : null,
+      endDate: typeof endDate === 'string' && endDate.trim() ? endDate.trim() : null,
+      startTime: typeof startTime === 'string' && startTime.trim() ? startTime.trim() : null,
+      endTime: typeof endTime === 'string' && endTime.trim() ? endTime.trim() : null
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Erreur diagramme des liens temps réel:', error);
+    res.status(500).json({ error: 'Erreur lors de la génération du diagramme' });
+  }
+});
+
 export default router;
