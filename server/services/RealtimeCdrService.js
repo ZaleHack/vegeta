@@ -787,6 +787,165 @@ class RealtimeCdrService {
     };
   }
 
+  async buildLinkDiagram(numbers, options = {}) {
+    const normalizedNumbers = Array.isArray(numbers)
+      ? numbers
+          .map((value) => normalizePhoneNumber(value))
+          .filter((value) => value && value.startsWith('221'))
+      : [];
+
+    const uniqueNumbers = Array.from(new Set(normalizedNumbers));
+
+    if (uniqueNumbers.length === 0) {
+      return { nodes: [], links: [] };
+    }
+
+    const startDate = typeof options.startDate === 'string' ? options.startDate.trim() : '';
+    const endDate = typeof options.endDate === 'string' ? options.endDate.trim() : '';
+    const startTime = typeof options.startTime === 'string' ? options.startTime.trim() : '';
+    const endTime = typeof options.endTime === 'string' ? options.endTime.trim() : '';
+
+    const normalizeTimeBound = (value) => {
+      if (!value) return null;
+      return value.length === 5 ? `${value}:00` : value;
+    };
+
+    const startTimeBound = normalizeTimeBound(startTime);
+    const endTimeBound = normalizeTimeBound(endTime);
+
+    const placeholders = uniqueNumbers.map(() => '?').join(', ');
+    const conditions = [`(c.numero_appelant IN (${placeholders}) OR c.numero_appele IN (${placeholders}))`];
+    const params = [...uniqueNumbers, ...uniqueNumbers];
+
+    if (startDate) {
+      conditions.push('c.date_debut >= ?');
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      conditions.push('c.date_debut <= ?');
+      params.push(endDate);
+    }
+
+    if (startTimeBound) {
+      conditions.push('c.heure_debut >= ?');
+      params.push(startTimeBound);
+    }
+
+    if (endTimeBound) {
+      conditions.push('c.heure_debut <= ?');
+      params.push(endTimeBound);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT
+        c.numero_appelant AS caller,
+        c.numero_appele AS callee,
+        c.type_appel AS call_type,
+        c.date_debut,
+        c.heure_debut,
+        c.call_timestamp
+      FROM ${REALTIME_CDR_TABLE_SQL} AS c
+      ${whereClause}
+      LIMIT 20000
+    `;
+
+    const rows = await this.database.query(sql, params, {
+      suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+      suppressErrorLog: true
+    });
+
+    const filteredSet = new Set(uniqueNumbers);
+    const contactSources = {};
+    const edgeMap = {};
+
+    const withinDateRange = (row) => {
+      if (!startDate && !endDate) return true;
+      const timestamp = row.call_timestamp || (row.date_debut ? `${row.date_debut}T${row.heure_debut || '00:00:00'}` : null);
+      if (!timestamp) return false;
+      const datePart = String(timestamp).slice(0, 10);
+      if (startDate && datePart < startDate) return false;
+      if (endDate && datePart > endDate) return false;
+      return true;
+    };
+
+    const withinTimeRange = (row) => {
+      if (!startTimeBound && !endTimeBound) return true;
+      const timeValue = row.heure_debut || (row.call_timestamp ? String(row.call_timestamp).slice(11, 19) : null);
+      if (!timeValue) return false;
+      const normalized = timeValue.length === 5 ? `${timeValue}:00` : timeValue;
+      if (startTimeBound && normalized < startTimeBound) return false;
+      if (endTimeBound && normalized > endTimeBound) return false;
+      return true;
+    };
+
+    const buildEventType = (row) => {
+      const typeStr = (row.call_type || '').toLowerCase();
+      if (typeStr.includes('sms')) return 'sms';
+      if (typeStr.includes('data')) return 'web';
+      return 'call';
+    };
+
+    for (const row of rows) {
+      if (!withinDateRange(row) || !withinTimeRange(row)) {
+        continue;
+      }
+
+      const caller = normalizePhoneNumber(row.caller);
+      const callee = normalizePhoneNumber(row.callee);
+
+      let source = null;
+      let contact = null;
+
+      if (filteredSet.has(caller)) {
+        source = caller;
+        contact = callee;
+      } else if (filteredSet.has(callee)) {
+        source = callee;
+        contact = caller;
+      }
+
+      if (!source || !contact || !contact.startsWith('221')) continue;
+
+      if (!contactSources[contact]) {
+        contactSources[contact] = new Set();
+      }
+      contactSources[contact].add(source);
+
+      const key = `${source}-${contact}`;
+      if (!edgeMap[key]) {
+        edgeMap[key] = { source, target: contact, callCount: 0, smsCount: 0 };
+      }
+
+      const eventType = buildEventType(row);
+      if (eventType === 'sms') {
+        edgeMap[key].smsCount += 1;
+      } else {
+        edgeMap[key].callCount += 1;
+      }
+    }
+
+    const nodes = uniqueNumbers.map((number) => ({ id: number, type: 'source' }));
+    const links = [];
+
+    for (const contact in contactSources) {
+      const sourcesSet = contactSources[contact];
+      if (sourcesSet.size >= 2) {
+        nodes.push({ id: contact, type: 'contact' });
+        for (const source of sourcesSet) {
+          const edgeKey = `${source}-${contact}`;
+          if (edgeMap[edgeKey]) {
+            links.push(edgeMap[edgeKey]);
+          }
+        }
+      }
+    }
+
+    return { nodes, links };
+  }
+
   async enrichMissingCoordinates(options = {}) {
     const { dryRun = false } = options;
 

@@ -4752,7 +4752,6 @@ useEffect(() => {
   };
 
   const handleLinkDiagram = async () => {
-    if (!selectedCase) return;
     const identifiers = getEffectiveCdrIdentifiers();
     if (identifiers.length === 0) {
       setCdrError('Identifiant requis');
@@ -4785,7 +4784,7 @@ useEffect(() => {
       if (cdrStartTime) payload.startTime = cdrStartTime;
       if (cdrEndTime) payload.endTime = cdrEndTime;
 
-      const res = await fetch(`/api/cases/${selectedCase.id}/link-diagram`, {
+      const res = await fetch('/api/cdr/realtime/link-diagram', {
         method: 'POST',
         headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload)
@@ -4808,11 +4807,6 @@ useEffect(() => {
   };
 
   const handleStandaloneLinkDiagram = async () => {
-    if (!selectedCase) {
-      setLinkDiagramError('Sélectionnez une opération pour interroger les CDR.');
-      return;
-    }
-
     const normalizedNumbers = linkDiagramNumbers
       .map((identifier) => normalizeCdrNumber(identifier))
       .filter((n) => n && LINK_DIAGRAM_PREFIXES.some((prefix) => n.startsWith(prefix)));
@@ -4835,7 +4829,7 @@ useEffect(() => {
       if (linkDiagramStartTime) payload.startTime = linkDiagramStartTime;
       if (linkDiagramEndTime) payload.endTime = linkDiagramEndTime;
 
-      const res = await fetch(`/api/cases/${selectedCase.id}/link-diagram`, {
+      const res = await fetch('/api/cdr/realtime/link-diagram', {
         method: 'POST',
         headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload)
@@ -7297,63 +7291,33 @@ useEffect(() => {
                       </p>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="flex flex-col gap-2">
-                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Opération CDR</label>
-                        <div className="relative">
-                          <select
-                            className="w-full appearance-none rounded-2xl border border-slate-200/70 bg-white/90 px-4 py-3 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
-                            value={selectedCase?.id ?? ''}
-                            onChange={(event) => {
-                              const value = Number(event.target.value);
-                              const target = cases.find((item) => item.id === value) || null;
-                              setSelectedCase(target);
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ajouter des numéros</label>
+                      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50">
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <input
+                            type="text"
+                            placeholder="Ex: 221781234567, +22177..."
+                            value={linkDiagramInput}
+                            onChange={(event) => setLinkDiagramInput(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                addLinkDiagramNumbersFromInput();
+                              }
                             }}
+                            className="flex-1 rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                          />
+                          <button
+                            type="button"
+                            onClick={addLinkDiagramNumbersFromInput}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
                           >
-                            <option value="" disabled>
-                              Sélectionnez un dossier
-                            </option>
-                            {cases.map((cdrCase) => (
-                              <option key={cdrCase.id} value={cdrCase.id}>
-                                {cdrCase.name || `Opération #${cdrCase.id}`}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <Plus className="h-4 w-4" />
+                            <span>Ajouter</span>
+                          </button>
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Utilisez un dossier actif pour interroger les CDR et générer le diagramme.
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ajouter des numéros</label>
-                        <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50">
-                          <div className="flex flex-col gap-2 sm:flex-row">
-                            <input
-                              type="text"
-                              placeholder="Ex: 221781234567, +22177..."
-                              value={linkDiagramInput}
-                              onChange={(event) => setLinkDiagramInput(event.target.value)}
-                              onKeyDown={(event) => {
-                                if (event.key === 'Enter') {
-                                  event.preventDefault();
-                                  addLinkDiagramNumbersFromInput();
-                                }
-                              }}
-                              className="flex-1 rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
-                            />
-                            <button
-                              type="button"
-                              onClick={addLinkDiagramNumbersFromInput}
-                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
-                            >
-                              <Plus className="h-4 w-4" />
-                              <span>Ajouter</span>
-                            </button>
-                          </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">Séparez les numéros par une virgule, un espace ou un retour à la ligne.</p>
-                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Séparez les numéros par une virgule, un espace ou un retour à la ligne.</p>
                       </div>
                     </div>
 
