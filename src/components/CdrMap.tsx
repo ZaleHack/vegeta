@@ -1916,6 +1916,27 @@ const CdrMap: React.FC<Props> = ({
   );
   const activeGeofencingCount = activeGeofencingZones.length;
 
+  const filteredGeofencingLog = useMemo(() => {
+    if (!selectedGeofencingZoneId) return [];
+    return geofencingLog.filter(
+      (entry) =>
+        entry.zoneId === selectedGeofencingZoneId && (entry.type === 'entree' || entry.type === 'sortie')
+    );
+  }, [geofencingLog, selectedGeofencingZoneId]);
+
+  const filteredGeofencingHistory = useMemo(() => {
+    if (!selectedGeofencingZoneId) return [];
+    return geofencingHistory.filter((event) => {
+      const normalizedType = (event.type_evenement || '').toLowerCase();
+      return (
+        event.zone_id === selectedGeofencingZoneId &&
+        (normalizedType.includes('entree') || normalizedType.includes('entrée') || normalizedType.includes('sortie'))
+      );
+    });
+  }, [geofencingHistory, selectedGeofencingZoneId]);
+
+  const hasSelectedZoneAlerts = filteredGeofencingLog.length > 0 || filteredGeofencingHistory.length > 0;
+
   const handleEditZone = (zone: GeofencingZone) => {
     setEditingZoneId(zone.id);
     setSelectedGeofencingZoneId(zone.id);
@@ -4476,6 +4497,13 @@ const CdrMap: React.FC<Props> = ({
                               >
                                 Modifier
                               </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteZone(zone.id)}
+                                className="rounded-full bg-red-50 px-2 py-1 font-semibold text-red-700 hover:bg-red-100 dark:bg-red-500/15 dark:text-red-100"
+                              >
+                                Supprimer
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -4486,11 +4514,11 @@ const CdrMap: React.FC<Props> = ({
               </table>
             </div>
 
-            {(geofencingHistory.length > 0 || geofencingLog.length > 0) && (
+            {selectedGeofencingZoneId && hasSelectedZoneAlerts && (
               <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
                 <p className="text-sm font-semibold text-slate-800 dark:text-white">Historique des alertes</p>
                 <div className="space-y-1 text-xs text-slate-600 dark:text-slate-200">
-                  {geofencingLog.map((entry, idx) => (
+                  {filteredGeofencingLog.map((entry, idx) => (
                     <div key={`live-${entry.zoneId}-${entry.number}-${idx}`} className="flex items-center justify-between">
                       <span>
                         <strong>{entry.zoneName}</strong> · {formatPhoneForDisplay(entry.number)} · {entry.type}
@@ -4498,7 +4526,7 @@ const CdrMap: React.FC<Props> = ({
                       <span className="text-[10px] text-slate-500">{new Date(entry.timestamp).toLocaleString()}</span>
                     </div>
                   ))}
-                  {geofencingHistory.slice(0, 10).map((event) => (
+                  {filteredGeofencingHistory.slice(0, 10).map((event) => (
                     <div key={event.id} className="flex items-center justify-between">
                       <span>
                         <strong>{event.zone_nom}</strong> · {formatPhoneForDisplay(event.msisdn || '')} · {event.type_evenement}
