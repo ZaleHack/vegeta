@@ -1813,6 +1813,17 @@ const CdrMap: React.FC<Props> = ({
     };
   };
 
+  const getAlertTypeLabel = (type?: GeofencingZoneMetadata['alertType']) => {
+    switch (type) {
+      case 'sortie':
+        return 'Sortie';
+      case 'toutes':
+        return 'Entrée & sortie';
+      default:
+        return 'Entrée';
+    }
+  };
+
   const applyGeometryPreview = useCallback((zone: GeofencingZone) => {
     const geometry = zone.geometry as any;
     setZoneGeometry(geometry);
@@ -1836,6 +1847,42 @@ const CdrMap: React.FC<Props> = ({
     }
     setZoneDrawingType(zone.type as GeofencingDrawingType);
   }, []);
+
+  const focusMapOnZone = useCallback(
+    (zone: GeofencingZone) => {
+      setGeofencingEnabled(true);
+      setVisibleZoneIds((prev) => {
+        const next = new Set(prev);
+        next.add(zone.id);
+        return next;
+      });
+
+      const map = mapRef.current;
+      if (!map) return;
+
+      const geometry = zone.geometry as any;
+      if (zone.type === 'circle' && geometry?.center) {
+        const circle = L.circle([geometry.center.lat, geometry.center.lng], { radius: geometry.radius });
+        map.fitBounds(circle.getBounds(), { padding: [32, 32] });
+        return;
+      }
+
+      if (zone.type === 'rectangle' && geometry?.bounds) {
+        const bounds = L.latLngBounds(
+          [geometry.bounds.south, geometry.bounds.west],
+          [geometry.bounds.north, geometry.bounds.east]
+        );
+        map.fitBounds(bounds.pad(0.08), { padding: [24, 24] });
+        return;
+      }
+
+      if ('points' in geometry && Array.isArray(geometry.points) && geometry.points.length > 0) {
+        const bounds = L.latLngBounds(geometry.points.map((p: any) => L.latLng(p.lat, p.lng)));
+        map.fitBounds(bounds.pad(0.05), { padding: [24, 24] });
+      }
+    },
+    [setGeofencingEnabled]
+  );
 
   const loadGeofencingZones = useCallback(async () => {
     setGeofencingLoading(true);
@@ -1979,6 +2026,11 @@ const CdrMap: React.FC<Props> = ({
       .split(',')
       .map((value) => normalizePhoneDigits(value) || value.trim())
       .filter(Boolean);
+
+    if (phones.length === 0) {
+      notifyInfo('Ajoutez au moins un numéro à surveiller pour activer le geofencing.');
+      return;
+    }
 
     const payload = {
       name: trimmedName,
@@ -4221,14 +4273,19 @@ const CdrMap: React.FC<Props> = ({
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Numéros à surveiller (séparés par des virgules)</label>
+              <label className="flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
+                Numéros à surveiller (séparés par des virgules)
+                <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
+                required
                 value={geofencingForm.phonesText}
                 onChange={(e) => setGeofencingForm((prev) => ({ ...prev, phonesText: e.target.value }))}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-700"
                 placeholder="22177..., 77123..."
               />
+              <p className="text-[11px] text-slate-500 dark:text-slate-300">Au moins un numéro est requis pour surveiller la zone.</p>
               <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-300">
                 <label className="inline-flex items-center gap-1">
                   <input
@@ -4299,95 +4356,134 @@ const CdrMap: React.FC<Props> = ({
               <p className="text-sm font-semibold">Zones enregistrées</p>
               <span className="text-xs text-slate-500 dark:text-slate-300">{geofencingZones.length} au total</span>
             </div>
-            <div className="space-y-2">
-              {geofencingZones.length === 0 && (
-                <p className="text-xs text-slate-500 dark:text-slate-300">Aucune zone enregistrée pour le moment.</p>
-              )}
-              {geofencingZones.map((zone) => {
-                const active = zone.metadata?.active ?? true;
-                const isVisible = visibleZoneIds.has(zone.id);
-                return (
-                  <div
-                    key={zone.id}
-                    className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800 dark:text-white">{zone.name}</p>
-                        {zone.metadata?.description && (
-                          <p className="text-xs text-slate-500 dark:text-slate-300">{zone.metadata.description}</p>
-                        )}
-                        <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-300">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-700/60">
-                            {zone.type}
-                          </span>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-700/60">
-                            {(zone.metadata?.phones || []).length} numéro(s)
-                          </span>
-                          <span
-                            className={`rounded-full px-2 py-0.5 font-semibold ${
-                              active
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
-                                : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
-                            }`}
-                          >
-                            {active ? 'Active' : 'Désactivée'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => toggleZoneVisibility(zone.id)}
-                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                  <tr>
+                    <th className="px-3 py-2">Nom</th>
+                    <th className="px-3 py-2">Alerte</th>
+                    <th className="px-3 py-2">Numéros</th>
+                    <th className="px-3 py-2">Type</th>
+                    <th className="px-3 py-2">Statut</th>
+                    <th className="px-3 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+                  {geofencingZones.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-3 text-xs text-slate-500 dark:text-slate-300">
+                        Aucune zone enregistrée pour le moment.
+                      </td>
+                    </tr>
+                  ) : (
+                    geofencingZones.map((zone) => {
+                      const active = zone.metadata?.active ?? true;
+                      const isVisible = visibleZoneIds.has(zone.id);
+                      const alertLabel = getAlertTypeLabel(zone.metadata?.alertType);
+
+                      return (
+                        <tr
+                          key={zone.id}
+                          className="hover:bg-slate-50/80 transition-colors dark:hover:bg-slate-800/50"
                         >
-                          {isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleZoneActive(zone, !active)}
-                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                        >
-                          <Shield className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleSelectZone(zone.id);
-                            handleEditZone(zone);
-                          }}
-                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteZone(zone.id)}
-                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-300">
-                      <button
-                        type="button"
-                        onClick={() => handleSelectZone(zone.id)}
-                        className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-100"
-                      >
-                        Historique
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleEditZone(zone)}
-                        className="rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-100"
-                      >
-                        Modifier
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                          <td className="px-3 py-3">
+                            <div className="font-semibold text-slate-800 dark:text-white">{zone.name}</div>
+                            {zone.metadata?.description && (
+                              <p className="text-xs text-slate-500 dark:text-slate-300">{zone.metadata.description}</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
+                              {alertLabel}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-100">
+                              {(zone.metadata?.phones || []).length} numéro(s)
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-100">
+                              {zone.type}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span
+                              className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                                active
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
+                                  : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                              }`}
+                            >
+                              {active ? 'Active' : 'Désactivée'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => toggleZoneVisibility(zone.id)}
+                                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                title={isVisible ? 'Masquer sur la carte' : 'Afficher sur la carte'}
+                              >
+                                {isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => focusMapOnZone(zone)}
+                                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                title="Visualiser la zone"
+                              >
+                                <MapPin className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleZoneActive(zone, !active)}
+                                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                title={active ? 'Désactiver la zone' : 'Activer la zone'}
+                              >
+                                <Shield className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEditZone(zone)}
+                                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                title="Modifier la zone"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteZone(zone.id)}
+                                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                title="Supprimer la zone"
+                              >
+                                <Trash className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div className="mt-2 flex flex-wrap justify-end gap-2 text-[11px] text-slate-500 dark:text-slate-300">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectZone(zone.id)}
+                                className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-100"
+                              >
+                                Historique
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEditZone(zone)}
+                                className="rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-100"
+                              >
+                                Modifier
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
 
             {(geofencingHistory.length > 0 || geofencingLog.length > 0) && (
