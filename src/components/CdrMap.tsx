@@ -2099,6 +2099,8 @@ const CdrMap: React.FC<Props> = ({
   };
 
   const handleVisualizeZone = (zone: GeofencingZone) => {
+    setShowOnlyLatestLocation(false);
+    setShowLatestLocationDetailsPanel(false);
     setGeofencingEnabled(true);
     handleSelectZone(zone.id);
     setVisibleZoneIds((prev) => {
