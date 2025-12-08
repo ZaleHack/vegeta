@@ -10,7 +10,7 @@ class GeofencingZone {
     const meta = metadata ? (typeof metadata === 'string' ? metadata : JSON.stringify(metadata)) : null;
 
     const result = await database.query(
-      `INSERT INTO autres.cdr_geofencing_zones (name, type, geometry, metadata) VALUES (?, ?, CAST(? AS JSON), CAST(? AS JSON))`,
+      `INSERT INTO autres.cdr_geofencing_zones (name, type, geometry, metadata) VALUES (?, ?, ?, ?)`,
       [name, type, payload, meta]
     );
 
@@ -48,7 +48,7 @@ class GeofencingZone {
 
     await database.query(
       `UPDATE autres.cdr_geofencing_zones
-       SET name = ?, type = ?, geometry = CAST(? AS JSON), metadata = CAST(? AS JSON)
+       SET name = ?, type = ?, geometry = ?, metadata = ?
        WHERE id = ?`,
       [updatedName, updatedType, updatedGeometry, updatedMetadata, id]
     );
