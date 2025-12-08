@@ -55,20 +55,80 @@ const wildcardMatch = (value, pattern) => {
   return regex.test(normalizedValue);
 };
 
+const normalizeMetadata = (metadata = {}) => {
+  if (!metadata) return {};
+  try {
+    return typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+  } catch (error) {
+    console.warn('Metadata geofencing invalide, fallback objet vide');
+    return {};
+  }
+};
+
+const mergeMetadata = (previous, next = {}) => {
+  const current = normalizeMetadata(previous);
+  return {
+    ...current,
+    ...next,
+    active: next.active ?? current.active ?? true
+  };
+};
+
 class GeofencingService {
   async createZone(payload) {
     const { name, type, geometry, metadata } = payload;
     if (!name || !type || !geometry) {
       throw new Error('Nom, type et géométrie requis');
     }
-    if (!['circle', 'polygon', 'antenna'].includes(type)) {
+    if (!['circle', 'polygon', 'antenna', 'rectangle'].includes(type)) {
       throw new Error('Type de zone invalide');
     }
-    return GeofencingZone.create({ name, type, geometry, metadata });
+
+    const normalizedMetadata = mergeMetadata(null, metadata);
+    return GeofencingZone.create({ name, type, geometry, metadata: normalizedMetadata });
   }
 
   async listZones() {
-    return GeofencingZone.findAll();
+    const zones = await GeofencingZone.findAll();
+    return zones.map((zone) => ({
+      ...zone,
+      geometry: typeof zone.geometry === 'string' ? JSON.parse(zone.geometry) : zone.geometry,
+      metadata: normalizeMetadata(zone.metadata)
+    }));
+  }
+
+  async updateZone(id, payload) {
+    const existing = await GeofencingZone.findById(id);
+    if (!existing) {
+      throw new Error('Zone introuvable');
+    }
+
+    const mergedMetadata = mergeMetadata(existing.metadata, payload.metadata);
+    return GeofencingZone.update(id, {
+      name: payload.name,
+      type: payload.type,
+      geometry: payload.geometry,
+      metadata: mergedMetadata
+    });
+  }
+
+  async deleteZone(id) {
+    const existing = await GeofencingZone.findById(id);
+    if (!existing) {
+      throw new Error('Zone introuvable');
+    }
+    await GeofencingZone.delete(id);
+    return { id };
+  }
+
+  async toggleZoneActive(id, active) {
+    const existing = await GeofencingZone.findById(id);
+    if (!existing) {
+      throw new Error('Zone introuvable');
+    }
+
+    const metadata = mergeMetadata(existing.metadata, { active });
+    return GeofencingZone.update(id, { metadata });
   }
 
   async analyzeCdr(rawCdr) {
@@ -83,6 +143,11 @@ class GeofencingService {
 
     const events = [];
     for (const zone of zones) {
+      const metadata = mergeMetadata(zone.metadata);
+      if (metadata.active === false) {
+        continue;
+      }
+
       const isInside = this.#isInsideZone(zone, location, cdr);
       const latest = await GeofencingEvent.latestForDevice(zone.id, cdr);
       const lastState = latest?.type_evenement === 'sortie' || !latest ? 'outside' : 'inside';
@@ -101,6 +166,10 @@ class GeofencingService {
 
   async devicesInZone(zoneId) {
     return GeofencingEvent.devicesInZone(zoneId);
+  }
+
+  async listEvents(zoneId) {
+    return GeofencingEvent.findByZone(zoneId, 200);
   }
 
   async #persistEvent(type, zone, cdr, location) {
@@ -167,6 +236,18 @@ class GeofencingService {
       return pointInPolygon(location, points);
     }
 
+    if (zone.type === 'rectangle') {
+      if (!location?.lat || !location?.lng) return false;
+      const bounds = geometry.bounds;
+      if (!bounds) return false;
+      const north = Number(bounds.north);
+      const south = Number(bounds.south);
+      const east = Number(bounds.east);
+      const west = Number(bounds.west);
+      if ([north, south, east, west].some((v) => Number.isNaN(v))) return false;
+      return location.lat <= north && location.lat >= south && location.lng <= east && location.lng >= west;
+    }
+
     if (zone.type === 'antenna') {
       const normalizedCgi = normalizeCgi(cdr.cgi);
       const patterns = Array.isArray(geometry.patterns) ? geometry.patterns : [];
@@ -226,7 +307,8 @@ class GeofencingService {
     normalized.lac = cdr.lac || cdr.LAC || null;
     normalized.ci = cdr.ci || cdr.CI || cdr.ECI || null;
     normalized.tac = cdr.tac || cdr.TAC || null;
-    normalized.timestamp = cdr.timestamp_cdr || cdr.seizureTime || cdr.callDate || cdr.releaseTime || cdr.timestamp || new Date();
+    normalized.timestamp =
+      cdr.timestamp_cdr || cdr.seizureTime || cdr.callDate || cdr.releaseTime || cdr.timestamp || new Date();
     return normalized;
   }
 }
