@@ -17,6 +17,7 @@ import {
   Activity,
   ArrowRight,
   Asterisk,
+  AlertTriangle,
   Bell,
   Car,
   Clock,
@@ -165,6 +166,8 @@ interface TriangulationCell {
 }
 
 type GeofencingDrawingType = 'polygon' | 'rectangle' | 'circle';
+
+const MAX_GEOFENCING_ZONES = 3;
 
 interface GeofencingZoneMetadata {
   description?: string;
@@ -1915,6 +1918,7 @@ const CdrMap: React.FC<Props> = ({
     [geofencingZones]
   );
   const activeGeofencingCount = activeGeofencingZones.length;
+  const geofencingLimitReached = !editingZoneId && geofencingZones.length >= MAX_GEOFENCING_ZONES;
 
   const filteredGeofencingLog = useMemo(() => {
     if (!selectedGeofencingZoneId) return [];
@@ -2035,6 +2039,11 @@ const CdrMap: React.FC<Props> = ({
     const trimmedName = geofencingForm.name.trim();
     if (!trimmedName) {
       notifyInfo('Donnez un nom à la zone avant de sauvegarder.');
+      return;
+    }
+
+    if (geofencingLimitReached) {
+      notifyInfo(`Limite de ${MAX_GEOFENCING_ZONES} zones atteinte. Supprimez une zone existante avant d'en créer une nouvelle.`);
       return;
     }
 
@@ -4228,7 +4237,12 @@ const CdrMap: React.FC<Props> = ({
                     handleResetZone();
                     onZoneModeChange?.(true);
                   }}
-                  className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
+                  disabled={geofencingLimitReached}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold shadow ${
+                    geofencingLimitReached
+                      ? 'cursor-not-allowed bg-slate-300 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
                   Tracer sur la carte
                 </button>
@@ -4347,8 +4361,8 @@ const CdrMap: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={handleSaveGeofencingZone}
-                disabled={geofencingSaving}
-                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-60"
+                disabled={geofencingSaving || geofencingLimitReached}
+                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Save className="h-4 w-4" />
                 {editingZoneId ? 'Mettre à jour la zone' : 'Enregistrer la zone'}
@@ -4370,6 +4384,15 @@ const CdrMap: React.FC<Props> = ({
                 </button>
               )}
             </div>
+
+            {geofencingLimitReached && (
+              <div className="mt-2 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/20 dark:text-amber-100">
+                <AlertTriangle className="mt-0.5 h-4 w-4" />
+                <div>
+                  Limite de {MAX_GEOFENCING_ZONES} zones atteinte. Supprimez une zone existante via le tableau pour en créer une nouvelle.
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 space-y-3 border-t border-slate-200 pt-3 dark:border-slate-700">
@@ -4386,13 +4409,14 @@ const CdrMap: React.FC<Props> = ({
                     <th className="px-3 py-2">Numéros</th>
                     <th className="px-3 py-2">Type</th>
                     <th className="px-3 py-2">Statut</th>
+                    <th className="px-3 py-2 text-center">Supprimer</th>
                     <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
                   {geofencingZones.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-3 text-xs text-slate-500 dark:text-slate-300">
+                      <td colSpan={7} className="px-3 py-3 text-xs text-slate-500 dark:text-slate-300">
                         Aucune zone enregistrée pour le moment.
                       </td>
                     </tr>
@@ -4438,6 +4462,16 @@ const CdrMap: React.FC<Props> = ({
                             >
                               {active ? 'Active' : 'Désactivée'}
                             </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteZone(zone.id)}
+                              className="rounded-full border border-red-200 bg-red-50 p-2 text-red-700 shadow-sm transition hover:bg-red-100 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-100"
+                              title="Supprimer la zone"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </button>
                           </td>
                           <td className="px-3 py-3">
                             <div className="flex items-center justify-end gap-2">
