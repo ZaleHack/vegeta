@@ -4168,7 +4168,7 @@ const CdrMap: React.FC<Props> = ({
       )}
 
       {geofencingEnabled && (
-        <div className="pointer-events-auto absolute top-4 right-4 z-[1050] w-[380px] max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
+        <div className="pointer-events-auto absolute top-4 right-4 z-[1050] w-[460px] max-w-[95vw] max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-sm font-semibold">Geofencing</p>
@@ -4378,7 +4378,7 @@ const CdrMap: React.FC<Props> = ({
               <span className="text-xs text-slate-500 dark:text-slate-300">{geofencingZones.length} au total</span>
             </div>
             <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+              <table className="w-full table-auto divide-y divide-slate-200 dark:divide-slate-700">
                 <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
                   <tr>
                     <th className="px-3 py-2">Nom</th>
@@ -4476,10 +4476,11 @@ const CdrMap: React.FC<Props> = ({
                               <button
                                 type="button"
                                 onClick={() => handleDeleteZone(zone.id)}
-                                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-100 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-100"
                                 title="Supprimer la zone"
                               >
                                 <Trash className="h-4 w-4" />
+                                Supprimer
                               </button>
                             </div>
                             <div className="mt-2 flex flex-wrap justify-end gap-2 text-[11px] text-slate-500 dark:text-slate-300">
