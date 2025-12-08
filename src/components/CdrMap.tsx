@@ -1694,7 +1694,7 @@ const CdrMap: React.FC<Props> = ({
   const [geofencingEnabled, setGeofencingEnabled] = useState(false);
   const [geofencingZones, setGeofencingZones] = useState<GeofencingZone[]>([]);
   const [geofencingHistory, setGeofencingHistory] = useState<GeofencingHistoryEntry[]>([]);
-  const [geofencingLog, setGeofencingLog] = useState<GeofencingLogEntry[]>([]);
+  const [, setGeofencingLog] = useState<GeofencingLogEntry[]>([]);
   const [selectedGeofencingZoneId, setSelectedGeofencingZoneId] = useState<number | null>(null);
   const [geofencingLoading, setGeofencingLoading] = useState(false);
   const [geofencingSaving, setGeofencingSaving] = useState(false);
@@ -1920,14 +1920,6 @@ const CdrMap: React.FC<Props> = ({
   const activeGeofencingCount = activeGeofencingZones.length;
   const geofencingLimitReached = !editingZoneId && geofencingZones.length >= MAX_GEOFENCING_ZONES;
 
-  const filteredGeofencingLog = useMemo(() => {
-    if (!selectedGeofencingZoneId) return [];
-    return geofencingLog.filter(
-      (entry) =>
-        entry.zoneId === selectedGeofencingZoneId && (entry.type === 'entree' || entry.type === 'sortie')
-    );
-  }, [geofencingLog, selectedGeofencingZoneId]);
-
   const filteredGeofencingHistory = useMemo(() => {
     if (!selectedGeofencingZoneId) return [];
     return geofencingHistory.filter((event) => {
@@ -1939,7 +1931,7 @@ const CdrMap: React.FC<Props> = ({
     });
   }, [geofencingHistory, selectedGeofencingZoneId]);
 
-  const hasSelectedZoneAlerts = filteredGeofencingLog.length > 0 || filteredGeofencingHistory.length > 0;
+  const hasSelectedZoneAlerts = filteredGeofencingHistory.length > 0;
 
   const handleEditZone = (zone: GeofencingZone) => {
     setEditingZoneId(zone.id);
@@ -4177,7 +4169,7 @@ const CdrMap: React.FC<Props> = ({
       )}
 
       {geofencingEnabled && (
-        <div className="pointer-events-auto absolute top-4 right-4 z-[1050] w-[620px] max-w-[95vw] max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
+        <div className="pointer-events-auto absolute top-4 right-4 z-[1050] w-[900px] max-w-[98vw] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-sm font-semibold">Geofencing</p>
@@ -4555,14 +4547,6 @@ const CdrMap: React.FC<Props> = ({
               <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
                 <p className="text-sm font-semibold text-slate-800 dark:text-white">Historique des alertes</p>
                 <div className="space-y-1 text-xs text-slate-600 dark:text-slate-200">
-                  {filteredGeofencingLog.map((entry, idx) => (
-                    <div key={`live-${entry.zoneId}-${entry.number}-${idx}`} className="flex items-center justify-between">
-                      <span>
-                        <strong>{entry.zoneName}</strong> · {formatPhoneForDisplay(entry.number)} · {entry.type}
-                      </span>
-                      <span className="text-[10px] text-slate-500">{new Date(entry.timestamp).toLocaleString()}</span>
-                    </div>
-                  ))}
                   {filteredGeofencingHistory.slice(0, 10).map((event) => (
                     <div key={event.id} className="flex items-center justify-between">
                       <span>
