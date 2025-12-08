@@ -4177,7 +4177,7 @@ const CdrMap: React.FC<Props> = ({
       )}
 
       {geofencingEnabled && (
-        <div className="pointer-events-auto absolute top-4 right-4 z-[1050] w-[460px] max-w-[95vw] max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
+        <div className="pointer-events-auto absolute top-4 right-4 z-[1050] w-[620px] max-w-[95vw] max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-sm font-semibold">Geofencing</p>
@@ -4400,156 +4400,158 @@ const CdrMap: React.FC<Props> = ({
               <p className="text-sm font-semibold">Zones enregistrées</p>
               <span className="text-xs text-slate-500 dark:text-slate-300">{geofencingZones.length} au total</span>
             </div>
-            <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-              <table className="w-full table-auto divide-y divide-slate-200 dark:divide-slate-700">
-                <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
-                  <tr>
-                    <th className="px-3 py-2">Nom</th>
-                    <th className="px-3 py-2">Alerte</th>
-                    <th className="px-3 py-2">Numéros</th>
-                    <th className="px-3 py-2">Type</th>
-                    <th className="px-3 py-2">Statut</th>
-                    <th className="px-3 py-2 text-center">Supprimer</th>
-                    <th className="px-3 py-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-                  {geofencingZones.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-3 py-3 text-xs text-slate-500 dark:text-slate-300">
-                        Aucune zone enregistrée pour le moment.
-                      </td>
-                    </tr>
-                  ) : (
-                    geofencingZones.map((zone) => {
-                      const active = zone.metadata?.active ?? true;
-                      const isVisible = visibleZoneIds.has(zone.id);
-                      const alertLabel = getAlertTypeLabel(zone.metadata?.alertType);
-
-                      return (
-                        <tr
-                          key={zone.id}
-                          className="hover:bg-slate-50/80 transition-colors dark:hover:bg-slate-800/50"
-                        >
-                          <td className="px-3 py-3">
-                            <div className="font-semibold text-slate-800 dark:text-white">{zone.name}</div>
-                            {zone.metadata?.description && (
-                              <p className="text-xs text-slate-500 dark:text-slate-300">{zone.metadata.description}</p>
-                            )}
-                          </td>
-                          <td className="px-3 py-3">
-                            <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
-                              {alertLabel}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3">
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-100">
-                              {(zone.metadata?.phones || []).length} numéro(s)
-                            </span>
-                          </td>
-                          <td className="px-3 py-3">
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-100">
-                              {zone.type}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3">
-                            <span
-                              className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                                active
-                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
-                                  : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
-                              }`}
-                            >
-                              {active ? 'Active' : 'Désactivée'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteZone(zone.id)}
-                              className="rounded-full border border-red-200 bg-red-50 p-2 text-red-700 shadow-sm transition hover:bg-red-100 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-100"
-                              title="Supprimer la zone"
-                            >
-                              <Trash className="h-4 w-4" />
-                            </button>
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => toggleZoneVisibility(zone.id)}
-                                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                                title={isVisible ? 'Masquer sur la carte' : 'Afficher sur la carte'}
-                              >
-                                {isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => focusMapOnZone(zone)}
-                                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                                title="Visualiser la zone"
-                              >
-                                <MapPin className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleZoneActive(zone, !active)}
-                                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                                title={active ? 'Désactiver la zone' : 'Activer la zone'}
-                              >
-                                <Shield className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleEditZone(zone)}
-                                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                                title="Modifier la zone"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteZone(zone.id)}
-                                className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-100 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-100"
-                                title="Supprimer la zone"
-                              >
-                                <Trash className="h-4 w-4" />
-                                Supprimer
-                              </button>
-                            </div>
-                            <div className="mt-2 flex flex-wrap justify-end gap-2 text-[11px] text-slate-500 dark:text-slate-300">
-                              <button
-                                type="button"
-                                onClick={() => handleSelectZone(zone.id)}
-                                className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-100"
-                              >
-                                Historique
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleEditZone(zone)}
-                                className="rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-100"
-                              >
-                                Modifier
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteZone(zone.id)}
-                                className="rounded-full bg-red-50 px-2 py-1 font-semibold text-red-700 hover:bg-red-100 dark:bg-red-500/15 dark:text-red-100"
-                              >
-                                Supprimer
-                              </button>
-                            </div>
+              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] table-auto divide-y divide-slate-200 dark:divide-slate-700">
+                    <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
+                      <tr>
+                        <th className="px-3 py-2">Nom</th>
+                        <th className="px-3 py-2">Alerte</th>
+                        <th className="px-3 py-2">Numéros</th>
+                        <th className="px-3 py-2">Type</th>
+                        <th className="px-3 py-2">Statut</th>
+                        <th className="px-3 py-2 text-center">Supprimer</th>
+                        <th className="px-3 py-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+                      {geofencingZones.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-3 py-3 text-xs text-slate-500 dark:text-slate-300">
+                            Aucune zone enregistrée pour le moment.
                           </td>
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                      ) : (
+                        geofencingZones.map((zone) => {
+                          const active = zone.metadata?.active ?? true;
+                          const isVisible = visibleZoneIds.has(zone.id);
+                          const alertLabel = getAlertTypeLabel(zone.metadata?.alertType);
 
-            {selectedGeofencingZoneId && hasSelectedZoneAlerts && (
+                          return (
+                            <tr
+                              key={zone.id}
+                              className="hover:bg-slate-50/80 transition-colors dark:hover:bg-slate-800/50"
+                            >
+                              <td className="px-3 py-3">
+                                <div className="font-semibold text-slate-800 dark:text-white">{zone.name}</div>
+                                {zone.metadata?.description && (
+                                  <p className="text-xs text-slate-500 dark:text-slate-300">{zone.metadata.description}</p>
+                                )}
+                              </td>
+                              <td className="px-3 py-3">
+                                <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
+                                  {alertLabel}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3">
+                                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-100">
+                                  {(zone.metadata?.phones || []).length} numéro(s)
+                                </span>
+                              </td>
+                              <td className="px-3 py-3">
+                                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-100">
+                                  {zone.type}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3">
+                                <span
+                                  className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                                    active
+                                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
+                                      : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                                  }`}
+                                >
+                                  {active ? 'Active' : 'Désactivée'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteZone(zone.id)}
+                                  className="rounded-full border border-red-200 bg-red-50 p-2 text-red-700 shadow-sm transition hover:bg-red-100 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-100"
+                                  title="Supprimer la zone"
+                                >
+                                  <Trash className="h-4 w-4" />
+                                </button>
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleZoneVisibility(zone.id)}
+                                    className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                    title={isVisible ? 'Masquer sur la carte' : 'Afficher sur la carte'}
+                                  >
+                                    {isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => focusMapOnZone(zone)}
+                                    className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                    title="Visualiser la zone"
+                                  >
+                                    <MapPin className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleZoneActive(zone, !active)}
+                                    className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                    title={active ? 'Désactiver la zone' : 'Activer la zone'}
+                                  >
+                                    <Shield className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditZone(zone)}
+                                    className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                    title="Modifier la zone"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteZone(zone.id)}
+                                    className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-100 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-100"
+                                    title="Supprimer la zone"
+                                  >
+                                    <Trash className="h-4 w-4" />
+                                    Supprimer
+                                  </button>
+                                </div>
+                                <div className="mt-2 flex flex-wrap justify-end gap-2 text-[11px] text-slate-500 dark:text-slate-300">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSelectZone(zone.id)}
+                                    className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-100"
+                                  >
+                                    Historique
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditZone(zone)}
+                                    className="rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-100"
+                                  >
+                                    Modifier
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteZone(zone.id)}
+                                    className="rounded-full bg-red-50 px-2 py-1 font-semibold text-red-700 hover:bg-red-100 dark:bg-red-500/15 dark:text-red-100"
+                                  >
+                                    Supprimer
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {selectedGeofencingZoneId && hasSelectedZoneAlerts && (
               <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
                 <p className="text-sm font-semibold text-slate-800 dark:text-white">Historique des alertes</p>
                 <div className="space-y-1 text-xs text-slate-600 dark:text-slate-200">
