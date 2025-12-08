@@ -76,8 +76,19 @@ class GeofencingEvent {
          GROUP BY device_key
        ) latest ON latest.max_id = e.id
        WHERE e.type_evenement IN ('entree', 'interieur')
-       ORDER BY e.created_at DESC`,
+      ORDER BY e.created_at DESC`,
       [zoneId]
+    );
+  }
+
+  static async findByZone(zoneId, limit = 100) {
+    return database.query(
+      `SELECT *
+       FROM autres.cdr_geofencing_events
+       WHERE zone_id = ?
+       ORDER BY id DESC
+       LIMIT ?`,
+      [zoneId, limit]
     );
   }
 }

@@ -6,6 +6,8 @@ import {
   Popup,
   Polygon,
   CircleMarker,
+  Circle,
+  Rectangle,
   Polyline,
   useMapEvents
 } from 'react-leaflet';
@@ -21,16 +23,21 @@ import {
   Crosshair,
   Eye,
   EyeOff,
+  Filter,
   Flame,
   History,
   Layers,
   MapPin,
+  Pencil,
   MessageSquare,
   Minus,
+  Radio,
   PhoneIncoming,
   PhoneOutgoing,
   Plus,
+  Save,
   Shield,
+  Trash,
   Users,
   X
 } from 'lucide-react';
@@ -157,6 +164,63 @@ interface TriangulationCell {
   name?: string;
 }
 
+type GeofencingDrawingType = 'polygon' | 'rectangle' | 'circle';
+
+interface GeofencingZoneMetadata {
+  description?: string;
+  color?: string;
+  opacity?: number;
+  alertType?: 'entree' | 'sortie' | 'toutes';
+  active?: boolean;
+  phones?: string[];
+  notifications?: { email?: boolean; sms?: boolean; inApp?: boolean };
+  frequencyMinutes?: number;
+}
+
+interface GeofencingZone {
+  id: number;
+  name: string;
+  type: 'polygon' | 'circle' | 'rectangle' | 'antenna';
+  geometry: GeofencingGeometry;
+  metadata?: GeofencingZoneMetadata;
+}
+
+type GeofencingGeometry =
+  | { points: { lat: number; lng: number }[] }
+  | { center: { lat: number; lng: number }; radius: number }
+  | { bounds: { north: number; south: number; east: number; west: number } };
+
+interface GeofencingHistoryEntry {
+  id?: number;
+  zone_id?: number;
+  zone_nom?: string;
+  msisdn?: string;
+  type_evenement?: string;
+  timestamp_cdr?: string | Date;
+  latitude?: number | null;
+  longitude?: number | null;
+  created_at?: string;
+}
+
+interface GeofencingLogEntry {
+  zoneId: number;
+  zoneName: string;
+  number: string;
+  type: 'entree' | 'sortie';
+  timestamp: string;
+}
+
+interface GeofencingFormState {
+  name: string;
+  description: string;
+  color: string;
+  opacity: number;
+  alertType: 'entree' | 'sortie' | 'toutes';
+  phonesText: string;
+  notifications: { email: boolean; sms: boolean; inApp: boolean };
+  frequencyMinutes: number;
+}
+
 const NO_SOURCE_KEY = '__no_source__';
 
 type ContactAccumulator = {
@@ -196,6 +260,20 @@ const computeOffsetPosition = (
   const lngOffset = (distanceMeters * Math.sin(angle)) / (111_320 * denominator);
 
   return [lat + latOffset, lng + lngOffset];
+};
+
+const distanceBetweenPoints = (a: L.LatLng, b: L.LatLng): number => {
+  const R = 6371e3;
+  const phi1 = (a.lat * Math.PI) / 180;
+  const phi2 = (b.lat * Math.PI) / 180;
+  const deltaPhi = ((b.lat - a.lat) * Math.PI) / 180;
+  const deltaLambda = ((b.lng - a.lng) * Math.PI) / 180;
+  const sinDeltaPhi = Math.sin(deltaPhi / 2);
+  const sinDeltaLambda = Math.sin(deltaLambda / 2);
+  const aVal =
+    sinDeltaPhi * sinDeltaPhi + Math.cos(phi1) * Math.cos(phi2) * (sinDeltaLambda * sinDeltaLambda);
+  const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
+  return R * c;
 };
 
 interface Props {
@@ -1603,10 +1681,39 @@ const CdrMap: React.FC<Props> = ({
     onToggleMeetingPoints?.();
   };
 
+  const initialGeofencingForm: GeofencingFormState = {
+    name: '',
+    description: '',
+    color: '#2563eb',
+    opacity: 0.25,
+    alertType: 'entree',
+    phonesText: '',
+    notifications: { email: false, sms: false, inApp: true },
+    frequencyMinutes: 15
+  };
+
+  const [geofencingEnabled, setGeofencingEnabled] = useState(false);
+  const [geofencingZones, setGeofencingZones] = useState<GeofencingZone[]>([]);
+  const [geofencingHistory, setGeofencingHistory] = useState<GeofencingHistoryEntry[]>([]);
+  const [geofencingLog, setGeofencingLog] = useState<GeofencingLogEntry[]>([]);
+  const [selectedGeofencingZoneId, setSelectedGeofencingZoneId] = useState<number | null>(null);
+  const [geofencingLoading, setGeofencingLoading] = useState(false);
+  const [geofencingSaving, setGeofencingSaving] = useState(false);
+  const [geofencingForm, setGeofencingForm] = useState<GeofencingFormState>(initialGeofencingForm);
+  const [visibleZoneIds, setVisibleZoneIds] = useState<Set<number>>(new Set());
+  const [editingZoneId, setEditingZoneId] = useState<number | null>(null);
+
+  const [zoneGeometry, setZoneGeometry] = useState<GeofencingGeometry | null>(null);
+  const [zoneDrawingType, setZoneDrawingType] = useState<GeofencingDrawingType>('polygon');
+  const [previewCircle, setPreviewCircle] = useState<{ center: L.LatLng; radius: number } | null>(null);
+  const [previewRectangle, setPreviewRectangle] = useState<L.LatLngBounds | null>(null);
+  const [geofenceStates, setGeofenceStates] = useState<Record<string, boolean>>({});
+  const [geofenceAlertTimestamps, setGeofenceAlertTimestamps] = useState<Record<string, number>>({});
+
   const [zoneShape, setZoneShape] = useState<L.LatLng[] | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [currentPoints, setCurrentPoints] = useState<L.LatLng[]>([]);
-  const hasZoneShape = zoneShape && zoneShape.length >= 3;
+  const hasZoneShape = Boolean((zoneShape && zoneShape.length >= 3) || zoneGeometry);
 
   useEffect(() => {
     setContactPage(1);
@@ -1615,8 +1722,13 @@ const CdrMap: React.FC<Props> = ({
   useEffect(() => {
     if (zoneMode) {
       setZoneShape(null);
+      setZoneGeometry(null);
+      setPreviewCircle(null);
+      setPreviewRectangle(null);
       setCurrentPoints([]);
       setShowZoneInfo(false);
+    } else {
+      setDrawing(false);
     }
   }, [zoneMode]);
 
@@ -1656,6 +1768,9 @@ const CdrMap: React.FC<Props> = ({
 
   const handleResetZone = useCallback(() => {
     setZoneShape(null);
+    setZoneGeometry(null);
+    setPreviewCircle(null);
+    setPreviewRectangle(null);
     setShowZoneInfo(false);
     setCurrentPoints([]);
   }, []);
@@ -1697,15 +1812,280 @@ const CdrMap: React.FC<Props> = ({
     });
   };
 
+  const normalizeGeofencingZone = (zone: any): GeofencingZone => {
+    const geometry = typeof zone.geometry === 'string' ? JSON.parse(zone.geometry) : zone.geometry;
+    const metadata = typeof zone.metadata === 'string' ? JSON.parse(zone.metadata) : zone.metadata || {};
+    return {
+      id: zone.id,
+      name: zone.name,
+      type: zone.type,
+      geometry,
+      metadata: metadata as GeofencingZoneMetadata
+    };
+  };
+
+  const applyGeometryPreview = useCallback((zone: GeofencingZone) => {
+    const geometry = zone.geometry as any;
+    setZoneGeometry(geometry);
+    if (zone.type === 'polygon' && geometry?.points) {
+      setZoneShape(geometry.points.map((p: any) => L.latLng(p.lat, p.lng)));
+    } else if (zone.type === 'rectangle' && geometry?.bounds) {
+      const bounds = L.latLngBounds(
+        [geometry.bounds.south, geometry.bounds.west],
+        [geometry.bounds.north, geometry.bounds.east]
+      );
+      setPreviewRectangle(bounds);
+      setZoneShape([
+        L.latLng(bounds.getNorth(), bounds.getWest()),
+        L.latLng(bounds.getNorth(), bounds.getEast()),
+        L.latLng(bounds.getSouth(), bounds.getEast()),
+        L.latLng(bounds.getSouth(), bounds.getWest())
+      ]);
+    } else if (zone.type === 'circle' && geometry?.center) {
+      const center = L.latLng(geometry.center.lat, geometry.center.lng);
+      setPreviewCircle({ center, radius: geometry.radius });
+    }
+    setZoneDrawingType(zone.type as GeofencingDrawingType);
+  }, []);
+
+  const loadGeofencingZones = useCallback(async () => {
+    setGeofencingLoading(true);
+    try {
+      const response = await fetch('/api/geofencing/zones');
+      if (!response.ok) {
+        throw new Error('Requête zones impossible');
+      }
+      const data = await response.json();
+      const parsed: GeofencingZone[] = Array.isArray(data) ? data.map(normalizeGeofencingZone) : [];
+      setGeofencingZones(parsed);
+      const activeIds = parsed.filter((z) => (z.metadata?.active ?? true)).map((z) => z.id);
+      setVisibleZoneIds(new Set(activeIds));
+    } catch (error) {
+      console.error('Chargement zones geofencing impossible', error);
+      notifyInfo('Impossible de récupérer les zones de geofencing.');
+    } finally {
+      setGeofencingLoading(false);
+    }
+  }, [notifyInfo]);
+
+  useEffect(() => {
+    if (geofencingEnabled) {
+      loadGeofencingZones();
+    }
+  }, [geofencingEnabled, loadGeofencingZones]);
+
+  const activeGeofencingZones = useMemo(
+    () => geofencingZones.filter((zone) => zone.metadata?.active ?? true),
+    [geofencingZones]
+  );
+  const activeGeofencingCount = activeGeofencingZones.length;
+
+  const handleEditZone = (zone: GeofencingZone) => {
+    setEditingZoneId(zone.id);
+    setSelectedGeofencingZoneId(zone.id);
+    setGeofencingForm({
+      name: zone.name,
+      description: zone.metadata?.description || '',
+      color: zone.metadata?.color || '#2563eb',
+      opacity: zone.metadata?.opacity ?? 0.25,
+      alertType: (zone.metadata?.alertType as any) || 'entree',
+      phonesText: (zone.metadata?.phones || []).join(', '),
+      notifications: {
+        email: zone.metadata?.notifications?.email ?? false,
+        sms: zone.metadata?.notifications?.sms ?? false,
+        inApp: zone.metadata?.notifications?.inApp ?? true
+      },
+      frequencyMinutes: zone.metadata?.frequencyMinutes ?? 15
+    });
+    applyGeometryPreview(zone);
+    setGeofencingEnabled(true);
+  };
+
+  const handleDeleteZone = async (zoneId: number) => {
+    try {
+      await fetch(`/api/geofencing/zones/${zoneId}`, { method: 'DELETE' });
+      setGeofencingZones((prev) => prev.filter((z) => z.id !== zoneId));
+      setVisibleZoneIds((prev) => {
+        const next = new Set(prev);
+        next.delete(zoneId);
+        return next;
+      });
+      if (selectedGeofencingZoneId === zoneId) {
+        setSelectedGeofencingZoneId(null);
+        setGeofencingHistory([]);
+      }
+    } catch (error) {
+      console.error('Suppression zone impossible', error);
+      notifyInfo('Impossible de supprimer la zone.');
+    }
+  };
+
+  const handleToggleZoneActive = async (zone: GeofencingZone, active: boolean) => {
+    try {
+      const response = await fetch(`/api/geofencing/zones/${zone.id}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active })
+      });
+      if (!response.ok) {
+        throw new Error('Mise à jour impossible');
+      }
+      const updated = normalizeGeofencingZone(await response.json());
+      setGeofencingZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)));
+    } catch (error) {
+      console.error('Activation zone impossible', error);
+      notifyInfo('Impossible de modifier le statut de la zone');
+    }
+  };
+
+  const handleFetchHistory = useCallback(
+    async (zoneId: number) => {
+      try {
+        const response = await fetch(`/api/geofencing/zones/${zoneId}/evenements`);
+        if (!response.ok) {
+          throw new Error('Requête historique impossible');
+        }
+        const events: GeofencingHistoryEntry[] = await response.json();
+        setGeofencingHistory(events);
+      } catch (error) {
+        console.error('Historique geofencing indisponible', error);
+        notifyInfo("Impossible de récupérer l'historique de la zone");
+      }
+    },
+    [notifyInfo]
+  );
+
+  const handleSelectZone = (zoneId: number) => {
+    setSelectedGeofencingZoneId(zoneId);
+    handleFetchHistory(zoneId);
+  };
+
+  const toggleZoneVisibility = (zoneId: number) => {
+    setVisibleZoneIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(zoneId)) {
+        next.delete(zoneId);
+      } else {
+        next.add(zoneId);
+      }
+      return next;
+    });
+  };
+
+  const handleSaveGeofencingZone = async () => {
+    if (!geofencingForm.name.trim()) {
+      notifyInfo('Donnez un nom à la zone.');
+      return;
+    }
+    if (!zoneGeometry) {
+      notifyInfo('Dessinez une zone sur la carte avant de sauvegarder.');
+      return;
+    }
+
+    const phones = geofencingForm.phonesText
+      .split(',')
+      .map((value) => normalizePhoneDigits(value) || value.trim())
+      .filter(Boolean);
+
+    const payload = {
+      name: geofencingForm.name.trim(),
+      type:
+        'center' in zoneGeometry && 'radius' in zoneGeometry
+          ? 'circle'
+          : 'bounds' in zoneGeometry
+            ? 'rectangle'
+            : 'polygon',
+      geometry: zoneGeometry,
+      metadata: {
+        description: geofencingForm.description,
+        color: geofencingForm.color,
+        opacity: geofencingForm.opacity,
+        alertType: geofencingForm.alertType,
+        active: true,
+        phones,
+        notifications: geofencingForm.notifications,
+        frequencyMinutes: geofencingForm.frequencyMinutes
+      }
+    };
+
+    setGeofencingSaving(true);
+    try {
+      const url = editingZoneId ? `/api/geofencing/zones/${editingZoneId}` : '/api/geofencing/zones';
+      const method = editingZoneId ? 'PUT' : 'POST';
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error('Sauvegarde impossible');
+      }
+      await loadGeofencingZones();
+      setGeofencingForm(initialGeofencingForm);
+      setZoneGeometry(null);
+      setZoneShape(null);
+      setPreviewCircle(null);
+      setPreviewRectangle(null);
+      setEditingZoneId(null);
+      notifySuccess('Zone enregistrée avec succès.');
+    } catch (error) {
+      console.error('Enregistrement zone geofencing impossible', error);
+      notifyInfo("Impossible d'enregistrer la zone.");
+    } finally {
+      setGeofencingSaving(false);
+    }
+  };
+
+  const isCoordinateInsideSavedZone = useCallback((zone: GeofencingZone, lat: number, lng: number) => {
+    if (!zone.geometry) return false;
+    if (zone.type === 'circle' && 'center' in zone.geometry && 'radius' in zone.geometry) {
+      const center = (zone.geometry as any).center;
+      const distance = distanceBetweenPoints(L.latLng(center.lat, center.lng), L.latLng(lat, lng));
+      return distance <= (zone.geometry as any).radius;
+    }
+    if (zone.type === 'rectangle' && 'bounds' in zone.geometry) {
+      const bounds = (zone.geometry as any).bounds;
+      return lat <= bounds.north && lat >= bounds.south && lng <= bounds.east && lng >= bounds.west;
+    }
+    if ('points' in zone.geometry) {
+      const polygon = (zone.geometry as any).points.map((p: any) => L.latLng(p.lat, p.lng));
+      return polygon.length >= 3 ? pointInPolygon(L.latLng(lat, lng), polygon) : false;
+    }
+    return false;
+  }, [pointInPolygon]);
+
   const isPointWithinZone = useCallback(
     (point: Point) => {
-      if (!zoneShape || zoneShape.length < 3) return true;
       const lat = parseFloat(point.latitude);
       const lng = parseFloat(point.longitude);
       if (isNaN(lat) || isNaN(lng)) return false;
-      return pointInPolygon(L.latLng(lat, lng), zoneShape);
+
+      if (zoneGeometry) {
+        if ('center' in zoneGeometry && 'radius' in zoneGeometry) {
+          const center = 'center' in zoneGeometry ? zoneGeometry.center : null;
+          const distance = center ? distanceBetweenPoints(L.latLng(center.lat, center.lng), L.latLng(lat, lng)) : Infinity;
+          return distance <= (zoneGeometry as { radius: number }).radius;
+        }
+        if ('bounds' in zoneGeometry) {
+          const { north, south, east, west } = (zoneGeometry as { bounds: any }).bounds;
+          return lat <= north && lat >= south && lng <= east && lng >= west;
+        }
+        if ('points' in zoneGeometry) {
+          const polygon = (zoneGeometry as { points: { lat: number; lng: number }[] }).points.map((p) =>
+            L.latLng(p.lat, p.lng)
+          );
+          if (polygon.length >= 3) {
+            return pointInPolygon(L.latLng(lat, lng), polygon);
+          }
+        }
+      }
+
+      if (zoneShape && zoneShape.length >= 3) {
+        return pointInPolygon(L.latLng(lat, lng), zoneShape);
+      }
+      return true;
     },
-    [zoneShape]
+    [zoneGeometry, zoneShape]
   );
 
   const displayedPoints = useMemo(() => {
@@ -1762,6 +2142,72 @@ const CdrMap: React.FC<Props> = ({
       setZoneAlertTriggered(true);
     }
   }, [callerPoints, isMonitoringTarget, monitorTarget, notifySuccess, pointInPolygon, zoneAlertTriggered, zoneShape]);
+
+  useEffect(() => {
+    if (!geofencingEnabled || geofencingZones.length === 0) return;
+
+    const nextStates: Record<string, boolean> = { ...geofenceStates };
+    const newLogs: GeofencingLogEntry[] = [];
+    const now = Date.now();
+
+    geofencingZones.forEach((zone) => {
+      const active = zone.metadata?.active ?? true;
+      if (!active) return;
+      const phones = (zone.metadata?.phones || []).map((p) => normalizePhoneDigits(p) || p.trim());
+      if (phones.length === 0) return;
+
+      callerPoints.forEach((point) => {
+        const lat = parseFloat(point.latitude);
+        const lng = parseFloat(point.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+        const inside = isCoordinateInsideSavedZone(zone, lat, lng);
+        const candidates = [point.tracked, point.source, point.number, point.caller, point.callee]
+          .map((value) => normalizePhoneDigits(value) || value?.toString()?.trim())
+          .filter(Boolean) as string[];
+        const match = candidates.find((candidate) => phones.includes(candidate));
+        if (!match) return;
+
+        const key = `${zone.id}:${match}`;
+        const wasInside = nextStates[key] || false;
+        if (inside !== wasInside) {
+          nextStates[key] = inside;
+          const type: 'entree' | 'sortie' = inside ? 'entree' : 'sortie';
+          const freqMinutes = zone.metadata?.frequencyMinutes ?? 0;
+          const last = geofenceAlertTimestamps[key] || 0;
+          const shouldNotify =
+            !zone.metadata?.alertType || zone.metadata?.alertType === 'toutes' || zone.metadata?.alertType === type;
+          const allowedByFrequency = !freqMinutes || now - last > freqMinutes * 60_000;
+          if (shouldNotify && allowedByFrequency) {
+            notifySuccess(
+              `${formatPhoneForDisplay(match)} ${inside ? 'entre' : 'sort'} dans la zone ${zone.name}.`
+            );
+            setGeofenceAlertTimestamps((prev) => ({ ...prev, [key]: now }));
+          }
+          newLogs.unshift({
+            zoneId: zone.id,
+            zoneName: zone.name,
+            number: match,
+            type,
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
+    });
+
+    if (newLogs.length > 0) {
+      setGeofencingLog((prev) => [...newLogs, ...prev].slice(0, 100));
+    }
+    setGeofenceStates(nextStates);
+  }, [
+    callerPoints,
+    geofenceAlertTimestamps,
+    geofenceStates,
+    geofencingEnabled,
+    geofencingZones,
+    isCoordinateInsideSavedZone,
+    notifySuccess
+  ]);
 
   const latestLocationPoint = useMemo(() => {
     const trackedDigits = normalizePhoneDigits(points[0]?.tracked);
@@ -2852,19 +3298,73 @@ const CdrMap: React.FC<Props> = ({
         if (!zoneMode) return;
         setDrawing(true);
         setCurrentPoints([e.latlng]);
+        setPreviewCircle(null);
+        setPreviewRectangle(null);
         map.dragging.disable();
       },
       mousemove(e) {
         if (!zoneMode || !drawing) return;
-        setCurrentPoints((pts) => [...pts, e.latlng]);
+        setCurrentPoints((pts) => {
+          if (zoneDrawingType === 'polygon') {
+            return [...pts, e.latlng];
+          }
+          const start = pts[0] || e.latlng;
+          if (zoneDrawingType === 'rectangle') {
+            const bounds = L.latLngBounds(start, e.latlng);
+            setPreviewRectangle(bounds);
+            const corners = [
+              L.latLng(bounds.getNorth(), bounds.getWest()),
+              L.latLng(bounds.getNorth(), bounds.getEast()),
+              L.latLng(bounds.getSouth(), bounds.getEast()),
+              L.latLng(bounds.getSouth(), bounds.getWest())
+            ];
+            setZoneShape(corners);
+            return [start, e.latlng];
+          }
+          if (zoneDrawingType === 'circle') {
+            const radius = distanceBetweenPoints(start, e.latlng);
+            setPreviewCircle({ center: start, radius });
+            return [start, e.latlng];
+          }
+          return [...pts, e.latlng];
+        });
       },
       mouseup() {
         if (!zoneMode || !drawing) return;
         map.dragging.enable();
         setDrawing(false);
-        if (currentPoints.length > 2) {
+        const start = currentPoints[0];
+        const end = currentPoints[currentPoints.length - 1];
+        if (zoneDrawingType === 'polygon' && currentPoints.length > 2) {
           const final = currentPoints.slice();
           setZoneShape(final);
+          setZoneGeometry({ points: final.map((p) => ({ lat: p.lat, lng: p.lng })) });
+          setShowZoneInfo(true);
+          onZoneCreated && onZoneCreated();
+        } else if (zoneDrawingType === 'rectangle' && start && end) {
+          const bounds = L.latLngBounds(start, end);
+          setPreviewRectangle(bounds);
+          const corners = [
+            L.latLng(bounds.getNorth(), bounds.getWest()),
+            L.latLng(bounds.getNorth(), bounds.getEast()),
+            L.latLng(bounds.getSouth(), bounds.getEast()),
+            L.latLng(bounds.getSouth(), bounds.getWest())
+          ];
+          setZoneShape(corners);
+          setZoneGeometry({
+            bounds: {
+              north: bounds.getNorth(),
+              south: bounds.getSouth(),
+              east: bounds.getEast(),
+              west: bounds.getWest()
+            }
+          });
+          setShowZoneInfo(true);
+          onZoneCreated && onZoneCreated();
+        } else if (zoneDrawingType === 'circle' && start && end) {
+          const radius = distanceBetweenPoints(start, end);
+          setPreviewCircle({ center: start, radius });
+          setZoneGeometry({ center: { lat: start.lat, lng: start.lng }, radius });
           setShowZoneInfo(true);
           onZoneCreated && onZoneCreated();
         }
@@ -3269,6 +3769,87 @@ const CdrMap: React.FC<Props> = ({
       {!isLatestLocationOnlyView && zoneShape && (
         <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
       )}
+      {!isLatestLocationOnlyView && previewCircle && (
+        <Circle
+          center={previewCircle.center}
+          radius={previewCircle.radius}
+          pathOptions={{ color: '#2563eb', fillOpacity: 0.15, dashArray: '6 4' }}
+        />
+      )}
+      {!isLatestLocationOnlyView && previewRectangle && (
+        <Rectangle bounds={previewRectangle} pathOptions={{ color: '#2563eb', fillOpacity: 0.15, dashArray: '6 4' }} />
+      )}
+      {!isLatestLocationOnlyView &&
+        geofencingZones
+          .filter((zone) => visibleZoneIds.size === 0 || visibleZoneIds.has(zone.id))
+          .map((zone) => {
+            const metadata = zone.metadata || {};
+            const color = metadata.color || '#2563eb';
+            const opacity = metadata.opacity ?? 0.25;
+            const active = metadata.active ?? true;
+            const pathOptions = { color, weight: 2, fillOpacity: opacity, dashArray: active ? undefined : '6 4' };
+
+            if (zone.type === 'circle' && 'center' in zone.geometry) {
+              const center = (zone.geometry as any).center;
+              return (
+                <Circle
+                  key={`geofence-circle-${zone.id}`}
+                  center={[center.lat, center.lng]}
+                  radius={(zone.geometry as any).radius}
+                  pathOptions={pathOptions}
+                >
+                  <Popup className="cdr-popup">
+                    <div className="space-y-1">
+                      <p className="font-semibold">{zone.name}</p>
+                      {metadata.description && <p className="text-sm text-slate-600">{metadata.description}</p>}
+                      <p className="text-xs text-slate-500">Alerte: {metadata.alertType || 'entrées'}</p>
+                    </div>
+                  </Popup>
+                </Circle>
+              );
+            }
+
+            if (zone.type === 'rectangle' && 'bounds' in zone.geometry) {
+              const bounds = (zone.geometry as any).bounds;
+              const rectBounds: [[number, number], [number, number]] = [
+                [bounds.south, bounds.west],
+                [bounds.north, bounds.east]
+              ];
+              return (
+                <Rectangle key={`geofence-rect-${zone.id}`} bounds={rectBounds} pathOptions={pathOptions}>
+                  <Popup className="cdr-popup">
+                    <div className="space-y-1">
+                      <p className="font-semibold">{zone.name}</p>
+                      {metadata.description && <p className="text-sm text-slate-600">{metadata.description}</p>}
+                      <p className="text-xs text-slate-500">Rectangle surveillé</p>
+                    </div>
+                  </Popup>
+                </Rectangle>
+              );
+            }
+
+            if ('points' in zone.geometry) {
+              const points = (zone.geometry as any).points;
+              if (Array.isArray(points) && points.length >= 3) {
+                return (
+                  <Polygon
+                    key={`geofence-poly-${zone.id}`}
+                    positions={points.map((p: any) => [p.lat, p.lng])}
+                    pathOptions={pathOptions}
+                  >
+                    <Popup className="cdr-popup">
+                      <div className="space-y-1">
+                        <p className="font-semibold">{zone.name}</p>
+                        {metadata.description && <p className="text-sm text-slate-600">{metadata.description}</p>}
+                        <p className="text-xs text-slate-500">Polygone surveillé</p>
+                      </div>
+                    </Popup>
+                  </Polygon>
+                );
+              }
+            }
+            return null;
+          })}
       {showBaseMarkers && (
         <MarkerClusterGroup maxClusterRadius={0}>
           {groupedPoints.flatMap((group, idx) => {
@@ -3484,6 +4065,13 @@ const CdrMap: React.FC<Props> = ({
           isToggle
         />
         <MapControlButton
+          title="Panneau de geofencing"
+          icon={<Radio className="h-5 w-5" />}
+          onClick={() => setGeofencingEnabled((value) => !value)}
+          active={geofencingEnabled}
+          isToggle
+        />
+        <MapControlButton
           title="Localisation approximative de la personne"
           icon={<Crosshair className="h-5 w-5" />}
           onClick={handleTriangulation}
@@ -3526,6 +4114,329 @@ const CdrMap: React.FC<Props> = ({
               <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Géofencing actif</p>
               <p>Dessinez une zone sur la carte en maintenant le clic pour filtrer les évènements à l'intérieur.</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {geofencingEnabled && (
+        <div className="pointer-events-auto absolute top-4 right-4 z-[1050] w-[380px] max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold">Geofencing</p>
+              <p className="text-xs text-slate-500 dark:text-slate-300">Créez des zones, assignez des numéros et recevez des alertes.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-500/20 dark:text-blue-50">
+                {activeGeofencingCount} actives
+              </span>
+              <button
+                type="button"
+                onClick={loadGeofencingZones}
+                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                <Filter className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 space-y-3">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Nom de la zone</label>
+              <input
+                type="text"
+                value={geofencingForm.name}
+                onChange={(e) => setGeofencingForm((prev) => ({ ...prev, name: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-700"
+                placeholder="Quartier, bâtiment, BTS..."
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Description</label>
+              <textarea
+                value={geofencingForm.description}
+                onChange={(e) => setGeofencingForm((prev) => ({ ...prev, description: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-700"
+                rows={2}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Forme</label>
+                <select
+                  value={zoneDrawingType}
+                  onChange={(e) => setZoneDrawingType(e.target.value as GeofencingDrawingType)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="polygon">Polygone libre</option>
+                  <option value="rectangle">Rectangle</option>
+                  <option value="circle">Cercle</option>
+                </select>
+              </div>
+              <div className="flex items-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleResetZone();
+                    onZoneModeChange?.(true);
+                  }}
+                  className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
+                >
+                  Tracer sur la carte
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoneGeometry(null);
+                    setZoneShape(null);
+                    setPreviewCircle(null);
+                    setPreviewRectangle(null);
+                  }}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  Effacer
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Couleur</label>
+                <input
+                  type="color"
+                  value={geofencingForm.color}
+                  onChange={(e) => setGeofencingForm((prev) => ({ ...prev, color: e.target.value }))}
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Opacité</label>
+                <input
+                  type="range"
+                  min={0.05}
+                  max={0.8}
+                  step={0.05}
+                  value={geofencingForm.opacity}
+                  onChange={(e) => setGeofencingForm((prev) => ({ ...prev, opacity: Number(e.target.value) }))}
+                  className="w-full"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Type d'alerte</label>
+                <select
+                  value={geofencingForm.alertType}
+                  onChange={(e) => setGeofencingForm((prev) => ({ ...prev, alertType: e.target.value as any }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value="entree">Entrée dans la zone</option>
+                  <option value="sortie">Sortie de la zone</option>
+                  <option value="toutes">Entrée et sortie</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Fréquence des alertes (min)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={geofencingForm.frequencyMinutes}
+                  onChange={(e) => setGeofencingForm((prev) => ({ ...prev, frequencyMinutes: Number(e.target.value) }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Numéros à surveiller (séparés par des virgules)</label>
+              <input
+                type="text"
+                value={geofencingForm.phonesText}
+                onChange={(e) => setGeofencingForm((prev) => ({ ...prev, phonesText: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-700"
+                placeholder="22177..., 77123..."
+              />
+              <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-300">
+                <label className="inline-flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={geofencingForm.notifications.inApp}
+                    onChange={(e) => setGeofencingForm((prev) => ({
+                      ...prev,
+                      notifications: { ...prev.notifications, inApp: e.target.checked }
+                    }))}
+                  />
+                  Notification in-app
+                </label>
+                <label className="inline-flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={geofencingForm.notifications.sms}
+                    onChange={(e) => setGeofencingForm((prev) => ({
+                      ...prev,
+                      notifications: { ...prev.notifications, sms: e.target.checked }
+                    }))}
+                  />
+                  SMS
+                </label>
+                <label className="inline-flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={geofencingForm.notifications.email}
+                    onChange={(e) => setGeofencingForm((prev) => ({
+                      ...prev,
+                      notifications: { ...prev.notifications, email: e.target.checked }
+                    }))}
+                  />
+                  Email
+                </label>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSaveGeofencingZone}
+                disabled={geofencingSaving}
+                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-60"
+              >
+                <Save className="h-4 w-4" />
+                {editingZoneId ? 'Mettre à jour la zone' : 'Enregistrer la zone'}
+              </button>
+              {editingZoneId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingZoneId(null);
+                    setGeofencingForm(initialGeofencingForm);
+                    setZoneGeometry(null);
+                    setZoneShape(null);
+                    setPreviewCircle(null);
+                    setPreviewRectangle(null);
+                  }}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  Annuler
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Zones enregistrées</p>
+              <span className="text-xs text-slate-500 dark:text-slate-300">{geofencingZones.length} au total</span>
+            </div>
+            <div className="space-y-2">
+              {geofencingZones.length === 0 && (
+                <p className="text-xs text-slate-500 dark:text-slate-300">Aucune zone enregistrée pour le moment.</p>
+              )}
+              {geofencingZones.map((zone) => {
+                const active = zone.metadata?.active ?? true;
+                const isVisible = visibleZoneIds.has(zone.id);
+                return (
+                  <div
+                    key={zone.id}
+                    className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white">{zone.name}</p>
+                        {zone.metadata?.description && (
+                          <p className="text-xs text-slate-500 dark:text-slate-300">{zone.metadata.description}</p>
+                        )}
+                        <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-300">
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-700/60">
+                            {zone.type}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-700/60">
+                            {(zone.metadata?.phones || []).length} numéro(s)
+                          </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 font-semibold ${
+                              active
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
+                                : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                            }`}
+                          >
+                            {active ? 'Active' : 'Désactivée'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleZoneVisibility(zone.id)}
+                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        >
+                          {isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleZoneActive(zone, !active)}
+                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        >
+                          <Shield className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSelectZone(zone.id);
+                            handleEditZone(zone);
+                          }}
+                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteZone(zone.id)}
+                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-300">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectZone(zone.id)}
+                        className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-100"
+                      >
+                        Historique
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleEditZone(zone)}
+                        className="rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-100"
+                      >
+                        Modifier
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {(geofencingHistory.length > 0 || geofencingLog.length > 0) && (
+              <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">Historique des alertes</p>
+                <div className="space-y-1 text-xs text-slate-600 dark:text-slate-200">
+                  {geofencingLog.map((entry, idx) => (
+                    <div key={`live-${entry.zoneId}-${entry.number}-${idx}`} className="flex items-center justify-between">
+                      <span>
+                        <strong>{entry.zoneName}</strong> · {formatPhoneForDisplay(entry.number)} · {entry.type}
+                      </span>
+                      <span className="text-[10px] text-slate-500">{new Date(entry.timestamp).toLocaleString()}</span>
+                    </div>
+                  ))}
+                  {geofencingHistory.slice(0, 10).map((event) => (
+                    <div key={event.id} className="flex items-center justify-between">
+                      <span>
+                        <strong>{event.zone_nom}</strong> · {formatPhoneForDisplay(event.msisdn || '')} · {event.type_evenement}
+                      </span>
+                      <span className="text-[10px] text-slate-500">{event.timestamp_cdr ? formatDate(event.timestamp_cdr as string) : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
