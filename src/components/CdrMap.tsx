@@ -1713,6 +1713,8 @@ const CdrMap: React.FC<Props> = ({
   const [previewRectangle, setPreviewRectangle] = useState<L.LatLngBounds | null>(null);
   const [geofenceStates, setGeofenceStates] = useState<Record<string, boolean>>({});
   const [geofenceAlertTimestamps, setGeofenceAlertTimestamps] = useState<Record<string, number>>({});
+  const [geofenceLastAlertAt, setGeofenceLastAlertAt] = useState<Record<number, number>>({});
+  const [geofenceLastInactivityNotice, setGeofenceLastInactivityNotice] = useState<Record<number, number>>({});
 
   const [zoneShape, setZoneShape] = useState<L.LatLng[] | null>(null);
   const [drawing, setDrawing] = useState(false);
@@ -1734,6 +1736,18 @@ const CdrMap: React.FC<Props> = ({
       setDrawing(false);
     }
   }, [zoneMode]);
+
+  useEffect(() => {
+    if (editingZoneId) return;
+    if (geofencingForm.phonesText.trim()) return;
+
+    const defaultNumber =
+      monitoredNumberList[0] || (points.length > 0 ? normalizePhoneDigits(points[0].tracked) || points[0].tracked : '');
+
+    if (defaultNumber) {
+      setGeofencingForm((prev) => ({ ...prev, phonesText: defaultNumber }));
+    }
+  }, [editingZoneId, geofencingForm.phonesText, monitoredNumberList, points, setGeofencingForm]);
 
   useEffect(() => {
     if (selectedSource && !monitorTarget) {
@@ -1913,6 +1927,37 @@ const CdrMap: React.FC<Props> = ({
     }
   }, [geofencingEnabled, loadGeofencingZones]);
 
+  useEffect(() => {
+    if (!geofencingEnabled) return;
+
+    const now = Date.now();
+
+    setGeofenceLastAlertAt((prev) => {
+      const next: Record<number, number> = {};
+
+      geofencingZones.forEach((zone) => {
+        const active = zone.metadata?.active ?? true;
+        if (!active) return;
+        next[zone.id] = prev[zone.id] ?? now;
+      });
+
+      return next;
+    });
+
+    setGeofenceLastInactivityNotice((prev) => {
+      const next: Record<number, number> = {};
+
+      geofencingZones.forEach((zone) => {
+        if (!(zone.metadata?.active ?? true)) return;
+        if (prev[zone.id]) {
+          next[zone.id] = prev[zone.id];
+        }
+      });
+
+      return next;
+    });
+  }, [geofencingEnabled, geofencingZones]);
+
   const activeGeofencingZones = useMemo(
     () => geofencingZones.filter((zone) => zone.metadata?.active ?? true),
     [geofencingZones]
@@ -2002,6 +2047,21 @@ const CdrMap: React.FC<Props> = ({
         }
         const events: GeofencingHistoryEntry[] = await response.json();
         setGeofencingHistory(events);
+
+        const latestEventTs = events.reduce((max, event) => {
+          const ts = event.timestamp_cdr ? Date.parse(String(event.timestamp_cdr)) : Number.NaN;
+          if (Number.isNaN(ts)) return max;
+          return Math.max(max, ts);
+        }, -Infinity);
+
+        if (Number.isFinite(latestEventTs)) {
+          setGeofenceLastAlertAt((prev) => ({ ...prev, [zoneId]: latestEventTs }));
+          setGeofenceLastInactivityNotice((prev) => {
+            const next = { ...prev };
+            delete next[zoneId];
+            return next;
+          });
+        }
       } catch (error) {
         console.error('Historique geofencing indisponible', error);
         notifyInfo("Impossible de récupérer l'historique de la zone");
@@ -2296,6 +2356,32 @@ const CdrMap: React.FC<Props> = ({
 
     if (newLogs.length > 0) {
       setGeofencingLog((prev) => [...newLogs, ...prev].slice(0, 100));
+
+      const latestByZone: Record<number, number> = {};
+      newLogs.forEach((log) => {
+        const ts = Date.parse(log.timestamp);
+        if (!Number.isNaN(ts)) {
+          latestByZone[log.zoneId] = Math.max(latestByZone[log.zoneId] ?? 0, ts);
+        }
+      });
+
+      if (Object.keys(latestByZone).length > 0) {
+        setGeofenceLastAlertAt((prev) => {
+          const next = { ...prev };
+          Object.entries(latestByZone).forEach(([zoneId, ts]) => {
+            next[Number(zoneId)] = ts;
+          });
+          return next;
+        });
+
+        setGeofenceLastInactivityNotice((prev) => {
+          const next = { ...prev };
+          Object.keys(latestByZone).forEach((zoneId) => {
+            delete next[Number(zoneId)];
+          });
+          return next;
+        });
+      }
     }
     setGeofenceStates(nextStates);
   }, [
@@ -2307,6 +2393,54 @@ const CdrMap: React.FC<Props> = ({
     isCoordinateInsideSavedZone,
     notifySuccess
   ]);
+
+  useEffect(() => {
+    if (!geofencingEnabled) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const inactivityEvents: { zoneId: number; zoneName: string; timestamp: number }[] = [];
+
+      setGeofenceLastInactivityNotice((prev) => {
+        const next = { ...prev };
+        geofencingZones.forEach((zone) => {
+          if (!(zone.metadata?.active ?? true)) return;
+
+          const freqMinutes = zone.metadata?.frequencyMinutes ?? 0;
+          if (!freqMinutes) return;
+
+          const lastActivity = geofenceLastAlertAt[zone.id] ?? now;
+          const lastNotice = prev[zone.id] ?? 0;
+          const thresholdMs = freqMinutes * 60_000;
+          const hasTimedOut = now - lastActivity >= thresholdMs;
+          const recentlyNotified = lastNotice && now - lastNotice < thresholdMs;
+
+          if (hasTimedOut && !recentlyNotified) {
+            next[zone.id] = now;
+            inactivityEvents.push({ zoneId: zone.id, zoneName: zone.name, timestamp: now });
+          }
+        });
+        return next;
+      });
+
+      if (inactivityEvents.length > 0 && selectedGeofencingZoneId) {
+        const historyEntries: GeofencingHistoryEntry[] = inactivityEvents
+          .filter((event) => event.zoneId === selectedGeofencingZoneId)
+          .map((event) => ({
+            zone_id: event.zoneId,
+            zone_nom: event.zoneName,
+            type_evenement: 'Aucune activité détectée',
+            timestamp_cdr: new Date(event.timestamp).toISOString()
+          }));
+
+        if (historyEntries.length > 0) {
+          setGeofencingHistory((prev) => [...historyEntries, ...prev]);
+        }
+      }
+    }, 60_000);
+
+    return () => clearInterval(interval);
+  }, [geofenceLastAlertAt, geofencingEnabled, geofencingZones, selectedGeofencingZoneId]);
 
   const latestLocationPoint = useMemo(() => {
     const trackedDigits = normalizePhoneDigits(points[0]?.tracked);
@@ -4203,6 +4337,15 @@ const CdrMap: React.FC<Props> = ({
                 className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <Filter className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setGeofencingEnabled(false)}
+                className="rounded-full bg-slate-100 p-2 text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700"
+                title="Fermer le tableau geofencing"
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Fermer le tableau geofencing</span>
               </button>
             </div>
           </div>
