@@ -55,23 +55,111 @@ const wildcardMatch = (value, pattern) => {
   return regex.test(normalizedValue);
 };
 
+const DEFAULT_METADATA = {
+  description: '',
+  color: '#2563eb',
+  opacity: 0.25,
+  alertType: 'toutes',
+  active: true,
+  phones: [],
+  notifications: { email: false, sms: false, inApp: true },
+  frequencyMinutes: 0
+};
+
 const normalizeMetadata = (metadata = {}) => {
-  if (!metadata) return {};
+  if (!metadata) return { ...DEFAULT_METADATA };
   try {
-    return typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    const notifications = parsed.notifications || {};
+
+    const base = { ...DEFAULT_METADATA, ...parsed };
+    const opacity = toNumber(base.opacity);
+    const frequencyMinutes = toNumber(base.frequencyMinutes);
+    const alertType = ['entree', 'sortie', 'toutes'].includes((base.alertType || '').toLowerCase())
+      ? base.alertType
+      : DEFAULT_METADATA.alertType;
+
+    return {
+      description: base.description || '',
+      color: typeof base.color === 'string' && base.color.trim() ? base.color : DEFAULT_METADATA.color,
+      opacity: opacity !== null && opacity >= 0 && opacity <= 1 ? opacity : DEFAULT_METADATA.opacity,
+      alertType,
+      active: base.active !== undefined ? Boolean(base.active) : DEFAULT_METADATA.active,
+      phones: Array.isArray(base.phones) ? base.phones.map(String).filter(Boolean) : DEFAULT_METADATA.phones,
+      notifications: {
+        email: Boolean(notifications.email),
+        sms: Boolean(notifications.sms),
+        inApp: notifications.inApp !== undefined ? Boolean(notifications.inApp) : DEFAULT_METADATA.notifications.inApp
+      },
+      frequencyMinutes:
+        frequencyMinutes !== null && Number.isFinite(frequencyMinutes) && frequencyMinutes >= 0
+          ? frequencyMinutes
+          : DEFAULT_METADATA.frequencyMinutes
+    };
   } catch (error) {
     console.warn('Metadata geofencing invalide, fallback objet vide');
-    return {};
+    return { ...DEFAULT_METADATA };
   }
 };
 
 const mergeMetadata = (previous, next = {}) => {
   const current = normalizeMetadata(previous);
-  return {
-    ...current,
-    ...next,
-    active: next.active ?? current.active ?? true
-  };
+  return normalizeMetadata({ ...current, ...next });
+};
+
+const normalizeGeometry = (type, geometry) => {
+  const parsed = typeof geometry === 'string' ? JSON.parse(geometry) : geometry;
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Géométrie manquante ou invalide');
+  }
+
+  if (type === 'circle') {
+    const center = parsed.center || {};
+    const lat = toNumber(center.lat);
+    const lng = toNumber(center.lng);
+    const radius = toNumber(parsed.radius);
+    if (lat === null || lng === null || radius === null || radius <= 0) {
+      throw new Error('Géométrie cercle invalide');
+    }
+    return { center: { lat, lng }, radius };
+  }
+
+  if (type === 'rectangle') {
+    const bounds = parsed.bounds || parsed;
+    const north = toNumber(bounds.north);
+    const south = toNumber(bounds.south);
+    const east = toNumber(bounds.east);
+    const west = toNumber(bounds.west);
+    if ([north, south, east, west].some((v) => v === null)) {
+      throw new Error('Géométrie rectangle invalide');
+    }
+    return { bounds: { north, south, east, west } };
+  }
+
+  if (type === 'polygon') {
+    const points = Array.isArray(parsed.points || parsed)
+      ? parsed.points.map((p) => ({ lat: toNumber(p.lat), lng: toNumber(p.lng) }))
+      : [];
+    if (points.length < 3 || points.some((p) => p.lat === null || p.lng === null)) {
+      throw new Error('Géométrie polygone invalide');
+    }
+    return { points };
+  }
+
+  if (type === 'antenna') {
+    const normalizeStringList = (value) => (Array.isArray(value) ? value.map(String).filter(Boolean) : []);
+    const patterns = normalizeStringList(parsed.patterns);
+    const cgis = normalizeStringList(parsed.cgis);
+    const lacs = normalizeStringList(parsed.lacs);
+    const cis = normalizeStringList(parsed.cis);
+    const tacs = normalizeStringList(parsed.tacs);
+    if ([patterns, cgis, lacs, cis, tacs].every((arr) => arr.length === 0)) {
+      throw new Error('Au moins un identifiant antenne est requis');
+    }
+    return { patterns, cgis, lacs, cis, tacs };
+  }
+
+  throw new Error('Type de géométrie non supporté');
 };
 
 class GeofencingService {
@@ -85,14 +173,29 @@ class GeofencingService {
     }
 
     const normalizedMetadata = mergeMetadata(null, metadata);
-    return GeofencingZone.create({ name, type, geometry, metadata: normalizedMetadata });
+    const normalizedGeometry = normalizeGeometry(type, geometry);
+    const normalizedName = name.trim();
+
+    return GeofencingZone.create({
+      name: normalizedName,
+      type,
+      geometry: normalizedGeometry,
+      metadata: normalizedMetadata
+    });
   }
 
   async listZones() {
     const zones = await GeofencingZone.findAll();
     return zones.map((zone) => ({
       ...zone,
-      geometry: typeof zone.geometry === 'string' ? JSON.parse(zone.geometry) : zone.geometry,
+      geometry: (() => {
+        try {
+          return normalizeGeometry(zone.type, zone.geometry);
+        } catch (error) {
+          console.warn('Géométrie geofencing illisible, retour brut', error.message);
+          return typeof zone.geometry === 'string' ? JSON.parse(zone.geometry) : zone.geometry;
+        }
+      })(),
       metadata: normalizeMetadata(zone.metadata)
     }));
   }
@@ -104,10 +207,15 @@ class GeofencingService {
     }
 
     const mergedMetadata = mergeMetadata(existing.metadata, payload.metadata);
+    const nextType = payload.type || existing.type;
+    const normalizedGeometry = payload.geometry
+      ? normalizeGeometry(nextType, payload.geometry)
+      : normalizeGeometry(existing.type, existing.geometry);
+
     return GeofencingZone.update(id, {
-      name: payload.name,
-      type: payload.type,
-      geometry: payload.geometry,
+      name: payload.name ?? existing.name,
+      type: nextType,
+      geometry: normalizedGeometry,
       metadata: mergedMetadata
     });
   }
@@ -214,8 +322,11 @@ class GeofencingService {
   }
 
   #isInsideZone(zone, location, cdr) {
-    const geometry = typeof zone.geometry === 'string' ? JSON.parse(zone.geometry) : zone.geometry;
-    if (!geometry) {
+    let geometry;
+    try {
+      geometry = normalizeGeometry(zone.type, zone.geometry);
+    } catch (error) {
+      console.warn(`Géométrie invalide pour la zone ${zone.id}:`, error.message);
       return false;
     }
 

@@ -1062,7 +1062,7 @@ class DatabaseManager {
         CREATE TABLE IF NOT EXISTS autres.cdr_geofencing_zones (
           id INT AUTO_INCREMENT PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
-          type ENUM('circle', 'polygon', 'antenna') NOT NULL,
+          type ENUM('circle', 'polygon', 'antenna', 'rectangle') NOT NULL,
           geometry JSON NOT NULL,
           metadata JSON NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1070,6 +1070,16 @@ class DatabaseManager {
           INDEX idx_geofence_created (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
+
+      const geofenceTypeColumn = await queryOne(
+        `SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cdr_geofencing_zones' AND COLUMN_NAME = 'type'`
+      );
+      const geofenceType = normalizeColumnType(geofenceTypeColumn?.COLUMN_TYPE);
+      if (!geofenceType?.includes("'rectangle'")) {
+        await query(
+          "ALTER TABLE autres.cdr_geofencing_zones MODIFY COLUMN type ENUM('circle','polygon','antenna','rectangle') NOT NULL"
+        );
+      }
 
       await query(`
         CREATE TABLE IF NOT EXISTS autres.cdr_geofencing_events (
