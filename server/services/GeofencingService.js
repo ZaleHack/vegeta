@@ -249,10 +249,17 @@ class GeofencingService {
     const location = await this.#resolveCoordinates(cdr);
     const zones = await GeofencingZone.findAll();
 
+    const cdrTimestamp = new Date(cdr.timestamp);
+
     const events = [];
     for (const zone of zones) {
       const metadata = mergeMetadata(zone.metadata);
       if (metadata.active === false) {
+        continue;
+      }
+
+      const createdAt = zone.created_at ? new Date(zone.created_at) : null;
+      if (createdAt && cdrTimestamp < createdAt) {
         continue;
       }
 
