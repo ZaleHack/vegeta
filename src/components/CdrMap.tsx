@@ -3,13 +3,11 @@ import {
   MapContainer,
   TileLayer,
   Marker,
-  Popup,
   Polygon,
   CircleMarker,
   Circle,
   Rectangle,
   Polyline,
-  Tooltip,
   useMapEvents
 } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
@@ -1705,7 +1703,7 @@ const CdrMap: React.FC<Props> = ({
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
-  const [visibleZoneIds, setVisibleZoneIds] = useState<Set<number>>(new Set());
+  const [hiddenZoneIds, setHiddenZoneIds] = useState<Set<number>>(new Set());
   const [editingZoneId, setEditingZoneId] = useState<number | null>(null);
 
   const [zoneGeometry, setZoneGeometry] = useState<GeofencingGeometry | null>(null);
@@ -1826,84 +1824,6 @@ const CdrMap: React.FC<Props> = ({
       default:
         return 'Entrée';
     }
-  };
-
-  const renderGeofencePopup = (zone: GeofencingZone) => {
-    const metadata = zone.metadata || {};
-    const alertLabel = getAlertTypeLabel(metadata.alertType);
-    const numbersCount = (metadata.phones || []).length;
-    const isActive = metadata.active ?? true;
-    const isSelected = selectedGeofencingZoneId === zone.id;
-    const recentHistory = isSelected ? filteredGeofencingHistory.slice(0, 4) : [];
-
-    return (
-      <div className="space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">{zone.name}</p>
-            {metadata.description && (
-              <p className="text-xs text-slate-600 dark:text-slate-300">{metadata.description}</p>
-            )}
-          </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-500/20 dark:text-blue-100">
-            {alertLabel}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-200">
-          <div className="rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/70">
-            <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Numéros suivis</p>
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">{numbersCount}</p>
-          </div>
-          <div className="rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/70">
-            <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Statut</p>
-            <p className={`text-sm font-semibold ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>
-              {isActive ? 'Active' : 'Désactivée'}
-            </p>
-          </div>
-          <div className="rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/70">
-            <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Type</p>
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">{zone.type}</p>
-          </div>
-          <div className="rounded-lg bg-slate-100 px-3 py-2 dark:bg-slate-800/70">
-            <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Alerte</p>
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">{alertLabel}</p>
-          </div>
-        </div>
-
-        {isSelected && (
-          <div className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
-              Historique récent
-            </p>
-            {recentHistory.length === 0 ? (
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">Aucun évènement pour cette zone.</p>
-            ) : (
-              <div className="space-y-1">
-                {recentHistory.map((event) => (
-                  <div
-                    key={event.id}
-                    className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-2 text-[11px] dark:bg-slate-800/70"
-                  >
-                    <div className="flex flex-col gap-1">
-                      <span className="font-semibold text-slate-900 dark:text-white">{event.type_evenement}</span>
-                      {event.msisdn && (
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                          {formatPhoneForDisplay(event.msisdn)}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                      {event.timestamp_cdr ? formatDate(event.timestamp_cdr as string) : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
   };
 
   const applyGeometryPreview = useCallback((zone: GeofencingZone) => {
@@ -2094,22 +2014,47 @@ const CdrMap: React.FC<Props> = ({
     handleFetchHistory(zoneId);
   };
 
-  const handleSelectZoneFromMap = (zone: GeofencingZone) => {
-    handleSelectZone(zone.id);
-  };
-
   const handleVisualizeZone = (zone: GeofencingZone) => {
+    const isHidden = hiddenZoneIds.has(zone.id);
+
     setShowOnlyLatestLocation(false);
     setShowLatestLocationDetailsPanel(false);
     setGeofencingEnabled(true);
-    handleSelectZone(zone.id);
-    setVisibleZoneIds((prev) => {
-      const next = new Set(prev);
-      next.add(zone.id);
+
+    if (isHidden) {
+      setHiddenZoneIds((prev) => {
+        const next = new Set(prev);
+        next.delete(zone.id);
+        return next;
+      });
+      handleSelectZone(zone.id);
+      focusMapOnZone(zone);
+    } else {
+      setHiddenZoneIds((prev) => {
+        const next = new Set(prev);
+        next.add(zone.id);
+        return next;
+      });
+      if (selectedGeofencingZoneId === zone.id) {
+        setSelectedGeofencingZoneId(null);
+      }
+    }
+  };
+
+  useEffect(() => {
+    setHiddenZoneIds((prev) => {
+      const existingZoneIds = new Set(geofencingZones.map((zone) => zone.id));
+      const next = new Set<number>();
+
+      prev.forEach((zoneId) => {
+        if (existingZoneIds.has(zoneId)) {
+          next.add(zoneId);
+        }
+      });
+
       return next;
     });
-    focusMapOnZone(zone);
-  };
+  }, [geofencingZones]);
 
   const handleSaveGeofencingZone = async () => {
     const trimmedName = geofencingForm.name.trim();
@@ -3928,7 +3873,7 @@ const CdrMap: React.FC<Props> = ({
       )}
       {!isLatestLocationOnlyView &&
         geofencingZones
-          .filter((zone) => visibleZoneIds.size === 0 || visibleZoneIds.has(zone.id))
+          .filter((zone) => !hiddenZoneIds.has(zone.id))
           .map((zone) => {
             const metadata = zone.metadata || {};
             const color = metadata.color || '#2563eb';
@@ -3952,13 +3897,7 @@ const CdrMap: React.FC<Props> = ({
                   center={[center.lat, center.lng]}
                   radius={(zone.geometry as any).radius}
                   pathOptions={pathOptions}
-                  eventHandlers={{ click: () => handleSelectZoneFromMap(zone) }}
-                >
-                  <Tooltip className="text-xs font-semibold" direction="top" sticky>
-                    Cliquez pour voir les détails
-                  </Tooltip>
-                  <Popup className="cdr-popup">{renderGeofencePopup(zone)}</Popup>
-                </Circle>
+                />
               );
             }
 
@@ -3973,13 +3912,7 @@ const CdrMap: React.FC<Props> = ({
                   key={`geofence-rect-${zone.id}`}
                   bounds={rectBounds}
                   pathOptions={pathOptions}
-                  eventHandlers={{ click: () => handleSelectZoneFromMap(zone) }}
-                >
-                  <Tooltip className="text-xs font-semibold" direction="top" sticky>
-                    Cliquez pour voir les détails
-                  </Tooltip>
-                  <Popup className="cdr-popup">{renderGeofencePopup(zone)}</Popup>
-                </Rectangle>
+                />
               );
             }
 
@@ -3991,13 +3924,7 @@ const CdrMap: React.FC<Props> = ({
                     key={`geofence-poly-${zone.id}`}
                     positions={points.map((p: any) => [p.lat, p.lng])}
                     pathOptions={pathOptions}
-                    eventHandlers={{ click: () => handleSelectZoneFromMap(zone) }}
-                  >
-                    <Tooltip className="text-xs font-semibold" direction="top" sticky>
-                      Cliquez pour voir les détails
-                    </Tooltip>
-                    <Popup className="cdr-popup">{renderGeofencePopup(zone)}</Popup>
-                  </Polygon>
+                  />
                 );
               }
             }
@@ -4507,6 +4434,7 @@ const CdrMap: React.FC<Props> = ({
                         geofencingZones.map((zone) => {
                           const active = zone.metadata?.active ?? true;
                           const alertLabel = getAlertTypeLabel(zone.metadata?.alertType);
+                          const isZoneHidden = hiddenZoneIds.has(zone.id);
 
                           return (
                             <tr
@@ -4560,8 +4488,12 @@ const CdrMap: React.FC<Props> = ({
                                   <button
                                     type="button"
                                     onClick={() => handleVisualizeZone(zone)}
-                                    className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                                    title="Visualiser la zone"
+                                    className={`rounded-full border bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 ${
+                                      isZoneHidden
+                                        ? 'border-slate-300 dark:border-slate-700'
+                                        : 'border-slate-200 dark:border-slate-700'
+                                    }`}
+                                    title={isZoneHidden ? 'Afficher la zone' : 'Masquer la zone'}
                                   >
                                     <MapPin className="h-4 w-4" />
                                   </button>
