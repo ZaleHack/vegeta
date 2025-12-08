@@ -1453,7 +1453,6 @@ const CdrMap: React.FC<Props> = ({
   const [showOnlyLatestLocation, setShowOnlyLatestLocation] = useState(false);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
-  const [showZoneInfo, setShowZoneInfo] = useState(false);
   const [hiddenLocations, setHiddenLocations] = useState<Set<string>>(new Set());
   const [showSimilar, setShowSimilar] = useState(false);
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
@@ -1573,7 +1572,6 @@ const CdrMap: React.FC<Props> = ({
   );
 
   const closeInfoPanels = useCallback(() => {
-    setShowZoneInfo(false);
     setActiveInfo(null);
     setActiveContactDetailsId(null);
   }, []);
@@ -1657,7 +1655,6 @@ const CdrMap: React.FC<Props> = ({
 
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular' | 'history') => {
     if (showMeetingPoints) onToggleMeetingPoints?.();
-    setShowZoneInfo(false);
     setActiveInfo((prev) => {
       const next = prev === key ? null : key;
       if (key === 'contacts' && next === 'contacts') {
@@ -1676,7 +1673,6 @@ const CdrMap: React.FC<Props> = ({
   };
 
   const handleMeetingPointsClick = () => {
-    setShowZoneInfo(false);
     setActiveInfo(null);
     onToggleMeetingPoints?.();
   };
@@ -1700,6 +1696,11 @@ const CdrMap: React.FC<Props> = ({
   const [geofencingLoading, setGeofencingLoading] = useState(false);
   const [geofencingSaving, setGeofencingSaving] = useState(false);
   const [geofencingForm, setGeofencingForm] = useState<GeofencingFormState>(initialGeofencingForm);
+
+  const getAuthHeaders = useCallback(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
   const [visibleZoneIds, setVisibleZoneIds] = useState<Set<number>>(new Set());
   const [editingZoneId, setEditingZoneId] = useState<number | null>(null);
 
@@ -1726,7 +1727,6 @@ const CdrMap: React.FC<Props> = ({
       setPreviewCircle(null);
       setPreviewRectangle(null);
       setCurrentPoints([]);
-      setShowZoneInfo(false);
     } else {
       setDrawing(false);
     }
@@ -1771,7 +1771,6 @@ const CdrMap: React.FC<Props> = ({
     setZoneGeometry(null);
     setPreviewCircle(null);
     setPreviewRectangle(null);
-    setShowZoneInfo(false);
     setCurrentPoints([]);
   }, []);
 
@@ -1841,7 +1840,7 @@ const CdrMap: React.FC<Props> = ({
   const loadGeofencingZones = useCallback(async () => {
     setGeofencingLoading(true);
     try {
-      const response = await fetch('/api/geofencing/zones');
+      const response = await fetch('/api/geofencing/zones', { headers: getAuthHeaders() });
       if (!response.ok) {
         throw new Error('Requête zones impossible');
       }
@@ -1856,7 +1855,7 @@ const CdrMap: React.FC<Props> = ({
     } finally {
       setGeofencingLoading(false);
     }
-  }, [notifyInfo]);
+  }, [notifyInfo, getAuthHeaders]);
 
   useEffect(() => {
     if (geofencingEnabled) {
@@ -1893,7 +1892,7 @@ const CdrMap: React.FC<Props> = ({
 
   const handleDeleteZone = async (zoneId: number) => {
     try {
-      await fetch(`/api/geofencing/zones/${zoneId}`, { method: 'DELETE' });
+      await fetch(`/api/geofencing/zones/${zoneId}`, { method: 'DELETE', headers: getAuthHeaders() });
       setGeofencingZones((prev) => prev.filter((z) => z.id !== zoneId));
       setVisibleZoneIds((prev) => {
         const next = new Set(prev);
@@ -1914,7 +1913,7 @@ const CdrMap: React.FC<Props> = ({
     try {
       const response = await fetch(`/api/geofencing/zones/${zone.id}/toggle`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ active })
       });
       if (!response.ok) {
@@ -1931,7 +1930,9 @@ const CdrMap: React.FC<Props> = ({
   const handleFetchHistory = useCallback(
     async (zoneId: number) => {
       try {
-        const response = await fetch(`/api/geofencing/zones/${zoneId}/evenements`);
+        const response = await fetch(`/api/geofencing/zones/${zoneId}/evenements`, {
+          headers: getAuthHeaders()
+        });
         if (!response.ok) {
           throw new Error('Requête historique impossible');
         }
@@ -1942,7 +1943,7 @@ const CdrMap: React.FC<Props> = ({
         notifyInfo("Impossible de récupérer l'historique de la zone");
       }
     },
-    [notifyInfo]
+    [notifyInfo, getAuthHeaders]
   );
 
   const handleSelectZone = (zoneId: number) => {
@@ -2006,7 +2007,7 @@ const CdrMap: React.FC<Props> = ({
       const method = editingZoneId ? 'PUT' : 'POST';
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
@@ -2346,11 +2347,10 @@ const CdrMap: React.FC<Props> = ({
     if (!latestLocationPoint || !latestLocationPosition) {
       return;
     }
-    setShowZoneInfo(false);
     setActiveInfo(null);
     setShowLatestLocationDetailsPanel(true);
     latestLocationMarkerRef.current?.openPopup();
-  }, [latestLocationPoint, latestLocationPosition, setActiveInfo, setShowZoneInfo]);
+  }, [latestLocationPoint, latestLocationPosition, setActiveInfo]);
 
   useEffect(() => {
     if (!isMapReady || !latestLocationPosition) return;
@@ -2369,7 +2369,6 @@ const CdrMap: React.FC<Props> = ({
           animate: true,
           duration: 1.5
         });
-        setShowZoneInfo(false);
         setActiveInfo(null);
         setShowLatestLocationDetailsPanel(true);
         if (typeof window !== 'undefined') {
@@ -2382,7 +2381,7 @@ const CdrMap: React.FC<Props> = ({
       }
       return next;
     });
-  }, [latestLocationPoint, latestLocationPosition, setShowZoneInfo, setActiveInfo]);
+  }, [latestLocationPoint, latestLocationPosition, setActiveInfo]);
 
   const hasLatestLocation = Boolean(latestLocationPosition);
   const isLatestLocationOnlyView = hasLatestLocation && showOnlyLatestLocation;
@@ -3333,7 +3332,6 @@ const CdrMap: React.FC<Props> = ({
           const final = currentPoints.slice();
           setZoneShape(final);
           setZoneGeometry({ points: final.map((p) => ({ lat: p.lat, lng: p.lng })) });
-          setShowZoneInfo(true);
           onZoneCreated && onZoneCreated();
         } else if (zoneDrawingType === 'rectangle' && start && end) {
           const bounds = L.latLngBounds(start, end);
@@ -3353,13 +3351,11 @@ const CdrMap: React.FC<Props> = ({
               west: bounds.getWest()
             }
           });
-          setShowZoneInfo(true);
           onZoneCreated && onZoneCreated();
         } else if (zoneDrawingType === 'circle' && start && end) {
           const radius = distanceBetweenPoints(start, end);
           setPreviewCircle({ center: start, radius });
           setZoneGeometry({ center: { lat: start.lat, lng: start.lng }, radius });
-          setShowZoneInfo(true);
           onZoneCreated && onZoneCreated();
         }
         setCurrentPoints([]);
@@ -3578,7 +3574,6 @@ const CdrMap: React.FC<Props> = ({
         onToggleMeetingPoints?.();
       }
       setActiveInfo(null);
-      setShowZoneInfo(false);
       mapRef.current?.flyTo([mp.lat, mp.lng], 16);
     }
   };
@@ -4629,35 +4624,22 @@ const CdrMap: React.FC<Props> = ({
         </div>
       )}
 
-      {(showZoneInfo || activeInfo) && (
+      {activeInfo && (
         <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
               <p className="font-semibold">
-                {showZoneInfo && !activeInfo
-                  ? 'Résumé de la zone'
-                  : activeInfo === 'contacts'
-                    ? 'Personnes en contact'
-                    : activeInfo === 'recent'
-                      ? 'Localisations récentes'
-                      : activeInfo === 'popular'
-                        ? 'Lieux les plus visités'
-                        : activeInfo === 'history'
-                          ? 'Historique des déplacements'
-                          : 'Informations'}
+                {activeInfo === 'contacts'
+                  ? 'Personnes en contact'
+                  : activeInfo === 'recent'
+                    ? 'Localisations récentes'
+                    : activeInfo === 'popular'
+                      ? 'Lieux les plus visités'
+                      : 'Historique des déplacements'}
               </p>
               <p className="text-xs text-slate-600 dark:text-slate-300">Total : {total}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {hasZoneShape && (
-                <button
-                  type="button"
-                  onClick={handleResetZone}
-                  className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-100"
-                >
-                  Réinitialiser la zone
-                </button>
-              )}
               <button
                 type="button"
                 onClick={closeInfoPanels}
@@ -4964,7 +4946,7 @@ const CdrMap: React.FC<Props> = ({
               </div>
             </div>
           )}
-          {(showZoneInfo || activeInfo === 'recent') && recentLocations.length > 0 && (
+          {activeInfo === 'recent' && recentLocations.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="font-semibold">Localisations récentes</p>
@@ -5011,7 +4993,7 @@ const CdrMap: React.FC<Props> = ({
               </table>
             </div>
           )}
-          {(showZoneInfo || activeInfo === 'popular') && topLocations.length > 0 && (
+          {activeInfo === 'popular' && topLocations.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="font-semibold">Lieux les plus visités</p>
