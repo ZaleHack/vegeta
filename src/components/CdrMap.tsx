@@ -1854,9 +1854,9 @@ const CdrMap: React.FC<Props> = ({
   const focusMapOnZone = useCallback(
     (zone: GeofencingZone) => {
       setGeofencingEnabled(true);
-      setVisibleZoneIds((prev) => {
+      setHiddenZoneIds((prev) => {
         const next = new Set(prev);
-        next.add(zone.id);
+        next.delete(zone.id);
         return next;
       });
 
@@ -1897,8 +1897,8 @@ const CdrMap: React.FC<Props> = ({
       const data = await response.json();
       const parsed: GeofencingZone[] = Array.isArray(data) ? data.map(normalizeGeofencingZone) : [];
       setGeofencingZones(parsed);
-      const activeIds = parsed.filter((z) => (z.metadata?.active ?? true)).map((z) => z.id);
-      setVisibleZoneIds(new Set(activeIds));
+      const inactiveIds = parsed.filter((z) => !(z.metadata?.active ?? true)).map((z) => z.id);
+      setHiddenZoneIds(new Set(inactiveIds));
     } catch (error) {
       console.error('Chargement zones geofencing impossible', error);
       notifyInfo('Impossible de récupérer les zones de geofencing.');
@@ -1958,7 +1958,7 @@ const CdrMap: React.FC<Props> = ({
     try {
       await fetch(`/api/geofencing/zones/${zoneId}`, { method: 'DELETE', headers: getAuthHeaders() });
       setGeofencingZones((prev) => prev.filter((z) => z.id !== zoneId));
-      setVisibleZoneIds((prev) => {
+      setHiddenZoneIds((prev) => {
         const next = new Set(prev);
         next.delete(zoneId);
         return next;
