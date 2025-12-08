@@ -1775,16 +1775,6 @@ const CdrMap: React.FC<Props> = ({
     setCurrentPoints([]);
   }, []);
 
-  const handleToggleGeofencing = useCallback(() => {
-    if (zoneMode) {
-      handleResetZone();
-      onZoneModeChange?.(false);
-      return;
-    }
-
-    onZoneModeChange?.(true);
-  }, [handleResetZone, onZoneModeChange, zoneMode]);
-
   const handleMonitorTargetChange = (value: string) => {
     setMonitorTarget(value);
     setZoneAlertTriggered(false);
@@ -1973,10 +1963,12 @@ const CdrMap: React.FC<Props> = ({
   };
 
   const handleSaveGeofencingZone = async () => {
-    if (!geofencingForm.name.trim()) {
-      notifyInfo('Donnez un nom à la zone.');
+    const trimmedName = geofencingForm.name.trim();
+    if (!trimmedName) {
+      notifyInfo('Donnez un nom à la zone avant de sauvegarder.');
       return;
     }
+
     if (!zoneGeometry) {
       notifyInfo('Dessinez une zone sur la carte avant de sauvegarder.');
       return;
@@ -1988,7 +1980,7 @@ const CdrMap: React.FC<Props> = ({
       .filter(Boolean);
 
     const payload = {
-      name: geofencingForm.name.trim(),
+      name: trimmedName,
       type:
         'center' in zoneGeometry && 'radius' in zoneGeometry
           ? 'circle'
@@ -2018,7 +2010,8 @@ const CdrMap: React.FC<Props> = ({
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
-        throw new Error('Sauvegarde impossible');
+        const details = (await response.text())?.trim();
+        throw new Error(details || 'Sauvegarde impossible');
       }
       await loadGeofencingZones();
       setGeofencingForm(initialGeofencingForm);
@@ -2030,7 +2023,8 @@ const CdrMap: React.FC<Props> = ({
       notifySuccess('Zone enregistrée avec succès.');
     } catch (error) {
       console.error('Enregistrement zone geofencing impossible', error);
-      notifyInfo("Impossible d'enregistrer la zone.");
+      const message = error instanceof Error ? error.message : "Impossible d'enregistrer la zone.";
+      notifyInfo(message);
     } finally {
       setGeofencingSaving(false);
     }
@@ -4049,19 +4043,6 @@ const CdrMap: React.FC<Props> = ({
           onClick={handleToggleLatestLocationView}
           disabled={!hasLatestLocation}
           active={isLatestLocationOnlyView}
-          isToggle
-        />
-        <MapControlButton
-          title={
-            zoneMode
-              ? 'Cliquez-glissez sur la carte pour dessiner votre zone'
-              : hasZoneShape
-                ? 'Redessiner ou réinitialiser la zone de géofencing'
-                : 'Activer le géofencing pour tracer une zone'
-          }
-          icon={<Shield className="h-5 w-5" />}
-          onClick={handleToggleGeofencing}
-          active={Boolean(zoneMode || hasZoneShape)}
           isToggle
         />
         <MapControlButton
