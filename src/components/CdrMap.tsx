@@ -649,6 +649,21 @@ const formatDateTime = (timestamp: number) => {
   return `${day}/${month}/${year} à ${hours}h${minutes}`;
 };
 
+const formatRelativeDuration = (timestamp: number | null) => {
+  if (!timestamp) return 'Temps inconnu';
+  const now = Date.now();
+  const diff = Math.max(now - timestamp, 0);
+
+  const minutes = Math.floor(diff / 60_000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `il y a ${days} jour${days > 1 ? 's' : ''}`;
+  if (hours > 0) return `il y a ${hours}h`;
+  if (minutes > 0) return `il y a ${minutes} min`;
+  return 'À l’instant';
+};
+
 type Coord = [number, number]; // [lng, lat]
 
 const convexHull = (points: Coord[]): Coord[] => {
@@ -1698,6 +1713,7 @@ const CdrMap: React.FC<Props> = ({
   const [selectedGeofencingZoneId, setSelectedGeofencingZoneId] = useState<number | null>(null);
   const [geofencingLoading, setGeofencingLoading] = useState(false);
   const [geofencingSaving, setGeofencingSaving] = useState(false);
+  const [geofencingClock, setGeofencingClock] = useState(Date.now());
   const [geofencingForm, setGeofencingForm] = useState<GeofencingFormState>(initialGeofencingForm);
 
   const monitoredNumberList = useMemo(() => {
@@ -1731,6 +1747,16 @@ const CdrMap: React.FC<Props> = ({
   useEffect(() => {
     setContactPage(1);
   }, [selectedSource]);
+
+  useEffect(() => {
+    if (!geofencingEnabled) return undefined;
+
+    const interval = setInterval(() => {
+      setGeofencingClock(Date.now());
+    }, 10_000);
+
+    return () => clearInterval(interval);
+  }, [geofencingEnabled]);
 
   useEffect(() => {
     if (zoneMode) {
@@ -1983,7 +2009,50 @@ const CdrMap: React.FC<Props> = ({
     });
   }, [geofencingHistory, selectedGeofencingZoneId]);
 
-  const hasSelectedZoneAlerts = filteredGeofencingHistory.length > 0;
+  const geofencingActivityStatus = useMemo(() => {
+    if (!selectedGeofencingZoneId) return [];
+
+    const zone = geofencingZones.find((z) => z.id === selectedGeofencingZoneId);
+    const frequencyMs = (zone?.metadata?.frequencyMinutes ?? 0) * 60_000;
+
+    const latestByNumber: Record<string, { event: GeofencingHistoryEntry; timestamp: number | null }> = {};
+
+    filteredGeofencingHistory.forEach((event) => {
+      const ts = event.timestamp_cdr ? Date.parse(event.timestamp_cdr as string) : null;
+      const key = normalizePhoneDigits(event.msisdn || '') || event.msisdn || 'Inconnu';
+
+      if (!latestByNumber[key] || (ts && latestByNumber[key].timestamp && ts > latestByNumber[key].timestamp)) {
+        latestByNumber[key] = { event, timestamp: ts };
+      }
+    });
+
+    return Object.entries(latestByNumber).map(([number, payload]) => {
+      const normalizedType = (payload.event.type_evenement || '').toLowerCase();
+      const inactive = Boolean(
+        frequencyMs && payload.timestamp && geofencingClock - payload.timestamp > frequencyMs
+      );
+
+      let label = 'Entrée détectée';
+      let tone: 'success' | 'warning' | 'info' = 'success';
+
+      if (inactive) {
+        label = 'Pas d’activité';
+        tone = 'warning';
+      } else if (normalizedType.includes('sort')) {
+        label = 'Sortie détectée';
+        tone = 'info';
+      }
+
+      return {
+        number,
+        label,
+        tone,
+        timestamp: payload.timestamp,
+        eventType: payload.event.type_evenement || 'Mouvement détecté',
+        relativeTime: formatRelativeDuration(payload.timestamp)
+      };
+    });
+  }, [filteredGeofencingHistory, geofencingClock, geofencingZones, selectedGeofencingZoneId]);
 
   const handleEditZone = (zone: GeofencingZone) => {
     setEditingZoneId(zone.id);
@@ -4700,21 +4769,60 @@ const CdrMap: React.FC<Props> = ({
                 </div>
               </div>
 
-              {selectedGeofencingZoneId && hasSelectedZoneAlerts && (
-              <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">Historique des alertes</p>
-                <div className="space-y-1 text-xs text-slate-600 dark:text-slate-200">
-                  {filteredGeofencingHistory.slice(0, 10).map((event) => (
-                    <div key={event.id} className="flex items-center justify-between">
-                      <span>
-                        <strong>{event.zone_nom}</strong> · {formatPhoneForDisplay(event.msisdn || '')} · {event.type_evenement}
-                      </span>
-                      <span className="text-[10px] text-slate-500">{event.timestamp_cdr ? formatDate(event.timestamp_cdr as string) : ''}</span>
+              {selectedGeofencingZoneId && (
+                <div className="space-y-3 rounded-2xl bg-slate-50/70 p-4 shadow-inner dark:bg-slate-800/60">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-white">Historique des alertes</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-300">
+                        Mises à jour en temps réel selon la fréquence de la zone.
+                      </p>
                     </div>
-                  ))}
+                    <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900/50 dark:text-slate-200 dark:ring-slate-700">
+                      {geofencingActivityStatus.length} suivi(s)
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-xs text-slate-600 dark:text-slate-200">
+                    {geofencingActivityStatus.length === 0 && (
+                      <p className="rounded-xl border border-dashed border-slate-200 bg-white/80 px-3 py-2 text-center text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
+                        Aucune alerte disponible pour cette zone.
+                      </p>
+                    )}
+
+                    {geofencingActivityStatus.map((item) => {
+                      const toneClasses = {
+                        success: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-100',
+                        warning: 'bg-amber-100 text-amber-800 dark:bg-amber-500/25 dark:text-amber-100',
+                        info: 'bg-blue-100 text-blue-800 dark:bg-blue-500/25 dark:text-blue-100'
+                      }[item.tone];
+
+                      return (
+                        <div
+                          key={`${item.number}-${item.timestamp}`}
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-white/90 px-3 py-2 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/70"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${toneClasses}`}>
+                              {item.label.startsWith('Pas') ? '…' : item.label.startsWith('Sort') ? '↗' : '↘'}
+                            </div>
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                                {formatPhoneForDisplay(item.number)}
+                              </p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-300">{item.eventType}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-200">
+                            <span className={`rounded-full px-2 py-1 ${toneClasses}`}>{item.label}</span>
+                            <span className="text-slate-400 dark:text-slate-400">{item.relativeTime}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
         </div>
       )}
