@@ -1700,6 +1700,13 @@ const CdrMap: React.FC<Props> = ({
   const [geofencingSaving, setGeofencingSaving] = useState(false);
   const [geofencingForm, setGeofencingForm] = useState<GeofencingFormState>(initialGeofencingForm);
 
+  const monitoredNumberList = useMemo(() => {
+    const normalized = monitoredNumbers
+      .map((num) => num.trim())
+      .filter((num) => num.length > 0);
+    return Array.from(new Set(normalized));
+  }, [monitoredNumbers]);
+
   const getAuthHeaders = useCallback(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     return token ? { Authorization: `Bearer ${token}` } : {};
@@ -2724,13 +2731,6 @@ const CdrMap: React.FC<Props> = ({
       color: colorMap.get(num) || '#94a3b8'
     }));
   }, [usePerNumberColors, sourceNumbers, colorMap]);
-
-  const monitoredNumberList = useMemo(() => {
-    const normalized = monitoredNumbers
-      .map((num) => num.trim())
-      .filter((num) => num.length > 0);
-    return Array.from(new Set(normalized));
-  }, [monitoredNumbers]);
 
   const monitoredNumberInsights = useMemo(() => {
     const activityMap = new Map<string, { count: number; lastSeenLabel?: string; lastTimestamp: number }>();
