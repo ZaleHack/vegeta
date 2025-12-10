@@ -2071,6 +2071,7 @@ const App: React.FC = () => {
   const [cdrLoading, setCdrLoading] = useState(false);
   const [cdrError, setCdrError] = useState('');
   const [cdrInfoMessage, setCdrInfoMessage] = useState('');
+  const [cdrSearchRequests, setCdrSearchRequests] = useState<string[]>([]);
   const [cdrCaseName, setCdrCaseName] = useState('');
   const [cdrCaseMessage, setCdrCaseMessage] = useState('');
   const [cases, setCases] = useState<CdrCase[]>([]);
@@ -4368,6 +4369,7 @@ useEffect(() => {
     );
     const isPhoneSearch = cdrIdentifierType === 'phone';
     const requestParam = isPhoneSearch ? 'phone' : 'imei';
+    const requestLogs: string[] = [];
 
     if (ids.length === 0) {
       setLinkDiagram(null);
@@ -4375,6 +4377,7 @@ useEffect(() => {
       setCdrLoading(false);
       setCdrError('');
       setCdrInfoMessage('Ajoutez au moins un identifiant valide pour lancer la recherche');
+      setCdrSearchRequests([]);
       setShowCdrMap(false);
       return;
     }
@@ -4383,6 +4386,7 @@ useEffect(() => {
     setCdrLoading(true);
     setCdrError('');
     setCdrInfoMessage('');
+    setCdrSearchRequests([]);
     setShowCdrMap(false);
 
     try {
@@ -4397,6 +4401,12 @@ useEffect(() => {
         if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
         if (cdrStartTime) params.append('startTime', cdrStartTime);
         if (cdrEndTime) params.append('endTime', cdrEndTime);
+        const requestDescription = `/api/cdr/realtime/search?${params.toString()}`;
+        requestLogs.push(requestDescription);
+        console.info('Requête CDR envoyée', {
+          identifiant: id,
+          requete: requestDescription
+        });
         const res = await fetch(`/api/cdr/realtime/search?${params.toString()}`, {
           headers: { Authorization: token ? `Bearer ${token}` : '' }
         });
@@ -4525,6 +4535,8 @@ useEffect(() => {
 
       const locations = Array.from(locationsMap.values()).sort((a, b) => b.count - a.count);
 
+      setCdrSearchRequests(requestLogs);
+
       const result: CdrSearchResult = {
         total: allPaths.length,
         contacts,
@@ -4540,6 +4552,7 @@ useEffect(() => {
       setCdrInfoMessage(hasPath ? '' : 'Aucun résultat trouvé pour le filtre sélectionné');
     } catch (error) {
       console.error('Erreur recherche CDR:', error);
+      setCdrSearchRequests(requestLogs);
       setCdrError('Erreur lors de la recherche');
       setCdrResult(null);
       setCdrInfoMessage('');
@@ -8734,6 +8747,23 @@ useEffect(() => {
               )}
               {cdrError && <p className="text-red-600">{cdrError}</p>}
               {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
+              {cdrSearchRequests.length > 0 && (
+                <div className="mt-4 space-y-2 rounded-lg border border-slate-200 bg-white/80 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                    Requêtes CDR envoyées
+                  </p>
+                  <ol className="space-y-1">
+                    {cdrSearchRequests.map((request, index) => (
+                      <li key={`${request}-${index}`} className="flex items-start gap-2 text-slate-700 dark:text-slate-200">
+                        <span className="mt-[2px] rounded bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                          {index + 1}
+                        </span>
+                        <code className="break-all text-[13px]">{request}</code>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
               {showCdrMap && cdrResult && !cdrLoading && (
                 <>
                   <div className="fixed inset-0 z-0 flex">
