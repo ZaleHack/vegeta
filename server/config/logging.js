@@ -20,7 +20,7 @@ export const isRequestLoggingEnabled = () => {
     return normalized;
   }
 
-  return false;
+  return true;
 };
 
 export default {
