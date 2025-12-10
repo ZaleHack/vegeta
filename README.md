@@ -42,6 +42,10 @@ Copiez ensuite vos paramètres sensibles (connexion MySQL, clés JWT, etc.) dans
 
 Les deux commandes peuvent être exécutées en parallèle pendant le développement.
 
+### Debug SQL
+
+Définissez `DB_LOG_QUERIES=true` (ou `1`) dans votre `.env` pour afficher toutes les requêtes MySQL et leurs paramètres dans le terminal lors des appels à l'API.
+
 ## Scripts utiles
 
 - `npm run build` : génère la version de production du front-end.
