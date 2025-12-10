@@ -112,3 +112,26 @@ test('cgi enricher normalizes realtime CGI keys before querying database', async
   await enricher.fetchMany(['608-01-09025-61051']);
   assert.deepEqual(capturedParams, ['608-01-9025-61051']);
 });
+
+test('cgi enricher detects BTS tables even when casing differs', async () => {
+  const stubDatabase = {
+    async query(sql, params) {
+      if (/INFORMATION_SCHEMA\.TABLES/i.test(sql) && params.some((param) => /bts_expresso_3g/i.test(param))) {
+        return [{ TABLE_SCHEMA: 'bts_expresso', TABLE_NAME: 'BTS_EXPRESSO_3G' }];
+      }
+
+      if (/INFORMATION_SCHEMA\.STATISTICS/i.test(sql)) {
+        return [{ COLUMN_NAME: 'CGI' }];
+      }
+
+      return [];
+    }
+  };
+
+  const enricher = new CgiBtsEnrichmentService({ enabled: true, databaseClient: stubDatabase });
+  const sources = await enricher.listLookupSources();
+
+  const expressoSource = sources.find((source) => source.table === 'BTS_EXPRESSO_3G');
+  assert.ok(expressoSource, 'Expresso table should be detected even with uppercase table name.');
+  assert.equal(expressoSource.schema, 'bts_expresso');
+});

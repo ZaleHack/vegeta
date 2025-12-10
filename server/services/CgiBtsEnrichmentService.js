@@ -588,28 +588,28 @@ class CgiBtsEnrichmentService {
           continue;
         }
 
-        const tableKey = `${parsed.schema ?? 'default'}.${parsed.table}`;
+        const existingReference = await this.#findExistingTable(parsed);
+        if (!existingReference) {
+          continue;
+        }
+
+        const tableKey = `${existingReference.schema ?? 'default'}.${existingReference.table}`;
         if (seenTables.has(tableKey)) {
           continue;
         }
 
-        const exists = await this.#tableExists(parsed);
-        if (!exists) {
-          continue;
-        }
-
-        const tableSql = formatTableReference(parsed);
+        const tableSql = formatTableReference(existingReference);
         if (!tableSql) {
           continue;
         }
 
-        await this.#checkCgiIndex(parsed);
+        await this.#checkCgiIndex(existingReference);
 
         detected.push({
           tableSql,
           priority: definition.priority,
-          schema: parsed.schema,
-          table: parsed.table,
+          schema: existingReference.schema,
+          table: existingReference.table,
           columns: normalizedCandidate.columns ?? null
         });
         seenTables.add(tableKey);
@@ -620,21 +620,48 @@ class CgiBtsEnrichmentService {
     return detected;
   }
 
-  async #tableExists(reference) {
+  async #findExistingTable(reference) {
     const { schema, table } = reference;
     const sql = schema
-      ? 'SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? LIMIT 1'
-      : 'SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1';
-    const params = schema ? [schema, table] : [table];
+      ? `
+        SELECT TABLE_SCHEMA, TABLE_NAME
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = ? AND LOWER(TABLE_NAME) = LOWER(?)
+        ORDER BY CASE WHEN TABLE_NAME = ? THEN 0 ELSE 1 END
+        LIMIT 1
+      `
+      : `
+        SELECT TABLE_SCHEMA, TABLE_NAME
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) = LOWER(?)
+        ORDER BY CASE WHEN TABLE_NAME = ? THEN 0 ELSE 1 END
+        LIMIT 1
+      `;
+
+    const params = schema ? [schema, table, table] : [table, table];
     try {
       const rows = await this.database.query(sql, params, {
         suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
         suppressErrorLog: true
       });
-      return Array.isArray(rows) && rows.length > 0;
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return null;
+      }
+
+      const result = rows[0];
+      const resolvedTable = sanitizeTableIdentifier(result?.TABLE_NAME || table);
+      const resolvedSchema = sanitizeTableIdentifier(result?.TABLE_SCHEMA || schema);
+      if (!resolvedTable) {
+        return null;
+      }
+
+      return {
+        schema: resolvedSchema || null,
+        table: resolvedTable
+      };
     } catch (error) {
       this.#debug('Vérification de table BTS impossible:', error);
-      return false;
+      return null;
     }
   }
 
