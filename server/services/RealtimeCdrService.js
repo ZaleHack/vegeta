@@ -1058,7 +1058,7 @@ class RealtimeCdrService {
         c.fichier_source AS source_file,
         c.inserted_at
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
-      LEFT JOIN best_bts AS coords ON coords.cgi = c.cgi
+      LEFT JOIN best_bts AS coords ON LOWER(coords.cgi) = LOWER(c.cgi)
       ${whereClause}
       ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
       LIMIT ?
