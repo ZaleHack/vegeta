@@ -964,7 +964,7 @@ class RealtimeCdrService {
     const btsSegments = await this.#getBtsLookupSegments();
     const unionSegments = btsSegments.length
       ? btsSegments.join('\n        UNION ALL\n        ')
-      : 'SELECT NULL AS CGI, NULL AS NOM_BTS, NULL AS LONGITUDE, NULL AS LATITUDE, NULL AS AZIMUT, 1 AS priority FROM (SELECT 1) AS empty WHERE 1 = 0';
+      : 'SELECT NULL AS CGI, NULL AS NOM_BTS, NULL AS LONGITUDE, NULL AS LATITUDE, NULL AS AZIMUT, 1 AS priority, 1 AS source_rank FROM (SELECT 1) AS empty WHERE 1 = 0';
     const conditions = [];
     const params = [];
 
@@ -1018,17 +1018,22 @@ class RealtimeCdrService {
       ),
       best_bts AS (
         SELECT
-          p.CGI AS cgi,
-          p.NOM_BTS AS nom_bts,
-          p.LONGITUDE AS longitude,
-          p.LATITUDE AS latitude,
-          p.AZIMUT AS azimut
-        FROM prioritized_bts p
-        INNER JOIN (
-          SELECT CGI, MIN(priority) AS min_priority
-          FROM prioritized_bts
-          GROUP BY CGI
-        ) ranked ON ranked.CGI = p.CGI AND ranked.min_priority = p.priority
+          ranked.cgi,
+          ranked.nom_bts,
+          ranked.longitude,
+          ranked.latitude,
+          ranked.azimut
+        FROM (
+          SELECT
+            p.CGI AS cgi,
+            p.NOM_BTS AS nom_bts,
+            p.LONGITUDE AS longitude,
+            p.LATITUDE AS latitude,
+            p.AZIMUT AS azimut,
+            ROW_NUMBER() OVER (PARTITION BY p.CGI ORDER BY p.priority ASC, p.source_rank ASC) AS rn
+          FROM prioritized_bts p
+        ) ranked
+        WHERE ranked.rn = 1
       )
       SELECT
         c.id,
@@ -1157,7 +1162,7 @@ class RealtimeCdrService {
             ? Math.floor(source.priority)
             : index + 1;
           segments.push(
-            `SELECT CGI, NOM_BTS, LONGITUDE, LATITUDE, AZIMUT, ${priority} AS priority FROM ${source.tableSql}`
+            `SELECT CGI, NOM_BTS, LONGITUDE, LATITUDE, AZIMUT, ${priority} AS priority, ${index + 1} AS source_rank FROM ${source.tableSql}`
           );
         });
 
