@@ -904,62 +904,82 @@ export default {
     theme: 'telecom'
   },
 
-  'bts_expresso.gsm': {
-    display: 'bts_expresso_gsm',
+  'bts_expresso.3g': {
+    display: 'bts_expresso_3g',
     database: 'bts_expresso',
     primaryKey: 'CGI',
-    searchable: ['CGI', 'NOM_BTS'],
-    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
+    searchable: ['CGI', 'NOM_SITE', 'NOM_BTS'],
+    preview: ['CGI', 'NOM_SITE', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
     filters: {
+      NOM_SITE: 'string',
       NOM_BTS: 'string',
+      CELLID: 'number',
+      LAC: 'number',
+      RAC: 'number',
       LONGITUDE: 'number',
       LATITUDE: 'number',
-      AZIMUT: 'number',
-      ARCANGLE: 'number',
-      MCC: 'number',
-      MNC: 'number',
-      LAC: 'number',
-      CI: 'number'
+      AZIMUT: 'number'
     },
     theme: 'telecom'
   },
 
-  'bts_expresso.umts': {
-    display: 'bts_expresso_umts',
+  'bts_expresso.4g': {
+    display: 'bts_expresso_4g',
     database: 'bts_expresso',
     primaryKey: 'CGI',
-    searchable: ['CGI', 'NOM_BTS'],
-    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
+    searchable: ['CGI', 'NOM_SITE', 'NOM_BTS', 'NOM_CELLULE'],
+    preview: [
+      'CGI',
+      'NOM_SITE',
+      'NOM_BTS',
+      'NOM_CELLULE',
+      'LONGITUDE',
+      'LATITUDE',
+      'AZIMUT'
+    ],
     filters: {
+      NOM_SITE: 'string',
       NOM_BTS: 'string',
-      LONGITUDE: 'number',
-      LATITUDE: 'number',
-      AZIMUT: 'number',
-      ARCANGLE: 'number',
-      MCC: 'number',
-      MNC: 'number',
-      LAC: 'number',
-      CI: 'number'
-    },
-    theme: 'telecom'
-  },
-
-  'bts_expresso.lte': {
-    display: 'bts_expresso_lte',
-    database: 'bts_expresso',
-    primaryKey: 'CGI',
-    searchable: ['CGI', 'NOM_BTS'],
-    preview: ['CGI', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
-    filters: {
-      NOM_BTS: 'string',
-      LONGITUDE: 'number',
-      LATITUDE: 'number',
-      AZIMUT: 'number',
-      ARCANGLE: 'number',
-      MCC: 'number',
-      MNC: 'number',
+      NOM_CELLULE: 'string',
+      Local_Cell_ID: 'number',
+      CID: 'number',
       TAC: 'number',
-      CI: 'number'
+      Physical_cell_ID: 'number',
+      LONGITUDE: 'number',
+      LATITUDE: 'number',
+      AZIMUT: 'number',
+      ID_site: 'number'
+    },
+    theme: 'telecom'
+  },
+
+  'bts_expresso.5g': {
+    display: 'bts_expresso_5g',
+    database: 'bts_expresso',
+    primaryKey: 'CGI',
+    searchable: ['CGI', 'NOM_SITE', 'NOM_BTS', 'NOM_CELLULE'],
+    preview: [
+      'CGI',
+      'NOM_SITE',
+      'NOM_BTS',
+      'NOM_CELLULE',
+      'LONGITUDE',
+      'LATITUDE',
+      'AZIMUT'
+    ],
+    filters: {
+      NOM_SITE: 'string',
+      NOM_BTS: 'string',
+      NOM_CELLULE: 'string',
+      gNodeB_Id: 'number',
+      Local_Cell_ID: 'number',
+      TAC: 'number',
+      Physical_Cell_ID: 'number',
+      LONGITUDE: 'number',
+      LATITUDE: 'number',
+      AZIMUT: 'number',
+      ID_site: 'number',
+      ECI: 'number'
     },
     theme: 'telecom'
   },
