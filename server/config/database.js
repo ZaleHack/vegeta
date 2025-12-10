@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import util from 'util';
 
 dotenv.config();
 
@@ -8,7 +9,25 @@ class DatabaseManager {
     this.pool = null;
     this.initPromise = null;
     this.isInitialized = false;
+    this.logQueries = this.#shouldLogQueries();
     this.init();
+  }
+
+  #shouldLogQueries() {
+    const flag = (process.env.DB_LOG_QUERIES || '').toString().toLowerCase();
+    return flag === 'true' || flag === '1' || flag === 'yes';
+  }
+
+  #logQuery(sql, params = []) {
+    if (!this.logQueries) {
+      return;
+    }
+
+    const formattedParams = Array.isArray(params)
+      ? util.inspect(params, { depth: 3, breakLength: 120 })
+      : util.inspect(params, { depth: 3, breakLength: 120 });
+
+    console.log(`🪵 SQL: ${sql}\n   Params: ${formattedParams}`);
   }
 
   static #normalizeRow(row) {
@@ -1122,6 +1141,7 @@ class DatabaseManager {
       if (!skipInitWait && !this.isInitialized) {
         await this.ensureInitialized();
       }
+      this.#logQuery(sql, params);
       const [rows] = await this.pool.execute(sql, params);
       return DatabaseManager.#normalizeRows(rows);
     } catch (error) {
@@ -1151,6 +1171,8 @@ class DatabaseManager {
       if (!skipInitWait && !this.isInitialized) {
         await this.ensureInitialized();
       }
+
+      this.#logQuery(sql, params);
 
       const [rows] = await this.pool.execute(sql, params);
       const [row] = DatabaseManager.#normalizeRows(rows);
@@ -1183,11 +1205,13 @@ class DatabaseManager {
     const connection = await this.pool.getConnection();
 
     const wrapQuery = async (sql, params = []) => {
+      this.#logQuery(sql, params);
       const [rows] = await connection.execute(sql, params);
       return DatabaseManager.#normalizeRows(rows);
     };
 
     const wrapQueryOne = async (sql, params = []) => {
+      this.#logQuery(sql, params);
       const [rows] = await connection.execute(sql, params);
       const [row] = DatabaseManager.#normalizeRows(rows);
       return row || null;
