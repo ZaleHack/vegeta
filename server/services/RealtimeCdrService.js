@@ -1059,7 +1059,7 @@ class RealtimeCdrService {
       LIMIT ?
     `;
 
-    return this.database.query(sql, params);
+    return this.database.query(sql, params, { logQuery: true });
   }
 
   async #getCoordinateSelectClause() {

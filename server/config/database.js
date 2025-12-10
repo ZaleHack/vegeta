@@ -18,8 +18,9 @@ class DatabaseManager {
     return flag === 'true' || flag === '1' || flag === 'yes';
   }
 
-  #logQuery(sql, params = []) {
-    if (!this.logQueries) {
+  #logQuery(sql, params = [], forceLog = false) {
+    const normalizedSql = typeof sql === 'string' ? sql : String(sql || '');
+    if (!forceLog && !this.logQueries) {
       return;
     }
 
@@ -27,7 +28,7 @@ class DatabaseManager {
       ? util.inspect(params, { depth: 3, breakLength: 120 })
       : util.inspect(params, { depth: 3, breakLength: 120 });
 
-    console.log(`🪵 SQL: ${sql}\n   Params: ${formattedParams}`);
+    console.log(`🪵 SQL: ${normalizedSql}\n   Params: ${formattedParams}`);
   }
 
   static #normalizeRow(row) {
@@ -1141,7 +1142,7 @@ class DatabaseManager {
       if (!skipInitWait && !this.isInitialized) {
         await this.ensureInitialized();
       }
-      this.#logQuery(sql, params);
+      this.#logQuery(sql, params, options.logQuery);
       const [rows] = await this.pool.execute(sql, params);
       return DatabaseManager.#normalizeRows(rows);
     } catch (error) {
@@ -1172,7 +1173,7 @@ class DatabaseManager {
         await this.ensureInitialized();
       }
 
-      this.#logQuery(sql, params);
+      this.#logQuery(sql, params, options.logQuery);
 
       const [rows] = await this.pool.execute(sql, params);
       const [row] = DatabaseManager.#normalizeRows(rows);
