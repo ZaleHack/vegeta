@@ -905,81 +905,20 @@ export default {
   },
 
   'bts_expresso.3g': {
-    display: 'bts_expresso_3g',
+    display: '3G',
     database: 'bts_expresso',
     primaryKey: 'CGI',
-    searchable: ['CGI', 'NOM_SITE', 'NOM_BTS'],
-    preview: ['CGI', 'NOM_SITE', 'NOM_BTS', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
+    searchable: ['CGI', 'NOM_BTS', 'NOM_CELLULE'],
+    preview: ['CGI', 'NOM_BTS', 'NOM_CELLULE', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
     filters: {
-      NOM_SITE: 'string',
       NOM_BTS: 'string',
+      NOM_CELLULE: 'string',
       CELLID: 'number',
       LAC: 'number',
       RAC: 'number',
       LONGITUDE: 'number',
       LATITUDE: 'number',
       AZIMUT: 'number'
-    },
-    theme: 'telecom'
-  },
-
-  'bts_expresso.4g': {
-    display: 'bts_expresso_4g',
-    database: 'bts_expresso',
-    primaryKey: 'CGI',
-    searchable: ['CGI', 'NOM_SITE', 'NOM_BTS', 'NOM_CELLULE'],
-    preview: [
-      'CGI',
-      'NOM_SITE',
-      'NOM_BTS',
-      'NOM_CELLULE',
-      'LONGITUDE',
-      'LATITUDE',
-      'AZIMUT'
-    ],
-    filters: {
-      NOM_SITE: 'string',
-      NOM_BTS: 'string',
-      NOM_CELLULE: 'string',
-      Local_Cell_ID: 'number',
-      CID: 'number',
-      TAC: 'number',
-      Physical_cell_ID: 'number',
-      LONGITUDE: 'number',
-      LATITUDE: 'number',
-      AZIMUT: 'number',
-      ID_site: 'number'
-    },
-    theme: 'telecom'
-  },
-
-  'bts_expresso.5g': {
-    display: 'bts_expresso_5g',
-    database: 'bts_expresso',
-    primaryKey: 'CGI',
-    searchable: ['CGI', 'NOM_SITE', 'NOM_BTS', 'NOM_CELLULE'],
-    preview: [
-      'CGI',
-      'NOM_SITE',
-      'NOM_BTS',
-      'NOM_CELLULE',
-      'LONGITUDE',
-      'LATITUDE',
-      'AZIMUT'
-    ],
-    filters: {
-      NOM_SITE: 'string',
-      NOM_BTS: 'string',
-      NOM_CELLULE: 'string',
-      gNodeB_Id: 'number',
-      Local_Cell_ID: 'number',
-      TAC: 'number',
-      Physical_Cell_ID: 'number',
-      LONGITUDE: 'number',
-      LATITUDE: 'number',
-      AZIMUT: 'number',
-      ID_site: 'number',
-      ECI: 'number'
     },
     theme: 'telecom'
   },
