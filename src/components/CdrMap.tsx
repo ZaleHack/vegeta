@@ -3227,28 +3227,27 @@ const CdrMap: React.FC<Props> = ({
 
     const supplementalContacts: Contact[] = [];
     const defaultTracked = selectedSource || sourceNumbers[0] || undefined;
+    const trackedLabel = defaultTracked || 'summary';
 
-    if (defaultTracked) {
-      contactSummaries.forEach((summary, index) => {
-        const normalizedNumber = normalizePhoneDigits(summary.number) || summary.number.trim();
-        if (!normalizedNumber || normalizedContacts.has(normalizedNumber)) {
-          return;
-        }
+    contactSummaries.forEach((summary, index) => {
+      const normalizedNumber = normalizePhoneDigits(summary.number) || summary.number.trim();
+      if (!normalizedNumber || normalizedContacts.has(normalizedNumber)) {
+        return;
+      }
 
-        supplementalContacts.push({
-          id: `${defaultTracked}|${normalizedNumber}|summary-${index}`,
-          tracked: defaultTracked,
-          contact: summary.number,
-          contactNormalized: normalizedNumber,
-          callCount: summary.callCount ?? 0,
-          smsCount: summary.smsCount ?? 0,
-          ussdCount: 0,
-          callDuration: '-',
-          total: summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0),
-          events: []
-        });
+      supplementalContacts.push({
+        id: `${trackedLabel}|${normalizedNumber}|summary-${index}`,
+        tracked: defaultTracked,
+        contact: summary.number,
+        contactNormalized: normalizedNumber,
+        callCount: summary.callCount ?? 0,
+        smsCount: summary.smsCount ?? 0,
+        ussdCount: 0,
+        callDuration: '-',
+        total: summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0),
+        events: []
       });
-    }
+    });
 
     const mergedContacts = [...contacts, ...supplementalContacts].sort((a, b) => b.total - a.total);
 
