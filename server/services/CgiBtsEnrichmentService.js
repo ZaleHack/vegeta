@@ -107,8 +107,10 @@ const RADIO_TABLE_CANDIDATES = [
       'RADIO_3G',
       'radio3g',
       'RADIO3G',
-      'bts_expresso.bts_expresso_3g',
-      'bts_expresso_3g',
+      'bts_expresso.`3g`',
+      'bts_expresso.`3G`',
+      'bts_expresso.3g',
+      'bts_expresso.3G',
       {
         identifier: 'bts_expresso.3g',
         columns: { nom: 'NOM_BTS' }
@@ -133,13 +135,7 @@ const RADIO_TABLE_CANDIDATES = [
       'radio_4g',
       'RADIO_4G',
       'radio4g',
-      'RADIO4G',
-      'bts_expresso.bts_expresso_4g',
-      'bts_expresso_4g',
-      {
-        identifier: 'bts_expresso.4g',
-        columns: { nom: 'NOM_BTS' }
-      }
+      'RADIO4G'
     ]
   },
   {
@@ -160,13 +156,7 @@ const RADIO_TABLE_CANDIDATES = [
       'radio_5g',
       'RADIO_5G',
       'radio5g',
-      'RADIO5G',
-      'bts_expresso.bts_expresso_5g',
-      'bts_expresso_5g',
-      {
-        identifier: 'bts_expresso.5g',
-        columns: { nom: 'NOM_BTS' }
-      }
+      'RADIO5G'
     ]
   }
 ];
