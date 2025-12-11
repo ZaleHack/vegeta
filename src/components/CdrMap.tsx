@@ -3030,7 +3030,9 @@ const CdrMap: React.FC<Props> = ({
       });
 
       if (filtered.length > 0) {
-        contactEvents = filtered;
+        const merged = new Set(contactEvents);
+        filtered.forEach((p) => merged.add(p));
+        contactEvents = Array.from(merged);
       }
     }
 
