@@ -2037,10 +2037,6 @@ class RealtimeCdrService {
 
       const eventType = resolveEventType(row.type_appel);
 
-      if (eventType === 'position') {
-        matchesCallee = false;
-      }
-
       if (!matchesCaller && !matchesCallee) {
         continue;
       }
