@@ -112,6 +112,13 @@ interface Contact {
   events: ContactCallDetail[];
 }
 
+interface ContactSummary {
+  number: string;
+  callCount: number;
+  smsCount: number;
+  total: number;
+}
+
 interface LocationStat {
   latitude: string;
   longitude: string;
@@ -281,6 +288,7 @@ const distanceBetweenPoints = (a: L.LatLng, b: L.LatLng): number => {
 
 interface Props {
   points: Point[];
+  contactSummaries?: ContactSummary[];
   showRoute?: boolean;
   showMeetingPoints?: boolean;
   onToggleMeetingPoints?: () => void;
@@ -1345,6 +1353,7 @@ const MapControlButton: React.FC<MapControlButtonProps> = ({
 
 const CdrMap: React.FC<Props> = ({
   points: rawPoints,
+  contactSummaries = [],
   showRoute,
   showMeetingPoints,
   onToggleMeetingPoints,
@@ -3193,6 +3202,37 @@ const CdrMap: React.FC<Props> = ({
       .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total);
 
+    const normalizedContacts = new Set(
+      contacts.map((c) => normalizePhoneDigits(c.contact) || c.contactNormalized || '')
+    );
+
+    const supplementalContacts: Contact[] = [];
+    const defaultTracked = selectedSource || sourceNumbers[0] || undefined;
+
+    if (defaultTracked) {
+      contactSummaries.forEach((summary, index) => {
+        const normalizedNumber = normalizePhoneDigits(summary.number) || summary.number.trim();
+        if (!normalizedNumber || normalizedContacts.has(normalizedNumber)) {
+          return;
+        }
+
+        supplementalContacts.push({
+          id: `${defaultTracked}|${normalizedNumber}|summary-${index}`,
+          tracked: defaultTracked,
+          contact: summary.number,
+          contactNormalized: normalizedNumber,
+          callCount: summary.callCount ?? 0,
+          smsCount: summary.smsCount ?? 0,
+          ussdCount: 0,
+          callDuration: '-',
+          total: summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0),
+          events: []
+        });
+      });
+    }
+
+    const mergedContacts = [...contacts, ...supplementalContacts].sort((a, b) => b.total - a.total);
+
     const allLocations = Array.from(locationMap.values()).filter(
       (loc) =>
         !isNaN(parseFloat(loc.latitude)) && !isNaN(parseFloat(loc.longitude))
@@ -3212,8 +3252,15 @@ const CdrMap: React.FC<Props> = ({
       })
       .slice(0, 10);
 
-    return { topContacts: contacts, topLocations: locations, recentLocations: recent, total: displayedPoints.length };
+    return {
+      topContacts: mergedContacts,
+      topLocations: locations,
+      recentLocations: recent,
+      total: displayedPoints.length
+    };
   }, [
+    contactSummaries,
+    sourceNumbers,
     contactPoints,
     displayedPoints,
     points,
