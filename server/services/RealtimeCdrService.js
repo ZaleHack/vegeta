@@ -2026,6 +2026,8 @@ class RealtimeCdrService {
       const caller = row.numero_appelant ? normalizeForOutput(row.numero_appelant) : '';
       const callee = row.numero_appele ? normalizeForOutput(row.numero_appele) : '';
 
+      const eventType = resolveEventType(row.type_appel);
+
       const matchesCaller =
         normalizedType === 'imei'
           ? matchesIdentifier(identifierSet, row.imei_appelant, 'imei')
@@ -2035,7 +2037,9 @@ class RealtimeCdrService {
           ? false
           : matchesIdentifier(identifierSet, row.numero_appele, 'phone');
 
-      const eventType = resolveEventType(row.type_appel);
+      if (eventType === 'position') {
+        matchesCallee = false;
+      }
 
       if (!matchesCaller && !matchesCallee) {
         continue;
