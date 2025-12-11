@@ -3035,15 +3035,6 @@ const CdrMap: React.FC<Props> = ({
     }
 
     const contactSet = new Set(contactEvents);
-    const trackedNumbersSet = new Set<string>();
-    points.forEach((point) => {
-      const normalized = normalizePhoneDigits(point.tracked);
-      if (normalized) {
-        trackedNumbersSet.add(normalized);
-      }
-    });
-    const excludeTrackedContacts = trackedNumbersSet.size >= 2;
-
     contactEvents.forEach((p) => {
       if (!isLocationEventType(p.type)) {
         const trackedRaw = (p.tracked || '').trim();
@@ -3081,58 +3072,56 @@ const CdrMap: React.FC<Props> = ({
           }
 
           if (contactNormalized) {
-            if (!excludeTrackedContacts || !trackedNumbersSet.has(contactNormalized)) {
-              const key = `${trackedNormalized}|${contactNormalized}`;
-      const entry =
-        contactMap.get(key) ||
-        {
-          tracked: trackedRaw || undefined,
-          contact: contactRaw || undefined,
-          contactNormalized,
-          callCount: 0,
-          smsCount: 0,
-          ussdCount: 0,
-          callDurationSeconds: 0,
-          events: []
-        };
+            const key = `${trackedNormalized}|${contactNormalized}`;
+            const entry =
+              contactMap.get(key) ||
+              {
+                tracked: trackedRaw || undefined,
+                contact: contactRaw || undefined,
+                contactNormalized,
+                callCount: 0,
+                smsCount: 0,
+                ussdCount: 0,
+                callDurationSeconds: 0,
+                events: []
+              };
 
-              if (!entry.tracked && trackedRaw) {
-                entry.tracked = trackedRaw;
-              }
-              if (!entry.contact && contactRaw) {
-                entry.contact = contactRaw;
-              }
-              entry.contactNormalized = contactNormalized;
-
-              const normalizedEventType = (p.type || '').trim().toLowerCase();
-              const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
-              const isUssdEvent = isUssdEventType(p.type);
-              const isAudioEvent = !isSmsEvent && !isUssdEvent;
-
-              if (isSmsEvent) {
-                entry.smsCount += 1;
-              } else if (isUssdEvent) {
-                entry.ussdCount += 1;
-              } else if (isAudioEvent) {
-                entry.callCount += 1;
-                entry.callDurationSeconds += getPointDurationInSeconds(p);
-                const timestamp = getPointTimestamp(p);
-                entry.events.push({
-                  id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
-                  timestamp,
-                  date: p.callDate,
-                  time: p.startTime || p.endTime,
-                  duration: formatPointDuration(p),
-                  direction: p.direction,
-                  type: p.type,
-                  location: p.nom,
-                  source: getPointSourceValue(p),
-                  cell: p.cgi
-                });
-              }
-
-              contactMap.set(key, entry);
+            if (!entry.tracked && trackedRaw) {
+              entry.tracked = trackedRaw;
             }
+            if (!entry.contact && contactRaw) {
+              entry.contact = contactRaw;
+            }
+            entry.contactNormalized = contactNormalized;
+
+            const normalizedEventType = (p.type || '').trim().toLowerCase();
+            const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
+            const isUssdEvent = isUssdEventType(p.type);
+            const isAudioEvent = !isSmsEvent && !isUssdEvent;
+
+            if (isSmsEvent) {
+              entry.smsCount += 1;
+            } else if (isUssdEvent) {
+              entry.ussdCount += 1;
+            } else if (isAudioEvent) {
+              entry.callCount += 1;
+              entry.callDurationSeconds += getPointDurationInSeconds(p);
+              const timestamp = getPointTimestamp(p);
+              entry.events.push({
+                id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
+                timestamp,
+                date: p.callDate,
+                time: p.startTime || p.endTime,
+                duration: formatPointDuration(p),
+                direction: p.direction,
+                type: p.type,
+                location: p.nom,
+                source: getPointSourceValue(p),
+                cell: p.cgi
+              });
+            }
+
+            contactMap.set(key, entry);
           }
         }
       }
