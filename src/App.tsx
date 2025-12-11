@@ -8772,6 +8772,7 @@ useEffect(() => {
                       {cdrResult.total > 0 ? (
                         <CdrMap
                           points={cdrResult.path}
+                          contactSummaries={cdrResult.contacts}
                           showRoute={cdrItinerary}
                           showMeetingPoints={showMeetingPoints}
                           onToggleMeetingPoints={() => setShowMeetingPoints((v) => !v)}
