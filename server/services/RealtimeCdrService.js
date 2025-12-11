@@ -1060,7 +1060,7 @@ class RealtimeCdrService {
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
       LEFT JOIN best_bts AS coords ON LOWER(coords.cgi) = LOWER(c.cgi)
       ${whereClause}
-      ORDER BY c.date_debut ASC, c.heure_debut ASC, c.id ASC
+      ORDER BY c.inserted_at DESC, c.date_debut DESC, c.heure_debut DESC, c.id DESC
       LIMIT ?
     `;
 
