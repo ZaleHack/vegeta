@@ -514,8 +514,26 @@ const normalizePhoneDigits = (value?: string): string => {
   return digits;
 };
 
+const getPointTrackedValue = (point: Point): string | undefined => {
+  const tracked = point.tracked?.trim();
+  if (tracked) return tracked;
+
+  const direction = (point.direction || '').toString().toLowerCase();
+  const candidate =
+    direction === 'incoming'
+      ? point.callee || point.caller
+      : point.caller || point.callee;
+
+  const fallback = candidate || point.source;
+  const trimmed = fallback?.toString().trim();
+  return trimmed || undefined;
+};
+
 const getPointSourceValue = (point: Point): string | undefined => {
-  const raw = point.tracked || point.source;
+  const tracked = getPointTrackedValue(point);
+  if (tracked) return tracked;
+
+  const raw = point.source;
   if (!raw) return undefined;
   const trimmed = raw.trim();
   return trimmed || undefined;
@@ -1605,14 +1623,15 @@ const CdrMap: React.FC<Props> = ({
 
   const sourceNumbers = useMemo(() => {
     const numbers = new Set<string>();
-    callerPoints.forEach((point) => {
+    const provider = callerPoints.length > 0 ? callerPoints : points;
+    provider.forEach((point) => {
       const value = getPointSourceValue(point);
       if (value) {
         numbers.add(value);
       }
     });
     return Array.from(numbers);
-  }, [callerPoints]);
+  }, [callerPoints, points]);
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
     sourceNumbers.forEach((n, i) => map.set(n, numberColors[i % numberColors.length]));
@@ -3048,7 +3067,7 @@ const CdrMap: React.FC<Props> = ({
     const contactSet = new Set(contactEvents);
     contactEvents.forEach((p) => {
       if (!isLocationEventType(p.type)) {
-        const trackedRaw = (p.tracked || '').trim();
+        const trackedRaw = getPointTrackedValue(p) || '';
         const trackedNormalized = normalizePhoneDigits(trackedRaw);
         if (trackedNormalized) {
           const rawCaller = (p.caller || '').trim();
