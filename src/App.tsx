@@ -4540,7 +4540,7 @@ useEffect(() => {
       const result: CdrSearchResult = {
         total: allPaths.length,
         contacts,
-        topContacts: contacts.slice(0, 10),
+        topContacts: contacts,
         locations,
         topLocations: locations.slice(0, 10),
         path: allPaths
