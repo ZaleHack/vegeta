@@ -538,6 +538,8 @@ interface CdrContact {
   callCount: number;
   smsCount: number;
   total: number;
+  callDurationSeconds?: number;
+  callDuration?: string;
 }
 
 interface CdrContactCandidate {
@@ -894,6 +896,75 @@ const normalizeOptionalTextField = (value: unknown): string | undefined => {
 
 const normalizeTextField = (value: unknown, fallback = ''): string => {
   return normalizeOptionalTextField(value) ?? fallback;
+};
+
+const parseDurationToSeconds = (duration: string): number => {
+  const parts = duration.split(':').map(Number);
+  if (parts.some((part) => Number.isNaN(part))) {
+    return 0;
+  }
+
+  if (parts.length === 3) {
+    const [hours, minutes, seconds] = parts as [number, number, number];
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  if (parts.length === 2) {
+    const [first, second] = parts;
+    // Prefer minutes:seconds when the first part is in minute range
+    if (first >= 0 && first < 60 && second < 60) {
+      return first * 60 + second;
+    }
+    // Fallback to hours:minutes otherwise
+    return first * 3600 + second * 60;
+  }
+
+  if (parts.length === 1) {
+    return Math.max(parts[0], 0);
+  }
+
+  return 0;
+};
+
+const getCallDurationInSeconds = (record: Record<string, unknown>): number => {
+  const durationValue = normalizeOptionalTextField(record.duration);
+  if (durationValue) {
+    const seconds = parseDurationToSeconds(durationValue);
+    if (seconds > 0) {
+      return seconds;
+    }
+  }
+
+  const callDate = normalizeOptionalTextField(record.callDate) ?? '';
+  const endDate = normalizeOptionalTextField(record.endDate) ?? callDate;
+  const startTime = normalizeOptionalTextField(record.startTime);
+  const endTime = normalizeOptionalTextField(record.endTime);
+
+  if (callDate && startTime && endTime) {
+    const start = new Date(`${callDate}T${startTime}`);
+    const end = new Date(`${endDate}T${endTime}`);
+    const diffMs = end.getTime() - start.getTime();
+    if (Number.isFinite(diffMs) && diffMs > 0) {
+      return Math.round(diffMs / 1000);
+    }
+  }
+
+  return 0;
+};
+
+const formatSecondsAsDuration = (seconds: number): string => {
+  if (!seconds || seconds <= 0) return '-';
+
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+
+  const parts = [];
+  if (hrs > 0) parts.push(`${hrs}h`);
+  if (mins > 0) parts.push(`${mins}m`);
+  if (secs > 0 && hrs === 0) parts.push(`${secs}s`);
+
+  return parts.length > 0 ? parts.join(' ') : '-';
 };
 
 const normalizeCdrContactFields = (
@@ -4421,7 +4492,7 @@ useEffect(() => {
       const contactCandidates: CdrContactCandidate[] = [];
       const contactSummariesMap = new Map<
         string,
-        { number: string; callCount: number; smsCount: number }
+        { number: string; callCount: number; smsCount: number; callDurationSeconds: number }
       >();
 
       for (const id of ids) {
@@ -4484,7 +4555,8 @@ useEffect(() => {
               contactSummariesMap.get(normalized) || {
                 number: number || normalized,
                 callCount: 0,
-                smsCount: 0
+                smsCount: 0,
+                callDurationSeconds: 0
               };
 
             if (number && (!existing.number || existing.number === normalized)) {
@@ -4497,6 +4569,14 @@ useEffect(() => {
 
             if (!Number.isNaN(smsCount)) {
               existing.smsCount += smsCount;
+            }
+
+            const contactDuration =
+              typeof contact.callDurationSeconds === 'number'
+                ? contact.callDurationSeconds
+                : parseDurationToSeconds(normalizeOptionalTextField(contact.callDuration) || '');
+            if (!Number.isNaN(contactDuration) && contactDuration > 0) {
+              existing.callDurationSeconds += contactDuration;
             }
 
             contactSummariesMap.set(normalized, existing);
@@ -4519,7 +4599,7 @@ useEffect(() => {
 
       const contactsMap = new Map<
         string,
-        { number: string; callCount: number; smsCount: number }
+        { number: string; callCount: number; smsCount: number; callDurationSeconds: number }
       >();
       contactCandidates.forEach((p: CdrContactCandidate) => {
         const eventType = (p.type || '').toLowerCase();
@@ -4564,7 +4644,12 @@ useEffect(() => {
                 const key = contactNormalized;
                 const entry =
                   contactsMap.get(key) ||
-                  { number: contactRaw || key, callCount: 0, smsCount: 0 };
+                  {
+                    number: contactRaw || key,
+                    callCount: 0,
+                    smsCount: 0,
+                    callDurationSeconds: 0
+                  };
 
                 if (contactRaw && (!entry.number || entry.number === key)) {
                   entry.number = contactRaw;
@@ -4574,6 +4659,9 @@ useEffect(() => {
                   entry.smsCount += 1;
                 } else {
                   entry.callCount += 1;
+                  entry.callDurationSeconds += getCallDurationInSeconds(
+                    rawPoint as Record<string, unknown>
+                  );
                 }
 
                 contactsMap.set(key, entry);
@@ -4589,7 +4677,8 @@ useEffect(() => {
           mergedContactsMap.get(key) || {
             number: summary.number || key,
             callCount: 0,
-            smsCount: 0
+            smsCount: 0,
+            callDurationSeconds: 0
           };
 
         if (summary.number && (!entry.number || entry.number === key)) {
@@ -4598,6 +4687,7 @@ useEffect(() => {
 
         entry.callCount += summary.callCount ?? 0;
         entry.smsCount += summary.smsCount ?? 0;
+        entry.callDurationSeconds = (entry.callDurationSeconds ?? 0) + (summary.callDurationSeconds ?? 0);
         mergedContactsMap.set(key, entry);
       });
 
@@ -4619,7 +4709,9 @@ useEffect(() => {
           number: c.number,
           callCount: c.callCount,
           smsCount: c.smsCount,
-          total: c.callCount + c.smsCount
+          total: c.callCount + c.smsCount,
+          callDurationSeconds: c.callDurationSeconds,
+          callDuration: formatSecondsAsDuration(c.callDurationSeconds)
         }))
         .sort((a, b) => b.total - a.total);
 
