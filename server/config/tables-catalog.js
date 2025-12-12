@@ -923,6 +923,44 @@ export default {
     theme: 'telecom'
   },
 
+  'bts_expresso.gsm': {
+    display: 'GSM',
+    database: 'bts_expresso',
+    primaryKey: 'CGI',
+    searchable: ['CGI', 'NOM_BTS', 'NOM_CELLULE'],
+    preview: ['CGI', 'NOM_BTS', 'NOM_CELLULE', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
+    filters: {
+      NOM_BTS: 'string',
+      NOM_CELLULE: 'string',
+      LAC: 'number',
+      CI: 'number',
+      LONGITUDE: 'number',
+      LATITUDE: 'number',
+      AZIMUT: 'number',
+      ARCANGLE: 'number'
+    },
+    theme: 'telecom'
+  },
+
+  'bts_expresso.umts': {
+    display: 'UMTS',
+    database: 'bts_expresso',
+    primaryKey: 'CGI',
+    searchable: ['CGI', 'NOM_BTS', 'NOM_CELLULE'],
+    preview: ['CGI', 'NOM_BTS', 'NOM_CELLULE', 'LONGITUDE', 'LATITUDE', 'AZIMUT'],
+    filters: {
+      NOM_BTS: 'string',
+      NOM_CELLULE: 'string',
+      LAC: 'number',
+      CI: 'number',
+      LONGITUDE: 'number',
+      LATITUDE: 'number',
+      AZIMUT: 'number',
+      ARCANGLE: 'number'
+    },
+    theme: 'telecom'
+  },
+
   [REALTIME_TABLE_KEY]: {
     display: REALTIME_TABLE_DISPLAY,
     database: REALTIME_TABLE_DATABASE,

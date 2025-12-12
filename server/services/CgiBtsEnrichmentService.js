@@ -85,7 +85,15 @@ const RADIO_TABLE_CANDIDATES = [
       'radio_2g',
       'RADIO_2G',
       'radio2g',
-      'RADIO2G'
+      'RADIO2G',
+      'bts_expresso.gsm',
+      'bts_expresso.GSM',
+      'gsm',
+      'GSM',
+      {
+        identifier: 'bts_expresso.gsm',
+        columns: { nom: 'NOM_BTS' }
+      }
     ]
   },
   {
@@ -111,8 +119,16 @@ const RADIO_TABLE_CANDIDATES = [
       'bts_expresso.`3G`',
       'bts_expresso.3g',
       'bts_expresso.3G',
+      'bts_expresso.umts',
+      'bts_expresso.UMTS',
+      'umts',
+      'UMTS',
       {
         identifier: 'bts_expresso.3g',
+        columns: { nom: 'NOM_BTS' }
+      },
+      {
+        identifier: 'bts_expresso.umts',
         columns: { nom: 'NOM_BTS' }
       }
     ]
