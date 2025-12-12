@@ -4419,6 +4419,10 @@ useEffect(() => {
 
       const allPaths: CdrPoint[] = [];
       const contactCandidates: CdrContactCandidate[] = [];
+      const contactSummariesMap = new Map<
+        string,
+        { number: string; callCount: number; smsCount: number }
+      >();
 
       for (const id of ids) {
         const params = new URLSearchParams();
@@ -4465,6 +4469,37 @@ useEffect(() => {
             if (normalizedPoint) {
               allPaths.push(normalizedPoint);
             }
+          });
+
+          const apiContacts = Array.isArray(data.contacts) ? data.contacts : [];
+          apiContacts.forEach((contact: any) => {
+            if (!contact || typeof contact !== 'object') return;
+            const number = normalizeOptionalTextField(contact.number);
+            const normalized = number ? normalizeCdrNumber(number) : '';
+            if (!normalized) return;
+
+            const callCount = Number(contact.callCount ?? 0);
+            const smsCount = Number(contact.smsCount ?? 0);
+            const existing =
+              contactSummariesMap.get(normalized) || {
+                number: number || normalized,
+                callCount: 0,
+                smsCount: 0
+              };
+
+            if (number && (!existing.number || existing.number === normalized)) {
+              existing.number = number;
+            }
+
+            if (!Number.isNaN(callCount)) {
+              existing.callCount += callCount;
+            }
+
+            if (!Number.isNaN(smsCount)) {
+              existing.smsCount += smsCount;
+            }
+
+            contactSummariesMap.set(normalized, existing);
           });
         } else {
           setCdrError(data.error || 'Erreur lors de la recherche');
@@ -4548,6 +4583,24 @@ useEffect(() => {
         }
       });
 
+      const mergedContactsMap = new Map(contactsMap);
+      contactSummariesMap.forEach((summary, key) => {
+        const entry =
+          mergedContactsMap.get(key) || {
+            number: summary.number || key,
+            callCount: 0,
+            smsCount: 0
+          };
+
+        if (summary.number && (!entry.number || entry.number === key)) {
+          entry.number = summary.number;
+        }
+
+        entry.callCount += summary.callCount ?? 0;
+        entry.smsCount += summary.smsCount ?? 0;
+        mergedContactsMap.set(key, entry);
+      });
+
       const locationsMap = new Map<string, CdrLocation>();
       allPaths.forEach((p: CdrPoint) => {
         const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
@@ -4561,7 +4614,7 @@ useEffect(() => {
         locationsMap.set(key, loc);
       });
 
-      const contacts = Array.from(contactsMap.values())
+      const contacts = Array.from(mergedContactsMap.values())
         .map((c) => ({
           number: c.number,
           callCount: c.callCount,
