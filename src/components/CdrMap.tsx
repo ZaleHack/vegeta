@@ -2360,6 +2360,26 @@ const CdrMap: React.FC<Props> = ({
     [zoneGeometry, zoneShape]
   );
 
+  const hasActiveZoneFilter = useMemo(
+    () => Boolean(zoneGeometry || (zoneShape && zoneShape.length >= 3)),
+    [zoneGeometry, zoneShape]
+  );
+
+  const isContactEventWithinScope = useCallback(
+    (point: Point) => {
+      const lat = parseFloat(point.latitude);
+      const lng = parseFloat(point.longitude);
+      const hasValidCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
+
+      if (hasValidCoordinates) {
+        return isPointWithinZone(point);
+      }
+
+      return !hasActiveZoneFilter;
+    },
+    [hasActiveZoneFilter, isPointWithinZone]
+  );
+
   const displayedPoints = useMemo(() => {
     let filtered = callerPoints;
     if (selectedSource) {
@@ -2764,7 +2784,7 @@ const CdrMap: React.FC<Props> = ({
     };
 
     const base = points.filter((point) => {
-      if (!isPointWithinZone(point)) return false;
+      if (!isContactEventWithinScope(point)) return false;
 
       if (!selectedSource && !matchesVisible(point)) {
         return false;
@@ -2804,7 +2824,7 @@ const CdrMap: React.FC<Props> = ({
     points,
     visibleSources,
     normalizedVisibleSources,
-    isPointWithinZone
+    isContactEventWithinScope
   ]);
 
   const activeSourceCount = useMemo(() => {
