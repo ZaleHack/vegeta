@@ -911,7 +911,34 @@ const normalizeTextField = (value: unknown, fallback = ''): string => {
 };
 
 const parseDurationToSeconds = (duration: string): number => {
-  const parts = duration.split(':').map(Number);
+  const normalized = duration.trim().toLowerCase();
+  if (!normalized) return 0;
+
+  // Support formats such as "1h 20m 5s" or "2m30s"
+  const unitPattern = /(\d+(?:\.\d+)?)\s*(h|hr|hrs|heure|heures|m|min|mins|minute|minutes|s|sec|secs|seconde|secondes)/g;
+  let total = 0;
+  let matched = false;
+  let match: RegExpExecArray | null;
+  while ((match = unitPattern.exec(normalized)) !== null) {
+    matched = true;
+    const value = parseFloat(match[1]);
+    const unit = match[2];
+    if (Number.isNaN(value)) continue;
+
+    if (unit.startsWith('h')) {
+      total += value * 3600;
+    } else if (unit.startsWith('m')) {
+      total += value * 60;
+    } else {
+      total += value;
+    }
+  }
+
+  if (matched) {
+    return Math.round(total);
+  }
+
+  const parts = normalized.split(':').map(Number);
   if (parts.some((part) => Number.isNaN(part))) {
     return 0;
   }
