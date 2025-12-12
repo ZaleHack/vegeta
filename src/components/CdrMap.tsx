@@ -313,10 +313,9 @@ const parseDurationToSeconds = (duration: string): number => {
     const asMinutesSeconds = first * 60 + second;
     const asHoursMinutes = first * 3600 + second * 60;
 
-    // When the first part is clearly an hour count (e.g., 24 or more) or the
-    // second part exceeds 59, treat the string as HH:MM. Otherwise, default to
-    // MM:SS to avoid over-counting short calls.
-    if (first >= 24 || second >= 60) {
+    // When the second part exceeds 59, treat the string as HH:MM. Otherwise,
+    // default to MM:SS to avoid over-counting short calls.
+    if (second >= 60) {
       return asHoursMinutes;
     }
 
