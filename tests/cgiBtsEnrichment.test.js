@@ -116,8 +116,16 @@ test('cgi enricher normalizes realtime CGI keys before querying database', async
 test('cgi enricher detects BTS tables even when casing differs', async () => {
   const stubDatabase = {
     async query(sql, params) {
-      if (/INFORMATION_SCHEMA\.TABLES/i.test(sql) && params.some((param) => /3g/i.test(param))) {
-        return [{ TABLE_SCHEMA: 'bts_expresso', TABLE_NAME: '3G' }];
+      if (/INFORMATION_SCHEMA\.TABLES/i.test(sql)) {
+        if (params.some((param) => /3g/i.test(param))) {
+          return [{ TABLE_SCHEMA: 'bts_expresso', TABLE_NAME: '3G' }];
+        }
+        if (params.some((param) => /gsm/i.test(param))) {
+          return [{ TABLE_SCHEMA: 'bts_expresso', TABLE_NAME: 'gsm' }];
+        }
+        if (params.some((param) => /umts/i.test(param))) {
+          return [{ TABLE_SCHEMA: 'bts_expresso', TABLE_NAME: 'UMTS' }];
+        }
       }
 
       if (/INFORMATION_SCHEMA\.STATISTICS/i.test(sql)) {
@@ -131,7 +139,19 @@ test('cgi enricher detects BTS tables even when casing differs', async () => {
   const enricher = new CgiBtsEnrichmentService({ enabled: true, databaseClient: stubDatabase });
   const sources = await enricher.listLookupSources();
 
-  const expressoSource = sources.find((source) => source.table === '3G');
+  const sourcesByTable = Object.fromEntries(
+    sources.map((source) => [`${source.schema}.${source.table}`.toLowerCase(), source])
+  );
+
+  const expressoSource = sourcesByTable['bts_expresso.3g'];
   assert.ok(expressoSource, 'Expresso table should be detected even with numeric table name.');
   assert.equal(expressoSource.schema, 'bts_expresso');
+
+  const gsmSource = sourcesByTable['bts_expresso.gsm'];
+  assert.ok(gsmSource, 'Expresso GSM table should be detected.');
+  assert.equal(gsmSource.priority, 1);
+
+  const umtsSource = sourcesByTable['bts_expresso.umts'];
+  assert.ok(umtsSource, 'Expresso UMTS table should be detected.');
+  assert.equal(umtsSource.priority, 2);
 });
