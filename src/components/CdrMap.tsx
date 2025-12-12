@@ -119,6 +119,7 @@ interface ContactSummary {
   total: number;
   callDurationSeconds?: number;
   callDuration?: string;
+  events?: ContactCallDetail[];
 }
 
 interface LocationStat {
@@ -3276,7 +3277,7 @@ const CdrMap: React.FC<Props> = ({
         ussdCount: 0,
         callDuration: formatDuration(summaryDurationSeconds),
         total: summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0),
-        events: []
+        events: summary.events || []
       });
     });
 
