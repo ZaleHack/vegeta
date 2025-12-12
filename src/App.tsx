@@ -540,6 +540,14 @@ interface CdrContact {
   total: number;
 }
 
+interface CdrContactCandidate {
+  tracked?: string;
+  number?: string;
+  caller?: string;
+  callee?: string;
+  type?: string;
+}
+
 interface CdrLocation {
   latitude: string;
   longitude: string;
@@ -886,6 +894,23 @@ const normalizeOptionalTextField = (value: unknown): string | undefined => {
 
 const normalizeTextField = (value: unknown, fallback = ''): string => {
   return normalizeOptionalTextField(value) ?? fallback;
+};
+
+const normalizeCdrContactFields = (
+  point: unknown,
+  trackedId: string
+): CdrContactCandidate | null => {
+  if (!point || typeof point !== 'object') {
+    return null;
+  }
+
+  const tracked = normalizeOptionalTextField((point as Record<string, unknown>).tracked) ?? trackedId;
+  const caller = normalizeOptionalTextField(getFirstDefinedValue(point, CALLER_FIELD_CANDIDATES));
+  const callee = normalizeOptionalTextField(getFirstDefinedValue(point, CALLEE_FIELD_CANDIDATES));
+  const number = normalizeOptionalTextField((point as Record<string, unknown>).number) ?? caller ?? tracked;
+  const type = normalizeTextField(getFirstDefinedValue(point, TYPE_FIELD_CANDIDATES), '');
+
+  return { tracked, caller, callee, number, type };
 };
 
 const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | null => {
@@ -4393,6 +4418,7 @@ useEffect(() => {
       const token = localStorage.getItem('token');
 
       const allPaths: CdrPoint[] = [];
+      const contactCandidates: CdrContactCandidate[] = [];
 
       for (const id of ids) {
         const params = new URLSearchParams();
@@ -4428,10 +4454,18 @@ useEffect(() => {
 
             return record;
           });
-          const normalizedPoints = sanitizedPath
-            .map((rawPoint: unknown) => normalizeCdrPointFields(rawPoint, id))
-            .filter((point): point is CdrPoint => Boolean(point));
-          allPaths.push(...normalizedPoints);
+
+          sanitizedPath.forEach((rawPoint: unknown) => {
+            const contactCandidate = normalizeCdrContactFields(rawPoint, id);
+            if (contactCandidate) {
+              contactCandidates.push(contactCandidate);
+            }
+
+            const normalizedPoint = normalizeCdrPointFields(rawPoint, id);
+            if (normalizedPoint) {
+              allPaths.push(normalizedPoint);
+            }
+          });
         } else {
           setCdrError(data.error || 'Erreur lors de la recherche');
         }
@@ -4452,8 +4486,7 @@ useEffect(() => {
         string,
         { number: string; callCount: number; smsCount: number }
       >();
-      const locationsMap = new Map<string, CdrLocation>();
-      allPaths.forEach((p: CdrPoint) => {
+      contactCandidates.forEach((p: CdrContactCandidate) => {
         const eventType = (p.type || '').toLowerCase();
         const isLocationEvent = eventType === 'web' || eventType === 'position';
         if (!isLocationEvent) {
@@ -4513,6 +4546,10 @@ useEffect(() => {
             }
           }
         }
+      });
+
+      const locationsMap = new Map<string, CdrLocation>();
+      allPaths.forEach((p: CdrPoint) => {
         const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
         const loc = locationsMap.get(key) || {
           latitude: p.latitude,
