@@ -577,6 +577,14 @@ interface CdrPoint {
   insertedAt?: string;
 }
 
+interface CdrContactEvent {
+  type: string;
+  number?: string;
+  caller?: string;
+  callee?: string;
+  tracked?: string;
+}
+
 interface CdrSearchResult {
   total: number;
   contacts: CdrContact[];
@@ -886,6 +894,26 @@ const normalizeOptionalTextField = (value: unknown): string | undefined => {
 
 const normalizeTextField = (value: unknown, fallback = ''): string => {
   return normalizeOptionalTextField(value) ?? fallback;
+};
+
+const normalizeCdrContactEvent = (point: unknown, trackedId: string): CdrContactEvent | null => {
+  if (!point || typeof point !== 'object') {
+    return null;
+  }
+
+  const caller = normalizeOptionalTextField(getFirstDefinedValue(point, CALLER_FIELD_CANDIDATES));
+  const callee = normalizeOptionalTextField(getFirstDefinedValue(point, CALLEE_FIELD_CANDIDATES));
+  const number = normalizeOptionalTextField((point as Record<string, unknown>).number);
+  const tracked = normalizeOptionalTextField((point as Record<string, unknown>).tracked) ?? trackedId;
+  const eventType = normalizeTextField(getFirstDefinedValue(point, TYPE_FIELD_CANDIDATES), '');
+
+  return {
+    type: eventType,
+    number,
+    caller,
+    callee,
+    tracked
+  };
 };
 
 const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | null => {
@@ -4393,6 +4421,7 @@ useEffect(() => {
       const token = localStorage.getItem('token');
 
       const allPaths: CdrPoint[] = [];
+      const allContactEvents: CdrContactEvent[] = [];
 
       for (const id of ids) {
         const params = new URLSearchParams();
@@ -4431,7 +4460,11 @@ useEffect(() => {
           const normalizedPoints = sanitizedPath
             .map((rawPoint: unknown) => normalizeCdrPointFields(rawPoint, id))
             .filter((point): point is CdrPoint => Boolean(point));
+          const normalizedContactEvents = sanitizedPath
+            .map((rawPoint: unknown) => normalizeCdrContactEvent(rawPoint, id))
+            .filter((point): point is CdrContactEvent => Boolean(point));
           allPaths.push(...normalizedPoints);
+          allContactEvents.push(...normalizedContactEvents);
         } else {
           setCdrError(data.error || 'Erreur lors de la recherche');
         }
@@ -4447,13 +4480,24 @@ useEffect(() => {
         });
       }
       const excludeTrackedContacts = trackedNumbersSet.size >= 2;
+      const locationsMap = new Map<string, CdrLocation>();
+      allPaths.forEach((p: CdrPoint) => {
+        const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
+        const loc = locationsMap.get(key) || {
+          latitude: p.latitude,
+          longitude: p.longitude,
+          nom: p.nom,
+          count: 0
+        };
+        loc.count += 1;
+        locationsMap.set(key, loc);
+      });
 
       const contactsMap = new Map<
         string,
         { number: string; callCount: number; smsCount: number }
       >();
-      const locationsMap = new Map<string, CdrLocation>();
-      allPaths.forEach((p: CdrPoint) => {
+      allContactEvents.forEach((p: CdrContactEvent) => {
         const eventType = (p.type || '').toLowerCase();
         const isLocationEvent = eventType === 'web' || eventType === 'position';
         if (!isLocationEvent) {
@@ -4513,15 +4557,6 @@ useEffect(() => {
             }
           }
         }
-        const key = `${p.latitude},${p.longitude},${p.nom || ''}`;
-        const loc = locationsMap.get(key) || {
-          latitude: p.latitude,
-          longitude: p.longitude,
-          nom: p.nom,
-          count: 0
-        };
-        loc.count += 1;
-        locationsMap.set(key, loc);
       });
 
       const contacts = Array.from(contactsMap.values())
