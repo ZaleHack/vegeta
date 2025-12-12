@@ -117,6 +117,8 @@ interface ContactSummary {
   callCount: number;
   smsCount: number;
   total: number;
+  callDurationSeconds?: number;
+  callDuration?: string;
 }
 
 interface LocationStat {
@@ -3242,6 +3244,8 @@ const CdrMap: React.FC<Props> = ({
         return;
       }
 
+      const summaryDurationSeconds = summary.callDurationSeconds ?? 0;
+
       supplementalContacts.push({
         id: `${trackedLabel}|${normalizedNumber}|summary-${index}`,
         tracked: defaultTracked,
@@ -3250,7 +3254,10 @@ const CdrMap: React.FC<Props> = ({
         callCount: summary.callCount ?? 0,
         smsCount: summary.smsCount ?? 0,
         ussdCount: 0,
-        callDuration: '-',
+        callDuration:
+          summaryDurationSeconds > 0
+            ? formatDuration(summaryDurationSeconds)
+            : summary.callDuration ?? '-',
         total: summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0),
         events: []
       });
