@@ -302,7 +302,34 @@ interface Props {
 }
 
 const parseDurationToSeconds = (duration: string): number => {
-  const parts = duration.split(':').map(Number);
+  const normalized = duration.trim().toLowerCase();
+  if (!normalized) return 0;
+
+  // Handle textual formats such as "1h 20m 5s" or "2m30s".
+  const unitPattern = /(\d+(?:\.\d+)?)\s*(h|hr|hrs|heure|heures|m|min|mins|minute|minutes|s|sec|secs|seconde|secondes)/g;
+  let total = 0;
+  let matched = false;
+  let match: RegExpExecArray | null;
+  while ((match = unitPattern.exec(normalized)) !== null) {
+    matched = true;
+    const value = parseFloat(match[1]);
+    const unit = match[2];
+    if (Number.isNaN(value)) continue;
+
+    if (unit.startsWith('h')) {
+      total += value * 3600;
+    } else if (unit.startsWith('m')) {
+      total += value * 60;
+    } else {
+      total += value;
+    }
+  }
+
+  if (matched) {
+    return Math.round(total);
+  }
+
+  const parts = normalized.split(':').map(Number);
   if (!parts.some(isNaN)) {
     if (parts.length === 3) {
       const [h, m, s] = parts;
@@ -329,7 +356,7 @@ const parseDurationToSeconds = (duration: string): number => {
     return parts[0];
   }
   }
-  const asNumber = Number(duration);
+  const asNumber = Number(normalized);
   return isNaN(asNumber) ? 0 : asNumber;
 };
 
@@ -3265,7 +3292,10 @@ const CdrMap: React.FC<Props> = ({
         return;
       }
 
-      const summaryDurationSeconds = summary.callDurationSeconds ?? 0;
+      const summaryDurationSeconds =
+        summary.callDurationSeconds ??
+        parseDurationToSeconds(summary.callDuration || '') ??
+        0;
 
       supplementalContacts.push({
         id: `${trackedLabel}|${normalizedNumber}|summary-${index}`,
