@@ -305,19 +305,26 @@ const parseDurationToSeconds = (duration: string): number => {
       const [h, m, s] = parts;
       return h * 3600 + m * 60 + s;
     }
-    if (parts.length === 2) {
-      const [first, second] = parts;
-      // Support both HH:MM and MM:SS formats. Values with an hour field
-      // (either <= 23 or >= 60) are treated as hours:minutes; otherwise
-      // assume minutes:seconds.
-      if (first >= 60 || first <= 23) {
-        return first * 3600 + second * 60;
-      }
-      return first * 60 + second;
+  if (parts.length === 2) {
+    const [first, second] = parts;
+    // Support both HH:MM and MM:SS formats. Prefer interpreting the
+    // two-part format as minutes:seconds (common for call durations), and
+    // only fall back to hours:minutes when the values make it explicit.
+    const asMinutesSeconds = first * 60 + second;
+    const asHoursMinutes = first * 3600 + second * 60;
+
+    // When the first part is clearly an hour count (e.g., 24 or more) or the
+    // second part exceeds 59, treat the string as HH:MM. Otherwise, default to
+    // MM:SS to avoid over-counting short calls.
+    if (first >= 24 || second >= 60) {
+      return asHoursMinutes;
     }
-    if (parts.length === 1) {
-      return parts[0];
-    }
+
+    return asMinutesSeconds;
+  }
+  if (parts.length === 1) {
+    return parts[0];
+  }
   }
   const asNumber = Number(duration);
   return isNaN(asNumber) ? 0 : asNumber;
