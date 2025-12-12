@@ -533,6 +533,16 @@ interface VehiculeEntry {
   Date_PrecImmat: string;
 }
 
+interface CdrContactEvent {
+  id: string;
+  timestamp?: number | null;
+  date?: string;
+  time?: string;
+  duration?: string | null;
+  direction?: string;
+  type?: string;
+}
+
 interface CdrContact {
   number: string;
   callCount: number;
@@ -540,6 +550,7 @@ interface CdrContact {
   total: number;
   callDurationSeconds?: number;
   callDuration?: string;
+  events?: CdrContactEvent[];
 }
 
 interface CdrContactCandidate {
@@ -4600,7 +4611,13 @@ useEffect(() => {
 
       const contactsMap = new Map<
         string,
-        { number: string; callCount: number; smsCount: number; callDurationSeconds: number }
+        {
+          number: string;
+          callCount: number;
+          smsCount: number;
+          callDurationSeconds: number;
+          events: CdrContactEvent[];
+        }
       >();
       contactCandidates.forEach((p: CdrContactCandidate) => {
         const eventType = (p.type || '').toLowerCase();
@@ -4647,20 +4664,51 @@ useEffect(() => {
                   number: contactRaw || key,
                   callCount: 0,
                   smsCount: 0,
-                  callDurationSeconds: 0
+                  callDurationSeconds: 0,
+                  events: []
                 };
 
               if (contactRaw && (!entry.number || entry.number === key)) {
                 entry.number = contactRaw;
               }
 
+              const record = (p.rawRecord as Record<string, unknown>) || {};
               if (eventType === 'sms') {
                 entry.smsCount += 1;
               } else {
                 entry.callCount += 1;
-                entry.callDurationSeconds += getCallDurationInSeconds(
-                  (p.rawRecord as Record<string, unknown>) || {}
-                );
+                const callDurationSeconds = getCallDurationInSeconds(record);
+                entry.callDurationSeconds += callDurationSeconds;
+
+                const callDate =
+                  normalizeOptionalTextField(record.callDate) ||
+                  normalizeOptionalTextField(record.date_debut_appel) ||
+                  '';
+                const startTime =
+                  normalizeOptionalTextField(record.startTime) ||
+                  normalizeOptionalTextField(record.start_time) ||
+                  normalizeOptionalTextField(record.heure_debut_appel) ||
+                  '';
+                const endTime =
+                  normalizeOptionalTextField(record.endTime) ||
+                  normalizeOptionalTextField(record.end_time) ||
+                  normalizeOptionalTextField(record.heure_fin_appel) ||
+                  '';
+                const timestampLabel = callDate && startTime
+                  ? Date.parse(`${callDate}T${startTime}`)
+                  : null;
+
+                const durationLabel = formatSecondsAsDuration(callDurationSeconds);
+
+                entry.events.push({
+                  id: `${key}-${entry.events.length + 1}-${timestampLabel ?? 'ts'}`,
+                  timestamp: Number.isFinite(timestampLabel) ? timestampLabel : null,
+                  date: callDate || undefined,
+                  time: startTime || endTime || undefined,
+                  duration: durationLabel === '-' ? null : durationLabel,
+                  direction: normalizeTextField(record.direction, ''),
+                  type: p.type
+                });
               }
 
               contactsMap.set(key, entry);
@@ -4676,7 +4724,8 @@ useEffect(() => {
             number: summary.number || key,
             callCount: 0,
             smsCount: 0,
-            callDurationSeconds: 0
+            callDurationSeconds: 0,
+            events: contactsMap.get(key)?.events ?? []
           };
 
         if (summary.number && (!entry.number || entry.number === key)) {
@@ -4686,6 +4735,9 @@ useEffect(() => {
         entry.callCount += summary.callCount ?? 0;
         entry.smsCount += summary.smsCount ?? 0;
         entry.callDurationSeconds = (entry.callDurationSeconds ?? 0) + (summary.callDurationSeconds ?? 0);
+        if (!entry.events && contactsMap.get(key)?.events) {
+          entry.events = contactsMap.get(key)?.events;
+        }
         mergedContactsMap.set(key, entry);
       });
 
@@ -4709,7 +4761,8 @@ useEffect(() => {
           smsCount: c.smsCount,
           total: c.callCount + c.smsCount,
           callDurationSeconds: c.callDurationSeconds,
-          callDuration: formatSecondsAsDuration(c.callDurationSeconds)
+          callDuration: formatSecondsAsDuration(c.callDurationSeconds),
+          events: c.events?.slice() ?? []
         }))
         .sort((a, b) => b.total - a.total);
 
