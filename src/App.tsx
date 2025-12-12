@@ -4504,7 +4504,13 @@ useEffect(() => {
       const contactCandidates: CdrContactCandidate[] = [];
       const contactSummariesMap = new Map<
         string,
-        { number: string; callCount: number; smsCount: number; callDurationSeconds: number }
+        {
+          number: string;
+          callCount: number;
+          smsCount: number;
+          callDurationSeconds: number;
+          events: CdrContactEvent[];
+        }
       >();
 
       for (const id of ids) {
@@ -4568,7 +4574,8 @@ useEffect(() => {
                 number: number || normalized,
                 callCount: 0,
                 smsCount: 0,
-                callDurationSeconds: 0
+                callDurationSeconds: 0,
+                events: []
               };
 
             if (number && (!existing.number || existing.number === normalized)) {
@@ -4590,6 +4597,28 @@ useEffect(() => {
             if (!Number.isNaN(contactDuration) && contactDuration > 0) {
               existing.callDurationSeconds += contactDuration;
             }
+
+            const rawEvents = Array.isArray(contact.events) ? contact.events : [];
+            rawEvents.forEach((event: any, index: number) => {
+              const eventDate = normalizeOptionalTextField(event.date) || undefined;
+              const eventTime = normalizeOptionalTextField(event.time) || undefined;
+              const durationValue = normalizeOptionalTextField(event.duration) || '';
+              const durationSeconds = parseDurationToSeconds(durationValue);
+
+              if (!Number.isNaN(durationSeconds) && durationSeconds > 0) {
+                existing.callDurationSeconds += durationSeconds;
+              }
+
+              const eventId = `${normalized}-${existing.events.length + index + 1}-${eventDate || 'event'}`;
+              existing.events.push({
+                id: eventId,
+                date: eventDate,
+                time: eventTime,
+                duration: durationValue || null,
+                direction: normalizeOptionalTextField(event.direction) || undefined,
+                type: normalizeOptionalTextField(event.type) || undefined
+              });
+            });
 
             contactSummariesMap.set(normalized, existing);
           });
@@ -4735,9 +4764,8 @@ useEffect(() => {
         entry.callCount += summary.callCount ?? 0;
         entry.smsCount += summary.smsCount ?? 0;
         entry.callDurationSeconds = (entry.callDurationSeconds ?? 0) + (summary.callDurationSeconds ?? 0);
-        if (!entry.events && contactsMap.get(key)?.events) {
-          entry.events = contactsMap.get(key)?.events;
-        }
+        const mergedEvents = [...(entry.events ?? []), ...(summary.events ?? [])];
+        entry.events = mergedEvents;
         mergedContactsMap.set(key, entry);
       });
 
