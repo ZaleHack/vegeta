@@ -548,6 +548,7 @@ interface CdrContactCandidate {
   caller?: string;
   callee?: string;
   type?: string;
+  rawRecord?: Record<string, unknown>;
 }
 
 interface CdrLocation {
@@ -981,7 +982,7 @@ const normalizeCdrContactFields = (
   const number = normalizeOptionalTextField((point as Record<string, unknown>).number) ?? caller ?? tracked;
   const type = normalizeTextField(getFirstDefinedValue(point, TYPE_FIELD_CANDIDATES), '');
 
-  return { tracked, caller, callee, number, type };
+  return { tracked, caller, callee, number, type, rawRecord: point as Record<string, unknown> };
 };
 
 const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | null => {
@@ -4660,7 +4661,7 @@ useEffect(() => {
                 } else {
                   entry.callCount += 1;
                   entry.callDurationSeconds += getCallDurationInSeconds(
-                    rawPoint as Record<string, unknown>
+                    (p.rawRecord as Record<string, unknown>) || {}
                   );
                 }
 
