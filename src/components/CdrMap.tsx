@@ -3223,7 +3223,7 @@ const CdrMap: React.FC<Props> = ({
         callCount: c.callCount,
         smsCount: c.smsCount,
         ussdCount: c.ussdCount,
-        callDuration: c.callCount > 0 ? formatDuration(c.callDurationSeconds) : '-',
+        callDuration: formatDuration(c.callDurationSeconds),
         total: c.callCount + c.smsCount + c.ussdCount,
         events: c.events.slice().sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
       }))
@@ -3254,10 +3254,7 @@ const CdrMap: React.FC<Props> = ({
         callCount: summary.callCount ?? 0,
         smsCount: summary.smsCount ?? 0,
         ussdCount: 0,
-        callDuration:
-          summaryDurationSeconds > 0
-            ? formatDuration(summaryDurationSeconds)
-            : summary.callDuration ?? '-',
+        callDuration: formatDuration(summaryDurationSeconds),
         total: summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0),
         events: []
       });
