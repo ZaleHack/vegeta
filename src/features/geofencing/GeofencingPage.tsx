@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ComponentProps } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -9,11 +8,18 @@ import {
   RefreshCw,
   ShieldCheck
 } from 'lucide-react';
-import CdrMap from '../../components/CdrMap';
+import ModernGeofencingMap from './ModernGeofencingMap';
 import { useNotifications } from '../../components/NotificationProvider';
 
-type CdrPoint = ComponentProps<typeof CdrMap>['points'][number];
-type CdrContactSummary = NonNullable<ComponentProps<typeof CdrMap>['contactSummaries']>[number];
+type CdrPoint = {
+  latitude: string;
+  longitude: string;
+  nom: string;
+  type: string;
+  callDate: string;
+  startTime: string;
+  endTime: string;
+};
 
 const REFRESH_INTERVAL_MS = 10_000;
 
@@ -22,7 +28,6 @@ const GeofencingPage = () => {
   const [phoneInput, setPhoneInput] = useState('');
   const [trackingNumber, setTrackingNumber] = useState<string | null>(null);
   const [points, setPoints] = useState<CdrPoint[]>([]);
-  const [contactSummaries, setContactSummaries] = useState<CdrContactSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [liveTracking, setLiveTracking] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
@@ -64,7 +69,6 @@ const GeofencingPage = () => {
         }
 
         setPoints(Array.isArray(data.path) ? data.path : []);
-        setContactSummaries(Array.isArray(data.contacts) ? data.contacts : []);
         setLastUpdatedAt(new Date().toISOString());
         setErrorMessage('');
       } catch (error) {
@@ -283,17 +287,13 @@ const GeofencingPage = () => {
           )}
         </div>
 
-        <div className="relative min-h-[480px] overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-xl dark:border-slate-700/60 dark:bg-slate-900">
+        <div className="relative min-h-[520px] overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-xl dark:border-slate-700/60 dark:bg-slate-900">
           {trackingNumber && hasResults && (
-            <CdrMap
+            <ModernGeofencingMap
               points={points}
-              contactSummaries={contactSummaries}
-              showRoute={false}
-              mapVariant="geofencing"
               zoneMode={zoneMode}
               onZoneModeChange={setZoneMode}
               onZoneCreated={() => setZoneMode(false)}
-              monitoredNumbers={[trackingNumber]}
             />
           )}
           {trackingNumber && !hasResults && !loading && (
