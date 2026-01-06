@@ -299,6 +299,7 @@ interface Props {
   onZoneModeChange?: (enabled: boolean) => void;
   onZoneCreated?: () => void;
   monitoredNumbers?: string[];
+  mapVariant?: 'default' | 'geofencing';
 }
 
 const parseDurationToSeconds = (duration: string): number => {
@@ -1415,8 +1416,10 @@ const CdrMap: React.FC<Props> = ({
   zoneMode,
   onZoneModeChange,
   onZoneCreated,
-  monitoredNumbers = []
+  monitoredNumbers = [],
+  mapVariant = 'default'
 }) => {
+  const isGeofencingOnly = mapVariant === 'geofencing';
   const points = useMemo<Point[]>(() => {
     if (!Array.isArray(rawPoints) || rawPoints.length === 0) {
       console.warn('[CdrMap] Aucun point fourni pour l\'affichage de la carte.');
@@ -1771,7 +1774,7 @@ const CdrMap: React.FC<Props> = ({
     frequencyMinutes: 15
   };
 
-  const [geofencingEnabled, setGeofencingEnabled] = useState(false);
+  const [geofencingEnabled, setGeofencingEnabled] = useState(isGeofencingOnly);
   const [geofencingZones, setGeofencingZones] = useState<GeofencingZone[]>([]);
   const [geofencingHistory, setGeofencingHistory] = useState<GeofencingHistoryEntry[]>([]);
   const [, setGeofencingLog] = useState<GeofencingLogEntry[]>([]);
@@ -4441,18 +4444,20 @@ const CdrMap: React.FC<Props> = ({
       ))}
       </MapContainer>
       <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-3">
-        <MapControlButton
-          title={
-            hasLatestLocation
-              ? 'Afficher la dernière localisation connue'
-              : 'Aucune localisation exploitable'
-          }
-          icon={<MapPin className="h-5 w-5" />}
-          onClick={handleToggleLatestLocationView}
-          disabled={!hasLatestLocation}
-          active={isLatestLocationOnlyView}
-          isToggle
-        />
+        {!isGeofencingOnly && (
+          <MapControlButton
+            title={
+              hasLatestLocation
+                ? 'Afficher la dernière localisation connue'
+                : 'Aucune localisation exploitable'
+            }
+            icon={<MapPin className="h-5 w-5" />}
+            onClick={handleToggleLatestLocationView}
+            disabled={!hasLatestLocation}
+            active={isLatestLocationOnlyView}
+            isToggle
+          />
+        )}
         <MapControlButton
           title="Panneau de geofencing"
           icon={<Radio className="h-5 w-5" />}
@@ -4460,28 +4465,32 @@ const CdrMap: React.FC<Props> = ({
           active={geofencingEnabled}
           isToggle
         />
-        <MapControlButton
-          title="Localisation approximative de la personne"
-          icon={<Crosshair className="h-5 w-5" />}
-          onClick={handleTriangulation}
-          active={triangulationZones.length > 0}
-          isToggle
-        />
-        <MapControlButton
-          title="Changer l'affichage"
-          icon={<Layers className="h-5 w-5" />}
-          onClick={() => setIsSatellite((s) => !s)}
-          active={isSatellite}
-          isToggle
-        />
-        {sourceNumbers.length > 0 && (
-          <MapControlButton
-            title="Trajectoires similaires"
-            icon={<Activity className="h-5 w-5" />}
-            onClick={() => setShowSimilar((s) => !s)}
-            active={showSimilar}
-            isToggle
-          />
+        {!isGeofencingOnly && (
+          <>
+            <MapControlButton
+              title="Localisation approximative de la personne"
+              icon={<Crosshair className="h-5 w-5" />}
+              onClick={handleTriangulation}
+              active={triangulationZones.length > 0}
+              isToggle
+            />
+            <MapControlButton
+              title="Changer l'affichage"
+              icon={<Layers className="h-5 w-5" />}
+              onClick={() => setIsSatellite((s) => !s)}
+              active={isSatellite}
+              isToggle
+            />
+            {sourceNumbers.length > 0 && (
+              <MapControlButton
+                title="Trajectoires similaires"
+                icon={<Activity className="h-5 w-5" />}
+                onClick={() => setShowSimilar((s) => !s)}
+                active={showSimilar}
+                isToggle
+              />
+            )}
+          </>
         )}
         <MapControlButton
           title="Zoomer"
@@ -4945,7 +4954,8 @@ const CdrMap: React.FC<Props> = ({
         </div>
       )}
 
-      <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
+      {!isGeofencingOnly && (
+        <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
           <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
             <button
               onClick={() => toggleInfo('contacts')}
@@ -5017,8 +5027,9 @@ const CdrMap: React.FC<Props> = ({
             </button>
           </div>
         </div>
+      )}
 
-      {showBaseMarkers && showRoute && (
+      {!isGeofencingOnly && showBaseMarkers && showRoute && (
         <div
           className={`pointer-events-none absolute ${
             showLatestLocationDetailsPanel ? 'bottom-40' : 'bottom-12'
@@ -5042,7 +5053,7 @@ const CdrMap: React.FC<Props> = ({
         </div>
       )}
 
-      {showLatestLocationDetailsPanel && latestLocationPoint && (
+      {!isGeofencingOnly && showLatestLocationDetailsPanel && latestLocationPoint && (
         <div className="pointer-events-none absolute bottom-4 left-1/2 z-[1000] flex w-full max-w-2xl -translate-x-1/2 justify-center px-4">
           <div className="pointer-events-auto w-full rounded-3xl border border-white/50 bg-white/95 p-6 shadow-2xl ring-1 ring-black/5 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
             <div className="flex items-start justify-between gap-3">
@@ -5103,10 +5114,12 @@ const CdrMap: React.FC<Props> = ({
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
-        <MapLegend numberItems={numberLegendItems} />
-      </div>
-        {showMeetingPoints && meetingPoints.length > 0 && (
+      {!isGeofencingOnly && (
+        <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
+          <MapLegend numberItems={numberLegendItems} />
+        </div>
+      )}
+      {!isGeofencingOnly && showMeetingPoints && meetingPoints.length > 0 && (
         <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-72 overflow-y-auto">
           <div className="mb-2 flex items-center justify-between gap-3">
             <p className="font-semibold">Points de rencontre</p>
@@ -5152,7 +5165,7 @@ const CdrMap: React.FC<Props> = ({
         </div>
       )}
 
-      {activeInfo && (
+      {!isGeofencingOnly && activeInfo && (
         <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
@@ -5613,4 +5626,3 @@ const CdrMap: React.FC<Props> = ({
 };
 
 export default CdrMap;
-
