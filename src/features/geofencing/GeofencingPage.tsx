@@ -202,6 +202,7 @@ const GeofencingPage = () => {
               points={points}
               contactSummaries={contactSummaries}
               showRoute={false}
+              mapVariant="geofencing"
               zoneMode={zoneMode}
               onZoneModeChange={setZoneMode}
               onZoneCreated={() => setZoneMode(false)}
