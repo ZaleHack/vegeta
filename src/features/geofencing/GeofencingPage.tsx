@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ComponentProps } from 'react';
-import { Activity, AlertTriangle, BellRing, MapPin, RefreshCw } from 'lucide-react';
+import {
+  Activity,
+  AlertTriangle,
+  BellRing,
+  ClipboardList,
+  MapPin,
+  RefreshCw,
+  ShieldCheck
+} from 'lucide-react';
 import CdrMap from '../../components/CdrMap';
 import { useNotifications } from '../../components/NotificationProvider';
 
@@ -105,11 +113,11 @@ const GeofencingPage = () => {
           <div className="space-y-2">
             <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Geofencing</p>
             <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
-              Surveillance de zones en temps réel
+              Surveillez les zones sensibles en temps réel
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-300">
-              Choisissez un numéro, dessinez une zone sur la carte et recevez automatiquement les alertes d’entrée ou
-              de sortie.
+              Saisissez un numéro, dessinez une zone personnalisée et déclenchez des alertes dès qu’un appareil entre
+              ou reste dans l’aire surveillée.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -127,10 +135,28 @@ const GeofencingPage = () => {
         </div>
       </header>
 
-      <section className="grid gap-6 lg:grid-cols-[360px_1fr]">
+      <section className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <div className="space-y-6 rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-lg dark:border-slate-700/60 dark:bg-slate-900/70">
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">Numéro à surveiller</p>
+          <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 text-xs text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-800/60 dark:text-slate-200">
+            <div className="flex items-start gap-3">
+              <span className="rounded-xl bg-blue-500/10 p-2 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                <ClipboardList className="h-4 w-4" />
+              </span>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Plan de surveillance</p>
+                <p>
+                  Configurez une zone (polygone, cercle ou rectangle), nommez-la, puis activez les alertes en temps
+                  réel pour chaque numéro suivi.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Étape 1</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">Numéro à surveiller</p>
+            </div>
             <div className="flex flex-col gap-3">
               <input
                 type="text"
@@ -155,19 +181,65 @@ const GeofencingPage = () => {
             )}
           </div>
 
-          <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-800/60 dark:text-slate-200">
-            <div className="flex items-start gap-3">
-              <span className="rounded-xl bg-blue-500/10 p-2 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
-                <MapPin className="h-4 w-4" />
-              </span>
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Dessiner une zone</p>
-                <p className="text-xs text-slate-500 dark:text-slate-300">
-                  Activez le panneau geofencing sur la carte, puis utilisez “Tracer sur la carte” pour définir votre
-                  zone de surveillance.
-                </p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Étape 2</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">Dessiner la zone</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 text-xs text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50 dark:text-slate-200">
+              <div className="flex items-start gap-3">
+                <span className="rounded-xl bg-blue-500/10 p-2 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                  <MapPin className="h-4 w-4" />
+                </span>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Tracer sur la carte</p>
+                  <p>
+                    Sélectionnez le type de zone dans le panneau de la carte puis dessinez-la directement sur la
+                    carte.
+                  </p>
+                </div>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setZoneMode(true)}
+              disabled={!trackingNumber}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-200"
+            >
+              {zoneMode ? 'Mode dessin actif' : 'Activer le mode dessin'}
+            </button>
+            {!trackingNumber && (
+              <p className="text-xs text-slate-500 dark:text-slate-300">
+                Le mode dessin s’active après avoir lancé le suivi d’un numéro.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Étape 3</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">Nommer &amp; enregistrer</p>
+            </div>
+            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-200">
+              <li>Ajoutez un nom clair (Maison, Bureau, Plateau Dakar).</li>
+              <li>Choisissez le type d’alerte (entrée ou présence continue).</li>
+              <li>Définissez la fréquence de notification et les canaux souhaités.</li>
+            </ul>
+            <p className="text-xs text-slate-500 dark:text-slate-300">
+              Les surveillances enregistrées apparaissent automatiquement dans le tableau de la carte.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Étape 4</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">Détection &amp; alertes</p>
+            </div>
+            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-200">
+              <li>Détection automatique des entrées dans la zone.</li>
+              <li>Alertes si le numéro reste dans la zone définie.</li>
+              <li>Historique et états actifs accessibles depuis la carte.</li>
+            </ul>
           </div>
 
           <div className="space-y-3">
@@ -184,6 +256,21 @@ const GeofencingPage = () => {
               Les données proviennent de la table <span className="font-semibold">cdr_temps_reel</span> et se mettent à
               jour automatiquement.
             </p>
+          </div>
+
+          <div className="rounded-2xl border border-blue-200/70 bg-blue-50/80 p-4 text-xs text-blue-700 shadow-inner dark:border-blue-400/40 dark:bg-blue-500/10 dark:text-blue-100">
+            <div className="flex items-start gap-3">
+              <span className="rounded-xl bg-blue-500/10 p-2 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
+                <ShieldCheck className="h-4 w-4" />
+              </span>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">Confidentialité</p>
+                <p>
+                  Chaque zone est visible et modifiable uniquement par l’utilisateur qui l’a créée. Les autres comptes
+                  ne peuvent ni consulter ni éditer vos surveillances.
+                </p>
+              </div>
+            </div>
           </div>
 
           {errorMessage && (
