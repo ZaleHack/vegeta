@@ -50,6 +50,7 @@ import {
   X,
   Info,
   Scan,
+  MapPin,
   MapPinOff,
   CheckCircle2,
   History,
@@ -107,6 +108,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 import { AppPage, pageToPath, usePageNavigation } from './features/navigation/usePageNavigation';
 import { useSearchHistory } from './features/search/useSearchHistory';
+import GeofencingPage from './features/geofencing/GeofencingPage';
 
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -6582,6 +6584,19 @@ useEffect(() => {
             </button>
 
             <button
+              onClick={() => navigateToPage('geofencing')}
+              title="Geofencing"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'geofencing'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <MapPin className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Geofencing</span>}
+            </button>
+
+            <button
               onClick={() => navigateToPage('link-diagram')}
               title="Diagramme des liens"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
@@ -8380,6 +8395,10 @@ useEffect(() => {
                 )}
               </section>
             </div>
+          )}
+
+          {currentPage === 'geofencing' && (
+            <GeofencingPage />
           )}
 
           {currentPage === 'fraud-detection-form' && (
