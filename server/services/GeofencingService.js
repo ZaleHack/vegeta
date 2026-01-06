@@ -137,9 +137,12 @@ const normalizeGeometry = (type, geometry) => {
   }
 
   if (type === 'polygon') {
-    const points = Array.isArray(parsed.points || parsed)
-      ? parsed.points.map((p) => ({ lat: toNumber(p.lat), lng: toNumber(p.lng) }))
-      : [];
+    const rawPoints = Array.isArray(parsed.points)
+      ? parsed.points
+      : Array.isArray(parsed)
+        ? parsed
+        : [];
+    const points = rawPoints.map((p) => ({ lat: toNumber(p.lat), lng: toNumber(p.lng) }));
     if (points.length < 3 || points.some((p) => p.lat === null || p.lng === null)) {
       throw new Error('Géométrie polygone invalide');
     }
@@ -337,8 +340,10 @@ class GeofencingService {
       return false;
     }
 
+    const hasCoords = Number.isFinite(location?.lat) && Number.isFinite(location?.lng);
+
     if (zone.type === 'circle') {
-      if (!location?.lat || !location?.lng) return false;
+      if (!hasCoords) return false;
       const { center, radius } = geometry;
       if (!center || !radius) return false;
       const distance = haversineDistanceMeters(location, { lat: Number(center.lat), lng: Number(center.lng) });
@@ -346,7 +351,7 @@ class GeofencingService {
     }
 
     if (zone.type === 'polygon') {
-      if (!location?.lat || !location?.lng) return false;
+      if (!hasCoords) return false;
       const points = Array.isArray(geometry.points)
         ? geometry.points.map((p) => ({ lat: Number(p.lat), lng: Number(p.lng) }))
         : [];
@@ -355,7 +360,7 @@ class GeofencingService {
     }
 
     if (zone.type === 'rectangle') {
-      if (!location?.lat || !location?.lng) return false;
+      if (!hasCoords) return false;
       const bounds = geometry.bounds;
       if (!bounds) return false;
       const north = Number(bounds.north);
