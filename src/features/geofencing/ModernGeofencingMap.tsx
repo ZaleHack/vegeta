@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LatLngBoundsLiteral, LatLngLiteral } from 'leaflet';
 import {
   Circle,
@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Trash2
 } from 'lucide-react';
+import { useNotifications } from '../../components/NotificationProvider';
 
 type CdrPoint = {
   latitude: string;
@@ -42,7 +43,7 @@ type GeofenceGeometry =
   | { type: 'circle'; center: LatLngLiteral; radius: number };
 
 type GeofenceZone = {
-  id: string;
+  id: number;
   name: string;
   color: string;
   active: boolean;
@@ -112,6 +113,22 @@ const polygonArea = (points: LatLngLiteral[]) => {
     area += toRadians(p2.lng - p1.lng) * (2 + Math.sin(toRadians(p1.lat)) + Math.sin(toRadians(p2.lat)));
   }
   return Math.abs((area * radius * radius) / 2);
+};
+
+const getBoundsLiteral = (bounds: { north: number; south: number; east: number; west: number }) =>
+  [
+    [bounds.south, bounds.west],
+    [bounds.north, bounds.east]
+  ] as LatLngBoundsLiteral;
+
+const serializeBounds = (bounds: LatLngBoundsLiteral) => {
+  const [[latA, lngA], [latB, lngB]] = bounds;
+  return {
+    north: Math.max(latA, latB),
+    south: Math.min(latA, latB),
+    east: Math.max(lngA, lngB),
+    west: Math.min(lngA, lngB)
+  };
 };
 
 const createMarkerIcon = (color: string) =>
@@ -204,8 +221,8 @@ const GeofenceList = ({
   onZoom
 }: {
   zones: GeofenceZone[];
-  onToggle: (id: string) => void;
-  onRemove: (id: string) => void;
+  onToggle: (id: number) => void;
+  onRemove: (id: number) => void;
   onZoom: (geometry: GeofenceGeometry) => void;
 }) => (
   <div className="space-y-3">
@@ -274,6 +291,7 @@ const ZoomController = ({ geometry }: { geometry: GeofenceGeometry | null }) => 
 };
 
 const ModernGeofencingMap = ({ points, zoneMode, onZoneModeChange, onZoneCreated }: ModernGeofencingMapProps) => {
+  const { notifyInfo, notifySuccess } = useNotifications();
   const [selectedMapId, setSelectedMapId] = useState(BASE_MAPS[0].id);
   const [drawingMode, setDrawingMode] = useState<DrawingMode>('polygon');
   const [polygonDraft, setPolygonDraft] = useState<LatLngLiteral[]>([]);
@@ -288,8 +306,83 @@ const ModernGeofencingMap = ({ points, zoneMode, onZoneModeChange, onZoneCreated
   const [zoneName, setZoneName] = useState('');
   const [zones, setZones] = useState<GeofenceZone[]>([]);
   const [zoomTarget, setZoomTarget] = useState<GeofenceGeometry | null>(null);
+  const [zonesLoading, setZonesLoading] = useState(false);
+  const [zonesSaving, setZonesSaving] = useState(false);
 
   const mapConfig = BASE_MAPS.find((map) => map.id === selectedMapId) ?? BASE_MAPS[0];
+  const activeZonesCount = useMemo(() => zones.filter((zone) => zone.active).length, [zones]);
+
+  const getAuthHeaders = useCallback(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
+
+  const normalizeZone = useCallback((zone: any): GeofenceZone | null => {
+    try {
+      const geometry = typeof zone.geometry === 'string' ? JSON.parse(zone.geometry) : zone.geometry;
+      const metadata = typeof zone.metadata === 'string' ? JSON.parse(zone.metadata) : zone.metadata || {};
+
+      if (zone.type === 'polygon') {
+        if (!Array.isArray(geometry?.points)) return null;
+        return {
+          id: Number(zone.id),
+          name: zone.name || 'Zone',
+          color: metadata.color || ZONE_COLORS[0],
+          active: metadata.active ?? true,
+          geometry: { type: 'polygon', points: geometry.points },
+          createdAt: zone.created_at || zone.createdAt || new Date().toISOString()
+        };
+      }
+
+      if (zone.type === 'rectangle') {
+        const bounds = geometry?.bounds || geometry;
+        if (![bounds?.north, bounds?.south, bounds?.east, bounds?.west].every(Number.isFinite)) {
+          return null;
+        }
+        return {
+          id: Number(zone.id),
+          name: zone.name || 'Zone',
+          color: metadata.color || ZONE_COLORS[0],
+          active: metadata.active ?? true,
+          geometry: { type: 'rectangle', bounds: getBoundsLiteral(bounds) },
+          createdAt: zone.created_at || zone.createdAt || new Date().toISOString()
+        };
+      }
+
+      if (zone.type === 'circle') {
+        if (!geometry?.center || !Number.isFinite(geometry.radius)) return null;
+        return {
+          id: Number(zone.id),
+          name: zone.name || 'Zone',
+          color: metadata.color || ZONE_COLORS[0],
+          active: metadata.active ?? true,
+          geometry: { type: 'circle', center: geometry.center, radius: geometry.radius },
+          createdAt: zone.created_at || zone.createdAt || new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }, []);
+
+  const loadZones = useCallback(async () => {
+    setZonesLoading(true);
+    try {
+      const response = await fetch('/api/geofencing/zones', { headers: getAuthHeaders() });
+      if (!response.ok) {
+        throw new Error('Requête zones impossible');
+      }
+      const data = await response.json();
+      const parsed = Array.isArray(data) ? data.map(normalizeZone).filter(Boolean) : [];
+      setZones(parsed as GeofenceZone[]);
+    } catch (error) {
+      console.error('Chargement zones geofencing impossible', error);
+      notifyInfo('Impossible de récupérer les zones de geofencing.');
+    } finally {
+      setZonesLoading(false);
+    }
+  }, [getAuthHeaders, normalizeZone, notifyInfo]);
 
   const routePositions = useMemo(
     () =>
@@ -343,55 +436,124 @@ const ModernGeofencingMap = ({ points, zoneMode, onZoneModeChange, onZoneCreated
     return '--';
   }, [draftGeometry]);
 
-  const handleSaveZone = useCallback(() => {
-    if (!draftGeometry) return;
-    const nextZone: GeofenceZone = {
-      id: crypto.randomUUID(),
-      name: zoneName.trim() || `Zone ${zones.length + 1}`,
-      color: ZONE_COLORS[zones.length % ZONE_COLORS.length],
-      active: true,
-      geometry: draftGeometry,
-      createdAt: new Date().toISOString()
-    };
-    setZones((prev) => [nextZone, ...prev]);
+  const persistZone = useCallback(
+    async (geometry: GeofenceGeometry, name: string) => {
+      const color = ZONE_COLORS[zones.length % ZONE_COLORS.length];
+      const payload = {
+        name,
+        type: geometry.type,
+        geometry:
+          geometry.type === 'rectangle'
+            ? { bounds: serializeBounds(geometry.bounds) }
+            : geometry.type === 'polygon'
+              ? { points: geometry.points }
+              : { center: geometry.center, radius: geometry.radius },
+        metadata: {
+          color,
+          active: true
+        }
+      };
+
+      setZonesSaving(true);
+      try {
+        const response = await fetch('/api/geofencing/zones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          const details = (await response.text())?.trim();
+          throw new Error(details || 'Sauvegarde impossible');
+        }
+        await loadZones();
+        notifySuccess('Zone enregistrée avec succès.');
+        onZoneCreated();
+        return true;
+      } catch (error) {
+        console.error('Enregistrement zone geofencing impossible', error);
+        const message = error instanceof Error ? error.message : "Impossible d'enregistrer la zone.";
+        notifyInfo(message);
+        return false;
+      } finally {
+        setZonesSaving(false);
+      }
+    },
+    [getAuthHeaders, loadZones, notifyInfo, notifySuccess, onZoneCreated, zones.length]
+  );
+
+  const resetDraft = useCallback(() => {
     setZoneName('');
     setPolygonDraft([]);
     setRectangleDraft({ start: null, end: null });
     setCircleDraft({ center: null, radius: 0 });
-    onZoneModeChange(false);
-    onZoneCreated();
-  }, [draftGeometry, onZoneCreated, onZoneModeChange, zoneName, zones.length]);
+  }, []);
+
+  const handleSaveZone = useCallback(async () => {
+    if (!draftGeometry) return;
+    const name = zoneName.trim() || `Zone ${zones.length + 1}`;
+    const saved = await persistZone(draftGeometry, name);
+    if (saved) {
+      resetDraft();
+      onZoneModeChange(false);
+    }
+  }, [draftGeometry, onZoneModeChange, persistZone, resetDraft, zoneName, zones.length]);
 
   const handleQuickComplete = useCallback(
-    (geometry: GeofenceGeometry) => {
-      setPolygonDraft([]);
-      setRectangleDraft({ start: null, end: null });
-      setCircleDraft({ center: null, radius: 0 });
-      setZoneName('');
-      setZones((prev) => [
-        {
-          id: crypto.randomUUID(),
-          name: `Zone ${prev.length + 1}`,
-          color: ZONE_COLORS[prev.length % ZONE_COLORS.length],
-          active: true,
-          geometry,
-          createdAt: new Date().toISOString()
-        },
-        ...prev
-      ]);
-      onZoneModeChange(false);
-      onZoneCreated();
+    async (geometry: GeofenceGeometry) => {
+      const name = zoneName.trim() || `Zone ${zones.length + 1}`;
+      const saved = await persistZone(geometry, name);
+      if (saved) {
+        resetDraft();
+        onZoneModeChange(false);
+      }
     },
-    [onZoneCreated, onZoneModeChange]
+    [onZoneModeChange, persistZone, resetDraft, zoneName, zones.length]
   );
 
-  const handleToggleZone = useCallback((id: string) => {
-    setZones((prev) => prev.map((zone) => (zone.id === id ? { ...zone, active: !zone.active } : zone)));
-  }, []);
+  const handleToggleZone = useCallback(
+    async (id: number) => {
+      const current = zones.find((zone) => zone.id === id);
+      if (!current) return;
+      try {
+        const response = await fetch(`/api/geofencing/zones/${id}/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify({ active: !current.active })
+        });
+        if (!response.ok) {
+          throw new Error('Mise à jour impossible');
+        }
+        const updated = normalizeZone(await response.json());
+        if (updated) {
+          setZones((prev) => prev.map((zone) => (zone.id === id ? updated : zone)));
+        }
+      } catch (error) {
+        console.error('Activation zone impossible', error);
+        notifyInfo('Impossible de modifier le statut de la zone.');
+      }
+    },
+    [getAuthHeaders, normalizeZone, notifyInfo, zones]
+  );
 
-  const handleRemoveZone = useCallback((id: string) => {
-    setZones((prev) => prev.filter((zone) => zone.id !== id));
-  }, []);
+  const handleRemoveZone = useCallback(
+    async (id: number) => {
+      try {
+        const response = await fetch(`/api/geofencing/zones/${id}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+        if (!response.ok) {
+          throw new Error('Suppression impossible');
+        }
+        setZones((prev) => prev.filter((zone) => zone.id !== id));
+        notifySuccess('Zone supprimée.');
+      } catch (error) {
+        console.error('Suppression zone impossible', error);
+        notifyInfo('Impossible de supprimer la zone.');
+      }
+    },
+    [getAuthHeaders, notifyInfo, notifySuccess]
+  );
 
   const handleZoomToZone = useCallback((geometry: GeofenceGeometry) => {
     setZoomTarget(geometry);
@@ -404,6 +566,10 @@ const ModernGeofencingMap = ({ points, zoneMode, onZoneModeChange, onZoneCreated
     if (drawingMode === 'rectangle') return 'Cliquez pour définir un coin, puis cliquez à nouveau pour valider.';
     return 'Cliquez pour placer le centre, puis cliquez à nouveau pour finaliser le rayon.';
   }, [drawingMode, zoneMode]);
+
+  useEffect(() => {
+    loadZones();
+  }, [loadZones]);
 
   return (
     <div className="relative h-full min-h-[520px]">
@@ -535,11 +701,11 @@ const ModernGeofencingMap = ({ points, zoneMode, onZoneModeChange, onZoneCreated
             <button
               type="button"
               onClick={handleSaveZone}
-              disabled={!zoneMode || !draftGeometry}
+              disabled={!zoneMode || !draftGeometry || zonesSaving}
               className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Plus className="h-4 w-4" />
-              Enregistrer
+              {zonesSaving ? 'Enregistrement...' : 'Enregistrer'}
             </button>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
@@ -553,11 +719,13 @@ const ModernGeofencingMap = ({ points, zoneMode, onZoneModeChange, onZoneCreated
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Zones surveillées</p>
             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
-              {zones.length} active{zones.length > 1 ? 's' : ''}
+              {activeZonesCount} active{activeZonesCount > 1 ? 's' : ''}
             </span>
           </div>
           <div className="mt-3 max-h-[240px] overflow-y-auto pr-2">
-            {zones.length === 0 ? (
+            {zonesLoading ? (
+              <p className="text-xs text-slate-500">Chargement des zones...</p>
+            ) : zones.length === 0 ? (
               <p className="text-xs text-slate-500">
                 Aucune zone configurée. Activez le mode dessin pour créer votre première zone.
               </p>
