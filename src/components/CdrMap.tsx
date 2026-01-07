@@ -1898,6 +1898,8 @@ const CdrMap: React.FC<Props> = ({
     }
   }, [latestLocationPoint]);
 
+  const isContactEventWithinScope = useCallback((_point: Point) => true, []);
+
   const contactPoints = useMemo(() => {
     const matchesVisible = (point: Point): boolean => {
       if (visibleSources.size === 0) {
