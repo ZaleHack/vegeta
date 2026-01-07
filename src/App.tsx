@@ -108,7 +108,6 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 import { AppPage, pageToPath, usePageNavigation } from './features/navigation/usePageNavigation';
 import { useSearchHistory } from './features/search/useSearchHistory';
-import GeofencingPage from './features/geofencing/GeofencingPage';
 
 const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -2252,7 +2251,6 @@ const App: React.FC = () => {
   const [linkDiagramError, setLinkDiagramError] = useState('');
   const [linkDiagramInfo, setLinkDiagramInfo] = useState('');
   const [showMeetingPoints, setShowMeetingPoints] = useState(false);
-  const [zoneMode, setZoneMode] = useState(false);
   const [monitoringInput, setMonitoringInput] = useState('');
   const [monitoringType, setMonitoringType] = useState<MonitoringType>('number');
   const [monitoringTargets, setMonitoringTargets] = useState<FraudMonitoringTarget[]>([]);
@@ -2413,17 +2411,6 @@ const App: React.FC = () => {
     persistMonitoringStateForUser(currentUser, monitoringTargets, monitoringAlerts);
   }, [currentUser, monitoringAlerts, monitoringTargets, persistMonitoringStateForUser]);
 
-  const monitoredNumbersForMap = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          monitoringTargets
-            .filter((target) => target.type === 'number')
-            .map((target) => target.value)
-        )
-      ),
-    [monitoringTargets]
-  );
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTargetCase, setShareTargetCase] = useState<CdrCase | null>(null);
   const [shareDivisionUsers, setShareDivisionUsers] = useState<CaseShareUser[]>([]);
@@ -6584,19 +6571,6 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => navigateToPage('geofencing')}
-              title="Geofencing"
-              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                currentPage === 'geofencing'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
-                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
-              } ${!sidebarOpen && 'justify-center px-0'}`}
-            >
-              <MapPin className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
-              {sidebarOpen && <span className="ml-3">Geofencing</span>}
-            </button>
-
-            <button
               onClick={() => navigateToPage('link-diagram')}
               title="Diagramme des liens"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
@@ -8397,10 +8371,6 @@ useEffect(() => {
             </div>
           )}
 
-          {currentPage === 'geofencing' && (
-            <GeofencingPage />
-          )}
-
           {currentPage === 'fraud-detection-form' && (
             <div className="space-y-8">
               <PageHeader
@@ -9083,10 +9053,6 @@ useEffect(() => {
                           showRoute={cdrItinerary}
                           showMeetingPoints={showMeetingPoints}
                           onToggleMeetingPoints={() => setShowMeetingPoints((v) => !v)}
-                          zoneMode={zoneMode}
-                          onZoneModeChange={setZoneMode}
-                          onZoneCreated={() => setZoneMode(false)}
-                          monitoredNumbers={monitoredNumbersForMap}
                         />
                       ) : (
                         <div className="flex h-full w-full flex-col items-center justify-center bg-white/90 text-slate-600 dark:bg-slate-900/80 dark:text-slate-300">

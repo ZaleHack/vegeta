@@ -5,10 +5,7 @@ import {
   Marker,
   Polygon,
   CircleMarker,
-  Circle,
-  Rectangle,
   Polyline,
-  useMapEvents,
   Popup
 } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
@@ -17,8 +14,6 @@ import {
   Activity,
   ArrowRight,
   Asterisk,
-  AlertTriangle,
-  Bell,
   Car,
   Clock,
   Crosshair,
@@ -29,16 +24,11 @@ import {
   History,
   Layers,
   MapPin,
-  Pencil,
   MessageSquare,
   Minus,
-  Radio,
   PhoneIncoming,
   PhoneOutgoing,
   Plus,
-  Save,
-  Shield,
-  Trash,
   Users,
   X
 } from 'lucide-react';
@@ -53,7 +43,6 @@ import {
   USSD_COLOR,
   NUMBER_COLOR_PALETTE
 } from './mapColors';
-import { useNotifications } from './NotificationProvider';
 
 interface Point {
   latitude: string;
@@ -175,65 +164,6 @@ interface TriangulationCell {
   name?: string;
 }
 
-type GeofencingDrawingType = 'polygon' | 'rectangle' | 'circle';
-
-const MAX_GEOFENCING_ZONES = 3;
-
-interface GeofencingZoneMetadata {
-  description?: string;
-  color?: string;
-  opacity?: number;
-  alertType?: 'entree' | 'sortie' | 'toutes';
-  active?: boolean;
-  phones?: string[];
-  notifications?: { email?: boolean; sms?: boolean; inApp?: boolean };
-  frequencyMinutes?: number;
-}
-
-interface GeofencingZone {
-  id: number;
-  name: string;
-  type: 'polygon' | 'circle' | 'rectangle' | 'antenna';
-  geometry: GeofencingGeometry;
-  metadata?: GeofencingZoneMetadata;
-}
-
-type GeofencingGeometry =
-  | { points: { lat: number; lng: number }[] }
-  | { center: { lat: number; lng: number }; radius: number }
-  | { bounds: { north: number; south: number; east: number; west: number } };
-
-interface GeofencingHistoryEntry {
-  id?: number;
-  zone_id?: number;
-  zone_nom?: string;
-  msisdn?: string;
-  type_evenement?: string;
-  timestamp_cdr?: string | Date;
-  latitude?: number | null;
-  longitude?: number | null;
-  created_at?: string;
-}
-
-interface GeofencingLogEntry {
-  zoneId: number;
-  zoneName: string;
-  number: string;
-  type: 'entree' | 'sortie';
-  timestamp: string;
-}
-
-interface GeofencingFormState {
-  name: string;
-  description: string;
-  color: string;
-  opacity: number;
-  alertType: 'entree' | 'sortie' | 'toutes';
-  phonesText: string;
-  notifications: { email: boolean; sms: boolean; inApp: boolean };
-  frequencyMinutes: number;
-}
-
 const NO_SOURCE_KEY = '__no_source__';
 
 type ContactAccumulator = {
@@ -295,11 +225,6 @@ interface Props {
   showRoute?: boolean;
   showMeetingPoints?: boolean;
   onToggleMeetingPoints?: () => void;
-  zoneMode?: boolean;
-  onZoneModeChange?: (enabled: boolean) => void;
-  onZoneCreated?: () => void;
-  monitoredNumbers?: string[];
-  mapVariant?: 'default' | 'geofencing';
 }
 
 const parseDurationToSeconds = (duration: string): number => {
@@ -1412,14 +1337,8 @@ const CdrMap: React.FC<Props> = ({
   contactSummaries = [],
   showRoute,
   showMeetingPoints,
-  onToggleMeetingPoints,
-  zoneMode,
-  onZoneModeChange,
-  onZoneCreated,
-  monitoredNumbers = [],
-  mapVariant = 'default'
+  onToggleMeetingPoints
 }) => {
-  const isGeofencingOnly = mapVariant === 'geofencing';
   const points = useMemo<Point[]>(() => {
     if (!Array.isArray(rawPoints) || rawPoints.length === 0) {
       console.warn('[CdrMap] Aucun point fourni pour l\'affichage de la carte.');
@@ -1519,7 +1438,6 @@ const CdrMap: React.FC<Props> = ({
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const mapRef = useRef<L.Map | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
-  const { notifySuccess, notifyInfo } = useNotifications();
 
   const handleZoomIn = () => {
     if (mapRef.current) {
@@ -1545,9 +1463,6 @@ const CdrMap: React.FC<Props> = ({
   const [isSatellite, setIsSatellite] = useState(false);
   const [showLatestLocationDetailsPanel, setShowLatestLocationDetailsPanel] = useState(false);
   const [activeContactDetailsId, setActiveContactDetailsId] = useState<string | null>(null);
-  const [monitorTarget, setMonitorTarget] = useState('');
-  const [isMonitoringTarget, setIsMonitoringTarget] = useState(false);
-  const [zoneAlertTriggered, setZoneAlertTriggered] = useState(false);
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
       const { compact = false } = options;
@@ -1709,12 +1624,6 @@ const CdrMap: React.FC<Props> = ({
   }, [sourceNumbers]);
 
   useEffect(() => {
-    if (!monitorTarget && sourceNumbers.length === 1) {
-      setMonitorTarget(sourceNumbers[0]);
-    }
-  }, [monitorTarget, sourceNumbers]);
-
-  useEffect(() => {
     if (activeInfo !== 'contacts' && activeContactDetailsId) {
       setActiveContactDetailsId(null);
     }
@@ -1763,653 +1672,11 @@ const CdrMap: React.FC<Props> = ({
     onToggleMeetingPoints?.();
   };
 
-  const initialGeofencingForm: GeofencingFormState = {
-    name: '',
-    description: '',
-    color: '#2563eb',
-    opacity: 0.25,
-    alertType: 'entree',
-    phonesText: '',
-    notifications: { email: false, sms: false, inApp: true },
-    frequencyMinutes: 15
-  };
-
-  const [geofencingEnabled, setGeofencingEnabled] = useState(isGeofencingOnly);
-  const [geofencingZones, setGeofencingZones] = useState<GeofencingZone[]>([]);
-  const [geofencingHistory, setGeofencingHistory] = useState<GeofencingHistoryEntry[]>([]);
-  const [, setGeofencingLog] = useState<GeofencingLogEntry[]>([]);
-  const [selectedGeofencingZoneId, setSelectedGeofencingZoneId] = useState<number | null>(null);
-  const [geofencingLoading, setGeofencingLoading] = useState(false);
-  const [geofencingSaving, setGeofencingSaving] = useState(false);
-  const [geofencingClock, setGeofencingClock] = useState(Date.now());
-  const [geofencingForm, setGeofencingForm] = useState<GeofencingFormState>(initialGeofencingForm);
-
-  const monitoredNumberList = useMemo(() => {
-    const normalized = monitoredNumbers
-      .map((num) => num.trim())
-      .filter((num) => num.length > 0);
-    return Array.from(new Set(normalized));
-  }, [monitoredNumbers]);
-
-  const getAuthHeaders = useCallback(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }, []);
-  const [hiddenZoneIds, setHiddenZoneIds] = useState<Set<number>>(new Set());
-  const [editingZoneId, setEditingZoneId] = useState<number | null>(null);
-
-  const [zoneGeometry, setZoneGeometry] = useState<GeofencingGeometry | null>(null);
-  const [zoneDrawingType, setZoneDrawingType] = useState<GeofencingDrawingType>('polygon');
-  const [previewCircle, setPreviewCircle] = useState<{ center: L.LatLng; radius: number } | null>(null);
-  const [previewRectangle, setPreviewRectangle] = useState<L.LatLngBounds | null>(null);
-  const [geofenceStates, setGeofenceStates] = useState<Record<string, boolean>>({});
-  const [geofenceAlertTimestamps, setGeofenceAlertTimestamps] = useState<Record<string, number>>({});
-  const [geofenceLastAlertAt, setGeofenceLastAlertAt] = useState<Record<number, number>>({});
-  const [geofenceLastInactivityNotice, setGeofenceLastInactivityNotice] = useState<Record<number, number>>({});
-
-  const [zoneShape, setZoneShape] = useState<L.LatLng[] | null>(null);
-  const [drawing, setDrawing] = useState(false);
-  const [currentPoints, setCurrentPoints] = useState<L.LatLng[]>([]);
-  const hasZoneShape = Boolean((zoneShape && zoneShape.length >= 3) || zoneGeometry);
-
   useEffect(() => {
     setContactPage(1);
   }, [selectedSource]);
 
-  useEffect(() => {
-    if (!geofencingEnabled) return undefined;
 
-    const interval = setInterval(() => {
-      setGeofencingClock(Date.now());
-    }, 10_000);
-
-    return () => clearInterval(interval);
-  }, [geofencingEnabled]);
-
-  useEffect(() => {
-    if (zoneMode) {
-      setZoneShape(null);
-      setZoneGeometry(null);
-      setPreviewCircle(null);
-      setPreviewRectangle(null);
-      setCurrentPoints([]);
-    } else {
-      setDrawing(false);
-    }
-  }, [zoneMode]);
-
-  useEffect(() => {
-    if (editingZoneId) return;
-    if (geofencingForm.phonesText.trim()) return;
-
-    const defaultNumber =
-      monitoredNumberList[0] || (points.length > 0 ? normalizePhoneDigits(points[0].tracked) || points[0].tracked : '');
-
-    if (defaultNumber) {
-      setGeofencingForm((prev) => ({ ...prev, phonesText: defaultNumber }));
-    }
-  }, [editingZoneId, geofencingForm.phonesText, monitoredNumberList, points, setGeofencingForm]);
-
-  useEffect(() => {
-    if (selectedSource && !monitorTarget) {
-      setMonitorTarget(selectedSource);
-    }
-  }, [monitorTarget, selectedSource]);
-
-  useEffect(() => {
-    setZoneAlertTriggered(false);
-  }, [monitorTarget]);
-
-  useEffect(() => {
-    if (!zoneShape || zoneShape.length < 3) {
-      setIsMonitoringTarget(false);
-      setZoneAlertTriggered(false);
-    }
-  }, [zoneShape]);
-
-  const pointInPolygon = (point: L.LatLng, polygon: L.LatLng[]) => {
-    const x = point.lng;
-    const y = point.lat;
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      const xi = polygon[i].lng;
-      const yi = polygon[i].lat;
-      const xj = polygon[j].lng;
-      const yj = polygon[j].lat;
-      const intersect =
-        yi > y !== yj > y &&
-        x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
-      if (intersect) inside = !inside;
-    }
-    return inside;
-  };
-
-  const handleResetZone = useCallback(() => {
-    setZoneShape(null);
-    setZoneGeometry(null);
-    setPreviewCircle(null);
-    setPreviewRectangle(null);
-    setCurrentPoints([]);
-  }, []);
-
-  const handleMonitorTargetChange = (value: string) => {
-    setMonitorTarget(value);
-    setZoneAlertTriggered(false);
-  };
-
-  const handleToggleTargetMonitoring = () => {
-    const normalized = normalizePhoneDigits(monitorTarget);
-    if (!normalized) {
-      notifyInfo('Sélectionnez un numéro à surveiller.');
-      return;
-    }
-
-    if (!zoneShape || zoneShape.length < 3) {
-      notifyInfo('Dessinez d’abord une zone pour activer la surveillance.');
-      return;
-    }
-
-    setZoneAlertTriggered(false);
-    setIsMonitoringTarget((prev) => {
-      const next = !prev;
-      if (next) {
-        notifySuccess(`Surveillance activée pour ${formatPhoneForDisplay(monitorTarget)}.`);
-      }
-      return next;
-    });
-  };
-
-  const normalizeGeofencingZone = (zone: any): GeofencingZone => {
-    const geometry = typeof zone.geometry === 'string' ? JSON.parse(zone.geometry) : zone.geometry;
-    const metadata = typeof zone.metadata === 'string' ? JSON.parse(zone.metadata) : zone.metadata || {};
-    return {
-      id: zone.id,
-      name: zone.name,
-      type: zone.type,
-      geometry,
-      metadata: metadata as GeofencingZoneMetadata
-    };
-  };
-
-  const getAlertTypeLabel = (type?: GeofencingZoneMetadata['alertType']) => {
-    switch (type) {
-      case 'sortie':
-        return 'Sortie';
-      case 'toutes':
-        return 'Entrée & sortie';
-      default:
-        return 'Entrée';
-    }
-  };
-
-  const applyGeometryPreview = useCallback((zone: GeofencingZone) => {
-    const geometry = zone.geometry as any;
-    setZoneGeometry(geometry);
-    if (zone.type === 'polygon' && geometry?.points) {
-      setZoneShape(geometry.points.map((p: any) => L.latLng(p.lat, p.lng)));
-    } else if (zone.type === 'rectangle' && geometry?.bounds) {
-      const bounds = L.latLngBounds(
-        [geometry.bounds.south, geometry.bounds.west],
-        [geometry.bounds.north, geometry.bounds.east]
-      );
-      setPreviewRectangle(bounds);
-      setZoneShape([
-        L.latLng(bounds.getNorth(), bounds.getWest()),
-        L.latLng(bounds.getNorth(), bounds.getEast()),
-        L.latLng(bounds.getSouth(), bounds.getEast()),
-        L.latLng(bounds.getSouth(), bounds.getWest())
-      ]);
-    } else if (zone.type === 'circle' && geometry?.center) {
-      const center = L.latLng(geometry.center.lat, geometry.center.lng);
-      setPreviewCircle({ center, radius: geometry.radius });
-    }
-    setZoneDrawingType(zone.type as GeofencingDrawingType);
-  }, []);
-
-  const focusMapOnZone = useCallback(
-    (zone: GeofencingZone) => {
-      setGeofencingEnabled(true);
-      setHiddenZoneIds((prev) => {
-        const next = new Set(prev);
-        next.delete(zone.id);
-        return next;
-      });
-
-      const map = mapRef.current;
-      if (!map) return;
-
-      const geometry = zone.geometry as any;
-      if (zone.type === 'circle' && geometry?.center) {
-        const circle = L.circle([geometry.center.lat, geometry.center.lng], { radius: geometry.radius });
-        map.fitBounds(circle.getBounds(), { padding: [32, 32] });
-        return;
-      }
-
-      if (zone.type === 'rectangle' && geometry?.bounds) {
-        const bounds = L.latLngBounds(
-          [geometry.bounds.south, geometry.bounds.west],
-          [geometry.bounds.north, geometry.bounds.east]
-        );
-        map.fitBounds(bounds.pad(0.08), { padding: [24, 24] });
-        return;
-      }
-
-      if ('points' in geometry && Array.isArray(geometry.points) && geometry.points.length > 0) {
-        const bounds = L.latLngBounds(geometry.points.map((p: any) => L.latLng(p.lat, p.lng)));
-        map.fitBounds(bounds.pad(0.05), { padding: [24, 24] });
-      }
-    },
-    [setGeofencingEnabled]
-  );
-
-  const loadGeofencingZones = useCallback(async () => {
-    setGeofencingLoading(true);
-    try {
-      const response = await fetch('/api/geofencing/zones', { headers: getAuthHeaders() });
-      if (!response.ok) {
-        throw new Error('Requête zones impossible');
-      }
-      const data = await response.json();
-      const parsed: GeofencingZone[] = Array.isArray(data) ? data.map(normalizeGeofencingZone) : [];
-      setGeofencingZones(parsed);
-      const inactiveIds = parsed.filter((z) => !(z.metadata?.active ?? true)).map((z) => z.id);
-      setHiddenZoneIds(new Set(inactiveIds));
-    } catch (error) {
-      console.error('Chargement zones geofencing impossible', error);
-      notifyInfo('Impossible de récupérer les zones de geofencing.');
-    } finally {
-      setGeofencingLoading(false);
-    }
-  }, [notifyInfo, getAuthHeaders]);
-
-  useEffect(() => {
-    if (geofencingEnabled) {
-      loadGeofencingZones();
-    }
-  }, [geofencingEnabled, loadGeofencingZones]);
-
-  useEffect(() => {
-    if (!geofencingEnabled) return;
-
-    const now = Date.now();
-
-    setGeofenceLastAlertAt((prev) => {
-      const next: Record<number, number> = {};
-
-      geofencingZones.forEach((zone) => {
-        const active = zone.metadata?.active ?? true;
-        if (!active) return;
-        next[zone.id] = prev[zone.id] ?? now;
-      });
-
-      return next;
-    });
-
-    setGeofenceLastInactivityNotice((prev) => {
-      const next: Record<number, number> = {};
-
-      geofencingZones.forEach((zone) => {
-        if (!(zone.metadata?.active ?? true)) return;
-        if (prev[zone.id]) {
-          next[zone.id] = prev[zone.id];
-        }
-      });
-
-      return next;
-    });
-  }, [geofencingEnabled, geofencingZones]);
-
-  const activeGeofencingZones = useMemo(
-    () => geofencingZones.filter((zone) => zone.metadata?.active ?? true),
-    [geofencingZones]
-  );
-  const activeGeofencingCount = activeGeofencingZones.length;
-  const geofencingLimitReached = !editingZoneId && geofencingZones.length >= MAX_GEOFENCING_ZONES;
-
-  const filteredGeofencingHistory = useMemo(() => {
-    if (!selectedGeofencingZoneId) return [];
-    return geofencingHistory.filter((event) => {
-      const normalizedType = (event.type_evenement || '').toLowerCase();
-      return (
-        event.zone_id === selectedGeofencingZoneId &&
-        (normalizedType.includes('entree') || normalizedType.includes('entrée') || normalizedType.includes('sortie'))
-      );
-    });
-  }, [geofencingHistory, selectedGeofencingZoneId]);
-
-  const geofencingActivityStatus = useMemo(() => {
-    if (!selectedGeofencingZoneId) return [];
-
-    const zone = geofencingZones.find((z) => z.id === selectedGeofencingZoneId);
-    const frequencyMs = (zone?.metadata?.frequencyMinutes ?? 0) * 60_000;
-
-    const latestByNumber: Record<string, { event: GeofencingHistoryEntry; timestamp: number | null }> = {};
-
-    filteredGeofencingHistory.forEach((event) => {
-      const ts = event.timestamp_cdr ? Date.parse(event.timestamp_cdr as string) : null;
-      const key = normalizePhoneDigits(event.msisdn || '') || event.msisdn || 'Inconnu';
-
-      if (!latestByNumber[key] || (ts && latestByNumber[key].timestamp && ts > latestByNumber[key].timestamp)) {
-        latestByNumber[key] = { event, timestamp: ts };
-      }
-    });
-
-    return Object.entries(latestByNumber).map(([number, payload]) => {
-      const normalizedType = (payload.event.type_evenement || '').toLowerCase();
-      const inactive = Boolean(
-        frequencyMs && payload.timestamp && geofencingClock - payload.timestamp > frequencyMs
-      );
-
-      let label = 'Entrée détectée';
-      let tone: 'success' | 'warning' | 'info' = 'success';
-
-      if (inactive) {
-        label = 'Pas d’activité';
-        tone = 'warning';
-      } else if (normalizedType.includes('sort')) {
-        label = 'Sortie détectée';
-        tone = 'info';
-      }
-
-      return {
-        number,
-        label,
-        tone,
-        timestamp: payload.timestamp,
-        eventType: payload.event.type_evenement || 'Mouvement détecté',
-        relativeTime: formatRelativeDuration(payload.timestamp)
-      };
-    });
-  }, [filteredGeofencingHistory, geofencingClock, geofencingZones, selectedGeofencingZoneId]);
-
-  const handleEditZone = (zone: GeofencingZone) => {
-    setEditingZoneId(zone.id);
-    setSelectedGeofencingZoneId(zone.id);
-    setGeofencingForm({
-      name: zone.name,
-      description: zone.metadata?.description || '',
-      color: zone.metadata?.color || '#2563eb',
-      opacity: zone.metadata?.opacity ?? 0.25,
-      alertType: (zone.metadata?.alertType as any) || 'entree',
-      phonesText: (zone.metadata?.phones || []).join(', '),
-      notifications: {
-        email: zone.metadata?.notifications?.email ?? false,
-        sms: zone.metadata?.notifications?.sms ?? false,
-        inApp: zone.metadata?.notifications?.inApp ?? true
-      },
-      frequencyMinutes: zone.metadata?.frequencyMinutes ?? 15
-    });
-    applyGeometryPreview(zone);
-    setGeofencingEnabled(true);
-  };
-
-  const handleDeleteZone = async (zoneId: number) => {
-    try {
-      await fetch(`/api/geofencing/zones/${zoneId}`, { method: 'DELETE', headers: getAuthHeaders() });
-      setGeofencingZones((prev) => prev.filter((z) => z.id !== zoneId));
-      setHiddenZoneIds((prev) => {
-        const next = new Set(prev);
-        next.delete(zoneId);
-        return next;
-      });
-      if (selectedGeofencingZoneId === zoneId) {
-        setSelectedGeofencingZoneId(null);
-        setGeofencingHistory([]);
-      }
-    } catch (error) {
-      console.error('Suppression zone impossible', error);
-      notifyInfo('Impossible de supprimer la zone.');
-    }
-  };
-
-  const handleToggleZoneActive = async (zone: GeofencingZone, active: boolean) => {
-    try {
-      const response = await fetch(`/api/geofencing/zones/${zone.id}/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ active })
-      });
-      if (!response.ok) {
-        throw new Error('Mise à jour impossible');
-      }
-      const updated = normalizeGeofencingZone(await response.json());
-      setGeofencingZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)));
-    } catch (error) {
-      console.error('Activation zone impossible', error);
-      notifyInfo('Impossible de modifier le statut de la zone');
-    }
-  };
-
-  const handleFetchHistory = useCallback(
-    async (zoneId: number) => {
-      try {
-        const response = await fetch(`/api/geofencing/zones/${zoneId}/evenements`, {
-          headers: getAuthHeaders()
-        });
-        if (!response.ok) {
-          throw new Error('Requête historique impossible');
-        }
-        const events: GeofencingHistoryEntry[] = await response.json();
-        setGeofencingHistory(events);
-
-        const latestEventTs = events.reduce((max, event) => {
-          const ts = event.timestamp_cdr ? Date.parse(String(event.timestamp_cdr)) : Number.NaN;
-          if (Number.isNaN(ts)) return max;
-          return Math.max(max, ts);
-        }, -Infinity);
-
-        if (Number.isFinite(latestEventTs)) {
-          setGeofenceLastAlertAt((prev) => ({ ...prev, [zoneId]: latestEventTs }));
-          setGeofenceLastInactivityNotice((prev) => {
-            const next = { ...prev };
-            delete next[zoneId];
-            return next;
-          });
-        }
-      } catch (error) {
-        console.error('Historique geofencing indisponible', error);
-        notifyInfo("Impossible de récupérer l'historique de la zone");
-      }
-    },
-    [notifyInfo, getAuthHeaders]
-  );
-
-  const handleSelectZone = (zoneId: number) => {
-    setSelectedGeofencingZoneId(zoneId);
-    handleFetchHistory(zoneId);
-  };
-
-  const handleVisualizeZone = (zone: GeofencingZone) => {
-    const isHidden = hiddenZoneIds.has(zone.id);
-
-    setShowOnlyLatestLocation(false);
-    setShowLatestLocationDetailsPanel(false);
-    setGeofencingEnabled(true);
-
-    if (isHidden) {
-      setHiddenZoneIds((prev) => {
-        const next = new Set(prev);
-        next.delete(zone.id);
-        return next;
-      });
-      handleSelectZone(zone.id);
-      focusMapOnZone(zone);
-    } else {
-      setHiddenZoneIds((prev) => {
-        const next = new Set(prev);
-        next.add(zone.id);
-        return next;
-      });
-      if (selectedGeofencingZoneId === zone.id) {
-        setSelectedGeofencingZoneId(null);
-      }
-    }
-  };
-
-  useEffect(() => {
-    setHiddenZoneIds((prev) => {
-      const existingZoneIds = new Set(geofencingZones.map((zone) => zone.id));
-      const next = new Set<number>();
-
-      prev.forEach((zoneId) => {
-        if (existingZoneIds.has(zoneId)) {
-          next.add(zoneId);
-        }
-      });
-
-      return next;
-    });
-  }, [geofencingZones]);
-
-  const handleSaveGeofencingZone = async () => {
-    const trimmedName = geofencingForm.name.trim();
-    if (!trimmedName) {
-      notifyInfo('Donnez un nom à la zone avant de sauvegarder.');
-      return;
-    }
-
-    if (geofencingLimitReached) {
-      notifyInfo(`Limite de ${MAX_GEOFENCING_ZONES} zones atteinte. Supprimez une zone existante avant d'en créer une nouvelle.`);
-      return;
-    }
-
-    if (!zoneGeometry) {
-      notifyInfo('Dessinez une zone sur la carte avant de sauvegarder.');
-      return;
-    }
-
-    const phones = geofencingForm.phonesText
-      .split(',')
-      .map((value) => normalizePhoneDigits(value) || value.trim())
-      .filter(Boolean);
-
-    if (phones.length === 0) {
-      notifyInfo('Ajoutez au moins un numéro à surveiller pour activer le geofencing.');
-      return;
-    }
-
-    const payload = {
-      name: trimmedName,
-      type:
-        'center' in zoneGeometry && 'radius' in zoneGeometry
-          ? 'circle'
-          : 'bounds' in zoneGeometry
-            ? 'rectangle'
-            : 'polygon',
-      geometry: zoneGeometry,
-      metadata: {
-        description: geofencingForm.description,
-        color: geofencingForm.color,
-        opacity: geofencingForm.opacity,
-        alertType: geofencingForm.alertType,
-        active: true,
-        phones,
-        notifications: geofencingForm.notifications,
-        frequencyMinutes: geofencingForm.frequencyMinutes
-      }
-    };
-
-    setGeofencingSaving(true);
-    try {
-      const url = editingZoneId ? `/api/geofencing/zones/${editingZoneId}` : '/api/geofencing/zones';
-      const method = editingZoneId ? 'PUT' : 'POST';
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify(payload)
-      });
-      if (!response.ok) {
-        const details = (await response.text())?.trim();
-        throw new Error(details || 'Sauvegarde impossible');
-      }
-      await loadGeofencingZones();
-      setGeofencingForm(initialGeofencingForm);
-      setZoneGeometry(null);
-      setZoneShape(null);
-      setPreviewCircle(null);
-      setPreviewRectangle(null);
-      setEditingZoneId(null);
-      notifySuccess('Zone enregistrée avec succès.');
-    } catch (error) {
-      console.error('Enregistrement zone geofencing impossible', error);
-      const message = error instanceof Error ? error.message : "Impossible d'enregistrer la zone.";
-      notifyInfo(message);
-    } finally {
-      setGeofencingSaving(false);
-    }
-  };
-
-  const isCoordinateInsideSavedZone = useCallback((zone: GeofencingZone, lat: number, lng: number) => {
-    if (!zone.geometry) return false;
-    if (zone.type === 'circle' && 'center' in zone.geometry && 'radius' in zone.geometry) {
-      const center = (zone.geometry as any).center;
-      const distance = distanceBetweenPoints(L.latLng(center.lat, center.lng), L.latLng(lat, lng));
-      return distance <= (zone.geometry as any).radius;
-    }
-    if (zone.type === 'rectangle' && 'bounds' in zone.geometry) {
-      const bounds = (zone.geometry as any).bounds;
-      return lat <= bounds.north && lat >= bounds.south && lng <= bounds.east && lng >= bounds.west;
-    }
-    if ('points' in zone.geometry) {
-      const polygon = (zone.geometry as any).points.map((p: any) => L.latLng(p.lat, p.lng));
-      return polygon.length >= 3 ? pointInPolygon(L.latLng(lat, lng), polygon) : false;
-    }
-    return false;
-  }, [pointInPolygon]);
-
-  const isPointWithinZone = useCallback(
-    (point: Point) => {
-      const lat = parseFloat(point.latitude);
-      const lng = parseFloat(point.longitude);
-      if (isNaN(lat) || isNaN(lng)) return false;
-
-      if (zoneGeometry) {
-        if ('center' in zoneGeometry && 'radius' in zoneGeometry) {
-          const center = 'center' in zoneGeometry ? zoneGeometry.center : null;
-          const distance = center ? distanceBetweenPoints(L.latLng(center.lat, center.lng), L.latLng(lat, lng)) : Infinity;
-          return distance <= (zoneGeometry as { radius: number }).radius;
-        }
-        if ('bounds' in zoneGeometry) {
-          const { north, south, east, west } = (zoneGeometry as { bounds: any }).bounds;
-          return lat <= north && lat >= south && lng <= east && lng >= west;
-        }
-        if ('points' in zoneGeometry) {
-          const polygon = (zoneGeometry as { points: { lat: number; lng: number }[] }).points.map((p) =>
-            L.latLng(p.lat, p.lng)
-          );
-          if (polygon.length >= 3) {
-            return pointInPolygon(L.latLng(lat, lng), polygon);
-          }
-        }
-      }
-
-      if (zoneShape && zoneShape.length >= 3) {
-        return pointInPolygon(L.latLng(lat, lng), zoneShape);
-      }
-      return true;
-    },
-    [zoneGeometry, zoneShape]
-  );
-
-  const hasActiveZoneFilter = useMemo(
-    () => Boolean(zoneGeometry || (zoneShape && zoneShape.length >= 3)),
-    [zoneGeometry, zoneShape]
-  );
-
-  const isContactEventWithinScope = useCallback(
-    (point: Point) => {
-      const lat = parseFloat(point.latitude);
-      const lng = parseFloat(point.longitude);
-      const hasValidCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
-
-      if (hasValidCoordinates) {
-        return isPointWithinZone(point);
-      }
-
-      return !hasActiveZoneFilter;
-    },
-    [hasActiveZoneFilter, isPointWithinZone]
-  );
 
   const displayedPoints = useMemo(() => {
     let filtered = callerPoints;
@@ -2439,172 +1706,8 @@ const CdrMap: React.FC<Props> = ({
         return visibleSources.has(key) || normalizedVisibleSources.has(key);
       });
     }
-    return filtered.filter(isPointWithinZone);
-  }, [callerPoints, selectedSource, visibleSources, isPointWithinZone]);
-
-  useEffect(() => {
-    if (!isMonitoringTarget || !zoneShape || zoneShape.length < 3) return;
-
-    const normalizedTarget = normalizePhoneDigits(monitorTarget);
-    if (!normalizedTarget) return;
-
-    const match = callerPoints.some((point) => {
-      const lat = parseFloat(point.latitude);
-      const lng = parseFloat(point.longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-      if (!pointInPolygon(L.latLng(lat, lng), zoneShape)) return false;
-
-      const candidates = [point.tracked, point.source, point.number, point.caller, point.callee].map((value) =>
-        normalizePhoneDigits(value)
-      );
-      return candidates.some((candidate) => candidate === normalizedTarget);
-    });
-
-    if (match && !zoneAlertTriggered) {
-      notifySuccess(`La cible ${formatPhoneForDisplay(monitorTarget)} a été détectée dans la zone surveillée.`);
-      setZoneAlertTriggered(true);
-    }
-  }, [callerPoints, isMonitoringTarget, monitorTarget, notifySuccess, pointInPolygon, zoneAlertTriggered, zoneShape]);
-
-  useEffect(() => {
-    if (!geofencingEnabled || geofencingZones.length === 0) return;
-
-    const nextStates: Record<string, boolean> = { ...geofenceStates };
-    const newLogs: GeofencingLogEntry[] = [];
-    const now = Date.now();
-
-    geofencingZones.forEach((zone) => {
-      const active = zone.metadata?.active ?? true;
-      if (!active) return;
-      const phones = (zone.metadata?.phones || []).map((p) => normalizePhoneDigits(p) || p.trim());
-      if (phones.length === 0) return;
-
-      callerPoints.forEach((point) => {
-        const lat = parseFloat(point.latitude);
-        const lng = parseFloat(point.longitude);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-        const inside = isCoordinateInsideSavedZone(zone, lat, lng);
-        const candidates = [point.tracked, point.source, point.number, point.caller, point.callee]
-          .map((value) => normalizePhoneDigits(value) || value?.toString()?.trim())
-          .filter(Boolean) as string[];
-        const match = candidates.find((candidate) => phones.includes(candidate));
-        if (!match) return;
-
-        const key = `${zone.id}:${match}`;
-        const wasInside = nextStates[key] || false;
-        if (inside !== wasInside) {
-          nextStates[key] = inside;
-          const type: 'entree' | 'sortie' = inside ? 'entree' : 'sortie';
-          const freqMinutes = zone.metadata?.frequencyMinutes ?? 0;
-          const last = geofenceAlertTimestamps[key] || 0;
-          const shouldNotify =
-            !zone.metadata?.alertType || zone.metadata?.alertType === 'toutes' || zone.metadata?.alertType === type;
-          const allowedByFrequency = !freqMinutes || now - last > freqMinutes * 60_000;
-          if (shouldNotify && allowedByFrequency) {
-            notifySuccess(
-              `${formatPhoneForDisplay(match)} ${inside ? 'entre' : 'sort'} dans la zone ${zone.name}.`
-            );
-            setGeofenceAlertTimestamps((prev) => ({ ...prev, [key]: now }));
-          }
-          newLogs.unshift({
-            zoneId: zone.id,
-            zoneName: zone.name,
-            number: match,
-            type,
-            timestamp: new Date().toISOString()
-          });
-        }
-      });
-    });
-
-    if (newLogs.length > 0) {
-      setGeofencingLog((prev) => [...newLogs, ...prev].slice(0, 100));
-
-      const latestByZone: Record<number, number> = {};
-      newLogs.forEach((log) => {
-        const ts = Date.parse(log.timestamp);
-        if (!Number.isNaN(ts)) {
-          latestByZone[log.zoneId] = Math.max(latestByZone[log.zoneId] ?? 0, ts);
-        }
-      });
-
-      if (Object.keys(latestByZone).length > 0) {
-        setGeofenceLastAlertAt((prev) => {
-          const next = { ...prev };
-          Object.entries(latestByZone).forEach(([zoneId, ts]) => {
-            next[Number(zoneId)] = ts;
-          });
-          return next;
-        });
-
-        setGeofenceLastInactivityNotice((prev) => {
-          const next = { ...prev };
-          Object.keys(latestByZone).forEach((zoneId) => {
-            delete next[Number(zoneId)];
-          });
-          return next;
-        });
-      }
-    }
-    setGeofenceStates(nextStates);
-  }, [
-    callerPoints,
-    geofenceAlertTimestamps,
-    geofenceStates,
-    geofencingEnabled,
-    geofencingZones,
-    isCoordinateInsideSavedZone,
-    notifySuccess
-  ]);
-
-  useEffect(() => {
-    if (!geofencingEnabled) return;
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const inactivityEvents: { zoneId: number; zoneName: string; timestamp: number }[] = [];
-
-      setGeofenceLastInactivityNotice((prev) => {
-        const next = { ...prev };
-        geofencingZones.forEach((zone) => {
-          if (!(zone.metadata?.active ?? true)) return;
-
-          const freqMinutes = zone.metadata?.frequencyMinutes ?? 0;
-          if (!freqMinutes) return;
-
-          const lastActivity = geofenceLastAlertAt[zone.id] ?? now;
-          const lastNotice = prev[zone.id] ?? 0;
-          const thresholdMs = freqMinutes * 60_000;
-          const hasTimedOut = now - lastActivity >= thresholdMs;
-          const recentlyNotified = lastNotice && now - lastNotice < thresholdMs;
-
-          if (hasTimedOut && !recentlyNotified) {
-            next[zone.id] = now;
-            inactivityEvents.push({ zoneId: zone.id, zoneName: zone.name, timestamp: now });
-          }
-        });
-        return next;
-      });
-
-      if (inactivityEvents.length > 0 && selectedGeofencingZoneId) {
-        const historyEntries: GeofencingHistoryEntry[] = inactivityEvents
-          .filter((event) => event.zoneId === selectedGeofencingZoneId)
-          .map((event) => ({
-            zone_id: event.zoneId,
-            zone_nom: event.zoneName,
-            type_evenement: 'Aucune activité détectée',
-            timestamp_cdr: new Date(event.timestamp).toISOString()
-          }));
-
-        if (historyEntries.length > 0) {
-          setGeofencingHistory((prev) => [...historyEntries, ...prev]);
-        }
-      }
-    }, 60_000);
-
-    return () => clearInterval(interval);
-  }, [geofenceLastAlertAt, geofencingEnabled, geofencingZones, selectedGeofencingZoneId]);
+    return filtered;
+  }, [callerPoints, selectedSource, visibleSources, normalizedVisibleSources]);
 
   const latestLocationPoint = useMemo(() => {
     const trackedDigits = normalizePhoneDigits(points[0]?.tracked);
@@ -3094,8 +2197,6 @@ const CdrMap: React.FC<Props> = ({
     const locationMap = new Map<string, LocationStat>();
     const displayedSet = new Set(displayedPoints);
     const normalizedSelected = normalizePhoneDigits(selectedSource ?? '');
-    const activeZone = zoneShape && zoneShape.length >= 3 ? zoneShape : null;
-
     let contactEvents = contactPoints;
     if (selectedSource && normalizedSelected) {
       const filtered = points.filter((point) => {
@@ -3103,18 +2204,7 @@ const CdrMap: React.FC<Props> = ({
         if (!trackedNormalized || trackedNormalized !== normalizedSelected) {
           return false;
         }
-
-        if (!activeZone) {
-          return true;
-        }
-
-        const lat = parseFloat(point.latitude);
-        const lng = parseFloat(point.longitude);
-        if (isNaN(lat) || isNaN(lng)) {
-          return true;
-        }
-
-        return pointInPolygon(L.latLng(lat, lng), activeZone);
+        return true;
       });
 
       if (filtered.length > 0) {
@@ -3347,8 +2437,7 @@ const CdrMap: React.FC<Props> = ({
     contactPoints,
     displayedPoints,
     points,
-    selectedSource,
-    zoneShape
+    selectedSource
   ]);
 
   useEffect(() => {
@@ -3713,85 +2802,6 @@ const CdrMap: React.FC<Props> = ({
 
   const carPosition = interpolatedRoute[carIndex] || interpolatedRoute[0];
 
-  const ZoneSelector: React.FC = () => {
-    const map = useMapEvents({
-      mousedown(e) {
-        if (!zoneMode) return;
-        setDrawing(true);
-        setCurrentPoints([e.latlng]);
-        setPreviewCircle(null);
-        setPreviewRectangle(null);
-        map.dragging.disable();
-      },
-      mousemove(e) {
-        if (!zoneMode || !drawing) return;
-        setCurrentPoints((pts) => {
-          if (zoneDrawingType === 'polygon') {
-            return [...pts, e.latlng];
-          }
-          const start = pts[0] || e.latlng;
-          if (zoneDrawingType === 'rectangle') {
-            const bounds = L.latLngBounds(start, e.latlng);
-            setPreviewRectangle(bounds);
-            const corners = [
-              L.latLng(bounds.getNorth(), bounds.getWest()),
-              L.latLng(bounds.getNorth(), bounds.getEast()),
-              L.latLng(bounds.getSouth(), bounds.getEast()),
-              L.latLng(bounds.getSouth(), bounds.getWest())
-            ];
-            setZoneShape(corners);
-            return [start, e.latlng];
-          }
-          if (zoneDrawingType === 'circle') {
-            const radius = distanceBetweenPoints(start, e.latlng);
-            setPreviewCircle({ center: start, radius });
-            return [start, e.latlng];
-          }
-          return [...pts, e.latlng];
-        });
-      },
-      mouseup() {
-        if (!zoneMode || !drawing) return;
-        map.dragging.enable();
-        setDrawing(false);
-        const start = currentPoints[0];
-        const end = currentPoints[currentPoints.length - 1];
-        if (zoneDrawingType === 'polygon' && currentPoints.length > 2) {
-          const final = currentPoints.slice();
-          setZoneShape(final);
-          setZoneGeometry({ points: final.map((p) => ({ lat: p.lat, lng: p.lng })) });
-          onZoneCreated && onZoneCreated();
-        } else if (zoneDrawingType === 'rectangle' && start && end) {
-          const bounds = L.latLngBounds(start, end);
-          setPreviewRectangle(bounds);
-          const corners = [
-            L.latLng(bounds.getNorth(), bounds.getWest()),
-            L.latLng(bounds.getNorth(), bounds.getEast()),
-            L.latLng(bounds.getSouth(), bounds.getEast()),
-            L.latLng(bounds.getSouth(), bounds.getWest())
-          ];
-          setZoneShape(corners);
-          setZoneGeometry({
-            bounds: {
-              north: bounds.getNorth(),
-              south: bounds.getSouth(),
-              east: bounds.getEast(),
-              west: bounds.getWest()
-            }
-          });
-          onZoneCreated && onZoneCreated();
-        } else if (zoneDrawingType === 'circle' && start && end) {
-          const radius = distanceBetweenPoints(start, end);
-          setPreviewCircle({ center: start, radius });
-          setZoneGeometry({ center: { lat: start.lat, lng: start.lng }, radius });
-          onZoneCreated && onZoneCreated();
-        }
-        setCurrentPoints([]);
-      }
-    });
-    return null;
-  };
-
   const carIcon = useMemo(() => {
     const size = 36;
     const icon = (
@@ -4141,10 +3151,7 @@ const CdrMap: React.FC<Props> = ({
           zoom={13}
           zoomControl={false}
           className="w-full h-full"
-          style={{
-            position: 'relative',
-            cursor: zoneMode ? 'url("/pen.svg") 0 24, crosshair' : undefined
-          }}
+          style={{ position: 'relative' }}
           whenCreated={(map) => {
             mapRef.current = map;
             const paneId = 'latest-location-pane';
@@ -4170,91 +3177,6 @@ const CdrMap: React.FC<Props> = ({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         )}
-        {!isLatestLocationOnlyView && <ZoneSelector />}
-      {!isLatestLocationOnlyView && drawing && currentPoints.length > 0 && (
-        <Polyline
-          positions={currentPoints}
-          pathOptions={{
-            color: '#6366f1',
-            weight: 2,
-            opacity: 0.75,
-            dashArray: '6 3',
-            lineCap: 'round'
-          }}
-        />
-      )}
-      {!isLatestLocationOnlyView && zoneShape && (
-        <Polygon positions={zoneShape} pathOptions={{ color: 'blue' }} />
-      )}
-      {!isLatestLocationOnlyView && previewCircle && (
-        <Circle
-          center={previewCircle.center}
-          radius={previewCircle.radius}
-          pathOptions={{ color: '#2563eb', fillOpacity: 0.15, dashArray: '6 4' }}
-        />
-      )}
-      {!isLatestLocationOnlyView && previewRectangle && (
-        <Rectangle bounds={previewRectangle} pathOptions={{ color: '#2563eb', fillOpacity: 0.15, dashArray: '6 4' }} />
-      )}
-      {!isLatestLocationOnlyView &&
-        geofencingZones
-          .filter((zone) => !hiddenZoneIds.has(zone.id))
-          .map((zone) => {
-            const metadata = zone.metadata || {};
-            const color = metadata.color || '#2563eb';
-            const active = metadata.active ?? true;
-            const opacity = metadata.opacity ?? 0.25;
-            const isSelected = selectedGeofencingZoneId === zone.id;
-            const pathOptions = {
-              color,
-              fillColor: color,
-              weight: isSelected ? 3 : 2,
-              fillOpacity: isSelected ? Math.min(0.55, opacity + 0.15) : opacity,
-              dashArray: active ? '4 2' : '6 4',
-              opacity: active ? 0.95 : 0.6
-            };
-
-            if (zone.type === 'circle' && 'center' in zone.geometry) {
-              const center = (zone.geometry as any).center;
-              return (
-                <Circle
-                  key={`geofence-circle-${zone.id}`}
-                  center={[center.lat, center.lng]}
-                  radius={(zone.geometry as any).radius}
-                  pathOptions={pathOptions}
-                />
-              );
-            }
-
-            if (zone.type === 'rectangle' && 'bounds' in zone.geometry) {
-              const bounds = (zone.geometry as any).bounds;
-              const rectBounds: [[number, number], [number, number]] = [
-                [bounds.south, bounds.west],
-                [bounds.north, bounds.east]
-              ];
-              return (
-                <Rectangle
-                  key={`geofence-rect-${zone.id}`}
-                  bounds={rectBounds}
-                  pathOptions={pathOptions}
-                />
-              );
-            }
-
-            if ('points' in zone.geometry) {
-              const points = (zone.geometry as any).points;
-              if (Array.isArray(points) && points.length >= 3) {
-                return (
-                  <Polygon
-                    key={`geofence-poly-${zone.id}`}
-                    positions={points.map((p: any) => [p.lat, p.lng])}
-                    pathOptions={pathOptions}
-                  />
-                );
-              }
-            }
-            return null;
-          })}
       {showBaseMarkers && (
         <MarkerClusterGroup maxClusterRadius={0}>
           {groupedPoints.flatMap((group, idx) => {
@@ -4444,53 +3366,40 @@ const CdrMap: React.FC<Props> = ({
       ))}
       </MapContainer>
       <div className="pointer-events-none absolute top-4 left-2 z-[1000] flex flex-col gap-3">
-        {!isGeofencingOnly && (
-          <MapControlButton
-            title={
-              hasLatestLocation
-                ? 'Afficher la dernière localisation connue'
-                : 'Aucune localisation exploitable'
-            }
-            icon={<MapPin className="h-5 w-5" />}
-            onClick={handleToggleLatestLocationView}
-            disabled={!hasLatestLocation}
-            active={isLatestLocationOnlyView}
-            isToggle
-          />
-        )}
         <MapControlButton
-          title="Panneau de geofencing"
-          icon={<Radio className="h-5 w-5" />}
-          onClick={() => setGeofencingEnabled((value) => !value)}
-          active={geofencingEnabled}
+          title={
+            hasLatestLocation
+              ? 'Afficher la dernière localisation connue'
+              : 'Aucune localisation exploitable'
+          }
+          icon={<MapPin className="h-5 w-5" />}
+          onClick={handleToggleLatestLocationView}
+          disabled={!hasLatestLocation}
+          active={isLatestLocationOnlyView}
           isToggle
         />
-        {!isGeofencingOnly && (
-          <>
-            <MapControlButton
-              title="Localisation approximative de la personne"
-              icon={<Crosshair className="h-5 w-5" />}
-              onClick={handleTriangulation}
-              active={triangulationZones.length > 0}
-              isToggle
-            />
-            <MapControlButton
-              title="Changer l'affichage"
-              icon={<Layers className="h-5 w-5" />}
-              onClick={() => setIsSatellite((s) => !s)}
-              active={isSatellite}
-              isToggle
-            />
-            {sourceNumbers.length > 0 && (
-              <MapControlButton
-                title="Trajectoires similaires"
-                icon={<Activity className="h-5 w-5" />}
-                onClick={() => setShowSimilar((s) => !s)}
-                active={showSimilar}
-                isToggle
-              />
-            )}
-          </>
+        <MapControlButton
+          title="Localisation approximative de la personne"
+          icon={<Crosshair className="h-5 w-5" />}
+          onClick={handleTriangulation}
+          active={triangulationZones.length > 0}
+          isToggle
+        />
+        <MapControlButton
+          title="Changer l'affichage"
+          icon={<Layers className="h-5 w-5" />}
+          onClick={() => setIsSatellite((s) => !s)}
+          active={isSatellite}
+          isToggle
+        />
+        {sourceNumbers.length > 0 && (
+          <MapControlButton
+            title="Trajectoires similaires"
+            icon={<Activity className="h-5 w-5" />}
+            onClick={() => setShowSimilar((s) => !s)}
+            active={showSimilar}
+            isToggle
+          />
         )}
         <MapControlButton
           title="Zoomer"
@@ -4504,459 +3413,8 @@ const CdrMap: React.FC<Props> = ({
         />
       </div>
 
-      {zoneMode && (
-        <div className="pointer-events-none absolute top-4 left-16 z-[1000] max-w-md">
-          <div className="pointer-events-auto flex items-start gap-3 rounded-2xl border border-blue-200 bg-white/95 p-4 text-sm text-blue-800 shadow-lg ring-1 ring-blue-200 backdrop-blur dark:border-blue-900 dark:bg-slate-900/90 dark:text-blue-100">
-            <Shield className="h-5 w-5 text-blue-500" />
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Géofencing actif</p>
-              <p>Dessinez une zone sur la carte en maintenant le clic pour filtrer les évènements à l'intérieur.</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {geofencingEnabled && (
-        <div className="pointer-events-auto absolute top-4 right-4 z-[1050] w-[900px] max-w-[98vw] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-sm font-semibold">Geofencing</p>
-              <p className="text-xs text-slate-500 dark:text-slate-300">Créez des zones, assignez des numéros et recevez des alertes.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:bg-blue-500/20 dark:text-blue-50">
-                {activeGeofencingCount} actives
-              </span>
-              <button
-                type="button"
-                onClick={loadGeofencingZones}
-                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                <Filter className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setGeofencingEnabled(false)}
-                className="rounded-full bg-slate-100 p-2 text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700"
-                title="Fermer le tableau geofencing"
-              >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Fermer le tableau geofencing</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-3 space-y-3">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Nom de la zone</label>
-              <input
-                type="text"
-                value={geofencingForm.name}
-                onChange={(e) => setGeofencingForm((prev) => ({ ...prev, name: e.target.value }))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-700"
-                placeholder="Quartier, bâtiment, BTS..."
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Description</label>
-              <textarea
-                value={geofencingForm.description}
-                onChange={(e) => setGeofencingForm((prev) => ({ ...prev, description: e.target.value }))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-700"
-                rows={2}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Forme</label>
-                <select
-                  value={zoneDrawingType}
-                  onChange={(e) => setZoneDrawingType(e.target.value as GeofencingDrawingType)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                >
-                  <option value="polygon">Polygone libre</option>
-                  <option value="rectangle">Rectangle</option>
-                  <option value="circle">Cercle</option>
-                </select>
-              </div>
-              <div className="flex items-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleResetZone();
-                    onZoneModeChange?.(true);
-                  }}
-                  disabled={geofencingLimitReached}
-                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold shadow ${
-                    geofencingLimitReached
-                      ? 'cursor-not-allowed bg-slate-300 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
-                >
-                  Tracer sur la carte
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setZoneGeometry(null);
-                    setZoneShape(null);
-                    setPreviewCircle(null);
-                    setPreviewRectangle(null);
-                  }}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  Effacer
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Couleur</label>
-                <input
-                  type="color"
-                  value={geofencingForm.color}
-                  onChange={(e) => setGeofencingForm((prev) => ({ ...prev, color: e.target.value }))}
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Opacité</label>
-                <input
-                  type="range"
-                  min={0.05}
-                  max={0.8}
-                  step={0.05}
-                  value={geofencingForm.opacity}
-                  onChange={(e) => setGeofencingForm((prev) => ({ ...prev, opacity: Number(e.target.value) }))}
-                  className="w-full"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Type d'alerte</label>
-                <select
-                  value={geofencingForm.alertType}
-                  onChange={(e) => setGeofencingForm((prev) => ({ ...prev, alertType: e.target.value as any }))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                >
-                  <option value="entree">Entrée dans la zone</option>
-                  <option value="sortie">Sortie de la zone</option>
-                  <option value="toutes">Entrée et sortie</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-300">Fréquence des alertes (min)</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={geofencingForm.frequencyMinutes}
-                  onChange={(e) => setGeofencingForm((prev) => ({ ...prev, frequencyMinutes: Number(e.target.value) }))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-300">
-                Numéros à surveiller (séparés par des virgules)
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={geofencingForm.phonesText}
-                onChange={(e) => setGeofencingForm((prev) => ({ ...prev, phonesText: e.target.value }))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-700"
-                placeholder="22177..., 77123..."
-              />
-              <p className="text-[11px] text-slate-500 dark:text-slate-300">Au moins un numéro est requis pour surveiller la zone.</p>
-              <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-300">
-                <label className="inline-flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={geofencingForm.notifications.inApp}
-                    onChange={(e) => setGeofencingForm((prev) => ({
-                      ...prev,
-                      notifications: { ...prev.notifications, inApp: e.target.checked }
-                    }))}
-                  />
-                  Notification in-app
-                </label>
-                <label className="inline-flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={geofencingForm.notifications.sms}
-                    onChange={(e) => setGeofencingForm((prev) => ({
-                      ...prev,
-                      notifications: { ...prev.notifications, sms: e.target.checked }
-                    }))}
-                  />
-                  SMS
-                </label>
-                <label className="inline-flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={geofencingForm.notifications.email}
-                    onChange={(e) => setGeofencingForm((prev) => ({
-                      ...prev,
-                      notifications: { ...prev.notifications, email: e.target.checked }
-                    }))}
-                  />
-                  Email
-                </label>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSaveGeofencingZone}
-                disabled={geofencingSaving || geofencingLimitReached}
-                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Save className="h-4 w-4" />
-                {editingZoneId ? 'Mettre à jour la zone' : 'Enregistrer la zone'}
-              </button>
-              {editingZoneId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingZoneId(null);
-                    setGeofencingForm(initialGeofencingForm);
-                    setZoneGeometry(null);
-                    setZoneShape(null);
-                    setPreviewCircle(null);
-                    setPreviewRectangle(null);
-                  }}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  Annuler
-                </button>
-              )}
-            </div>
-
-            {geofencingLimitReached && (
-              <div className="mt-2 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/20 dark:text-amber-100">
-                <AlertTriangle className="mt-0.5 h-4 w-4" />
-                <div>
-                  Limite de {MAX_GEOFENCING_ZONES} zones atteinte. Supprimez une zone existante via le tableau pour en créer une nouvelle.
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-4 space-y-3 border-t border-slate-200 pt-3 dark:border-slate-700">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">Zones enregistrées</p>
-              <span className="text-xs text-slate-500 dark:text-slate-300">{geofencingZones.length} au total</span>
-            </div>
-              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[720px] table-auto divide-y divide-slate-200 dark:divide-slate-700">
-                    <thead className="bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800/70 dark:text-slate-200">
-                      <tr>
-                        <th className="px-3 py-2">Nom</th>
-                        <th className="px-3 py-2">Alerte</th>
-                        <th className="px-3 py-2">Numéros</th>
-                        <th className="px-3 py-2">Type</th>
-                        <th className="px-3 py-2">Statut</th>
-                        <th className="px-3 py-2 text-center">Supprimer</th>
-                        <th className="px-3 py-2 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-                      {geofencingZones.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="px-3 py-3 text-xs text-slate-500 dark:text-slate-300">
-                            Aucune zone enregistrée pour le moment.
-                          </td>
-                        </tr>
-                      ) : (
-                        geofencingZones.map((zone) => {
-                          const active = zone.metadata?.active ?? true;
-                          const alertLabel = getAlertTypeLabel(zone.metadata?.alertType);
-                          const isZoneHidden = hiddenZoneIds.has(zone.id);
-
-                          return (
-                            <tr
-                              key={zone.id}
-                              className="hover:bg-slate-50/80 transition-colors dark:hover:bg-slate-800/50"
-                            >
-                              <td className="px-3 py-3">
-                                <div className="font-semibold text-slate-800 dark:text-white">{zone.name}</div>
-                                {zone.metadata?.description && (
-                                  <p className="text-xs text-slate-500 dark:text-slate-300">{zone.metadata.description}</p>
-                                )}
-                              </td>
-                              <td className="px-3 py-3">
-                                <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
-                                  {alertLabel}
-                                </span>
-                              </td>
-                              <td className="px-3 py-3">
-                                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-100">
-                                  {(zone.metadata?.phones || []).length} numéro(s)
-                                </span>
-                              </td>
-                              <td className="px-3 py-3">
-                                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-100">
-                                  {zone.type}
-                                </span>
-                              </td>
-                              <td className="px-3 py-3">
-                                <span
-                                  className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                                    active
-                                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
-                                      : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
-                                  }`}
-                                >
-                                  {active ? 'Active' : 'Désactivée'}
-                                </span>
-                              </td>
-                              <td className="px-3 py-3 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteZone(zone.id)}
-                                  className="rounded-full border border-red-200 bg-red-50 p-2 text-red-700 shadow-sm transition hover:bg-red-100 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-100"
-                                  title="Supprimer la zone"
-                                >
-                                  <Trash className="h-4 w-4" />
-                                </button>
-                              </td>
-                              <td className="px-3 py-3">
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleVisualizeZone(zone)}
-                                    className={`rounded-full border bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 ${
-                                      isZoneHidden
-                                        ? 'border-slate-300 dark:border-slate-700'
-                                        : 'border-slate-200 dark:border-slate-700'
-                                    }`}
-                                    title={isZoneHidden ? 'Afficher la zone' : 'Masquer la zone'}
-                                  >
-                                    <MapPin className="h-4 w-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleZoneActive(zone, !active)}
-                                    className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                                    title={active ? 'Désactiver la zone' : 'Activer la zone'}
-                                  >
-                                    <Shield className="h-4 w-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditZone(zone)}
-                                    className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                                    title="Modifier la zone"
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteZone(zone.id)}
-                                    className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-100 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-100"
-                                    title="Supprimer la zone"
-                                  >
-                                    <Trash className="h-4 w-4" />
-                                    Supprimer
-                                  </button>
-                                </div>
-                                <div className="mt-2 flex flex-wrap justify-end gap-2 text-[11px] text-slate-500 dark:text-slate-300">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSelectZone(zone.id)}
-                                    className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-100"
-                                  >
-                                    Historique
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditZone(zone)}
-                                    className="rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-100"
-                                  >
-                                    Modifier
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteZone(zone.id)}
-                                    className="rounded-full bg-red-50 px-2 py-1 font-semibold text-red-700 hover:bg-red-100 dark:bg-red-500/15 dark:text-red-100"
-                                  >
-                                    Supprimer
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {selectedGeofencingZoneId && (
-                <div className="space-y-3 rounded-2xl bg-slate-50/70 p-4 shadow-inner dark:bg-slate-800/60">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800 dark:text-white">Historique des alertes</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-300">
-                        Mises à jour en temps réel selon la fréquence de la zone.
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900/50 dark:text-slate-200 dark:ring-slate-700">
-                      {geofencingActivityStatus.length} suivi(s)
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 text-xs text-slate-600 dark:text-slate-200">
-                    {geofencingActivityStatus.length === 0 && (
-                      <p className="rounded-xl border border-dashed border-slate-200 bg-white/80 px-3 py-2 text-center text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
-                        Aucune alerte disponible pour cette zone.
-                      </p>
-                    )}
-
-                    {geofencingActivityStatus.map((item) => {
-                      const toneClasses = {
-                        success: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-100',
-                        warning: 'bg-amber-100 text-amber-800 dark:bg-amber-500/25 dark:text-amber-100',
-                        info: 'bg-blue-100 text-blue-800 dark:bg-blue-500/25 dark:text-blue-100'
-                      }[item.tone];
-
-                      return (
-                        <div
-                          key={`${item.number}-${item.timestamp}`}
-                          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-white/90 px-3 py-2 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/70"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${toneClasses}`}>
-                              {item.label.startsWith('Pas') ? '…' : item.label.startsWith('Sort') ? '↗' : '↘'}
-                            </div>
-                            <div className="space-y-0.5">
-                              <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                                {formatPhoneForDisplay(item.number)}
-                              </p>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-300">{item.eventType}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-200">
-                            <span className={`rounded-full px-2 py-1 ${toneClasses}`}>{item.label}</span>
-                            <span className="text-slate-400 dark:text-slate-400">{item.relativeTime}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-          </div>
-        </div>
-      )}
-
-      {!isGeofencingOnly && (
-        <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
-          <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
+      <div className="pointer-events-none absolute top-0 left-2 right-2 z-[1000] flex justify-center">
+        <div className="pointer-events-auto flex bg-white/90 backdrop-blur rounded-full shadow overflow-hidden divide-x divide-gray-200">
             <button
               onClick={() => toggleInfo('contacts')}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
@@ -5025,11 +3483,10 @@ const CdrMap: React.FC<Props> = ({
             >
               {showOthers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
             </button>
-          </div>
         </div>
-      )}
+      </div>
 
-      {!isGeofencingOnly && showBaseMarkers && showRoute && (
+      {showBaseMarkers && showRoute && (
         <div
           className={`pointer-events-none absolute ${
             showLatestLocationDetailsPanel ? 'bottom-40' : 'bottom-12'
@@ -5053,7 +3510,7 @@ const CdrMap: React.FC<Props> = ({
         </div>
       )}
 
-      {!isGeofencingOnly && showLatestLocationDetailsPanel && latestLocationPoint && (
+      {showLatestLocationDetailsPanel && latestLocationPoint && (
         <div className="pointer-events-none absolute bottom-4 left-1/2 z-[1000] flex w-full max-w-2xl -translate-x-1/2 justify-center px-4">
           <div className="pointer-events-auto w-full rounded-3xl border border-white/50 bg-white/95 p-6 shadow-2xl ring-1 ring-black/5 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-white">
             <div className="flex items-start justify-between gap-3">
@@ -5114,12 +3571,10 @@ const CdrMap: React.FC<Props> = ({
         </div>
       )}
 
-      {!isGeofencingOnly && (
-        <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
-          <MapLegend numberItems={numberLegendItems} />
-        </div>
-      )}
-      {!isGeofencingOnly && showMeetingPoints && meetingPoints.length > 0 && (
+      <div className="pointer-events-none absolute bottom-24 right-4 z-[1000] max-h-[50vh]">
+        <MapLegend numberItems={numberLegendItems} />
+      </div>
+      {showMeetingPoints && meetingPoints.length > 0 && (
         <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm z-[1000] max-h-72 overflow-y-auto">
           <div className="mb-2 flex items-center justify-between gap-3">
             <p className="font-semibold">Points de rencontre</p>
@@ -5165,7 +3620,7 @@ const CdrMap: React.FC<Props> = ({
         </div>
       )}
 
-      {!isGeofencingOnly && activeInfo && (
+      {activeInfo && (
         <div className="absolute top-20 right-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg shadow-md p-4 text-sm space-y-4 text-gray-800 dark:text-white z-[1000] max-h-[80vh] overflow-y-auto">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
@@ -5215,69 +3670,6 @@ const CdrMap: React.FC<Props> = ({
                   {n}
                 </button>
               ))}
-            </div>
-          )}
-          {hasZoneShape && (
-            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-800 shadow-sm dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-slate-100">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="flex items-center gap-2 text-sm font-semibold">
-                    <Bell className="h-4 w-4" />
-                    Surveillance de cible
-                  </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-300">
-                    Recevez une alerte quand un numéro entre dans la zone tracée.
-                  </p>
-                </div>
-                <span
-                  className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
-                    isMonitoringTarget
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100'
-                      : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
-                  }`}
-                >
-                  {isMonitoringTarget ? 'Surveillance active' : 'Inactive'}
-                </span>
-              </div>
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <input
-                  type="text"
-                  value={monitorTarget}
-                  onChange={(e) => handleMonitorTargetChange(e.target.value)}
-                  placeholder="Numéro à surveiller"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-800"
-                />
-                <button
-                  type="button"
-                  onClick={handleToggleTargetMonitoring}
-                  className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                    isMonitoringTarget
-                      ? 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-500/15 dark:text-red-100'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
-                >
-                  {isMonitoringTarget ? 'Arrêter la surveillance' : 'Activer la surveillance'}
-                </button>
-              </div>
-              {sourceNumbers.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                  <span className="font-semibold text-slate-700 dark:text-slate-100">Numéros suivis :</span>
-                  {sourceNumbers.map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => handleMonitorTargetChange(n)}
-                      className="rounded-full border border-slate-200 px-2 py-1 font-semibold transition hover:border-blue-400 hover:text-blue-700 dark:border-slate-700 dark:text-slate-100 dark:hover:border-blue-500 dark:hover:text-blue-200"
-                    >
-                      {formatPhoneForDisplay(n)}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {zoneAlertTriggered && (
-                <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
-                  Alerte envoyée pour cette cible dans la zone actuelle.
-                </p>
-              )}
             </div>
           )}
           {activeInfo === 'contacts' && topContacts.length > 0 && (
