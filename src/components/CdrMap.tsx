@@ -2019,7 +2019,7 @@ const CdrMap: React.FC<Props> = ({
 
     let maxActivityCount = 0;
 
-    const rows = monitoredNumberList.map((num, idx) => {
+    const rows = sourceNumbers.map((num, idx) => {
       const normalized = normalizePhoneDigits(num) || num.trim();
       const stats = activityMap.get(normalized);
       const activityCount = stats?.count ?? 0;
@@ -2048,7 +2048,7 @@ const CdrMap: React.FC<Props> = ({
     });
 
     return { rows, maxActivityCount: Math.max(maxActivityCount, 1) };
-  }, [callerPoints, colorMap, monitoredNumberList, normalizedSourceSet]);
+  }, [callerPoints, colorMap, normalizedSourceSet, sourceNumbers]);
 
   const getLocationMarkerColor = useCallback(
     (loc: LocationMarker) => {
