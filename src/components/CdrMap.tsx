@@ -517,10 +517,33 @@ const formatPhoneForDisplay = (value?: string): string => {
 };
 
 const getArrowIcon = (angle: number) => {
-  const size = 16;
+  const size = 22;
   const icon = (
-    <div style={{ transform: `rotate(${angle}deg)` }}>
-      <ArrowRight size={size} className="text-indigo-500" />
+    <div
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        transform: `rotate(${angle}deg)`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      <div
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: '999px',
+          background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+          boxShadow: '0 6px 14px rgba(79,70,229,0.35)',
+          border: '1px solid rgba(255,255,255,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <ArrowRight size={12} color="#ffffff" strokeWidth={2.5} />
+      </div>
     </div>
   );
   return L.divIcon({
@@ -529,6 +552,19 @@ const getArrowIcon = (angle: number) => {
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2]
   });
+};
+
+const getSegmentDistanceKm = (start: [number, number], end: [number, number]) => {
+  const [lat1, lng1] = start;
+  const [lat2, lng2] = end;
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 6371 * c;
 };
 
 const createLabelIcon = (text: string, bgColor: string) => {
@@ -2633,10 +2669,15 @@ const CdrMap: React.FC<Props> = ({
       const [lat1, lng1] = routePositions[i - 1];
       const [lat2, lng2] = routePositions[i];
       const angle = (Math.atan2(lat1 - lat2, lng2 - lng1) * 180) / Math.PI;
-      markers.push({
-        position: [(lat1 + lat2) / 2, (lng1 + lng2) / 2] as [number, number],
-        angle
-      });
+      const distanceKm = getSegmentDistanceKm([lat1, lng1], [lat2, lng2]);
+      const arrowCount = Math.min(3, Math.max(1, Math.round(distanceKm / 0.4)));
+      for (let step = 1; step <= arrowCount; step++) {
+        const t = step / (arrowCount + 1);
+        markers.push({
+          position: [lat1 + (lat2 - lat1) * t, lng1 + (lng2 - lng1) * t],
+          angle
+        });
+      }
     }
     return markers;
   }, [routePositions, showRoute]);
