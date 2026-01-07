@@ -14,7 +14,6 @@ import {
   Activity,
   ArrowRight,
   Asterisk,
-  Car,
   Clock,
   Crosshair,
   Eye,
@@ -26,9 +25,11 @@ import {
   MapPin,
   MessageSquare,
   Minus,
+  PersonStanding,
   PhoneIncoming,
   PhoneOutgoing,
   Plus,
+  Trophy,
   Users,
   X
 } from 'lucide-react';
@@ -2778,6 +2779,7 @@ const CdrMap: React.FC<Props> = ({
 
   const [carIndex, setCarIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
+  const [routeTrackerStyle, setRouteTrackerStyle] = useState<'person' | 'trophy'>('person');
   const [historyDateFilter, setHistoryDateFilter] = useState('');
 
   const paginatedContacts = useMemo(() => {
@@ -2847,21 +2849,27 @@ const CdrMap: React.FC<Props> = ({
 
   const carIcon = useMemo(() => {
     const size = 36;
+    const Icon = routeTrackerStyle === 'person' ? PersonStanding : Trophy;
+    const backgroundColor = routeTrackerStyle === 'person' ? '#2563eb' : '#f59e0b';
+    const boxShadow =
+      routeTrackerStyle === 'person'
+        ? '0 12px 24px rgba(79, 70, 229, 0.3)'
+        : '0 12px 24px rgba(245, 158, 11, 0.35)';
     const icon = (
       <div
         style={{
           transform: `rotate(${carAngle}deg)`,
-          backgroundColor: '#2563eb',
+          backgroundColor,
           borderRadius: '14px',
           width: size,
           height: size,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 12px 24px rgba(79, 70, 229, 0.3)'
+          boxShadow
         }}
       >
-        <Car size={18} className="text-white" />
+        <Icon size={18} className="text-white" />
       </div>
     );
     return L.divIcon({
@@ -2870,7 +2878,7 @@ const CdrMap: React.FC<Props> = ({
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2]
     });
-  }, [carAngle]);
+  }, [carAngle, routeTrackerStyle]);
 
   const meetingPoints = useMemo<MeetingPoint[]>(() => {
     // Group events by location regardless of start time
@@ -3536,7 +3544,44 @@ const CdrMap: React.FC<Props> = ({
           } left-0 right-0 z-[1000] flex justify-center`}
         >
           <div className="pointer-events-auto flex items-center gap-2 bg-white/90 backdrop-blur rounded-full shadow px-4 py-2">
-            <Car className="w-4 h-4 text-indigo-500" />
+            {routeTrackerStyle === 'person' ? (
+              <PersonStanding className="w-4 h-4 text-blue-600" />
+            ) : (
+              <Trophy className="w-4 h-4 text-amber-500" />
+            )}
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Suivi
+            </span>
+            <div className="flex items-center rounded-full border border-slate-200 bg-white">
+              <button
+                type="button"
+                onClick={() => setRouteTrackerStyle('person')}
+                className={`flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium transition ${
+                  routeTrackerStyle === 'person'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+                aria-pressed={routeTrackerStyle === 'person'}
+                title="Suivi par personne"
+              >
+                <PersonStanding className="h-3.5 w-3.5" />
+                Personne
+              </button>
+              <button
+                type="button"
+                onClick={() => setRouteTrackerStyle('trophy')}
+                className={`flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium transition ${
+                  routeTrackerStyle === 'trophy'
+                    ? 'bg-amber-500 text-white'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+                aria-pressed={routeTrackerStyle === 'trophy'}
+                title="Suivi par trophée"
+              >
+                <Trophy className="h-3.5 w-3.5" />
+                Victoire
+              </button>
+            </div>
             <label htmlFor="speed" className="font-semibold text-sm">
               {speed}x
             </label>
