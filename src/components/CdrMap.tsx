@@ -22,6 +22,7 @@ import {
   Flame,
   History,
   Layers,
+  Car,
   MapPin,
   MessageSquare,
   Minus,
@@ -29,7 +30,6 @@ import {
   PhoneIncoming,
   PhoneOutgoing,
   Plus,
-  Trophy,
   Users,
   X
 } from 'lucide-react';
@@ -2779,7 +2779,7 @@ const CdrMap: React.FC<Props> = ({
 
   const [carIndex, setCarIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
-  const [routeTrackerStyle, setRouteTrackerStyle] = useState<'person' | 'trophy'>('person');
+  const [routeTrackerStyle, setRouteTrackerStyle] = useState<'person' | 'car'>('person');
   const [historyDateFilter, setHistoryDateFilter] = useState('');
 
   const paginatedContacts = useMemo(() => {
@@ -2849,7 +2849,7 @@ const CdrMap: React.FC<Props> = ({
 
   const carIcon = useMemo(() => {
     const size = 36;
-    const Icon = routeTrackerStyle === 'person' ? PersonStanding : Trophy;
+    const Icon = routeTrackerStyle === 'person' ? PersonStanding : Car;
     const backgroundColor = routeTrackerStyle === 'person' ? '#2563eb' : '#f59e0b';
     const boxShadow =
       routeTrackerStyle === 'person'
@@ -3547,7 +3547,7 @@ const CdrMap: React.FC<Props> = ({
             {routeTrackerStyle === 'person' ? (
               <PersonStanding className="w-4 h-4 text-blue-600" />
             ) : (
-              <Trophy className="w-4 h-4 text-amber-500" />
+              <Car className="w-4 h-4 text-amber-500" />
             )}
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Suivi
@@ -3569,17 +3569,17 @@ const CdrMap: React.FC<Props> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setRouteTrackerStyle('trophy')}
+                onClick={() => setRouteTrackerStyle('car')}
                 className={`flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium transition ${
-                  routeTrackerStyle === 'trophy'
+                  routeTrackerStyle === 'car'
                     ? 'bg-amber-500 text-white'
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
-                aria-pressed={routeTrackerStyle === 'trophy'}
-                title="Suivi par trophée"
+                aria-pressed={routeTrackerStyle === 'car'}
+                title="Suivi par voiture"
               >
-                <Trophy className="h-3.5 w-3.5" />
-                Victoire
+                <Car className="h-3.5 w-3.5" />
+                Voiture
               </button>
             </div>
             <label htmlFor="speed" className="font-semibold text-sm">
