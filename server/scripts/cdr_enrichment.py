@@ -36,27 +36,45 @@ class CgiCache:
             self._cache.pop(cgi, None)
 
 
-class CdrEnricher:
-    """Enrich CDR rows by resolving CGI to coordinates."""
+RADIO_TABLES = (
+    # Nouvelles tables normalisées
+    ('bts_orange."5g"', 1),
+    ('bts_orange."4g"', 2),
+    ('bts_orange."3g"', 3),
+    ('bts_orange."2g"', 4),
+    # Tables historiques en secours
+    ('radio_5g', 5),
+    ('radio_4g', 6),
+    ('radio_3g', 7),
+    ('radio_2g', 8),
+)
 
-    CGI_QUERY = """
+
+def _build_cgi_query() -> str:
+    """Generate a UNION ALL query that tries all known radio tables."""
+
+    union_segments = "\n            UNION ALL\n            ".join(
+        f"SELECT longitude, latitude, azimut, nom_bts, {priority} AS priority FROM {table} WHERE cgi = %(cgi)s"
+        for table, priority in RADIO_TABLES
+    )
+
+    return f"""
         SELECT longitude, latitude, azimut, nom_bts
         FROM (
-            SELECT longitude, latitude, azimut, nom_bts, 1 AS priority
-            FROM radio_5g WHERE cgi = %(cgi)s
-            UNION ALL
-            SELECT longitude, latitude, azimut, nom_bts, 2 AS priority
-            FROM radio_4g WHERE cgi = %(cgi)s
-            UNION ALL
-            SELECT longitude, latitude, azimut, nom_bts, 3 AS priority
-            FROM radio_3g WHERE cgi = %(cgi)s
-            UNION ALL
-            SELECT longitude, latitude, azimut, nom_bts, 4 AS priority
-            FROM radio_2g WHERE cgi = %(cgi)s
+            {union_segments}
         ) AS candidates
         ORDER BY priority
         LIMIT 1
     """
+
+
+CGI_QUERY = _build_cgi_query()
+
+
+class CdrEnricher:
+    """Enrich CDR rows by resolving CGI to coordinates."""
+
+    CGI_QUERY = CGI_QUERY
 
     def __init__(self, connection_factory: Callable[[], Connection]) -> None:
         self._connection_factory = connection_factory
