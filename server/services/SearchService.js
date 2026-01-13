@@ -256,6 +256,22 @@ class SearchService {
     return tableName.trim().toLowerCase();
   }
 
+  getTableNameCandidates(tableName) {
+    const normalized = typeof tableName === 'string' ? tableName.trim() : '';
+    if (!normalized) {
+      return [];
+    }
+
+    const candidates = [normalized];
+
+    const flattened = normalized.replace(/\./g, '_');
+    if (flattened && flattened !== normalized) {
+      candidates.push(flattened);
+    }
+
+    return candidates;
+  }
+
   resolvePriorityTables() {
     const rawValue =
       process.env.SEARCH_PRIORITY_TABLES ||
@@ -494,36 +510,39 @@ class SearchService {
       return this.columnCache.get(tableName);
     }
 
-    try {
-      const formattedTable = this.formatTableName(tableName);
-      const rows = await database.query(
-        `SHOW COLUMNS FROM ${formattedTable}`,
-        [],
-        {
-          suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
-          suppressErrorLog: true,
+    for (const candidate of this.getTableNameCandidates(tableName)) {
+      try {
+        const formattedTable = this.formatTableName(candidate);
+        const rows = await database.query(
+          `SHOW COLUMNS FROM ${formattedTable}`,
+          [],
+          {
+            suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
+            suppressErrorLog: true,
+          }
+        );
+        const columns = rows
+          .map((row) => this.getColumnNameFromRow(row))
+          .filter((name) => typeof name === 'string');
+
+        const lookup = new Map();
+        for (const column of columns) {
+          lookup.set(column, column);
+          lookup.set(column.toLowerCase(), column);
+          lookup.set(this.normalizeIdentifierForMatching(column), column);
         }
-      );
-      const columns = rows
-        .map((row) => this.getColumnNameFromRow(row))
-        .filter((name) => typeof name === 'string');
 
-      const lookup = new Map();
-      for (const column of columns) {
-        lookup.set(column, column);
-        lookup.set(column.toLowerCase(), column);
-        lookup.set(this.normalizeIdentifierForMatching(column), column);
+        const info = { columns, lookup };
+        this.columnCache.set(tableName, info);
+        this.markTableAvailable(tableName);
+        return info;
+      } catch (error) {
+        this.markTableUnavailable(candidate, error);
       }
-
-      const info = { columns, lookup };
-      this.columnCache.set(tableName, info);
-      this.markTableAvailable(tableName);
-      return info;
-    } catch (error) {
-      this.markTableUnavailable(tableName, error);
-      this.columnCache.set(tableName, null);
-      return null;
     }
+
+    this.columnCache.set(tableName, null);
+    return null;
   }
 
   resolveColumnFromInfo(field, columnInfo) {
@@ -670,59 +689,64 @@ class SearchService {
     if (this.primaryKeyCache.has(tableName)) {
       return this.primaryKeyCache.get(tableName);
     }
-    try {
-      const formattedTable = this.formatTableName(tableName);
-      const rows = await database.query(
-        `SHOW KEYS FROM ${formattedTable} WHERE Key_name = 'PRIMARY'`,
-        [],
-        {
-          suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
-          suppressErrorLog: true,
+    for (const candidate of this.getTableNameCandidates(tableName)) {
+      try {
+        const formattedTable = this.formatTableName(candidate);
+        const rows = await database.query(
+          `SHOW KEYS FROM ${formattedTable} WHERE Key_name = 'PRIMARY'`,
+          [],
+          {
+            suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
+            suppressErrorLog: true,
+          }
+        );
+        if (rows.length > 0) {
+          const primaryRow = rows.find((row) => this.getColumnNameFromRow(row));
+          const pk = this.getColumnNameFromRow(primaryRow || rows[0]);
+          this.primaryKeyCache.set(tableName, pk);
+          this.markTableAvailable(tableName);
+          return pk;
         }
-      );
-      if (rows.length > 0) {
-        const primaryRow = rows.find((row) => this.getColumnNameFromRow(row));
-        const pk = this.getColumnNameFromRow(primaryRow || rows[0]);
-        this.primaryKeyCache.set(tableName, pk);
-        this.markTableAvailable(tableName);
-        return pk;
+      } catch (error) {
+        this.markTableUnavailable(candidate, error);
       }
-    } catch (error) {
-      this.markTableUnavailable(tableName, error);
     }
 
-    try {
-      const formattedTable = this.formatTableName(tableName);
-      const columns = await database.query(
-        `SHOW COLUMNS FROM ${formattedTable}`,
-        [],
-        {
-          suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
-          suppressErrorLog: true,
-        }
-      );
-      const columnDetails = columns
-        .map((col) => ({
-          original: this.getColumnNameFromRow(col),
-          normalized: this.getNormalizedColumnName(col)
-        }))
-        .filter((col) => col.original);
-      const idColumn = columnDetails.find((col) => col.normalized === 'id');
-      const fallback =
-        idColumn?.original ||
-        config.searchable?.[0] ||
-        config.preview?.[0] ||
-        columnDetails[0]?.original ||
-        'id';
-      this.primaryKeyCache.set(tableName, fallback);
-      this.markTableAvailable(tableName);
-      return fallback;
-    } catch (error) {
-      this.markTableUnavailable(tableName, error);
-      const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
-      this.primaryKeyCache.set(tableName, fallback);
-      return fallback;
+    for (const candidate of this.getTableNameCandidates(tableName)) {
+      try {
+        const formattedTable = this.formatTableName(candidate);
+        const columns = await database.query(
+          `SHOW COLUMNS FROM ${formattedTable}`,
+          [],
+          {
+            suppressErrorCodes: MISSING_TABLE_ERROR_CODES,
+            suppressErrorLog: true,
+          }
+        );
+        const columnDetails = columns
+          .map((col) => ({
+            original: this.getColumnNameFromRow(col),
+            normalized: this.getNormalizedColumnName(col)
+          }))
+          .filter((col) => col.original);
+        const idColumn = columnDetails.find((col) => col.normalized === 'id');
+        const fallback =
+          idColumn?.original ||
+          config.searchable?.[0] ||
+          config.preview?.[0] ||
+          columnDetails[0]?.original ||
+          'id';
+        this.primaryKeyCache.set(tableName, fallback);
+        this.markTableAvailable(tableName);
+        return fallback;
+      } catch (error) {
+        this.markTableUnavailable(candidate, error);
+      }
     }
+
+    const fallback = config.searchable?.[0] || config.preview?.[0] || 'id';
+    this.primaryKeyCache.set(tableName, fallback);
+    return fallback;
   }
 
   async search(
