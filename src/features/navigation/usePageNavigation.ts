@@ -22,7 +22,8 @@ export type AppPage =
   | 'blacklist'
   | 'logs'
   | 'users'
-  | 'upload';
+  | 'upload'
+  | 'bts';
 
 export const pageToPath: Record<AppPage, string> = {
   login: '/login',
@@ -45,7 +46,8 @@ export const pageToPath: Record<AppPage, string> = {
   blacklist: '/liste-blanche',
   logs: '/journaux',
   users: '/utilisateurs',
-  upload: '/import'
+  upload: '/import',
+  bts: '/bts'
 };
 
 const normalizePathname = (pathname: string) => {
