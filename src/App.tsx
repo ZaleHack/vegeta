@@ -6631,7 +6631,7 @@ useEffect(() => {
 
             <button
               onClick={() => navigateToPage('cdr-export')}
-              title="Export données téléphoniques"
+              title="Données téléphoniques"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
                 currentPage === 'cdr-export'
                   ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
@@ -6639,7 +6639,7 @@ useEffect(() => {
               } ${!sidebarOpen && 'justify-center px-0'}`}
             >
               <Download className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
-              {sidebarOpen && <span className="ml-3">Export données téléphoniques</span>}
+              {sidebarOpen && <span className="ml-3">Données téléphoniques</span>}
             </button>
 
             <button
@@ -8447,7 +8447,7 @@ useEffect(() => {
             <div className="space-y-8">
               <PageHeader
                 icon={<Download className="h-6 w-6" />}
-                title="Export données téléphoniques"
+                title="Données téléphoniques"
                 subtitle="Générez un fichier Excel à partir de la table cdr_temps_reel."
               />
 
