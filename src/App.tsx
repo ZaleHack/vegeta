@@ -1094,6 +1094,10 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
     normalized.number = normalized.caller ?? normalized.tracked ?? undefined;
   }
 
+  if (normalized.caller) {
+    normalized.number = normalized.caller;
+  }
+
   if (!normalized.callDate) {
     const fallbackDate = normalizeOptionalTextField(
       record.date_debut_appel ?? record.date
@@ -4659,17 +4663,6 @@ useEffect(() => {
         }
       }
 
-      const trackedNumbersSet = new Set<string>();
-      if (isPhoneSearch) {
-        ids.forEach((value) => {
-          const normalized = normalizeCdrNumber(value);
-          if (normalized) {
-            trackedNumbersSet.add(normalized);
-          }
-        });
-      }
-      const excludeTrackedContacts = trackedNumbersSet.size >= 2;
-
       const contactsMap = new Map<
         string,
         {
@@ -4717,63 +4710,61 @@ useEffect(() => {
           }
 
           if (contactNormalized) {
-            if (!excludeTrackedContacts || !trackedNumbersSet.has(contactNormalized)) {
-              const key = contactNormalized;
-              const entry =
-                contactsMap.get(key) ||
-                {
-                  number: contactRaw || key,
-                  callCount: 0,
-                  smsCount: 0,
-                  callDurationSeconds: 0,
-                  events: []
-                };
+            const key = contactNormalized;
+            const entry =
+              contactsMap.get(key) ||
+              {
+                number: contactRaw || key,
+                callCount: 0,
+                smsCount: 0,
+                callDurationSeconds: 0,
+                events: []
+              };
 
-              if (contactRaw && (!entry.number || entry.number === key)) {
-                entry.number = contactRaw;
-              }
-
-              const record = (p.rawRecord as Record<string, unknown>) || {};
-              if (eventType === 'sms') {
-                entry.smsCount += 1;
-              } else {
-                entry.callCount += 1;
-                const callDurationSeconds = getCallDurationInSeconds(record);
-                entry.callDurationSeconds += callDurationSeconds;
-
-                const callDate =
-                  normalizeOptionalTextField(record.callDate) ||
-                  normalizeOptionalTextField(record.date_debut_appel) ||
-                  '';
-                const startTime =
-                  normalizeOptionalTextField(record.startTime) ||
-                  normalizeOptionalTextField(record.start_time) ||
-                  normalizeOptionalTextField(record.heure_debut_appel) ||
-                  '';
-                const endTime =
-                  normalizeOptionalTextField(record.endTime) ||
-                  normalizeOptionalTextField(record.end_time) ||
-                  normalizeOptionalTextField(record.heure_fin_appel) ||
-                  '';
-                const timestampLabel = callDate && startTime
-                  ? Date.parse(`${callDate}T${startTime}`)
-                  : null;
-
-                const durationLabel = formatSecondsAsDuration(callDurationSeconds);
-
-                entry.events.push({
-                  id: `${key}-${entry.events.length + 1}-${timestampLabel ?? 'ts'}`,
-                  timestamp: Number.isFinite(timestampLabel) ? timestampLabel : null,
-                  date: callDate || undefined,
-                  time: startTime || endTime || undefined,
-                  duration: durationLabel === '-' ? null : durationLabel,
-                  direction: normalizeTextField(record.direction, ''),
-                  type: p.type
-                });
-              }
-
-              contactsMap.set(key, entry);
+            if (contactRaw && (!entry.number || entry.number === key)) {
+              entry.number = contactRaw;
             }
+
+            const record = (p.rawRecord as Record<string, unknown>) || {};
+            if (eventType === 'sms') {
+              entry.smsCount += 1;
+            } else {
+              entry.callCount += 1;
+              const callDurationSeconds = getCallDurationInSeconds(record);
+              entry.callDurationSeconds += callDurationSeconds;
+
+              const callDate =
+                normalizeOptionalTextField(record.callDate) ||
+                normalizeOptionalTextField(record.date_debut_appel) ||
+                '';
+              const startTime =
+                normalizeOptionalTextField(record.startTime) ||
+                normalizeOptionalTextField(record.start_time) ||
+                normalizeOptionalTextField(record.heure_debut_appel) ||
+                '';
+              const endTime =
+                normalizeOptionalTextField(record.endTime) ||
+                normalizeOptionalTextField(record.end_time) ||
+                normalizeOptionalTextField(record.heure_fin_appel) ||
+                '';
+              const timestampLabel = callDate && startTime
+                ? Date.parse(`${callDate}T${startTime}`)
+                : null;
+
+              const durationLabel = formatSecondsAsDuration(callDurationSeconds);
+
+              entry.events.push({
+                id: `${key}-${entry.events.length + 1}-${timestampLabel ?? 'ts'}`,
+                timestamp: Number.isFinite(timestampLabel) ? timestampLabel : null,
+                date: callDate || undefined,
+                time: startTime || endTime || undefined,
+                duration: durationLabel === '-' ? null : durationLabel,
+                direction: normalizeTextField(record.direction, ''),
+                type: p.type
+              });
+            }
+
+            contactsMap.set(key, entry);
           }
         }
       });
