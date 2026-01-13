@@ -2210,6 +2210,12 @@ const App: React.FC = () => {
   const [cdrSearchRequests, setCdrSearchRequests] = useState<string[]>([]);
   const [cdrCaseName, setCdrCaseName] = useState('');
   const [cdrCaseMessage, setCdrCaseMessage] = useState('');
+  const [cdrExportNumber, setCdrExportNumber] = useState('');
+  const [cdrExportStart, setCdrExportStart] = useState('');
+  const [cdrExportEnd, setCdrExportEnd] = useState('');
+  const [cdrExporting, setCdrExporting] = useState(false);
+  const [cdrExportError, setCdrExportError] = useState('');
+  const [cdrExportInfo, setCdrExportInfo] = useState('');
   const [cases, setCases] = useState<CdrCase[]>([]);
   const [renamingCaseId, setRenamingCaseId] = useState<number | null>(null);
   const [renamingCaseName, setRenamingCaseName] = useState('');
@@ -5096,6 +5102,59 @@ useEffect(() => {
     }
   };
 
+  const handleCdrExport = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    const trimmedNumber = cdrExportNumber.trim();
+
+    if (!trimmedNumber) {
+      setCdrExportError('Veuillez renseigner un numéro.');
+      setCdrExportInfo('');
+      return;
+    }
+
+    if (cdrExportStart && cdrExportEnd && new Date(cdrExportStart) > new Date(cdrExportEnd)) {
+      setCdrExportError('La date de début doit précéder la date de fin.');
+      setCdrExportInfo('');
+      return;
+    }
+
+    try {
+      setCdrExporting(true);
+      setCdrExportError('');
+      setCdrExportInfo('');
+
+      const params = new URLSearchParams();
+      params.append('numero', trimmedNumber);
+      if (cdrExportStart) params.append('start', cdrExportStart);
+      if (cdrExportEnd) params.append('end', cdrExportEnd);
+
+      const res = await fetch(`/api/cdr/realtime/export?${params.toString()}`, {
+        headers: createAuthHeaders()
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        const errorMessage = payload?.error || "Impossible d'exporter les données.";
+        setCdrExportError(errorMessage);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `export-cdr-temps-reel-${trimmedNumber}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      setCdrExportInfo('Export terminé avec succès.');
+    } catch (error) {
+      console.error('Erreur export CDR:', error);
+      setCdrExportError("Impossible d'exporter les données.");
+    } finally {
+      setCdrExporting(false);
+    }
+  };
+
   const handleStandaloneLinkDiagram = async () => {
     const normalizedNumbers = linkDiagramNumbers
       .map((identifier) => normalizeCdrNumber(identifier))
@@ -6568,6 +6627,19 @@ useEffect(() => {
             >
               <Clock className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Géolocalisation</span>}
+            </button>
+
+            <button
+              onClick={() => navigateToPage('cdr-export')}
+              title="Export données téléphoniques"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'cdr-export'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <Download className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Export données téléphoniques</span>}
             </button>
 
             <button
@@ -8367,6 +8439,94 @@ useEffect(() => {
                     />
                   </div>
                 )}
+              </section>
+            </div>
+          )}
+
+          {currentPage === 'cdr-export' && (
+            <div className="space-y-8">
+              <PageHeader
+                icon={<Download className="h-6 w-6" />}
+                title="Export données téléphoniques"
+                subtitle="Générez un fichier Excel à partir de la table cdr_temps_reel."
+              />
+
+              <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-8 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Paramètres d'export</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-300">
+                      Indiquez le numéro à filtrer et la période à couvrir pour exporter les appels.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleCdrExport} className="space-y-6">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Numéro</label>
+                        <input
+                          type="text"
+                          value={cdrExportNumber}
+                          onChange={(e) => {
+                            setCdrExportNumber(e.target.value);
+                            if (cdrExportError) setCdrExportError('');
+                          }}
+                          placeholder="Ex : 221771234567"
+                          className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Période</label>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <input
+                            type="date"
+                            value={cdrExportStart}
+                            onChange={(e) => {
+                              setCdrExportStart(e.target.value);
+                              if (cdrExportError) setCdrExportError('');
+                            }}
+                            className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                          />
+                          <input
+                            type="date"
+                            value={cdrExportEnd}
+                            onChange={(e) => {
+                              setCdrExportEnd(e.target.value);
+                              if (cdrExportError) setCdrExportError('');
+                            }}
+                            className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="submit"
+                        disabled={cdrExporting}
+                        className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {cdrExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                        <span>{cdrExporting ? 'Export en cours...' : 'Exporter en Excel'}</span>
+                      </button>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        Colonnes exportées : type_appel, date_debut, heure_debut, duree_sec, date_fin, heure_fin,
+                        numero_appelant, numero_appele, imsi_appelant, imei_appelant, cgi, route_reseau, device_id.
+                      </span>
+                    </div>
+
+                    {cdrExportError && (
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-200">
+                        {cdrExportError}
+                      </div>
+                    )}
+                    {cdrExportInfo && (
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                        {cdrExportInfo}
+                      </div>
+                    )}
+                  </form>
+                </div>
               </section>
             </div>
           )}
