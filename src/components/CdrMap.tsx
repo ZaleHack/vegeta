@@ -479,6 +479,9 @@ const normalizePhoneDigits = (value?: string): string => {
 };
 
 const getPointTrackedValue = (point: Point): string | undefined => {
+  const caller = point.caller?.trim();
+  if (caller) return caller;
+
   const tracked = point.tracked?.trim();
   if (tracked) return tracked;
 
