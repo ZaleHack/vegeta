@@ -88,6 +88,7 @@ import SoraLogo from './components/SoraLogo';
 import ConfirmDialog, { ConfirmDialogOptions } from './components/ConfirmDialog';
 import { useNotifications } from './components/NotificationProvider';
 import { normalizePreview, NormalizedPreviewEntry, BaseSearchHit } from './utils/search';
+import BtsPage, { BtsProvider } from './features/bts/BtsPage';
 
 const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...props}>
@@ -1391,6 +1392,8 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fraudMenuOpen, setFraudMenuOpen] = useState(false);
+  const [btsMenuOpen, setBtsMenuOpen] = useState(false);
+  const [btsProvider, setBtsProvider] = useState<BtsProvider>('orange');
   const mainContentRef = useRef<HTMLDivElement | null>(null);
   const inactivityTimerRef = useRef<number | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -1404,12 +1407,19 @@ const App: React.FC = () => {
   }, [theme]);
 
   const isFraudPage = currentPage === 'fraud-detection-form' || currentPage === 'fraud-monitoring';
+  const isBtsPage = currentPage === 'bts';
 
   useEffect(() => {
     if (isFraudPage) {
       setFraudMenuOpen(true);
     }
   }, [isFraudPage]);
+
+  useEffect(() => {
+    if (isBtsPage) {
+      setBtsMenuOpen(true);
+    }
+  }, [isBtsPage]);
 
   useEffect(() => {
     if (!isAuthenticated && currentPage !== 'login') {
@@ -6684,6 +6694,81 @@ useEffect(() => {
             <div className="space-y-1">
               <button
                 type="button"
+                onClick={() => setBtsMenuOpen((prev) => !prev)}
+                title="BTS"
+                className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                  isBtsPage
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                    : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+                } ${!sidebarOpen && 'justify-center px-0'}`}
+              >
+                <Database className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+                {sidebarOpen && (
+                  <>
+                    <span className="ml-3 flex-1 text-left">BTS</span>
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${btsMenuOpen ? 'rotate-180' : ''}`}
+                    />
+                  </>
+                )}
+              </button>
+
+              {btsMenuOpen && (
+                <div className={`flex flex-col gap-1 ${sidebarOpen ? 'pl-3' : ''}`}>
+                  <button
+                    onClick={() => {
+                      setBtsProvider('orange');
+                      navigateToPage('bts');
+                    }}
+                    title="BTS Orange"
+                    className={`w-full group flex items-center rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+                      isBtsPage && btsProvider === 'orange'
+                        ? 'bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 text-white shadow-lg shadow-orange-500/30'
+                        : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+                    } ${sidebarOpen ? 'pl-10 pr-4' : 'justify-center px-0'}`}
+                  >
+                    <MapPin className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                    {sidebarOpen && <span className="ml-3">Orange</span>}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setBtsProvider('free');
+                      navigateToPage('bts');
+                    }}
+                    title="BTS Free"
+                    className={`w-full group flex items-center rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+                      isBtsPage && btsProvider === 'free'
+                        ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/30'
+                        : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+                    } ${sidebarOpen ? 'pl-10 pr-4' : 'justify-center px-0'}`}
+                  >
+                    <MapPinOff className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                    {sidebarOpen && <span className="ml-3">Free</span>}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setBtsProvider('expresso');
+                      navigateToPage('bts');
+                    }}
+                    title="BTS Expresso"
+                    className={`w-full group flex items-center rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+                      isBtsPage && btsProvider === 'expresso'
+                        ? 'bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/30'
+                        : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+                    } ${sidebarOpen ? 'pl-10 pr-4' : 'justify-center px-0'}`}
+                  >
+                    <Sparkles className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                    {sidebarOpen && <span className="ml-3">Expresso</span>}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <button
+                type="button"
                 onClick={() => setFraudMenuOpen((prev) => !prev)}
                 title="Détection de Fraude"
                 className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
@@ -7545,6 +7630,13 @@ useEffect(() => {
                   </div>
                 </div>
               </div>
+            )}
+
+            {currentPage === 'bts' && (
+              <BtsPage
+                provider={btsProvider}
+                onProviderChange={(next) => setBtsProvider(next)}
+              />
             )}
 
             {currentPage === 'annuaire' && (
