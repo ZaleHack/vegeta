@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Database, Plus, RefreshCw } from 'lucide-react';
+import { Database, Plus, RefreshCw, Search, X } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { useNotifications } from '../../components/NotificationProvider';
 
@@ -102,6 +102,11 @@ const BtsPage: React.FC<{
   const [tableError, setTableError] = useState('');
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [formSubmitting, setFormSubmitting] = useState(false);
+  const [tablePage, setTablePage] = useState(1);
+  const [tableLimit, setTableLimit] = useState(50);
+  const [tableTotal, setTableTotal] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const createAuthHeaders = useCallback((headers: Record<string, string> = {}) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -150,13 +155,30 @@ const BtsPage: React.FC<{
   }, [createAuthHeaders, provider]);
 
   const fetchTableData = useCallback(
-    async (tableName: string) => {
+    async ({
+      tableName,
+      page,
+      limit,
+      search
+    }: {
+      tableName: string;
+      page: number;
+      limit: number;
+      search: string;
+    }) => {
       if (!tableName) return;
       setTableLoading(true);
       setTableError('');
       try {
+        const params = new URLSearchParams({
+          limit: String(limit),
+          page: String(page)
+        });
+        if (search) {
+          params.set('search', search);
+        }
         const response = await fetch(
-          `/api/bts/${provider}/tables/${encodeURIComponent(tableName)}?limit=50&page=1`,
+          `/api/bts/${provider}/tables/${encodeURIComponent(tableName)}?${params.toString()}`,
           {
             headers: createAuthHeaders()
           }
@@ -167,11 +189,15 @@ const BtsPage: React.FC<{
         }
         setRows(Array.isArray(data.rows) ? data.rows : []);
         setColumns(Array.isArray(data.columns) ? data.columns : []);
+        setTableTotal(typeof data.total === 'number' ? data.total : 0);
+        setTablePage(typeof data.page === 'number' ? data.page : page);
+        setTableLimit(typeof data.limit === 'number' ? data.limit : limit);
       } catch (error) {
         console.error('Erreur chargement BTS:', error);
         setTableError('Impossible de charger les données BTS.');
         setRows([]);
         setColumns([]);
+        setTableTotal(0);
       } finally {
         setTableLoading(false);
       }
@@ -184,10 +210,29 @@ const BtsPage: React.FC<{
   }, [fetchMetadata]);
 
   useEffect(() => {
+    setSearchQuery('');
+    setDebouncedSearch('');
+    setTablePage(1);
+    setTableTotal(0);
+  }, [provider]);
+
+  useEffect(() => {
     if (selectedTable) {
-      fetchTableData(selectedTable);
+      fetchTableData({
+        tableName: selectedTable,
+        page: tablePage,
+        limit: tableLimit,
+        search: debouncedSearch
+      });
     }
-  }, [selectedTable, fetchTableData]);
+  }, [selectedTable, fetchTableData, tablePage, tableLimit, debouncedSearch]);
+
+  useEffect(() => {
+    const handler = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 300);
+    return () => window.clearTimeout(handler);
+  }, [searchQuery]);
 
   useEffect(() => {
     const nextValues = editableColumns.reduce<Record<string, string>>((acc, column) => {
@@ -242,7 +287,12 @@ const BtsPage: React.FC<{
           return acc;
         }, {})
       );
-      fetchTableData(selectedTable);
+      fetchTableData({
+        tableName: selectedTable,
+        page: tablePage,
+        limit: tableLimit,
+        search: debouncedSearch
+      });
     } catch (error) {
       console.error('Erreur ajout BTS:', error);
       notifyError("Impossible d'ajouter l'entrée BTS.");
@@ -310,7 +360,15 @@ const BtsPage: React.FC<{
               </div>
               <button
                 type="button"
-                onClick={() => selectedTable && fetchTableData(selectedTable)}
+                onClick={() =>
+                  selectedTable &&
+                  fetchTableData({
+                    tableName: selectedTable,
+                    page: tablePage,
+                    limit: tableLimit,
+                    search: debouncedSearch
+                  })
+                }
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:text-slate-200"
               >
                 <RefreshCw className="h-4 w-4" />
@@ -320,7 +378,10 @@ const BtsPage: React.FC<{
             <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
               <select
                 value={selectedTable}
-                onChange={(event) => setSelectedTable(event.target.value)}
+                onChange={(event) => {
+                  setSelectedTable(event.target.value);
+                  setTablePage(1);
+                }}
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                 disabled={metadataLoading || tables.length === 0}
               >
@@ -356,9 +417,37 @@ const BtsPage: React.FC<{
                   {selectedTable || 'Aucune table sélectionnée'}
                 </h3>
               </div>
-              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
-                {rows.length} lignes
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value);
+                      setTablePage(1);
+                    }}
+                    placeholder="Rechercher dans la table"
+                    className="w-56 rounded-full border border-slate-200 bg-white py-2 pl-9 pr-9 text-xs font-semibold text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  />
+                  {searchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setTablePage(1);
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600"
+                      aria-label="Effacer la recherche"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
+                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
+                  {tableTotal} ligne{tableTotal > 1 ? 's' : ''}
+                </span>
+              </div>
             </div>
 
             {tableLoading ? (
@@ -371,32 +460,86 @@ const BtsPage: React.FC<{
                 Aucune donnée disponible pour cette table.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
-                  <thead className="bg-slate-100/80 dark:bg-slate-800/70">
-                    <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
-                      {columns.map((column) => (
-                        <th key={column.name} className="px-6 py-3">
-                          {column.name}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                    {rows.map((row, rowIndex) => (
-                      <tr
-                        key={`${rowIndex}-${selectedTable}`}
-                        className="odd:bg-white even:bg-slate-50/60 dark:odd:bg-slate-900/50 dark:even:bg-slate-800/60"
-                      >
+              <div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                    <thead className="bg-slate-100/80 dark:bg-slate-800/70">
+                      <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
                         {columns.map((column) => (
-                          <td key={column.name} className="px-6 py-4 whitespace-nowrap">
-                            {formatValue((row as Record<string, unknown>)[column.name])}
-                          </td>
+                          <th key={column.name} className="px-6 py-3">
+                            {column.name}
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                      {rows.map((row, rowIndex) => (
+                        <tr
+                          key={`${rowIndex}-${selectedTable}`}
+                          className="odd:bg-white even:bg-slate-50/60 dark:odd:bg-slate-900/50 dark:even:bg-slate-800/60"
+                        >
+                          {columns.map((column) => (
+                            <td key={column.name} className="px-6 py-4 whitespace-nowrap">
+                              {formatValue((row as Record<string, unknown>)[column.name])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200/70 px-6 py-4 text-xs text-slate-500 dark:border-slate-800/60 dark:text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-600 dark:text-slate-200">Lignes par page</span>
+                    <select
+                      value={tableLimit}
+                      onChange={(event) => {
+                        setTableLimit(Number(event.target.value));
+                        setTablePage(1);
+                      }}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    >
+                      {[25, 50, 100, 200].map((limit) => (
+                        <option key={limit} value={limit}>
+                          {limit}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="text-slate-500 dark:text-slate-300">
+                    {tableTotal === 0
+                      ? 'Aucun résultat'
+                      : `Affichage ${Math.min((tablePage - 1) * tableLimit + 1, tableTotal)}-${Math.min(
+                          tablePage * tableLimit,
+                          tableTotal
+                        )} sur ${tableTotal}`}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTablePage((prev) => Math.max(prev - 1, 1))}
+                      disabled={tablePage <= 1}
+                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
+                    >
+                      Précédent
+                    </button>
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-200">
+                      Page {tablePage} sur {Math.max(Math.ceil(tableTotal / tableLimit), 1)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTablePage((prev) =>
+                          Math.min(prev + 1, Math.max(Math.ceil(tableTotal / tableLimit), 1))
+                        )
+                      }
+                      disabled={tablePage >= Math.max(Math.ceil(tableTotal / tableLimit), 1)}
+                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
