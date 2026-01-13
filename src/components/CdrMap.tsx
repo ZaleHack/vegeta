@@ -1453,18 +1453,38 @@ const CdrMap: React.FC<Props> = ({
 
   if (points.length === 0) return null;
 
-  const callerPoints = useMemo(
-    () =>
-      points.filter((p) => {
-        if (isLocationEventType(p.type)) {
-          return true;
-        }
+  const callerPoints = useMemo(() => {
+    const outgoingPoints = points.filter((p) => {
+      if (isLocationEventType(p.type)) {
+        return true;
+      }
 
-        const direction = (p.direction || '').toString().toLowerCase();
-        return direction === 'outgoing';
-      }),
-    [points]
-  );
+      const direction = (p.direction || '').toString().toLowerCase();
+      return direction === 'outgoing';
+    });
+
+    const allSources = new Set<string>();
+    points.forEach((point) => {
+      const source = getPointSourceValue(point);
+      if (source) {
+        allSources.add(source);
+      }
+    });
+
+    const outgoingSources = new Set<string>();
+    outgoingPoints.forEach((point) => {
+      const source = getPointSourceValue(point);
+      if (source) {
+        outgoingSources.add(source);
+      }
+    });
+
+    if (outgoingSources.size < allSources.size) {
+      return points;
+    }
+
+    return outgoingPoints;
+  }, [points]);
 
   const referencePoints = useMemo(
     () => (callerPoints.length > 0 ? callerPoints : points),
