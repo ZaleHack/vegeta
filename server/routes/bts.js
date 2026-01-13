@@ -131,14 +131,33 @@ router.get('/:provider/tables/:tableName', authenticate, async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const offset = (page - 1) * limit;
+    const search =
+      typeof req.query.search === 'string'
+        ? req.query.search.trim()
+        : typeof req.query.q === 'string'
+          ? req.query.q.trim()
+          : '';
 
-    const [columns, rows, totalRow] = await Promise.all([
-      fetchColumnsForTable(databaseName, tableName),
+    const columns = await fetchColumnsForTable(databaseName, tableName);
+    const searchableColumns = search
+      ? columns.map((column) => column.name).filter(Boolean)
+      : [];
+    const searchClauses = searchableColumns.map(
+      (column) => `LOWER(CAST(\`${column}\` AS CHAR)) LIKE ?`
+    );
+    const whereSql = searchClauses.length ? `WHERE ${searchClauses.join(' OR ')}` : '';
+    const searchValue = `%${search.toLowerCase()}%`;
+    const searchParams = searchClauses.map(() => searchValue);
+
+    const [rows, totalRow] = await Promise.all([
       database.query(
-        `SELECT * FROM \`${databaseName}\`.\`${tableName}\` LIMIT ? OFFSET ?`,
-        [limit, offset]
+        `SELECT * FROM \`${databaseName}\`.\`${tableName}\` ${whereSql} LIMIT ? OFFSET ?`,
+        [...searchParams, limit, offset]
       ),
-      database.queryOne(`SELECT COUNT(*) AS total FROM \`${databaseName}\`.\`${tableName}\``)
+      database.queryOne(
+        `SELECT COUNT(*) AS total FROM \`${databaseName}\`.\`${tableName}\` ${whereSql}`,
+        searchParams
+      )
     ]);
 
     return res.json({
