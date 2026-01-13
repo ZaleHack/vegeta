@@ -103,7 +103,7 @@ const BtsPage: React.FC<{
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [tablePage, setTablePage] = useState(1);
-  const [tableLimit, setTableLimit] = useState(50);
+  const [tableLimit, setTableLimit] = useState(30);
   const [tableTotal, setTableTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -499,7 +499,7 @@ const BtsPage: React.FC<{
                       }}
                       className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                     >
-                      {[25, 50, 100, 200].map((limit) => (
+                      {[30, 50, 100, 200].map((limit) => (
                         <option key={limit} value={limit}>
                           {limit}
                         </option>
