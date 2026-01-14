@@ -89,6 +89,7 @@ import ConfirmDialog, { ConfirmDialogOptions } from './components/ConfirmDialog'
 import { useNotifications } from './components/NotificationProvider';
 import { normalizePreview, NormalizedPreviewEntry, BaseSearchHit } from './utils/search';
 import BtsPage, { BtsProvider } from './features/bts/BtsPage';
+import ZoneMonitoringPage from './features/zone-monitoring/ZoneMonitoringPage';
 
 const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} {...props}>
@@ -6640,6 +6641,19 @@ useEffect(() => {
             </button>
 
             <button
+              onClick={() => navigateToPage('zone-monitoring')}
+              title="Surveillance de zone"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'zone-monitoring'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <Radar className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Surveillance de zone</span>}
+            </button>
+
+            <button
               onClick={() => navigateToPage('cdr-export')}
               title="Données téléphoniques"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
@@ -8533,6 +8547,10 @@ useEffect(() => {
                 )}
               </section>
             </div>
+          )}
+
+          {currentPage === 'zone-monitoring' && (
+            <ZoneMonitoringPage />
           )}
 
           {currentPage === 'cdr-export' && (

@@ -1,0 +1,647 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MapContainer, TileLayer, Polygon, Polyline, CircleMarker, Circle, Popup, useMapEvents } from 'react-leaflet';
+import { BellRing, Download, MapPin, Pause, Play, Plus, Volume2, VolumeX, X } from 'lucide-react';
+import PageHeader from '../../components/PageHeader';
+
+const DEFAULT_CENTER: [number, number] = [14.6928, -17.4467];
+const DEFAULT_ZOOM = 11;
+const COLOR_PALETTE = ['#2563eb', '#16a34a', '#f97316', '#9333ea', '#0ea5e9', '#dc2626', '#0f766e'];
+
+interface MonitoredNumber {
+  number: string;
+  lastSeen?: string | null;
+}
+
+interface MonitoringEvent {
+  id: number;
+  number: string;
+  cgi?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  coverageRadiusMeters?: number | null;
+  insertedAt?: string | null;
+  dateStart?: string | null;
+  timeStart?: string | null;
+  dateEnd?: string | null;
+  timeEnd?: string | null;
+  callType?: string | null;
+}
+
+interface AlertEntry {
+  id: string;
+  number: string;
+  timestamp: string;
+  type: 'entry';
+  latitude: number;
+  longitude: number;
+  cgi?: string | null;
+}
+
+const getAuthHeaders = () => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const pointInPolygon = (point: [number, number], polygon: [number, number][]) => {
+  if (polygon.length < 3) return false;
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+const playAlertSound = () => {
+  const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const oscillator = context.createOscillator();
+  const gainNode = context.createGain();
+  oscillator.type = 'sine';
+  oscillator.frequency.value = 880;
+  gainNode.gain.value = 0.12;
+  oscillator.connect(gainNode);
+  gainNode.connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + 0.4);
+};
+
+const MapClickHandler: React.FC<{
+  active: boolean;
+  onAddPoint: (point: [number, number]) => void;
+}> = ({ active, onAddPoint }) => {
+  useMapEvents({
+    click: (event) => {
+      if (!active) return;
+      onAddPoint([event.latlng.lat, event.latlng.lng]);
+    }
+  });
+  return null;
+};
+
+const ZoneMonitoringPage: React.FC = () => {
+  const [numbers, setNumbers] = useState<MonitoredNumber[]>([]);
+  const [numbersSearch, setNumbersSearch] = useState('');
+  const [selectedNumbers, setSelectedNumbers] = useState<string[]>([]);
+  const [polygonPoints, setPolygonPoints] = useState<[number, number][]>([]);
+  const [drawMode, setDrawMode] = useState(false);
+  const [monitoringActive, setMonitoringActive] = useState(false);
+  const [pollInterval, setPollInterval] = useState(7);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [alerts, setAlerts] = useState<AlertEntry[]>([]);
+  const [eventsByNumber, setEventsByNumber] = useState<Record<string, MonitoringEvent[]>>({});
+  const [lastCheck, setLastCheck] = useState<string | null>(null);
+  const [loadingNumbers, setLoadingNumbers] = useState(false);
+  const [monitoringError, setMonitoringError] = useState<string | null>(null);
+  const [lastUpdateLabel, setLastUpdateLabel] = useState<string | null>(null);
+
+  const statusRef = useRef<Record<string, boolean>>({});
+  const pollingRef = useRef<number | null>(null);
+
+  const numberColors = useMemo(() => {
+    const map: Record<string, string> = {};
+    selectedNumbers.forEach((value, index) => {
+      map[value] = COLOR_PALETTE[index % COLOR_PALETTE.length];
+    });
+    return map;
+  }, [selectedNumbers]);
+
+  const latestPositions = useMemo(() => {
+    const entries: MonitoringEvent[] = [];
+    Object.values(eventsByNumber).forEach((events) => {
+      const latest = events[events.length - 1];
+      if (latest) entries.push(latest);
+    });
+    return entries;
+  }, [eventsByNumber]);
+
+  const statusByNumber = useMemo(() => {
+    const status: Record<string, boolean | null> = {};
+    selectedNumbers.forEach((number) => {
+      const events = eventsByNumber[number];
+      if (!events || events.length === 0) {
+        status[number] = null;
+        return;
+      }
+      const latest = events[events.length - 1];
+      if (latest.latitude == null || latest.longitude == null || polygonPoints.length < 3) {
+        status[number] = null;
+      } else {
+        status[number] = pointInPolygon([latest.latitude, latest.longitude], polygonPoints);
+      }
+    });
+    return status;
+  }, [eventsByNumber, polygonPoints, selectedNumbers]);
+
+  const fetchNumbers = useCallback(async (search = '') => {
+    setLoadingNumbers(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set('q', search);
+      const response = await fetch(`/api/cdr/realtime/numbers?${params.toString()}`, {
+        headers: {
+          ...getAuthHeaders()
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Impossible de charger les numéros.');
+      }
+      const payload = await response.json();
+      const list = Array.isArray(payload?.numbers) ? payload.numbers : [];
+      setNumbers(list);
+    } catch (error) {
+      console.error('Erreur chargement numéros temps réel:', error);
+    } finally {
+      setLoadingNumbers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNumbers();
+  }, [fetchNumbers]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      fetchNumbers(numbersSearch.trim());
+    }, 400);
+    return () => window.clearTimeout(timeout);
+  }, [fetchNumbers, numbersSearch]);
+
+  const addPolygonPoint = useCallback((point: [number, number]) => {
+    setPolygonPoints((prev) => [...prev, point]);
+  }, []);
+
+  const clearPolygon = () => {
+    setPolygonPoints([]);
+    setDrawMode(false);
+  };
+
+  const exportAlerts = (format: 'csv' | 'json') => {
+    if (alerts.length === 0) return;
+    if (format === 'json') {
+      const blob = new Blob([JSON.stringify(alerts, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'alertes-zone.json';
+      link.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const header = ['timestamp', 'numero', 'type', 'latitude', 'longitude', 'cgi'];
+    const rows = alerts.map((alert) =>
+      [
+        alert.timestamp,
+        alert.number,
+        alert.type,
+        alert.latitude.toFixed(6),
+        alert.longitude.toFixed(6),
+        alert.cgi ?? ''
+      ].join(',')
+    );
+    const blob = new Blob([`${header.join(',')}\n${rows.join('\n')}`], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'alertes-zone.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleToggleNumber = (value: string) => {
+    setSelectedNumbers((prev) =>
+      prev.includes(value) ? prev.filter((entry) => entry !== value) : [...prev, value]
+    );
+  };
+
+  const pollEvents = useCallback(async () => {
+    if (selectedNumbers.length === 0) {
+      setMonitoringError('Sélectionnez au moins un numéro avant de lancer la surveillance.');
+      return;
+    }
+    setMonitoringError(null);
+    try {
+      const params = new URLSearchParams();
+      params.set('numbers', selectedNumbers.join(','));
+      if (lastCheck) params.set('since', lastCheck);
+      const response = await fetch(`/api/cdr/realtime/monitor?${params.toString()}`, {
+        headers: {
+          ...getAuthHeaders()
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Impossible de synchroniser les CDR temps réel.');
+      }
+      const payload = await response.json();
+      const events: MonitoringEvent[] = Array.isArray(payload?.events) ? payload.events : [];
+      if (events.length === 0) {
+        setLastUpdateLabel(new Date().toLocaleTimeString());
+        return;
+      }
+
+      const lastEvent = events[events.length - 1];
+      if (lastEvent?.insertedAt) {
+        setLastCheck(lastEvent.insertedAt);
+      }
+      setLastUpdateLabel(new Date().toLocaleTimeString());
+
+      setEventsByNumber((prev) => {
+        const updated = { ...prev };
+        events.forEach((event) => {
+          const list = updated[event.number] ? [...updated[event.number]] : [];
+          list.push(event);
+          updated[event.number] = list.slice(-50);
+        });
+        return updated;
+      });
+
+      const newAlerts: AlertEntry[] = [];
+      events.forEach((event) => {
+        if (event.latitude == null || event.longitude == null || polygonPoints.length < 3) return;
+        const isInside = pointInPolygon([event.latitude, event.longitude], polygonPoints);
+        const previousState = statusRef.current[event.number] ?? false;
+        if (!previousState && isInside) {
+          newAlerts.push({
+            id: `${event.number}-${event.insertedAt || Date.now()}`,
+            number: event.number,
+            timestamp: event.insertedAt || new Date().toISOString(),
+            type: 'entry',
+            latitude: event.latitude,
+            longitude: event.longitude,
+            cgi: event.cgi ?? null
+          });
+        }
+        statusRef.current[event.number] = isInside;
+      });
+
+      if (newAlerts.length > 0) {
+        setAlerts((prev) => [...newAlerts, ...prev].slice(0, 200));
+        if (soundEnabled) {
+          playAlertSound();
+        }
+      }
+    } catch (error) {
+      console.error('Erreur synchronisation temps réel:', error);
+      setMonitoringError("Impossible d'atteindre le flux temps réel.");
+    }
+  }, [lastCheck, polygonPoints, selectedNumbers, soundEnabled]);
+
+  useEffect(() => {
+    if (!monitoringActive) {
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+
+    pollEvents();
+    pollingRef.current = window.setInterval(pollEvents, pollInterval * 1000);
+    return () => {
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [monitoringActive, pollEvents, pollInterval]);
+
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={<MapPin className="h-6 w-6" />}
+        title="Surveillance de zone (CDR temps réel)"
+        subtitle="Définissez une zone, sélectionnez les numéros à suivre et recevez des alertes en temps réel."
+      />
+
+      <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
+        <aside className="space-y-6">
+          <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Numéros surveillés</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Sélection depuis numero_appelant.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchNumbers(numbersSearch.trim())}
+                className="inline-flex items-center justify-center rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="mt-4 space-y-3">
+              <input
+                value={numbersSearch}
+                onChange={(event) => setNumbersSearch(event.target.value)}
+                placeholder="Rechercher un numéro..."
+                className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-2 text-sm text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              />
+              {loadingNumbers ? (
+                <p className="text-xs text-slate-500">Chargement...</p>
+              ) : (
+                <div className="max-h-64 space-y-2 overflow-y-auto">
+                  {numbers.length === 0 ? (
+                    <p className="text-xs text-slate-500">Aucun numéro disponible.</p>
+                  ) : (
+                    numbers.map((item) => (
+                      <label
+                        key={item.number}
+                        className="flex items-start gap-3 rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-2 text-xs text-slate-600 shadow-sm transition hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={selectedNumbers.includes(item.number)}
+                          onChange={() => handleToggleNumber(item.number)}
+                        />
+                        <span className="flex-1">
+                          <span className="font-semibold text-slate-800 dark:text-slate-100">{item.number}</span>
+                          <span className="block text-[0.65rem] text-slate-400">
+                            Dernier signal: {item.lastSeen ? new Date(item.lastSeen).toLocaleString() : 'N/A'}
+                          </span>
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Zone surveillée</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Mode dessin: cliquez sur la carte pour ajouter des sommets.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDrawMode((prev) => !prev)}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-blue-700"
+              >
+                {drawMode ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                {drawMode ? 'Arrêter le dessin' : 'Dessiner la zone'}
+              </button>
+              <button
+                type="button"
+                onClick={clearPolygon}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-red-300 hover:text-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <X className="h-3.5 w-3.5" />
+                Effacer
+              </button>
+            </div>
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/80 p-4 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">
+              {polygonPoints.length < 3 ? (
+                'Ajoutez au moins 3 points pour activer la détection.'
+              ) : (
+                <div>
+                  <p className="font-semibold text-slate-700 dark:text-slate-200">Coordonnées sauvegardées</p>
+                  <p className="mt-1">{polygonPoints.length} sommets</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Contrôle temps réel</h3>
+              <button
+                type="button"
+                onClick={() => setMonitoringActive((prev) => !prev)}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white shadow transition ${
+                  monitoringActive ? 'bg-rose-500 hover:bg-rose-600' : 'bg-emerald-500 hover:bg-emerald-600'
+                }`}
+              >
+                {monitoringActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                {monitoringActive ? 'Suspendre' : 'Démarrer'}
+              </button>
+            </div>
+            <div className="mt-4 space-y-4 text-xs text-slate-600 dark:text-slate-300">
+              <div className="flex items-center justify-between">
+                <span>Intervalle de polling</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={5}
+                    max={30}
+                    value={pollInterval}
+                    onChange={(event) => setPollInterval(Number(event.target.value))}
+                    className="w-16 rounded-xl border border-slate-200 bg-white px-2 py-1 text-center text-xs text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                  <span>s</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Notifications sonores</span>
+                <button
+                  type="button"
+                  onClick={() => setSoundEnabled((prev) => !prev)}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+                  {soundEnabled ? 'Actives' : 'Silencieuses'}
+                </button>
+              </div>
+              {monitoringError && (
+                <div className="rounded-2xl border border-rose-200/70 bg-rose-50 px-3 py-2 text-xs text-rose-600 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+                  {monitoringError}
+                </div>
+              )}
+              {lastUpdateLabel && (
+                <p className="text-[0.7rem] text-slate-400">Dernière synchronisation: {lastUpdateLabel}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Alertes</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => exportAlerts('csv')}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white px-2 py-1 text-[0.7rem] font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  <Download className="h-3 w-3" />
+                  CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportAlerts('json')}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white px-2 py-1 text-[0.7rem] font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  <Download className="h-3 w-3" />
+                  JSON
+                </button>
+              </div>
+            </div>
+            <div className="mt-4 max-h-64 space-y-3 overflow-y-auto">
+              {alerts.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/80 p-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                  Aucune alerte enregistrée.
+                </div>
+              ) : (
+                alerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className="flex items-start gap-3 rounded-2xl border border-blue-200/70 bg-blue-50/80 px-3 py-2 text-xs text-blue-700 shadow-sm dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200"
+                  >
+                    <BellRing className="mt-0.5 h-3.5 w-3.5" />
+                    <div>
+                      <p className="font-semibold">Entrée détectée</p>
+                      <p>{alert.number}</p>
+                      <p className="text-[0.65rem] text-blue-500">
+                        {new Date(alert.timestamp).toLocaleString()} · {alert.latitude.toFixed(5)}, {alert.longitude.toFixed(5)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </aside>
+
+        <section className="space-y-4">
+          <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-4 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <div className="h-[520px] overflow-hidden rounded-2xl">
+              <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="h-full w-full">
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MapClickHandler active={drawMode} onAddPoint={addPolygonPoint} />
+                {polygonPoints.length >= 3 && (
+                  <Polygon positions={polygonPoints} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
+                )}
+                {Object.entries(eventsByNumber).map(([number, events]) => {
+                  const color = numberColors[number] || '#2563eb';
+                  const path = events
+                    .filter((event) => event.latitude != null && event.longitude != null)
+                    .map((event) => [event.latitude as number, event.longitude as number]);
+                  return path.length > 1 ? (
+                    <Polyline key={`path-${number}`} positions={path} pathOptions={{ color, weight: 3 }} />
+                  ) : null;
+                })}
+                {latestPositions.map((event) => {
+                  if (event.latitude == null || event.longitude == null) return null;
+                  const color = numberColors[event.number] || '#2563eb';
+                  const inside = polygonPoints.length >= 3 ? pointInPolygon([event.latitude, event.longitude], polygonPoints) : false;
+                  return (
+                    <React.Fragment key={`${event.number}-${event.insertedAt}`}> 
+                      <CircleMarker
+                        center={[event.latitude, event.longitude]}
+                        radius={8}
+                        pathOptions={{ color, fillColor: inside ? '#10b981' : color, fillOpacity: 0.9 }}
+                      >
+                        <Popup>
+                          <div className="space-y-1 text-xs">
+                            <p className="font-semibold">{event.number}</p>
+                            <p>CGI: {event.cgi || 'N/A'}</p>
+                            <p>{event.insertedAt ? new Date(event.insertedAt).toLocaleString() : ''}</p>
+                            <p className={inside ? 'text-emerald-600' : 'text-slate-500'}>
+                              {inside ? 'Dans la zone' : 'Hors zone'}
+                            </p>
+                          </div>
+                        </Popup>
+                      </CircleMarker>
+                      {event.coverageRadiusMeters ? (
+                        <Circle
+                          center={[event.latitude, event.longitude]}
+                          radius={event.coverageRadiusMeters}
+                          pathOptions={{ color, fillOpacity: 0.05, dashArray: '4 6' }}
+                        />
+                      ) : null}
+                    </React.Fragment>
+                  );
+                })}
+              </MapContainer>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Statut actuel</h3>
+              <div className="mt-4 space-y-3">
+                {selectedNumbers.length === 0 ? (
+                  <p className="text-xs text-slate-500">Sélectionnez des numéros pour afficher le statut.</p>
+                ) : (
+                  selectedNumbers.map((number) => {
+                    const status = statusByNumber[number];
+                    const color = numberColors[number] || '#2563eb';
+                    return (
+                      <div
+                        key={number}
+                        className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-2 text-xs text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                          <span className="font-semibold text-slate-800 dark:text-slate-100">{number}</span>
+                        </div>
+                        <span
+                          className={`rounded-full px-3 py-1 text-[0.65rem] font-semibold ${
+                            status === null
+                              ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
+                              : status
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
+                                : 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-200'
+                          }`}
+                        >
+                          {status === null ? 'Inconnu' : status ? 'Dans la zone' : 'Hors zone'}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Historique des positions</h3>
+              <div className="mt-4 space-y-3">
+                {latestPositions.length === 0 ? (
+                  <p className="text-xs text-slate-500">Aucune position enregistrée.</p>
+                ) : (
+                  latestPositions.map((event) => (
+                    <div
+                      key={`history-${event.number}`}
+                      className="flex items-start justify-between rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-2 text-xs text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-800 dark:text-slate-100">{event.number}</p>
+                        <p className="text-[0.7rem] text-slate-400">CGI: {event.cgi || 'N/A'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[0.7rem]">
+                          {event.latitude != null && event.longitude != null
+                            ? `${event.latitude.toFixed(5)}, ${event.longitude.toFixed(5)}`
+                            : 'Position inconnue'}
+                        </p>
+                        <p className="text-[0.65rem] text-slate-400">
+                          {event.insertedAt ? new Date(event.insertedAt).toLocaleString() : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+};
+
+export default ZoneMonitoringPage;

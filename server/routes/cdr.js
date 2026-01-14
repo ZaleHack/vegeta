@@ -5,6 +5,9 @@ import database from '../config/database.js';
 import Blacklist from '../models/Blacklist.js';
 import UserLog from '../models/UserLog.js';
 import realtimeCdrService from '../services/RealtimeCdrService.js';
+import cgiBtsEnricher from '../services/CgiBtsEnrichmentService.js';
+import { REALTIME_CDR_TABLE_SQL } from '../config/realtime-table.js';
+import { normalizeCgi } from '../utils/cgi.js';
 
 const router = express.Router();
 
@@ -53,6 +56,128 @@ const normalizePhoneNumber = (value) => {
   const trimmed = text.replace(/^0+/, '');
   return trimmed ? `221${trimmed}` : '';
 };
+
+const parsePositiveInteger = (value, fallback) => {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.floor(parsed);
+  }
+  return fallback;
+};
+
+router.get('/realtime/numbers', authenticate, async (req, res) => {
+  try {
+    const search = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const limit = parsePositiveInteger(req.query.limit, 200);
+    const params = [];
+    const conditions = ['c.numero_appelant IS NOT NULL', "c.numero_appelant <> ''"];
+
+    if (search) {
+      conditions.push('c.numero_appelant LIKE ?');
+      params.push(`%${search}%`);
+    }
+
+    params.push(limit);
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const rows = await database.query(
+      `
+        SELECT c.numero_appelant AS number, MAX(c.inserted_at) AS lastSeen
+        FROM ${REALTIME_CDR_TABLE_SQL} c
+        ${whereClause}
+        GROUP BY c.numero_appelant
+        ORDER BY lastSeen DESC
+        LIMIT ?
+      `,
+      params
+    );
+
+    res.json({ numbers: rows.map((row) => ({ number: row.number, lastSeen: row.lastSeen })) });
+  } catch (error) {
+    console.error('Erreur chargement numéros temps réel:', error);
+    res.status(500).json({ error: 'Erreur lors du chargement des numéros' });
+  }
+});
+
+router.get('/realtime/monitor', authenticate, async (req, res) => {
+  try {
+    const numbersParam = typeof req.query.numbers === 'string' ? req.query.numbers : '';
+    const numbers = numbersParam
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+
+    if (numbers.length === 0) {
+      return res.status(400).json({ error: 'Numéros requis' });
+    }
+
+    const since = typeof req.query.since === 'string' ? req.query.since.trim() : '';
+    if (since && Number.isNaN(new Date(since).getTime())) {
+      return res.status(400).json({ error: 'Format de date invalide' });
+    }
+
+    const limit = parsePositiveInteger(req.query.limit, 500);
+    const placeholders = numbers.map(() => '?').join(', ');
+    const params = [...numbers];
+
+    let whereClause = `WHERE c.numero_appelant IN (${placeholders})`;
+    if (since) {
+      whereClause += ' AND c.inserted_at > ?';
+      params.push(since);
+    }
+
+    params.push(limit);
+    const rows = await database.query(
+      `
+        SELECT
+          c.id,
+          c.numero_appelant,
+          c.numero_appele,
+          c.cgi,
+          c.date_debut,
+          c.heure_debut,
+          c.date_fin,
+          c.heure_fin,
+          c.type_appel,
+          c.inserted_at
+        FROM ${REALTIME_CDR_TABLE_SQL} c
+        ${whereClause}
+        ORDER BY c.inserted_at ASC
+        LIMIT ?
+      `,
+      params
+    );
+
+    const cgiList = rows.map((row) => row.cgi).filter(Boolean);
+    const cgiMap = await cgiBtsEnricher.fetchMany(cgiList);
+    const coverageRadiusMeters = parsePositiveInteger(process.env.CGI_COVERAGE_RADIUS_METERS, 500);
+
+    const events = rows.map((row) => {
+      const cgiKey = row.cgi ? normalizeCgi(row.cgi) : '';
+      const cell = cgiKey ? cgiMap.get(cgiKey) : null;
+      const latitude = cell?.latitude ? Number(cell.latitude) : null;
+      const longitude = cell?.longitude ? Number(cell.longitude) : null;
+      return {
+        id: row.id,
+        number: row.numero_appelant,
+        cgi: row.cgi ?? null,
+        latitude: Number.isFinite(latitude) ? latitude : null,
+        longitude: Number.isFinite(longitude) ? longitude : null,
+        coverageRadiusMeters,
+        insertedAt: row.inserted_at ?? null,
+        dateStart: row.date_debut ?? null,
+        timeStart: row.heure_debut ?? null,
+        dateEnd: row.date_fin ?? null,
+        timeEnd: row.heure_fin ?? null,
+        callType: row.type_appel ?? null
+      };
+    });
+
+    res.json({ events });
+  } catch (error) {
+    console.error('Erreur flux temps réel:', error);
+    res.status(500).json({ error: 'Erreur lors du chargement temps réel' });
+  }
+});
 
 router.get('/realtime/search', authenticate, async (req, res) => {
   try {
