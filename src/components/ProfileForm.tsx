@@ -28,6 +28,31 @@ interface FolderOption {
   name: string;
 }
 
+const normalizeFolderId = (value: unknown): number | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'number') {
+    return Number.isInteger(value) && Number.isFinite(value) && value > 0 ? value : null;
+  }
+  if (typeof value === 'bigint') {
+    if (value <= 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
+      return null;
+    }
+    const numeric = Number(value);
+    return Number.isInteger(numeric) && Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const parsed = Number(trimmed);
+    return Number.isInteger(parsed) && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
+};
+
 interface InitialValues {
   comment?: string;
   extra_fields?: FieldCategory[];
@@ -90,7 +115,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogOptions | null>(null);
   const [folders, setFolders] = useState<FolderOption[]>([]);
   const [foldersLoading, setFoldersLoading] = useState(true);
-  const [folderId, setFolderId] = useState<number | null>(initialFolderId);
+  const [folderId, setFolderId] = useState<number | null>(() => normalizeFolderId(initialFolderId));
 
   const loadFolders = useCallback(async () => {
     try {
@@ -105,15 +130,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
       if (res.ok) {
         const list: FolderOption[] = Array.isArray(data.folders)
           ? data.folders
-              .filter((folder: any) => typeof folder?.id === 'number')
-              .map((folder: any) => ({
-                id: folder.id,
-                name: typeof folder.name === 'string' ? folder.name : `Dossier #${folder.id}`
-              }))
+              .map((folder: any) => {
+                const numericId = normalizeFolderId(folder?.id);
+                if (numericId === null) {
+                  return null;
+                }
+                const rawName = typeof folder?.name === 'string' ? folder.name.trim() : '';
+                return {
+                  id: numericId,
+                  name: rawName || `Dossier #${numericId}`
+                };
+              })
+              .filter((folder): folder is FolderOption => folder !== null)
           : [];
         setFolders(list);
         setFolderId(prev => {
-          if (prev && list.some(option => option.id === prev)) {
+          if (prev !== null && list.some(option => option.id === prev)) {
             return prev;
           }
           return null;
@@ -142,7 +174,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
     setExistingAttachments(initialValues.attachments || []);
     setNewAttachments([]);
     setRemovedAttachmentIds([]);
-    setFolderId(initialFolderId);
+    setFolderId(normalizeFolderId(initialFolderId));
   }, [initialValues, profileId, initialFolderId]);
 
   useEffect(() => {
@@ -395,7 +427,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ initialValues = {}, profileId
               <select
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 value={folderId ?? ''}
-                onChange={e => setFolderId(e.target.value ? Number(e.target.value) : null)}
+                onChange={e => setFolderId(normalizeFolderId(e.target.value))}
               >
                 <option value="">Sans dossier</option>
                 {folders.map(folder => (
