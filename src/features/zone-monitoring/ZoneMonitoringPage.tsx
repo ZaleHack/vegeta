@@ -206,6 +206,16 @@ const ZoneMonitoringPage: React.FC = () => {
     return [...polygonPoints, hoverPoint];
   }, [drawMode, hoverPoint, polygonPoints, shapeType]);
 
+  const hasDefinedZone = useMemo(() => {
+    if (shapeType === 'circle') {
+      return Boolean(circleCenter) && circleRadiusMeters != null;
+    }
+    if (shapeType === 'rectangle') {
+      return rectanglePolygon.length >= 4;
+    }
+    return polygonPoints.length >= 3;
+  }, [circleCenter, circleRadiusMeters, polygonPoints.length, rectanglePolygon.length, shapeType]);
+
   const numberColors = useMemo(() => {
     const map: Record<string, string> = {};
     selectedNumbers.forEach((value, index) => {
@@ -225,6 +235,7 @@ const ZoneMonitoringPage: React.FC = () => {
 
   const isPointInsideZone = useCallback(
     (point: [number, number]) => {
+      if (!hasDefinedZone) return false;
       if (shapeType === 'circle') {
         if (!circleCenter || circleRadiusMeters == null) return false;
         return distanceMeters(circleCenter, point) <= circleRadiusMeters;
@@ -232,12 +243,16 @@ const ZoneMonitoringPage: React.FC = () => {
       if (zonePolygon.length < 3) return false;
       return pointInPolygon(point, zonePolygon);
     },
-    [circleCenter, circleRadiusMeters, shapeType, zonePolygon]
+    [circleCenter, circleRadiusMeters, hasDefinedZone, shapeType, zonePolygon]
   );
 
   const statusByNumber = useMemo(() => {
     const status: Record<string, boolean | null> = {};
     selectedNumbers.forEach((number) => {
+      if (!hasDefinedZone) {
+        status[number] = null;
+        return;
+      }
       const events = eventsByNumber[number];
       if (!events || events.length === 0) {
         status[number] = null;
@@ -251,7 +266,7 @@ const ZoneMonitoringPage: React.FC = () => {
       }
     });
     return status;
-  }, [eventsByNumber, isPointInsideZone, selectedNumbers]);
+  }, [eventsByNumber, hasDefinedZone, isPointInsideZone, selectedNumbers]);
 
   const fetchNumbers = useCallback(async (search = '') => {
     setLoadingNumbers(true);
@@ -394,6 +409,10 @@ const ZoneMonitoringPage: React.FC = () => {
       setMonitoringError('Sélectionnez au moins un numéro avant de lancer la surveillance.');
       return;
     }
+    if (!hasDefinedZone) {
+      setMonitoringError('Définissez une zone avant de lancer la surveillance.');
+      return;
+    }
     setMonitoringError(null);
     try {
       const params = new URLSearchParams();
@@ -459,7 +478,7 @@ const ZoneMonitoringPage: React.FC = () => {
       console.error('Erreur synchronisation temps réel:', error);
       setMonitoringError("Impossible d'atteindre le flux temps réel.");
     }
-  }, [isPointInsideZone, lastCheck, selectedNumbers, soundEnabled]);
+  }, [hasDefinedZone, isPointInsideZone, lastCheck, selectedNumbers, soundEnabled]);
 
   useEffect(() => {
     if (!monitoringActive) {
@@ -801,7 +820,7 @@ const ZoneMonitoringPage: React.FC = () => {
                 {latestPositions.map((event) => {
                   if (event.latitude == null || event.longitude == null) return null;
                   const color = numberColors[event.number] || '#2563eb';
-                  const inside = isPointInsideZone([event.latitude, event.longitude]);
+                  const inside = hasDefinedZone ? isPointInsideZone([event.latitude, event.longitude]) : null;
                   return (
                     <React.Fragment key={`${event.number}-${event.insertedAt}`}>
                       <CircleMarker
@@ -815,7 +834,7 @@ const ZoneMonitoringPage: React.FC = () => {
                             <p>CGI: {event.cgi || 'N/A'}</p>
                             <p>{event.insertedAt ? new Date(event.insertedAt).toLocaleString() : ''}</p>
                             <p className={inside ? 'text-emerald-600' : 'text-slate-500'}>
-                              {inside ? 'Dans la zone' : 'Hors zone'}
+                              {!hasDefinedZone ? 'Zone non définie' : inside ? 'Dans la zone' : 'Hors zone'}
                             </p>
                           </div>
                         </Popup>
@@ -855,14 +874,14 @@ const ZoneMonitoringPage: React.FC = () => {
                         </div>
                         <span
                           className={`rounded-full px-3 py-1 text-[0.65rem] font-semibold ${
-                            status === null
+                            !hasDefinedZone || status === null
                               ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
                               : status
                                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
                                 : 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-200'
                           }`}
                         >
-                          {status === null ? 'Inconnu' : status ? 'Dans la zone' : 'Hors zone'}
+                          {!hasDefinedZone ? 'Zone non définie' : status === null ? 'Inconnu' : status ? 'Dans la zone' : 'Hors zone'}
                         </span>
                       </div>
                     );
