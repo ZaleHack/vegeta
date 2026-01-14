@@ -8981,46 +8981,61 @@ useEffect(() => {
             <div className="space-y-8">
               <PageHeader
                 icon={<Radar className="h-6 w-6" />}
-                title="Monotoring"
+                title="Surveillance"
                 subtitle="Surveillance proactive des numéros et IMEI"
               />
 
-              <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-slate-50/80 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/30">
-                <div className="pointer-events-none absolute inset-0 opacity-70">
-                  <div className="absolute -left-20 top-10 h-64 w-64 rounded-full bg-gradient-to-br from-blue-500/20 via-indigo-500/10 to-purple-500/10 blur-3xl" />
-                  <div className="absolute -right-16 bottom-0 h-64 w-64 rounded-full bg-gradient-to-br from-emerald-400/15 via-cyan-400/10 to-blue-500/10 blur-3xl" />
+              <section className="relative overflow-hidden rounded-[32px] border border-slate-200/80 bg-white/85 shadow-2xl shadow-slate-200/60 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+                <div className="pointer-events-none absolute inset-0">
+                  <div className="absolute -left-24 top-12 h-72 w-72 rounded-full bg-gradient-to-br from-blue-500/25 via-indigo-500/10 to-purple-500/10 blur-3xl" />
+                  <div className="absolute -right-20 bottom-4 h-72 w-72 rounded-full bg-gradient-to-br from-emerald-400/15 via-cyan-400/15 to-blue-500/15 blur-3xl" />
+                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 opacity-70" />
                 </div>
                 <div className="relative space-y-6 p-8">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-start gap-4">
                       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-400/40">
                         <SatelliteDish className="h-6 w-6" />
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Surveillance proactive</h3>
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Surveillance proactive</h3>
                         <p className="text-sm text-slate-500 dark:text-slate-300">
-                          Monitorer un numéro ou un IMEI et recevez des alertes dès qu’un nouveau correspondant apparaît.
+                          Lancez une veille ciblée sur un numéro ou un IMEI et recevez des alertes dès qu’un nouveau correspondant apparaît.
                         </p>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-300">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 font-semibold text-slate-700 shadow-sm ring-1 ring-white/70 backdrop-blur dark:bg-white/10 dark:text-slate-200 dark:ring-white/5">
+                            <Radar className="h-4 w-4" />
+                            Veille continue
+                          </span>
+                          <span className="inline-flex items-center gap-2 rounded-full bg-blue-600/10 px-3 py-1 font-semibold text-blue-700 ring-1 ring-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
+                            <BellRing className="h-4 w-4" />
+                            Alertes automatiques
+                          </span>
+                          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 font-semibold text-emerald-700 ring-1 ring-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
+                            <Activity className="h-4 w-4" />
+                            Réactivité instantanée
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-white/70 backdrop-blur dark:bg-white/10 dark:text-slate-200 dark:ring-white/5">
-                        <Radar className="h-4 w-4" />
-                        Veille continue
-                      </span>
-                      <span className="inline-flex items-center gap-2 rounded-full bg-blue-600/10 px-4 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
-                        <BellRing className="h-4 w-4" />
-                        Alertes automatiques
-                      </span>
+                    <div className="grid w-full max-w-md grid-cols-2 gap-3 rounded-2xl border border-white/80 bg-white/70 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60">
+                      <div className="rounded-2xl bg-white/80 p-3 text-center shadow-inner dark:bg-white/5">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cibles actives</p>
+                        <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{monitoringTargets.length}</p>
+                      </div>
+                      <div className="rounded-2xl bg-white/80 p-3 text-center shadow-inner dark:bg-white/5">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Alertes récentes</p>
+                        <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{monitoringAlerts.length}</p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-                    <div className="space-y-4 rounded-2xl border border-white/80 bg-white/80 p-5 shadow-md shadow-slate-200/40 backdrop-blur dark:border-white/10 dark:bg-slate-900/60 dark:shadow-black/30">
+                  <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div className="space-y-4 rounded-2xl border border-white/80 bg-white/90 p-5 shadow-lg shadow-slate-200/40 backdrop-blur dark:border-white/10 dark:bg-slate-900/60 dark:shadow-black/30">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-100">
                           <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                          Ajouter une nouvelle cible
+                          Nouvelle cible à surveiller
                         </div>
                         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 shadow-inner dark:bg-white/5 dark:text-slate-300">
                           {monitoringTargets.length} cible{monitoringTargets.length > 1 ? 's' : ''} suivie{monitoringTargets.length > 1 ? 's' : ''}
