@@ -319,14 +319,14 @@ const ZoneMonitoringPage: React.FC = () => {
     [circleCenter, circleRadiusMeters, shapeType]
   );
 
-  const clearZoneShape = () => {
+  const clearZoneShape = useCallback(() => {
     setPolygonPoints([]);
     setRectanglePoints([]);
     setCircleCenter(null);
     setCircleRadiusMeters(null);
     setDrawMode(false);
     setHoverPoint(null);
-  };
+  }, []);
 
   const handleShapeTypeChange = (nextShape: ZoneShape) => {
     setShapeType(nextShape);
@@ -351,6 +351,10 @@ const ZoneMonitoringPage: React.FC = () => {
       setHoverPoint(null);
     }
   }, [drawMode]);
+
+  useEffect(() => {
+    clearZoneShape();
+  }, [clearZoneShape]);
 
   const exportAlerts = (format: 'csv' | 'json') => {
     if (alerts.length === 0) return;
