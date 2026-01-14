@@ -1,6 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Polygon, Polyline, CircleMarker, Circle, Popup, useMapEvents } from 'react-leaflet';
-import { BellRing, Download, MapPin, Pause, Play, Plus, Volume2, VolumeX, X } from 'lucide-react';
+import {
+  MapContainer,
+  TileLayer,
+  Polygon,
+  Polyline,
+  CircleMarker,
+  Circle,
+  Popup,
+  useMap,
+  useMapEvents
+} from 'react-leaflet';
+import { BellRing, Download, MapPin, Pause, Play, Plus, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 
 const DEFAULT_CENTER: [number, number] = [14.6928, -17.4467];
@@ -87,14 +97,51 @@ const playAlertSound = () => {
 const MapClickHandler: React.FC<{
   active: boolean;
   onMapClick: (point: [number, number]) => void;
-}> = ({ active, onMapClick }) => {
+  onMapHover: (point: [number, number] | null) => void;
+}> = ({ active, onMapClick, onMapHover }) => {
   useMapEvents({
     click: (event) => {
       if (!active) return;
       onMapClick([event.latlng.lat, event.latlng.lng]);
+    },
+    mousemove: (event) => {
+      if (!active) return;
+      onMapHover([event.latlng.lat, event.latlng.lng]);
+    },
+    mouseout: () => {
+      if (!active) return;
+      onMapHover(null);
     }
   });
   return null;
+};
+
+const MapMetricsOverlay: React.FC = () => {
+  const map = useMap();
+  const [metrics, setMetrics] = useState({ widthKm: 0, heightKm: 0 });
+
+  const updateMetrics = useCallback(() => {
+    const bounds = map.getBounds();
+    const northEast = bounds.getNorthEast();
+    const southWest = bounds.getSouthWest();
+    const widthMeters = map.distance([northEast.lat, northEast.lng], [northEast.lat, southWest.lng]);
+    const heightMeters = map.distance([northEast.lat, northEast.lng], [southWest.lat, northEast.lng]);
+    setMetrics({ widthKm: widthMeters / 1000, heightKm: heightMeters / 1000 });
+  }, [map]);
+
+  useEffect(() => {
+    updateMetrics();
+    map.on('moveend zoomend', updateMetrics);
+    return () => {
+      map.off('moveend zoomend', updateMetrics);
+    };
+  }, [map, updateMetrics]);
+
+  return (
+    <div className="pointer-events-none absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[0.7rem] font-semibold text-slate-700 shadow-sm backdrop-blur dark:bg-slate-900/80 dark:text-slate-200">
+      Taille de carte: {metrics.widthKm.toFixed(1)} × {metrics.heightKm.toFixed(1)} km
+    </div>
+  );
 };
 
 const ZoneMonitoringPage: React.FC = () => {
@@ -107,6 +154,7 @@ const ZoneMonitoringPage: React.FC = () => {
   const [circleRadiusMeters, setCircleRadiusMeters] = useState<number | null>(null);
   const [shapeType, setShapeType] = useState<ZoneShape>('polygon');
   const [drawMode, setDrawMode] = useState(false);
+  const [hoverPoint, setHoverPoint] = useState<[number, number] | null>(null);
   const [monitoringActive, setMonitoringActive] = useState(false);
   const [pollInterval, setPollInterval] = useState(7);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -135,7 +183,28 @@ const ZoneMonitoringPage: React.FC = () => {
     ] as [number, number][];
   }, [rectanglePoints]);
 
+  const previewRectanglePolygon = useMemo(() => {
+    if (shapeType !== 'rectangle' || !drawMode || rectanglePoints.length !== 1 || !hoverPoint) return rectanglePolygon;
+    const [start] = rectanglePoints;
+    const minLat = Math.min(start[0], hoverPoint[0]);
+    const maxLat = Math.max(start[0], hoverPoint[0]);
+    const minLng = Math.min(start[1], hoverPoint[1]);
+    const maxLng = Math.max(start[1], hoverPoint[1]);
+    return [
+      [minLat, minLng],
+      [minLat, maxLng],
+      [maxLat, maxLng],
+      [maxLat, minLng]
+    ] as [number, number][];
+  }, [drawMode, hoverPoint, rectanglePoints, rectanglePolygon, shapeType]);
+
   const zonePolygon = shapeType === 'rectangle' ? rectanglePolygon : polygonPoints;
+
+  const previewPolygon = useMemo(() => {
+    if (shapeType !== 'polygon') return polygonPoints;
+    if (!drawMode || !hoverPoint || polygonPoints.length === 0) return polygonPoints;
+    return [...polygonPoints, hoverPoint];
+  }, [drawMode, hoverPoint, polygonPoints, shapeType]);
 
   const numberColors = useMemo(() => {
     const map: Record<string, string> = {};
@@ -240,12 +309,32 @@ const ZoneMonitoringPage: React.FC = () => {
     setCircleCenter(null);
     setCircleRadiusMeters(null);
     setDrawMode(false);
+    setHoverPoint(null);
   };
 
   const handleShapeTypeChange = (nextShape: ZoneShape) => {
     setShapeType(nextShape);
     clearZoneShape();
   };
+
+  const handleUndoPoint = () => {
+    if (shapeType === 'polygon') {
+      setPolygonPoints((prev) => prev.slice(0, -1));
+      return;
+    }
+    if (shapeType === 'rectangle') {
+      setRectanglePoints((prev) => prev.slice(0, -1));
+      return;
+    }
+    setCircleCenter(null);
+    setCircleRadiusMeters(null);
+  };
+
+  useEffect(() => {
+    if (!drawMode) {
+      setHoverPoint(null);
+    }
+  }, [drawMode]);
 
   const exportAlerts = (format: 'csv' | 'json') => {
     if (alerts.length === 0) return;
@@ -503,6 +592,21 @@ const ZoneMonitoringPage: React.FC = () => {
               </button>
               <button
                 type="button"
+                onClick={handleUndoPoint}
+                disabled={
+                  shapeType === 'polygon'
+                    ? polygonPoints.length === 0
+                    : shapeType === 'rectangle'
+                      ? rectanglePoints.length === 0
+                      : !circleCenter
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Annuler un point
+              </button>
+              <button
+                type="button"
                 onClick={clearZoneShape}
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-red-300 hover:text-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
               >
@@ -514,13 +618,15 @@ const ZoneMonitoringPage: React.FC = () => {
               {shapeType === 'circle' ? (
                 circleCenter && circleRadiusMeters
                   ? `Centre défini · rayon ${(circleRadiusMeters / 1000).toFixed(2)} km`
+                  : circleCenter && drawMode && hoverPoint
+                    ? `Rayon estimé ${(distanceMeters(circleCenter, hoverPoint) / 1000).toFixed(2)} km`
                   : 'Cliquez pour définir le centre puis un point pour le rayon.'
               ) : shapeType === 'rectangle' ? (
                 rectanglePoints.length < 2
-                  ? 'Cliquez sur deux coins opposés pour définir le rectangle.'
+                  ? 'Cliquez sur un coin puis déplacez la souris pour ajuster le rectangle.'
                   : 'Rectangle défini pour la détection.'
               ) : polygonPoints.length < 3 ? (
-                'Ajoutez au moins 3 points pour activer la détection.'
+                'Ajoutez au moins 3 points pour activer la détection. Les segments apparaissent au survol.'
               ) : (
                 <div>
                   <p className="font-semibold text-slate-700 dark:text-slate-200">Coordonnées sauvegardées</p>
@@ -631,18 +737,57 @@ const ZoneMonitoringPage: React.FC = () => {
 
         <section className="space-y-4">
           <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-4 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
-            <div className="h-[520px] overflow-hidden rounded-2xl">
+            <div className="relative h-[520px] overflow-hidden rounded-2xl">
               <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="h-full w-full">
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <MapClickHandler active={drawMode} onMapClick={handleMapClick} />
-                {shapeType !== 'circle' && zonePolygon.length >= 3 && (
+                <MapClickHandler active={drawMode} onMapClick={handleMapClick} onMapHover={setHoverPoint} />
+                <MapMetricsOverlay />
+                {shapeType === 'polygon' && previewPolygon.length >= 2 && (
+                  <Polyline positions={previewPolygon} pathOptions={{ color: '#2563eb', weight: 2, dashArray: '4 6' }} />
+                )}
+                {shapeType === 'polygon' && zonePolygon.length >= 3 && (
                   <Polygon positions={zonePolygon} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
+                )}
+                {shapeType === 'rectangle' && previewRectanglePolygon.length >= 3 && (
+                  <Polygon positions={previewRectanglePolygon} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
                 )}
                 {shapeType === 'circle' && circleCenter && circleRadiusMeters != null && (
                   <Circle center={circleCenter} radius={circleRadiusMeters} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
+                )}
+                {shapeType === 'circle' && circleCenter && circleRadiusMeters == null && hoverPoint && (
+                  <Circle
+                    center={circleCenter}
+                    radius={distanceMeters(circleCenter, hoverPoint)}
+                    pathOptions={{ color: '#2563eb', fillOpacity: 0.08, dashArray: '4 6' }}
+                  />
+                )}
+                {shapeType === 'polygon' &&
+                  polygonPoints.map((point, index) => (
+                    <CircleMarker
+                      key={`polygon-point-${index}`}
+                      center={point}
+                      radius={4}
+                      pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.9 }}
+                    />
+                  ))}
+                {shapeType === 'rectangle' &&
+                  rectanglePoints.map((point, index) => (
+                    <CircleMarker
+                      key={`rectangle-point-${index}`}
+                      center={point}
+                      radius={4}
+                      pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.9 }}
+                    />
+                  ))}
+                {shapeType === 'circle' && circleCenter && (
+                  <CircleMarker
+                    center={circleCenter}
+                    radius={5}
+                    pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.9 }}
+                  />
                 )}
                 {Object.entries(eventsByNumber).map(([number, events]) => {
                   const color = numberColors[number] || '#2563eb';
