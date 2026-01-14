@@ -10,7 +10,7 @@ import {
   useMap,
   useMapEvents
 } from 'react-leaflet';
-import { BellRing, Download, MapPin, Pause, Play, Plus, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
+import { BellRing, Download, Layers, MapPin, Pause, Play, Plus, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 
 const DEFAULT_CENTER: [number, number] = [14.6928, -17.4467];
@@ -164,6 +164,7 @@ const ZoneMonitoringPage: React.FC = () => {
   const [loadingNumbers, setLoadingNumbers] = useState(false);
   const [monitoringError, setMonitoringError] = useState<string | null>(null);
   const [lastUpdateLabel, setLastUpdateLabel] = useState<string | null>(null);
+  const [isSatellite, setIsSatellite] = useState(false);
 
   const statusRef = useRef<Record<string, boolean>>({});
   const pollingRef = useRef<number | null>(null);
@@ -757,11 +758,32 @@ const ZoneMonitoringPage: React.FC = () => {
         <section className="space-y-4">
           <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-4 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
             <div className="relative h-[520px] overflow-hidden rounded-2xl">
+              <div className="pointer-events-none absolute left-4 top-4 z-[1000] flex">
+                <button
+                  type="button"
+                  onClick={() => setIsSatellite((prev) => !prev)}
+                  aria-pressed={isSatellite}
+                  className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-[0.7rem] font-semibold text-slate-700 shadow-sm backdrop-blur transition hover:text-blue-600 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:text-blue-200"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  {isSatellite ? 'Vue plan' : 'Vue satellite'}
+                </button>
+              </div>
               <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="h-full w-full">
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
+                {isSatellite ? (
+                  <TileLayer
+                    attribution='&copy; Esri &mdash; Sources: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                    url={
+                      import.meta.env.VITE_SATELLITE_TILE_URL ||
+                      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                    }
+                  />
+                ) : (
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                )}
                 <MapClickHandler active={drawMode} onMapClick={handleMapClick} onMapHover={setHoverPoint} />
                 <MapMetricsOverlay />
                 {shapeType === 'polygon' && previewPolygon.length >= 2 && (
