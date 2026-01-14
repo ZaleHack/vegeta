@@ -37,6 +37,8 @@ interface AlertEntry {
   cgi?: string | null;
 }
 
+type ZoneShape = 'polygon' | 'rectangle' | 'circle';
+
 const getAuthHeaders = () => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -55,6 +57,20 @@ const pointInPolygon = (point: [number, number], polygon: [number, number][]) =>
   return inside;
 };
 
+const distanceMeters = (pointA: [number, number], pointB: [number, number]) => {
+  const [lat1, lon1] = pointA;
+  const [lat2, lon2] = pointB;
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const radius = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return radius * c;
+};
+
 const playAlertSound = () => {
   const context = new (window.AudioContext || (window as any).webkitAudioContext)();
   const oscillator = context.createOscillator();
@@ -70,12 +86,12 @@ const playAlertSound = () => {
 
 const MapClickHandler: React.FC<{
   active: boolean;
-  onAddPoint: (point: [number, number]) => void;
-}> = ({ active, onAddPoint }) => {
+  onMapClick: (point: [number, number]) => void;
+}> = ({ active, onMapClick }) => {
   useMapEvents({
     click: (event) => {
       if (!active) return;
-      onAddPoint([event.latlng.lat, event.latlng.lng]);
+      onMapClick([event.latlng.lat, event.latlng.lng]);
     }
   });
   return null;
@@ -86,6 +102,10 @@ const ZoneMonitoringPage: React.FC = () => {
   const [numbersSearch, setNumbersSearch] = useState('');
   const [selectedNumbers, setSelectedNumbers] = useState<string[]>([]);
   const [polygonPoints, setPolygonPoints] = useState<[number, number][]>([]);
+  const [rectanglePoints, setRectanglePoints] = useState<[number, number][]>([]);
+  const [circleCenter, setCircleCenter] = useState<[number, number] | null>(null);
+  const [circleRadiusMeters, setCircleRadiusMeters] = useState<number | null>(null);
+  const [shapeType, setShapeType] = useState<ZoneShape>('polygon');
   const [drawMode, setDrawMode] = useState(false);
   const [monitoringActive, setMonitoringActive] = useState(false);
   const [pollInterval, setPollInterval] = useState(7);
@@ -99,6 +119,23 @@ const ZoneMonitoringPage: React.FC = () => {
 
   const statusRef = useRef<Record<string, boolean>>({});
   const pollingRef = useRef<number | null>(null);
+
+  const rectanglePolygon = useMemo(() => {
+    if (rectanglePoints.length < 2) return [];
+    const [start, end] = rectanglePoints;
+    const minLat = Math.min(start[0], end[0]);
+    const maxLat = Math.max(start[0], end[0]);
+    const minLng = Math.min(start[1], end[1]);
+    const maxLng = Math.max(start[1], end[1]);
+    return [
+      [minLat, minLng],
+      [minLat, maxLng],
+      [maxLat, maxLng],
+      [maxLat, minLng]
+    ] as [number, number][];
+  }, [rectanglePoints]);
+
+  const zonePolygon = shapeType === 'rectangle' ? rectanglePolygon : polygonPoints;
 
   const numberColors = useMemo(() => {
     const map: Record<string, string> = {};
@@ -117,6 +154,18 @@ const ZoneMonitoringPage: React.FC = () => {
     return entries;
   }, [eventsByNumber]);
 
+  const isPointInsideZone = useCallback(
+    (point: [number, number]) => {
+      if (shapeType === 'circle') {
+        if (!circleCenter || circleRadiusMeters == null) return false;
+        return distanceMeters(circleCenter, point) <= circleRadiusMeters;
+      }
+      if (zonePolygon.length < 3) return false;
+      return pointInPolygon(point, zonePolygon);
+    },
+    [circleCenter, circleRadiusMeters, shapeType, zonePolygon]
+  );
+
   const statusByNumber = useMemo(() => {
     const status: Record<string, boolean | null> = {};
     selectedNumbers.forEach((number) => {
@@ -126,14 +175,14 @@ const ZoneMonitoringPage: React.FC = () => {
         return;
       }
       const latest = events[events.length - 1];
-      if (latest.latitude == null || latest.longitude == null || polygonPoints.length < 3) {
+      if (latest.latitude == null || latest.longitude == null) {
         status[number] = null;
       } else {
-        status[number] = pointInPolygon([latest.latitude, latest.longitude], polygonPoints);
+        status[number] = isPointInsideZone([latest.latitude, latest.longitude]);
       }
     });
     return status;
-  }, [eventsByNumber, polygonPoints, selectedNumbers]);
+  }, [eventsByNumber, isPointInsideZone, selectedNumbers]);
 
   const fetchNumbers = useCallback(async (search = '') => {
     setLoadingNumbers(true);
@@ -169,13 +218,40 @@ const ZoneMonitoringPage: React.FC = () => {
     return () => window.clearTimeout(timeout);
   }, [fetchNumbers, numbersSearch]);
 
-  const addPolygonPoint = useCallback((point: [number, number]) => {
-    setPolygonPoints((prev) => [...prev, point]);
-  }, []);
+  const handleMapClick = useCallback(
+    (point: [number, number]) => {
+      if (shapeType === 'polygon') {
+        setPolygonPoints((prev) => [...prev, point]);
+        return;
+      }
+      if (shapeType === 'rectangle') {
+        setRectanglePoints((prev) => {
+          if (prev.length >= 2) return [point];
+          return [...prev, point];
+        });
+        return;
+      }
+      if (!circleCenter || circleRadiusMeters != null) {
+        setCircleCenter(point);
+        setCircleRadiusMeters(null);
+      } else {
+        setCircleRadiusMeters(distanceMeters(circleCenter, point));
+      }
+    },
+    [circleCenter, circleRadiusMeters, shapeType]
+  );
 
-  const clearPolygon = () => {
+  const clearZoneShape = () => {
     setPolygonPoints([]);
+    setRectanglePoints([]);
+    setCircleCenter(null);
+    setCircleRadiusMeters(null);
     setDrawMode(false);
+  };
+
+  const handleShapeTypeChange = (nextShape: ZoneShape) => {
+    setShapeType(nextShape);
+    clearZoneShape();
   };
 
   const exportAlerts = (format: 'csv' | 'json') => {
@@ -260,8 +336,8 @@ const ZoneMonitoringPage: React.FC = () => {
 
       const newAlerts: AlertEntry[] = [];
       events.forEach((event) => {
-        if (event.latitude == null || event.longitude == null || polygonPoints.length < 3) return;
-        const isInside = pointInPolygon([event.latitude, event.longitude], polygonPoints);
+        if (event.latitude == null || event.longitude == null) return;
+        const isInside = isPointInsideZone([event.latitude, event.longitude]);
         const previousState = statusRef.current[event.number] ?? false;
         if (!previousState && isInside) {
           newAlerts.push({
@@ -287,7 +363,7 @@ const ZoneMonitoringPage: React.FC = () => {
       console.error('Erreur synchronisation temps réel:', error);
       setMonitoringError("Impossible d'atteindre le flux temps réel.");
     }
-  }, [lastCheck, polygonPoints, selectedNumbers, soundEnabled]);
+  }, [isPointInsideZone, lastCheck, selectedNumbers, soundEnabled]);
 
   useEffect(() => {
     if (!monitoringActive) {
@@ -330,7 +406,9 @@ const ZoneMonitoringPage: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Numéros surveillés</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Sélection depuis numero_appelant.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Saisissez un numéro à surveiller puis recherchez-le.
+                </p>
               </div>
               <button
                 type="button"
@@ -338,13 +416,14 @@ const ZoneMonitoringPage: React.FC = () => {
                 className="inline-flex items-center justify-center rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
               >
                 <Plus className="h-3.5 w-3.5" />
+                <span className="ml-1">Rechercher</span>
               </button>
             </div>
             <div className="mt-4 space-y-3">
               <input
                 value={numbersSearch}
                 onChange={(event) => setNumbersSearch(event.target.value)}
-                placeholder="Rechercher un numéro..."
+                placeholder="Entrer un numéro à rechercher..."
                 className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-2 text-sm text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
               {loadingNumbers ? (
@@ -382,8 +461,24 @@ const ZoneMonitoringPage: React.FC = () => {
           <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Zone surveillée</h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Mode dessin: cliquez sur la carte pour ajouter des sommets.
+              Mode dessin: choisissez une forme puis cliquez sur la carte.
             </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(['polygon', 'rectangle', 'circle'] as ZoneShape[]).map((shape) => (
+                <button
+                  key={shape}
+                  type="button"
+                  onClick={() => handleShapeTypeChange(shape)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    shapeType === shape
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-slate-200/70 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+                  }`}
+                >
+                  {shape === 'polygon' ? 'Polygone' : shape === 'rectangle' ? 'Rectangle' : 'Circulaire'}
+                </button>
+              ))}
+            </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -395,7 +490,7 @@ const ZoneMonitoringPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={clearPolygon}
+                onClick={clearZoneShape}
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-red-300 hover:text-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
               >
                 <X className="h-3.5 w-3.5" />
@@ -403,7 +498,15 @@ const ZoneMonitoringPage: React.FC = () => {
               </button>
             </div>
             <div className="mt-4 rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/80 p-4 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">
-              {polygonPoints.length < 3 ? (
+              {shapeType === 'circle' ? (
+                circleCenter && circleRadiusMeters
+                  ? `Centre défini · rayon ${(circleRadiusMeters / 1000).toFixed(2)} km`
+                  : 'Cliquez pour définir le centre puis un point pour le rayon.'
+              ) : shapeType === 'rectangle' ? (
+                rectanglePoints.length < 2
+                  ? 'Cliquez sur deux coins opposés pour définir le rectangle.'
+                  : 'Rectangle défini pour la détection.'
+              ) : polygonPoints.length < 3 ? (
                 'Ajoutez au moins 3 points pour activer la détection.'
               ) : (
                 <div>
@@ -521,9 +624,12 @@ const ZoneMonitoringPage: React.FC = () => {
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <MapClickHandler active={drawMode} onAddPoint={addPolygonPoint} />
-                {polygonPoints.length >= 3 && (
-                  <Polygon positions={polygonPoints} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
+                <MapClickHandler active={drawMode} onMapClick={handleMapClick} />
+                {shapeType !== 'circle' && zonePolygon.length >= 3 && (
+                  <Polygon positions={zonePolygon} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
+                )}
+                {shapeType === 'circle' && circleCenter && circleRadiusMeters != null && (
+                  <Circle center={circleCenter} radius={circleRadiusMeters} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
                 )}
                 {Object.entries(eventsByNumber).map(([number, events]) => {
                   const color = numberColors[number] || '#2563eb';
@@ -537,9 +643,9 @@ const ZoneMonitoringPage: React.FC = () => {
                 {latestPositions.map((event) => {
                   if (event.latitude == null || event.longitude == null) return null;
                   const color = numberColors[event.number] || '#2563eb';
-                  const inside = polygonPoints.length >= 3 ? pointInPolygon([event.latitude, event.longitude], polygonPoints) : false;
+                  const inside = isPointInsideZone([event.latitude, event.longitude]);
                   return (
-                    <React.Fragment key={`${event.number}-${event.insertedAt}`}> 
+                    <React.Fragment key={`${event.number}-${event.insertedAt}`}>
                       <CircleMarker
                         center={[event.latitude, event.longitude]}
                         radius={8}
