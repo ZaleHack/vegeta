@@ -38,11 +38,10 @@ import MapLegend, { NumberLegendItem } from './MapLegend';
 import {
   INCOMING_CALL_COLOR,
   OUTGOING_CALL_COLOR,
-  SMS_COLOR,
   LOCATION_COLOR,
   APPROX_LOCATION_COLOR,
-  USSD_COLOR,
-  NUMBER_COLOR_PALETTE
+  NUMBER_COLOR_PALETTE,
+  MAP_POINT_COLOR
 } from './mapColors';
 
 interface Point {
@@ -395,26 +394,8 @@ const isUssdEventType = (type?: string): boolean => {
   return type.trim().toLowerCase() === 'ussd';
 };
 
-const getPointColor = (type: string, direction?: string) => {
-  const normalizedType = type.trim().toLowerCase();
-
-  if (isLocationEventType(type)) {
-    return LOCATION_COLOR;
-  }
-
-  if (normalizedType === 'sms') {
-    return SMS_COLOR;
-  }
-
-  if (isUssdEventType(type)) {
-    return USSD_COLOR;
-  }
-
-  if (direction && direction.toLowerCase() === 'outgoing') {
-    return OUTGOING_CALL_COLOR;
-  }
-
-  return INCOMING_CALL_COLOR;
+const getPointColor = (_type: string, _direction?: string) => {
+  return MAP_POINT_COLOR;
 };
 
 const getIcon = (
@@ -3107,7 +3088,7 @@ const CdrMap: React.FC<Props> = ({
     });
   }, [displayedPoints]);
 
-  const createMarkerForEvents = useCallback(
+const createMarkerForEvents = useCallback(
     (events: Point[], position: [number, number], key: string) => {
       if (events.length === 0) return null;
       if (events.length === 1) {
@@ -3116,11 +3097,7 @@ const CdrMap: React.FC<Props> = ({
           <Marker
             key={key}
             position={position}
-            icon={getIcon(
-              loc.type,
-              loc.direction,
-              resolveSourceColor(getPointSourceValue(loc))
-            )}
+            icon={getIcon(loc.type, loc.direction)}
           >
             <Popup className="cdr-popup">{renderEventPopupContent(loc)}</Popup>
           </Marker>
@@ -3143,8 +3120,7 @@ const CdrMap: React.FC<Props> = ({
           icon={getGroupIcon(
             events.length,
             first.type,
-            first.direction,
-            resolveSourceColor(getPointSourceValue(first))
+            first.direction
           )}
         >
           <Popup className="cdr-popup">
@@ -3332,11 +3308,7 @@ const CdrMap: React.FC<Props> = ({
               parseFloat(loc.latitude),
               parseFloat(loc.longitude)
             ]}
-            icon={getIcon(
-              loc.type,
-              loc.direction,
-              resolveSourceColor(getPointSourceValue(loc))
-            )}
+            icon={getIcon(loc.type, loc.direction)}
           >
             <Popup className="cdr-popup">
               {renderEventPopupContent(loc)}

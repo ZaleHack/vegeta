@@ -1,13 +1,6 @@
 import React from 'react';
 import { Asterisk, MessageSquare, MapPin, PhoneIncoming, PhoneOutgoing } from 'lucide-react';
-import {
-  INCOMING_CALL_COLOR,
-  OUTGOING_CALL_COLOR,
-  SMS_COLOR,
-  LOCATION_COLOR,
-  APPROX_LOCATION_COLOR,
-  USSD_COLOR
-} from './mapColors';
+import { MAP_POINT_COLOR } from './mapColors';
 
 type NumberLegendItem = {
   label: string;
@@ -19,12 +12,12 @@ interface MapLegendProps {
 }
 
 const eventLegendItems = [
-  { icon: PhoneIncoming, label: 'Appel entrant', color: INCOMING_CALL_COLOR },
-  { icon: PhoneOutgoing, label: 'Appel sortant', color: OUTGOING_CALL_COLOR },
-  { icon: MessageSquare, label: 'SMS', color: SMS_COLOR },
-  { icon: Asterisk, label: 'USSD', color: USSD_COLOR },
-  { icon: MapPin, label: 'Position', color: LOCATION_COLOR },
-  { icon: MapPin, label: 'Localisation approximative', color: APPROX_LOCATION_COLOR }
+  { icon: PhoneIncoming, label: 'Appel entrant', color: MAP_POINT_COLOR },
+  { icon: PhoneOutgoing, label: 'Appel sortant', color: MAP_POINT_COLOR },
+  { icon: MessageSquare, label: 'SMS', color: MAP_POINT_COLOR },
+  { icon: Asterisk, label: 'USSD', color: MAP_POINT_COLOR },
+  { icon: MapPin, label: 'Position', color: MAP_POINT_COLOR },
+  { icon: MapPin, label: 'Localisation approximative', color: MAP_POINT_COLOR }
 ];
 
 const MapLegend: React.FC<MapLegendProps> = ({ numberItems = [] }) => {
