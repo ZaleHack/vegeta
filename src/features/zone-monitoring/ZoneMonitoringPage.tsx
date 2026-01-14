@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   MapContainer,
   TileLayer,
-  LayersControl,
   Polygon,
   Polyline,
   CircleMarker,
@@ -516,128 +515,26 @@ const ZoneMonitoringPage: React.FC = () => {
         subtitle="Définissez une zone, sélectionnez les numéros à suivre et recevez des alertes en temps réel."
       />
 
-      <div className="rounded-[2.5rem] border border-slate-200/80 bg-white/95 p-4 shadow-xl shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
-        <div className="relative h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-[2rem]">
-          <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="h-full w-full">
-            <LayersControl position="topright">
-              <LayersControl.BaseLayer checked name="Carte standard">
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-              </LayersControl.BaseLayer>
-              <LayersControl.BaseLayer name="Vue satellite">
-                <TileLayer
-                  attribution='&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics'
-                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                />
-              </LayersControl.BaseLayer>
-            </LayersControl>
-            <MapClickHandler active={drawMode} onMapClick={handleMapClick} onMapHover={setHoverPoint} />
-            <MapMetricsOverlay />
-            {shapeType === 'polygon' && previewPolygon.length >= 2 && (
-              <Polyline positions={previewPolygon} pathOptions={{ color: '#2563eb', weight: 2, dashArray: '4 6' }} />
-            )}
-            {shapeType === 'polygon' && zonePolygon.length >= 3 && (
-              <Polygon positions={zonePolygon} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
-            )}
-            {shapeType === 'rectangle' && previewRectanglePolygon.length >= 3 && (
-              <Polygon positions={previewRectanglePolygon} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
-            )}
-            {shapeType === 'circle' && circleCenter && circleRadiusMeters != null && (
-              <Circle center={circleCenter} radius={circleRadiusMeters} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
-            )}
-            {shapeType === 'circle' && circleCenter && circleRadiusMeters == null && hoverPoint && (
-              <Circle
-                center={circleCenter}
-                radius={distanceMeters(circleCenter, hoverPoint)}
-                pathOptions={{ color: '#2563eb', fillOpacity: 0.08, dashArray: '4 6' }}
-              />
-            )}
-            {shapeType === 'polygon' &&
-              polygonPoints.map((point, index) => (
-                <CircleMarker
-                  key={`polygon-point-${index}`}
-                  center={point}
-                  radius={4}
-                  pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.9 }}
-                />
-              ))}
-            {shapeType === 'rectangle' &&
-              rectanglePoints.map((point, index) => (
-                <CircleMarker
-                  key={`rectangle-point-${index}`}
-                  center={point}
-                  radius={4}
-                  pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.9 }}
-                />
-              ))}
-            {shapeType === 'circle' && circleCenter && (
-              <CircleMarker
-                center={circleCenter}
-                radius={5}
-                pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.9 }}
-              />
-            )}
-            {Object.entries(eventsByNumber).map(([number, events]) => {
-              const color = numberColors[number] || '#2563eb';
-              const path = events
-                .filter((event) => event.latitude != null && event.longitude != null)
-                .map((event) => [event.latitude as number, event.longitude as number]);
-              return path.length > 1 ? <Polyline key={`path-${number}`} positions={path} pathOptions={{ color, weight: 3 }} /> : null;
-            })}
-            {latestPositions.map((event) => {
-              if (event.latitude == null || event.longitude == null) return null;
-              const color = numberColors[event.number] || '#2563eb';
-              const inside = hasDefinedZone ? isPointInsideZone([event.latitude, event.longitude]) : null;
-              return (
-                <React.Fragment key={`${event.number}-${event.insertedAt}`}>
-                  <CircleMarker
-                    center={[event.latitude, event.longitude]}
-                    radius={8}
-                    pathOptions={{ color, fillColor: inside ? '#10b981' : color, fillOpacity: 0.9 }}
-                  >
-                    <Popup>
-                      <div className="space-y-1 text-xs">
-                        <p className="font-semibold">{event.number}</p>
-                        <p>CGI: {event.cgi || 'N/A'}</p>
-                        <p>{event.insertedAt ? new Date(event.insertedAt).toLocaleString() : ''}</p>
-                        <p className={inside ? 'text-emerald-600' : 'text-slate-500'}>
-                          {!hasDefinedZone ? 'Zone non définie' : inside ? 'Dans la zone' : 'Hors zone'}
-                        </p>
-                      </div>
-                    </Popup>
-                  </CircleMarker>
-                  {event.coverageRadiusMeters ? (
-                    <Circle
-                      center={[event.latitude, event.longitude]}
-                      radius={event.coverageRadiusMeters}
-                      pathOptions={{ color, fillOpacity: 0.05, dashArray: '4 6' }}
-                    />
-                  ) : null}
-                </React.Fragment>
-              );
-            })}
-          </MapContainer>
-
-          <aside className="absolute left-4 top-4 flex h-[calc(100%-2rem)] w-[360px] flex-col gap-4 overflow-y-auto rounded-3xl border border-slate-200/70 bg-white/95 p-4 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/80">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Numéros surveillés</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Saisissez un numéro, définissez la zone puis réglez le polling avant de démarrer.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleAddNumber}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span className="ml-1">Ajouter</span>
-                </button>
+      <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
+        <aside className="space-y-6">
+          <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Numéros surveillés</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Saisissez un numéro, définissez la zone puis réglez le polling avant de démarrer.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={handleAddNumber}
+                className="inline-flex items-center justify-center rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span className="ml-1">Ajouter</span>
+              </button>
+            </div>
+            <div className="mt-4 space-y-3">
               <input
                 value={numberInput}
                 onChange={(event) => setNumberInput(event.target.value)}
@@ -653,7 +550,7 @@ const ZoneMonitoringPage: React.FC = () => {
               {loadingNumbers ? (
                 <p className="text-xs text-slate-500">Chargement...</p>
               ) : (
-                <div className="max-h-52 space-y-2 overflow-y-auto">
+                <div className="max-h-64 space-y-2 overflow-y-auto">
                   {numbers.length === 0 ? (
                     <p className="text-xs text-slate-500">Aucun numéro disponible.</p>
                   ) : (
@@ -680,186 +577,286 @@ const ZoneMonitoringPage: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="space-y-3">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Zone surveillée</h3>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Mode dessin: choisissez une forme puis cliquez sur la carte.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(['polygon', 'rectangle', 'circle'] as ZoneShape[]).map((shape) => (
-                  <button
-                    key={shape}
-                    type="button"
-                    onClick={() => handleShapeTypeChange(shape)}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                      shapeType === shape
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-slate-200/70 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
-                    }`}
-                  >
-                    {shape === 'polygon' ? 'Polygone' : shape === 'rectangle' ? 'Rectangle' : 'Circulaire'}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
+          <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Zone surveillée</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Mode dessin: choisissez une forme puis cliquez sur la carte.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(['polygon', 'rectangle', 'circle'] as ZoneShape[]).map((shape) => (
                 <button
+                  key={shape}
                   type="button"
-                  onClick={() => setDrawMode((prev) => !prev)}
-                  className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-blue-700"
-                >
-                  {drawMode ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                  {drawMode ? 'Arrêter le dessin' : 'Dessiner la zone'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleUndoPoint}
-                  disabled={
-                    shapeType === 'polygon'
-                      ? polygonPoints.length === 0
-                      : shapeType === 'rectangle'
-                        ? rectanglePoints.length === 0
-                        : !circleCenter
-                  }
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Annuler un point
-                </button>
-                <button
-                  type="button"
-                  onClick={clearZoneShape}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-red-300 hover:text-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Effacer
-                </button>
-              </div>
-              <div className="rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/80 p-4 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">
-                {shapeType === 'circle' ? (
-                  circleCenter && circleRadiusMeters
-                    ? `Centre défini · rayon ${(circleRadiusMeters / 1000).toFixed(2)} km`
-                    : circleCenter && drawMode && hoverPoint
-                      ? `Rayon estimé ${(distanceMeters(circleCenter, hoverPoint) / 1000).toFixed(2)} km`
-                      : 'Cliquez pour définir le centre puis un point pour le rayon.'
-                ) : shapeType === 'rectangle' ? (
-                  rectanglePoints.length < 2
-                    ? 'Cliquez sur un coin puis déplacez la souris pour ajuster le rectangle.'
-                    : 'Rectangle défini pour la détection.'
-                ) : polygonPoints.length < 3 ? (
-                  'Ajoutez au moins 3 points pour activer la détection. Les segments apparaissent au survol.'
-                ) : (
-                  <div>
-                    <p className="font-semibold text-slate-700 dark:text-slate-200">Coordonnées sauvegardées</p>
-                    <p className="mt-1">{polygonPoints.length} sommets</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Contrôle temps réel</h3>
-                <button
-                  type="button"
-                  onClick={() => setMonitoringActive((prev) => !prev)}
-                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white shadow transition ${
-                    monitoringActive ? 'bg-rose-500 hover:bg-rose-600' : 'bg-emerald-500 hover:bg-emerald-600'
+                  onClick={() => handleShapeTypeChange(shape)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    shapeType === shape
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-slate-200/70 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
                   }`}
                 >
-                  {monitoringActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                  {monitoringActive ? 'Suspendre' : 'Démarrer'}
+                  {shape === 'polygon' ? 'Polygone' : shape === 'rectangle' ? 'Rectangle' : 'Circulaire'}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDrawMode((prev) => !prev)}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-blue-700"
+              >
+                {drawMode ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                {drawMode ? 'Arrêter le dessin' : 'Dessiner la zone'}
+              </button>
+              <button
+                type="button"
+                onClick={handleUndoPoint}
+                disabled={
+                  shapeType === 'polygon'
+                    ? polygonPoints.length === 0
+                    : shapeType === 'rectangle'
+                      ? rectanglePoints.length === 0
+                      : !circleCenter
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Annuler un point
+              </button>
+              <button
+                type="button"
+                onClick={clearZoneShape}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-red-300 hover:text-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                <X className="h-3.5 w-3.5" />
+                Effacer
+              </button>
+            </div>
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/80 p-4 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">
+              {shapeType === 'circle' ? (
+                circleCenter && circleRadiusMeters
+                  ? `Centre défini · rayon ${(circleRadiusMeters / 1000).toFixed(2)} km`
+                  : circleCenter && drawMode && hoverPoint
+                    ? `Rayon estimé ${(distanceMeters(circleCenter, hoverPoint) / 1000).toFixed(2)} km`
+                  : 'Cliquez pour définir le centre puis un point pour le rayon.'
+              ) : shapeType === 'rectangle' ? (
+                rectanglePoints.length < 2
+                  ? 'Cliquez sur un coin puis déplacez la souris pour ajuster le rectangle.'
+                  : 'Rectangle défini pour la détection.'
+              ) : polygonPoints.length < 3 ? (
+                'Ajoutez au moins 3 points pour activer la détection. Les segments apparaissent au survol.'
+              ) : (
+                <div>
+                  <p className="font-semibold text-slate-700 dark:text-slate-200">Coordonnées sauvegardées</p>
+                  <p className="mt-1">{polygonPoints.length} sommets</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Contrôle temps réel</h3>
+              <button
+                type="button"
+                onClick={() => setMonitoringActive((prev) => !prev)}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white shadow transition ${
+                  monitoringActive ? 'bg-rose-500 hover:bg-rose-600' : 'bg-emerald-500 hover:bg-emerald-600'
+                }`}
+              >
+                {monitoringActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                {monitoringActive ? 'Suspendre' : 'Démarrer'}
+              </button>
+            </div>
+            <div className="mt-4 space-y-4 text-xs text-slate-600 dark:text-slate-300">
+              <div className="flex items-center justify-between">
+                <span>Intervalle de polling</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={5}
+                    max={30}
+                    value={pollInterval}
+                    onChange={(event) => setPollInterval(Number(event.target.value))}
+                    className="w-16 rounded-xl border border-slate-200 bg-white px-2 py-1 text-center text-xs text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                  <span>s</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Notifications sonores</span>
+                <button
+                  type="button"
+                  onClick={() => setSoundEnabled((prev) => !prev)}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+                  {soundEnabled ? 'Actives' : 'Silencieuses'}
                 </button>
               </div>
-              <div className="space-y-4 text-xs text-slate-600 dark:text-slate-300">
-                <div className="flex items-center justify-between">
-                  <span>Intervalle de polling</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={5}
-                      max={30}
-                      value={pollInterval}
-                      onChange={(event) => setPollInterval(Number(event.target.value))}
-                      className="w-16 rounded-xl border border-slate-200 bg-white px-2 py-1 text-center text-xs text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    />
-                    <span>s</span>
-                  </div>
+              {monitoringError && (
+                <div className="rounded-2xl border border-rose-200/70 bg-rose-50 px-3 py-2 text-xs text-rose-600 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+                  {monitoringError}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Notifications sonores</span>
-                  <button
-                    type="button"
-                    onClick={() => setSoundEnabled((prev) => !prev)}
-                    className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                  >
-                    {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
-                    {soundEnabled ? 'Actives' : 'Silencieuses'}
-                  </button>
-                </div>
-                {monitoringError && (
-                  <div className="rounded-2xl border border-rose-200/70 bg-rose-50 px-3 py-2 text-xs text-rose-600 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
-                    {monitoringError}
-                  </div>
-                )}
-                {lastUpdateLabel && (
-                  <p className="text-[0.7rem] text-slate-400">Dernière synchronisation: {lastUpdateLabel}</p>
-                )}
+              )}
+              {lastUpdateLabel && (
+                <p className="text-[0.7rem] text-slate-400">Dernière synchronisation: {lastUpdateLabel}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Alertes</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => exportAlerts('csv')}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white px-2 py-1 text-[0.7rem] font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  <Download className="h-3 w-3" />
+                  CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportAlerts('json')}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white px-2 py-1 text-[0.7rem] font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  <Download className="h-3 w-3" />
+                  JSON
+                </button>
               </div>
             </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Alertes</h3>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => exportAlerts('csv')}
-                    className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white px-2 py-1 text-[0.7rem] font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                  >
-                    <Download className="h-3 w-3" />
-                    CSV
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => exportAlerts('json')}
-                    className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white px-2 py-1 text-[0.7rem] font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                  >
-                    <Download className="h-3 w-3" />
-                    JSON
-                  </button>
+            <div className="mt-4 max-h-64 space-y-3 overflow-y-auto">
+              {alerts.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/80 p-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                  Aucune alerte enregistrée.
                 </div>
-              </div>
-              <div className="max-h-52 space-y-3 overflow-y-auto">
-                {alerts.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200/80 bg-slate-50/80 p-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
-                    Aucune alerte enregistrée.
-                  </div>
-                ) : (
-                  alerts.map((alert) => (
-                    <div
-                      key={alert.id}
-                      className="flex items-start gap-3 rounded-2xl border border-blue-200/70 bg-blue-50/80 px-3 py-2 text-xs text-blue-700 shadow-sm dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200"
-                    >
-                      <BellRing className="mt-0.5 h-3.5 w-3.5" />
-                      <div>
-                        <p className="font-semibold">Entrée détectée</p>
-                        <p>{alert.number}</p>
-                        <p className="text-[0.65rem] text-blue-500">
-                          {new Date(alert.timestamp).toLocaleString()} · {alert.latitude.toFixed(5)}, {alert.longitude.toFixed(5)}
-                        </p>
-                      </div>
+              ) : (
+                alerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className="flex items-start gap-3 rounded-2xl border border-blue-200/70 bg-blue-50/80 px-3 py-2 text-xs text-blue-700 shadow-sm dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200"
+                  >
+                    <BellRing className="mt-0.5 h-3.5 w-3.5" />
+                    <div>
+                      <p className="font-semibold">Entrée détectée</p>
+                      <p>{alert.number}</p>
+                      <p className="text-[0.65rem] text-blue-500">
+                        {new Date(alert.timestamp).toLocaleString()} · {alert.latitude.toFixed(5)}, {alert.longitude.toFixed(5)}
+                      </p>
                     </div>
-                  ))
-                )}
-              </div>
+                  </div>
+                ))
+              )}
             </div>
+          </div>
+        </aside>
 
-            <div className="space-y-3">
+        <section className="space-y-4">
+          <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-4 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
+            <div className="relative h-[520px] overflow-hidden rounded-2xl">
+              <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="h-full w-full">
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MapClickHandler active={drawMode} onMapClick={handleMapClick} onMapHover={setHoverPoint} />
+                <MapMetricsOverlay />
+                {shapeType === 'polygon' && previewPolygon.length >= 2 && (
+                  <Polyline positions={previewPolygon} pathOptions={{ color: '#2563eb', weight: 2, dashArray: '4 6' }} />
+                )}
+                {shapeType === 'polygon' && zonePolygon.length >= 3 && (
+                  <Polygon positions={zonePolygon} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
+                )}
+                {shapeType === 'rectangle' && previewRectanglePolygon.length >= 3 && (
+                  <Polygon positions={previewRectanglePolygon} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
+                )}
+                {shapeType === 'circle' && circleCenter && circleRadiusMeters != null && (
+                  <Circle center={circleCenter} radius={circleRadiusMeters} pathOptions={{ color: '#2563eb', fillOpacity: 0.2 }} />
+                )}
+                {shapeType === 'circle' && circleCenter && circleRadiusMeters == null && hoverPoint && (
+                  <Circle
+                    center={circleCenter}
+                    radius={distanceMeters(circleCenter, hoverPoint)}
+                    pathOptions={{ color: '#2563eb', fillOpacity: 0.08, dashArray: '4 6' }}
+                  />
+                )}
+                {shapeType === 'polygon' &&
+                  polygonPoints.map((point, index) => (
+                    <CircleMarker
+                      key={`polygon-point-${index}`}
+                      center={point}
+                      radius={4}
+                      pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.9 }}
+                    />
+                  ))}
+                {shapeType === 'rectangle' &&
+                  rectanglePoints.map((point, index) => (
+                    <CircleMarker
+                      key={`rectangle-point-${index}`}
+                      center={point}
+                      radius={4}
+                      pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.9 }}
+                    />
+                  ))}
+                {shapeType === 'circle' && circleCenter && (
+                  <CircleMarker
+                    center={circleCenter}
+                    radius={5}
+                    pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.9 }}
+                  />
+                )}
+                {Object.entries(eventsByNumber).map(([number, events]) => {
+                  const color = numberColors[number] || '#2563eb';
+                  const path = events
+                    .filter((event) => event.latitude != null && event.longitude != null)
+                    .map((event) => [event.latitude as number, event.longitude as number]);
+                  return path.length > 1 ? (
+                    <Polyline key={`path-${number}`} positions={path} pathOptions={{ color, weight: 3 }} />
+                  ) : null;
+                })}
+                {latestPositions.map((event) => {
+                  if (event.latitude == null || event.longitude == null) return null;
+                  const color = numberColors[event.number] || '#2563eb';
+                  const inside = hasDefinedZone ? isPointInsideZone([event.latitude, event.longitude]) : null;
+                  return (
+                    <React.Fragment key={`${event.number}-${event.insertedAt}`}>
+                      <CircleMarker
+                        center={[event.latitude, event.longitude]}
+                        radius={8}
+                        pathOptions={{ color, fillColor: inside ? '#10b981' : color, fillOpacity: 0.9 }}
+                      >
+                        <Popup>
+                          <div className="space-y-1 text-xs">
+                            <p className="font-semibold">{event.number}</p>
+                            <p>CGI: {event.cgi || 'N/A'}</p>
+                            <p>{event.insertedAt ? new Date(event.insertedAt).toLocaleString() : ''}</p>
+                            <p className={inside ? 'text-emerald-600' : 'text-slate-500'}>
+                              {!hasDefinedZone ? 'Zone non définie' : inside ? 'Dans la zone' : 'Hors zone'}
+                            </p>
+                          </div>
+                        </Popup>
+                      </CircleMarker>
+                      {event.coverageRadiusMeters ? (
+                        <Circle
+                          center={[event.latitude, event.longitude]}
+                          radius={event.coverageRadiusMeters}
+                          pathOptions={{ color, fillOpacity: 0.05, dashArray: '4 6' }}
+                        />
+                      ) : null}
+                    </React.Fragment>
+                  );
+                })}
+              </MapContainer>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Statut actuel</h3>
-              <div className="space-y-3">
+              <div className="mt-4 space-y-3">
                 {selectedNumbers.length === 0 ? (
                   <p className="text-xs text-slate-500">Sélectionnez des numéros pour afficher le statut.</p>
                 ) : (
@@ -893,9 +890,9 @@ const ZoneMonitoringPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Historique des positions</h3>
-              <div className="space-y-3">
+              <div className="mt-4 space-y-3">
                 {latestPositions.length === 0 ? (
                   <p className="text-xs text-slate-500">Aucune position enregistrée.</p>
                 ) : (
@@ -923,8 +920,8 @@ const ZoneMonitoringPage: React.FC = () => {
                 )}
               </div>
             </div>
-          </aside>
-        </div>
+          </div>
+        </section>
       </div>
     </div>
   );
