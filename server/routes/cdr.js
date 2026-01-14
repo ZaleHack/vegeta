@@ -116,13 +116,19 @@ router.get('/realtime/monitor', authenticate, async (req, res) => {
     }
 
     const limit = parsePositiveInteger(req.query.limit, 500);
+    const lastId = parsePositiveInteger(req.query.lastId, null);
     const placeholders = numbers.map(() => '?').join(', ');
     const params = [...numbers];
 
     let whereClause = `WHERE c.numero_appelant IN (${placeholders})`;
     if (since) {
-      whereClause += ' AND c.inserted_at > ?';
-      params.push(since);
+      if (lastId) {
+        whereClause += ' AND (c.inserted_at > ? OR (c.inserted_at = ? AND c.id > ?))';
+        params.push(since, since, lastId);
+      } else {
+        whereClause += ' AND c.inserted_at >= ?';
+        params.push(since);
+      }
     }
 
     params.push(limit);
@@ -141,7 +147,7 @@ router.get('/realtime/monitor', authenticate, async (req, res) => {
           c.inserted_at
         FROM ${REALTIME_CDR_TABLE_SQL} c
         ${whereClause}
-        ORDER BY c.inserted_at ASC
+        ORDER BY c.inserted_at ASC, c.id ASC
         LIMIT ?
       `,
       params
