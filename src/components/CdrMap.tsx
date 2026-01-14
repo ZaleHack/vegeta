@@ -2396,33 +2396,36 @@ const CdrMap: React.FC<Props> = ({
     );
 
     const supplementalContacts: Contact[] = [];
+    const canUseSummaryContacts = sourceNumbers.length <= 1;
     const defaultTracked = selectedSource || sourceNumbers[0] || undefined;
     const trackedLabel = defaultTracked || 'summary';
 
-    contactSummaries.forEach((summary, index) => {
-      const normalizedNumber = normalizePhoneDigits(summary.number) || summary.number.trim();
-      if (!normalizedNumber || normalizedContacts.has(normalizedNumber)) {
-        return;
-      }
+    if (canUseSummaryContacts) {
+      contactSummaries.forEach((summary, index) => {
+        const normalizedNumber = normalizePhoneDigits(summary.number) || summary.number.trim();
+        if (!normalizedNumber || normalizedContacts.has(normalizedNumber)) {
+          return;
+        }
 
-      const summaryDurationSeconds =
-        summary.callDurationSeconds ??
-        parseDurationToSeconds(summary.callDuration || '') ??
-        0;
+        const summaryDurationSeconds =
+          summary.callDurationSeconds ??
+          parseDurationToSeconds(summary.callDuration || '') ??
+          0;
 
-      supplementalContacts.push({
-        id: `${trackedLabel}|${normalizedNumber}|summary-${index}`,
-        tracked: defaultTracked,
-        contact: summary.number,
-        contactNormalized: normalizedNumber,
-        callCount: summary.callCount ?? 0,
-        smsCount: summary.smsCount ?? 0,
-        ussdCount: 0,
-        callDuration: formatDuration(summaryDurationSeconds),
-        total: summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0),
-        events: summary.events || []
+        supplementalContacts.push({
+          id: `${trackedLabel}|${normalizedNumber}|summary-${index}`,
+          tracked: defaultTracked,
+          contact: summary.number,
+          contactNormalized: normalizedNumber,
+          callCount: summary.callCount ?? 0,
+          smsCount: summary.smsCount ?? 0,
+          ussdCount: 0,
+          callDuration: formatDuration(summaryDurationSeconds),
+          total: summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0),
+          events: summary.events || []
+        });
       });
-    });
+    }
 
     const mergedContacts = [...contacts, ...supplementalContacts].sort((a, b) => b.total - a.total);
 
