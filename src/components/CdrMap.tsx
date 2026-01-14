@@ -3088,16 +3088,18 @@ const CdrMap: React.FC<Props> = ({
     });
   }, [displayedPoints]);
 
-const createMarkerForEvents = useCallback(
+  const createMarkerForEvents = useCallback(
     (events: Point[], position: [number, number], key: string) => {
       if (events.length === 0) return null;
       if (events.length === 1) {
         const loc = events[0];
+        const sourceValue = getPointSourceValue(loc);
+        const colorOverride = sourceValue ? resolveSourceColor(sourceValue) : undefined;
         return (
           <Marker
             key={key}
             position={position}
-            icon={getIcon(loc.type, loc.direction)}
+            icon={getIcon(loc.type, loc.direction, colorOverride)}
           >
             <Popup className="cdr-popup">{renderEventPopupContent(loc)}</Popup>
           </Marker>
@@ -3112,6 +3114,8 @@ const createMarkerForEvents = useCallback(
             .filter((src): src is string => Boolean(src))
         )
       );
+      const groupColor =
+        uniqueSources.length === 1 ? resolveSourceColor(uniqueSources[0]) : undefined;
 
       return (
         <Marker
@@ -3120,7 +3124,8 @@ const createMarkerForEvents = useCallback(
           icon={getGroupIcon(
             events.length,
             first.type,
-            first.direction
+            first.direction,
+            groupColor
           )}
         >
           <Popup className="cdr-popup">
