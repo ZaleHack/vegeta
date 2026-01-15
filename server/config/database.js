@@ -1052,6 +1052,115 @@ class DatabaseManager {
       `);
 
       await query(`
+        CREATE TABLE IF NOT EXISTS autres.antennes_cgi (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          cgi VARCHAR(100) NOT NULL UNIQUE,
+          mcc VARCHAR(10) DEFAULT NULL,
+          mnc VARCHAR(10) DEFAULT NULL,
+          lac VARCHAR(20) DEFAULT NULL,
+          cell_id VARCHAR(30) DEFAULT NULL,
+          latitude DECIMAL(10,6) DEFAULT NULL,
+          longitude DECIMAL(10,6) DEFAULT NULL,
+          rayon_couverture_m INT DEFAULT NULL,
+          operateur VARCHAR(50) DEFAULT NULL,
+          technologie VARCHAR(20) DEFAULT NULL,
+          adresse VARCHAR(255) DEFAULT NULL,
+          ville VARCHAR(100) DEFAULT NULL,
+          region VARCHAR(100) DEFAULT NULL,
+          actif TINYINT(1) DEFAULT 1,
+          date_mise_service DATE DEFAULT NULL,
+          derniere_maj TIMESTAMP NULL DEFAULT NULL,
+          INDEX idx_cgi (cgi),
+          INDEX idx_operateur (operateur),
+          INDEX idx_region (region)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await query(`
+        CREATE TABLE IF NOT EXISTS autres.zones_geofencing (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          nom VARCHAR(255) NOT NULL,
+          type VARCHAR(50) DEFAULT NULL,
+          description TEXT DEFAULT NULL,
+          coordonnees_geo JSON NOT NULL,
+          rayon_m INT DEFAULT NULL,
+          couleur_carte VARCHAR(20) DEFAULT NULL,
+          alerte_appel_entrant TINYINT(1) DEFAULT 0,
+          alerte_appel_sortant TINYINT(1) DEFAULT 0,
+          alerte_appel_interne TINYINT(1) DEFAULT 0,
+          horaires_surveillance JSON DEFAULT NULL,
+          actif TINYINT(1) DEFAULT 1,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_zone_type (type),
+          INDEX idx_zone_actif (actif)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await query(`
+        CREATE TABLE IF NOT EXISTS autres.cdr_geolocalisations (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          cdr_id INT NOT NULL,
+          seq_number VARCHAR(50) DEFAULT NULL,
+          cgi VARCHAR(100) DEFAULT NULL,
+          antenne_id INT DEFAULT NULL,
+          latitude_estimee DECIMAL(10,6) DEFAULT NULL,
+          longitude_estimee DECIMAL(10,6) DEFAULT NULL,
+          precision_m INT DEFAULT NULL,
+          zone_id INT DEFAULT NULL,
+          dans_zone TINYINT(1) DEFAULT 0,
+          timestamp_detection TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_cdr_geo (cdr_id),
+          INDEX idx_zone_geo (zone_id),
+          INDEX idx_antenne_geo (antenne_id),
+          FOREIGN KEY (antenne_id) REFERENCES autres.antennes_cgi(id) ON DELETE SET NULL,
+          FOREIGN KEY (zone_id) REFERENCES autres.zones_geofencing(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await query(`
+        CREATE TABLE IF NOT EXISTS autres.alertes_geofencing (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          cdr_id INT DEFAULT NULL,
+          zone_id INT DEFAULT NULL,
+          type_alerte VARCHAR(50) NOT NULL,
+          numero_appelant VARCHAR(50) DEFAULT NULL,
+          numero_appele VARCHAR(50) DEFAULT NULL,
+          type_appel VARCHAR(50) DEFAULT NULL,
+          cgi VARCHAR(100) DEFAULT NULL,
+          message_alerte TEXT DEFAULT NULL,
+          niveau_priorite VARCHAR(20) DEFAULT 'info',
+          statut VARCHAR(20) DEFAULT 'nouveau',
+          destinataires JSON DEFAULT NULL,
+          date_alerte TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          traite_par VARCHAR(100) DEFAULT NULL,
+          traite_le TIMESTAMP NULL DEFAULT NULL,
+          INDEX idx_zone_alert (zone_id),
+          INDEX idx_cdr_alert (cdr_id),
+          INDEX idx_statut_alert (statut),
+          FOREIGN KEY (zone_id) REFERENCES autres.zones_geofencing(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await query(`
+        CREATE TABLE IF NOT EXISTS autres.regles_alertes_zones (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          zone_id INT NOT NULL,
+          nom_regle VARCHAR(255) NOT NULL,
+          conditions JSON DEFAULT NULL,
+          declencheurs JSON DEFAULT NULL,
+          destinataires JSON DEFAULT NULL,
+          message_template TEXT DEFAULT NULL,
+          actif TINYINT(1) DEFAULT 1,
+          priorite VARCHAR(20) DEFAULT 'info',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_zone_regle (zone_id),
+          INDEX idx_regle_active (actif),
+          FOREIGN KEY (zone_id) REFERENCES autres.zones_geofencing(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+
+      await query(`
         CREATE TABLE IF NOT EXISTS autres.notifications (
           id INT AUTO_INCREMENT PRIMARY KEY,
           user_id INT NOT NULL,
