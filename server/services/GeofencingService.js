@@ -208,8 +208,20 @@ class GeofencingService {
     if ((lat === null || lat === undefined || lng === null || lng === undefined) && detectedCgi) {
       antenna = await this.getAntennaByCgi(detectedCgi);
       if (antenna) {
-        lat = Number(antenna.latitude);
-        lng = Number(antenna.longitude);
+        const antennaLat = antenna.latitude;
+        const antennaLng = antenna.longitude;
+        if (
+          antennaLat === null ||
+          antennaLat === undefined ||
+          antennaLat === '' ||
+          antennaLng === null ||
+          antennaLng === undefined ||
+          antennaLng === ''
+        ) {
+          return { error: 'Coordonnées géographiques indisponibles' };
+        }
+        lat = Number(antennaLat);
+        lng = Number(antennaLng);
       }
     }
 
