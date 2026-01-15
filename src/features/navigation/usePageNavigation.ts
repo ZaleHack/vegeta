@@ -11,6 +11,7 @@ export type AppPage =
   | 'entreprises'
   | 'vehicules'
   | 'cdr'
+  | 'geofencing'
   | 'cdr-export'
   | 'link-diagram'
   | 'phone-identifier'
@@ -35,6 +36,7 @@ export const pageToPath: Record<AppPage, string> = {
   entreprises: '/entreprises',
   vehicules: '/vehicules',
   cdr: '/cdr',
+  geofencing: '/geofencing',
   'cdr-export': '/cdr/export-donnees',
   'link-diagram': '/diagramme-liens',
   'phone-identifier': '/identifier-telephone',
