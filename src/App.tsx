@@ -6640,19 +6640,6 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => navigateToPage('geofencing')}
-              title="Géofencing"
-              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                currentPage === 'geofencing'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
-                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
-              } ${!sidebarOpen && 'justify-center px-0'}`}
-            >
-              <MapPin className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
-              {sidebarOpen && <span className="ml-3">Géofencing</span>}
-            </button>
-
-            <button
               onClick={() => navigateToPage('cdr-export')}
               title="Données téléphoniques"
               className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
@@ -8544,66 +8531,6 @@ useEffect(() => {
                     />
                   </div>
                 )}
-              </section>
-            </div>
-          )}
-
-          {currentPage === 'geofencing' && (
-            <div className="space-y-8">
-              <PageHeader
-                icon={<MapPin className="h-6 w-6" />}
-                title="Géofencing"
-                subtitle="Surveillez les zones sensibles et déclenchez des alertes automatisées."
-              />
-
-              <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-8 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
-                <div className="space-y-6">
-                  <div className="flex flex-col gap-2">
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Pilotage du géofencing</h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-300">
-                      Centralisez la gestion des zones, des règles d’activation et du suivi des alertes en temps réel.
-                    </p>
-                  </div>
-                  <div className="grid gap-4 lg:grid-cols-3">
-                    <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-200">
-                          <MapPin className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="text-base font-semibold text-slate-900 dark:text-slate-100">Zones</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-300">Définition des périmètres de surveillance.</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-200">
-                          <Shield className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="text-base font-semibold text-slate-900 dark:text-slate-100">Règles</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-300">Activation des alertes et scénarios.</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-200">
-                          <BellRing className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="text-base font-semibold text-slate-900 dark:text-slate-100">Alertes</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-300">Historique et priorisation des événements.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-dashed border-slate-300/70 bg-slate-50/70 px-5 py-4 text-sm text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/50 dark:text-slate-300">
-                    Les interfaces détaillées sont en cours d’intégration. En attendant, les données de géofencing restent
-                    accessibles via les routes API dédiées.
-                  </div>
-                </div>
               </section>
             </div>
           )}
