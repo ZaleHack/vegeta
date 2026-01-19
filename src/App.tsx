@@ -119,6 +119,57 @@ const FRAUD_ROLE_LABELS: Record<string, string> = {
   target: 'Cible'
 };
 const FRAUD_MONITORING_STORAGE_KEY = 'fraudMonitoringByUser';
+const TARGET_REPORT_SECTIONS = [
+  {
+    id: 'contacts',
+    label: 'Personnes en contact',
+    description: 'Réseau de contacts directs et fréquents.',
+    defaultLimit: 20,
+    icon: Users,
+    accent: 'from-blue-500/15 via-indigo-500/15 to-purple-500/10'
+  },
+  {
+    id: 'top-places',
+    label: 'Lieux les plus visités',
+    description: 'Localisations dominantes et points d’ancrage.',
+    defaultLimit: 12,
+    icon: MapPin,
+    accent: 'from-emerald-500/15 via-cyan-500/15 to-sky-500/10'
+  },
+  {
+    id: 'travel-history',
+    label: 'Historique des déplacements',
+    description: 'Chronologie des mouvements observés.',
+    defaultLimit: 25,
+    icon: History,
+    accent: 'from-amber-500/15 via-orange-500/15 to-rose-500/10'
+  },
+  {
+    id: 'recent-locations',
+    label: 'Localisations récentes',
+    description: 'Dernières positions enregistrées.',
+    defaultLimit: 15,
+    icon: Radar,
+    accent: 'from-violet-500/15 via-fuchsia-500/15 to-pink-500/10'
+  },
+  {
+    id: 'last-location',
+    label: 'Dernière localisation connue',
+    description: 'Point final connu avant la génération du rapport.',
+    defaultLimit: 1,
+    icon: SatelliteDish,
+    accent: 'from-slate-500/15 via-blue-500/15 to-indigo-500/10'
+  }
+];
+type TargetReportSectionState = {
+  id: string;
+  label: string;
+  description: string;
+  limit: number;
+  enabled: boolean;
+  accent: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
 
 
 const getUploadModeLabel = (mode?: string | null) => {
@@ -2226,6 +2277,17 @@ const App: React.FC = () => {
   const [cdrExporting, setCdrExporting] = useState(false);
   const [cdrExportError, setCdrExportError] = useState('');
   const [cdrExportInfo, setCdrExportInfo] = useState('');
+  const [targetReportPhone, setTargetReportPhone] = useState('');
+  const [targetReportSections, setTargetReportSections] = useState<TargetReportSectionState[]>(() =>
+    TARGET_REPORT_SECTIONS.map(({ defaultLimit, ...section }) => ({
+      ...section,
+      limit: defaultLimit,
+      enabled: true
+    }))
+  );
+  const [targetReportExporting, setTargetReportExporting] = useState(false);
+  const [targetReportError, setTargetReportError] = useState('');
+  const [targetReportInfo, setTargetReportInfo] = useState('');
   const [cases, setCases] = useState<CdrCase[]>([]);
   const [renamingCaseId, setRenamingCaseId] = useState<number | null>(null);
   const [renamingCaseName, setRenamingCaseName] = useState('');
@@ -5110,6 +5172,76 @@ useEffect(() => {
     }
   };
 
+  const updateTargetReportSection = useCallback(
+    (id: string, updates: Partial<TargetReportSectionState>) => {
+      setTargetReportSections((prev) =>
+        prev.map((section) => (section.id === id ? { ...section, ...updates } : section))
+      );
+    },
+    []
+  );
+
+  const handleTargetReportExport = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    const trimmedNumber = targetReportPhone.trim();
+
+    if (!trimmedNumber) {
+      setTargetReportError('Veuillez renseigner un numéro.');
+      setTargetReportInfo('');
+      return;
+    }
+
+    const selectedSections = targetReportSections.filter((section) => section.enabled);
+    if (selectedSections.length === 0) {
+      setTargetReportError('Sélectionnez au moins un type de données à exporter.');
+      setTargetReportInfo('');
+      return;
+    }
+
+    try {
+      setTargetReportExporting(true);
+      setTargetReportError('');
+      setTargetReportInfo('');
+
+      const payload = {
+        phoneNumber: trimmedNumber,
+        sections: selectedSections.map((section) => ({
+          id: section.id,
+          label: section.label,
+          limit: section.limit,
+          enabled: section.enabled
+        }))
+      };
+
+      const res = await fetch('/api/target-reports/export', {
+        method: 'POST',
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errorPayload = await res.json().catch(() => null);
+        const message = errorPayload?.error || "Impossible d'exporter le rapport.";
+        setTargetReportError(message);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `rapport-cible-${trimmedNumber}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      setTargetReportInfo('Rapport généré avec succès.');
+    } catch (error) {
+      console.error('Erreur export rapport cible:', error);
+      setTargetReportError("Impossible d'exporter le rapport.");
+    } finally {
+      setTargetReportExporting(false);
+    }
+  };
+
   const handleStandaloneLinkDiagram = async () => {
     const normalizedNumbers = linkDiagramNumbers
       .map((identifier) => normalizeCdrNumber(identifier))
@@ -6570,6 +6702,19 @@ useEffect(() => {
             >
               <Download className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Données téléphoniques</span>}
+            </button>
+
+            <button
+              onClick={() => navigateToPage('target-report')}
+              title="Rapport Cible"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'target-report'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <Sparkles className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Rapport Cible</span>}
             </button>
 
             <button
@@ -8502,6 +8647,178 @@ useEffect(() => {
                     {cdrExportInfo && (
                       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-200">
                         {cdrExportInfo}
+                      </div>
+                    )}
+                  </form>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {currentPage === 'target-report' && (
+            <div className="space-y-8">
+              <PageHeader
+                icon={<Sparkles className="h-6 w-6" />}
+                title="Rapport Cible"
+                subtitle="Composez un PDF moderne pour extraire les informations clés d'une personne."
+              />
+
+              <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-500/5 via-indigo-500/10 to-purple-500/5" />
+                <div className="relative space-y-8 p-8">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="space-y-2">
+                      <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+                        Sélection intelligente des données
+                      </h2>
+                      <p className="text-sm text-slate-500 dark:text-slate-300">
+                        Choisissez précisément les modules à inclure et le volume d'informations à exporter.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-2xl border border-blue-200/70 bg-blue-50/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
+                      <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-lg shadow-blue-500/60" />
+                      Format PDF premium • Signature SORA
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleTargetReportExport} className="space-y-8">
+                    <div className="grid gap-6 lg:grid-cols-3">
+                      <div className="space-y-4 lg:col-span-2">
+                        <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/60 dark:shadow-black/30">
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                              <Phone className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+                              Numéro de téléphone cible
+                            </div>
+                            <input
+                              type="text"
+                              value={targetReportPhone}
+                              onChange={(event) => {
+                                setTargetReportPhone(event.target.value);
+                                if (targetReportError) setTargetReportError('');
+                              }}
+                              placeholder="Ex : 221771234567"
+                              className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                            />
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              Le rapport regroupe uniquement les données liées à ce numéro.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-3xl border border-slate-200/70 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-6 text-white shadow-xl shadow-slate-900/40">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs uppercase tracking-wide text-slate-300">Aperçu</p>
+                              <p className="text-lg font-semibold">Rapport personnalisé</p>
+                            </div>
+                            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">
+                              {targetReportSections.filter((section) => section.enabled).length} modules
+                            </span>
+                          </div>
+                          <div className="space-y-2 text-sm text-slate-200">
+                            <p>📄 Export PDF haute fidélité</p>
+                            <p>✨ Mise en page moderne et claire</p>
+                            <p>🔒 Signature visuelle SORA</p>
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={targetReportExporting}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {targetReportExporting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                            <span>{targetReportExporting ? 'Génération...' : 'Exporter en PDF'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-5 lg:grid-cols-2">
+                      {targetReportSections.map((section) => {
+                        const Icon = section.icon;
+                        return (
+                          <div
+                            key={section.id}
+                            className={`relative overflow-hidden rounded-3xl border transition-all ${
+                              section.enabled
+                                ? 'border-blue-200/70 shadow-lg shadow-blue-500/10 dark:border-blue-500/30'
+                                : 'border-slate-200/70 opacity-70 dark:border-slate-700/50'
+                            }`}
+                          >
+                            <div className={`absolute inset-0 bg-gradient-to-br ${section.accent}`} />
+                            <div className="relative space-y-5 p-6">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/90 text-slate-700 shadow-inner dark:bg-slate-800/80 dark:text-slate-100">
+                                    <Icon className="h-5 w-5" />
+                                  </span>
+                                  <div>
+                                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                      {section.label}
+                                    </p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-300">
+                                      {section.description}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => updateTargetReportSection(section.id, { enabled: !section.enabled })}
+                                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                                    section.enabled
+                                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40'
+                                      : 'bg-white/70 text-slate-600 shadow-inner dark:bg-slate-800/70 dark:text-slate-200'
+                                  }`}
+                                >
+                                  {section.enabled ? 'Inclus' : 'Exclu'}
+                                </button>
+                              </div>
+
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                  <span>Quantité à exporter</span>
+                                  <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-700 shadow-inner dark:bg-slate-800/80 dark:text-slate-100">
+                                    {section.limit}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={1}
+                                  max={200}
+                                  value={section.limit}
+                                  disabled={!section.enabled}
+                                  onChange={(event) =>
+                                    updateTargetReportSection(section.id, {
+                                      limit: Number(event.target.value)
+                                    })
+                                  }
+                                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200/80 accent-blue-600 disabled:cursor-not-allowed dark:bg-slate-700/60"
+                                />
+                                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                                  <span>Min 1</span>
+                                  <span>Max 200</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {targetReportError && (
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-200">
+                        {targetReportError}
+                      </div>
+                    )}
+                    {targetReportInfo && (
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                        {targetReportInfo}
                       </div>
                     )}
                   </form>
