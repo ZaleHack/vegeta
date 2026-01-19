@@ -5057,61 +5057,6 @@ useEffect(() => {
     await fetchCdrData(identifiers);
   };
 
-  const handleLinkDiagram = async () => {
-    const identifiers = getEffectiveCdrIdentifiers();
-    if (identifiers.length === 0) {
-      setCdrError('Identifiant requis');
-      return;
-    }
-    if (cdrIdentifierType !== 'phone') {
-      setCdrError('Le diagramme des liens est disponible uniquement pour les numéros de téléphone');
-      return;
-    }
-    if (cdrIdentifierInput) {
-      setCdrIdentifierInput('');
-    }
-    commitCdrIdentifiers(identifiers);
-    const numbers = Array.from(
-      new Set(
-        identifiers
-          .map((identifier) => normalizeCdrNumber(identifier))
-          .filter((n) => n && LINK_DIAGRAM_PREFIXES.some((p) => n.startsWith(p)))
-      )
-    );
-    if (numbers.length < 2) {
-      setCdrError('Au moins deux numéros de recherche valides sont requis');
-      return;
-    }
-    try {
-      setCdrLoading(true);
-      const payload: Record<string, unknown> = { numbers };
-      if (cdrStart) payload.start = new Date(cdrStart).toISOString().split('T')[0];
-      if (cdrEnd) payload.end = new Date(cdrEnd).toISOString().split('T')[0];
-      if (cdrStartTime) payload.startTime = cdrStartTime;
-      if (cdrEndTime) payload.endTime = cdrEndTime;
-
-      const res = await fetch('/api/cdr/realtime/link-diagram', {
-        method: 'POST',
-        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (res.ok && data.links && data.links.length > 0) {
-        setLinkDiagram(data);
-        setShowCdrMap(false);
-        setCdrInfoMessage('');
-      } else {
-        setLinkDiagram(null);
-        setCdrInfoMessage(data.error || 'Aucune liaison trouvée');
-      }
-    } catch (error) {
-      console.error('Erreur diagramme des liens:', error);
-      setCdrError('Erreur lors de la génération du diagramme');
-    } finally {
-      setCdrLoading(false);
-    }
-  };
-
   const handleCdrExport = async (event?: React.FormEvent) => {
     event?.preventDefault();
     const trimmedNumber = cdrExportNumber.trim();
@@ -5195,13 +5140,21 @@ useEffect(() => {
       });
 
       const data = await res.json();
+      const responseError =
+        typeof data?.error === 'string' && data.error.trim() ? data.error.trim() : '';
 
-      if (res.ok && data.links && data.links.length > 0) {
+      if (!res.ok) {
+        setLinkDiagram(null);
+        setLinkDiagramError(responseError || 'Erreur lors de la génération du diagramme.');
+        return;
+      }
+
+      if (data.links && data.links.length > 0) {
         setLinkDiagram(data);
         setLinkDiagramInfo('');
       } else {
         setLinkDiagram(null);
-        setLinkDiagramInfo(data.error || 'Aucune liaison trouvée pour ces numéros.');
+        setLinkDiagramInfo(responseError || 'Aucune liaison trouvée pour ces numéros.');
       }
     } catch (error) {
       console.error('Erreur diagramme des liens (menu):', error);
@@ -6316,16 +6269,6 @@ useEffect(() => {
                     <Search className="h-4 w-4" />
                     <span>Rechercher</span>
                   </button>
-                  {cdrIdentifierType === 'phone' && effectiveCdrIdentifiers.length >= 2 && (
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
-                      onClick={handleLinkDiagram}
-                    >
-                      <Share2 className="h-4 w-4" />
-                      <span>Diagramme des liens</span>
-                    </button>
-                  )}
                 </div>
               </div>
             </form>
