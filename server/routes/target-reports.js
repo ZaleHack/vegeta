@@ -40,6 +40,17 @@ const normalizeLimit = (value, fallback) => {
   return fallback;
 };
 
+const parseDateInput = (value) => {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
+};
+
 router.post('/export', authenticate, async (req, res) => {
   try {
     const phoneNumber = typeof req.body?.phoneNumber === 'string' ? req.body.phoneNumber.trim() : '';
@@ -66,6 +77,12 @@ router.post('/export', authenticate, async (req, res) => {
 
     if (selectedSections.length === 0) {
       return res.status(400).json({ error: 'Sélectionnez au moins une catégorie de données.' });
+    }
+
+    const startDate = parseDateInput(req.body?.startDate);
+    const endDate = parseDateInput(req.body?.endDate);
+    if (startDate && endDate && startDate > endDate) {
+      return res.status(400).json({ error: 'La date de début doit précéder la date de fin.' });
     }
 
     const { default: PDFDocument } = await import('pdfkit');
@@ -123,6 +140,19 @@ router.post('/export', authenticate, async (req, res) => {
     doc.text('Numéro analysé', { continued: true });
     doc.font('Helvetica').text(` : ${phoneNumber}`);
     doc.fillColor(colors.muted).text(`Généré le ${generatedAt.toLocaleString('fr-FR')}`);
+    if (startDate || endDate) {
+      const startLabel = startDate ? startDate.toLocaleDateString('fr-FR') : '';
+      const endLabel = endDate ? endDate.toLocaleDateString('fr-FR') : '';
+      let periodLabel = '';
+      if (startDate && endDate) {
+        periodLabel = `Période : du ${startLabel} au ${endLabel}`;
+      } else if (startDate) {
+        periodLabel = `Période : à partir du ${startLabel}`;
+      } else if (endDate) {
+        periodLabel = `Période : jusqu'au ${endLabel}`;
+      }
+      doc.text(periodLabel);
+    }
 
     doc.moveDown(1.5);
 
