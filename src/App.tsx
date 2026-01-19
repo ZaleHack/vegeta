@@ -8492,10 +8492,6 @@ useEffect(() => {
                         {cdrExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                         <span>{cdrExporting ? 'Export en cours...' : 'Exporter en Excel'}</span>
                       </button>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        Colonnes exportées : type_appel, date_debut, heure_debut, duree_sec, date_fin, heure_fin,
-                        numero_appelant, numero_appele, imsi_appelant, imei_appelant, cgi, route_reseau, device_id.
-                      </span>
                     </div>
 
                     {cdrExportError && (
@@ -9184,9 +9180,6 @@ useEffect(() => {
               {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
               {cdrSearchRequests.length > 0 && (
                 <div className="mt-4 space-y-2 rounded-lg border border-slate-200 bg-white/80 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    Requêtes CDR envoyées
-                  </p>
                   <ol className="space-y-1">
                     {cdrSearchRequests.map((request, index) => (
                       <li key={`${request}-${index}`} className="flex items-start gap-2 text-slate-700 dark:text-slate-200">
