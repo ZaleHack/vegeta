@@ -204,8 +204,9 @@ router.post('/export', authenticate, async (req, res) => {
     const appendWhereClause = (current, extraCondition) =>
       current ? `${current} AND ${extraCondition}` : `WHERE ${extraCondition}`;
 
-    const caseParams = [...numberVariants, ...numberVariants];
-    const summaryParams = [...caseParams, ...baseParams];
+    const summaryCaseParams = [...numberVariants, ...numberVariants];
+    const contactsCaseParams = [...numberVariants];
+    const summaryParams = [...summaryCaseParams, ...baseParams];
     const summaryRow = await database.queryOne(
       `
         SELECT
@@ -240,7 +241,7 @@ router.post('/export', authenticate, async (req, res) => {
             ORDER BY total_calls DESC, total_duration DESC
             LIMIT ?
           `,
-          [...caseParams, ...baseParams, sectionLimits['contacts']]
+          [...contactsCaseParams, ...baseParams, sectionLimits['contacts']]
         )
       : Promise.resolve([]);
 
