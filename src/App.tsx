@@ -120,11 +120,13 @@ const FRAUD_ROLE_LABELS: Record<string, string> = {
   target: 'Cible'
 };
 const FRAUD_MONITORING_STORAGE_KEY = 'fraudMonitoringByUser';
+const TARGET_REPORT_LIMIT_MIN = 1;
+const TARGET_REPORT_LIMIT_MAX = 200;
 const TARGET_REPORT_SECTIONS = [
   {
     id: 'contacts',
     label: 'Personnes en contact',
-    description: 'Liste des numéros en contact direct ou fréquent.',
+    description: "Liste des numéros en contact direct ou fréquent avec les minutes d'appel.",
     defaultLimit: 20,
     icon: Users,
     accent: 'from-blue-500/15 via-indigo-500/15 to-purple-500/10'
@@ -171,6 +173,9 @@ type TargetReportSectionState = {
   accent: string;
   icon: React.ComponentType<{ className?: string }>;
 };
+
+const clampTargetReportLimit = (value: number) =>
+  Math.min(Math.max(Math.round(value), TARGET_REPORT_LIMIT_MIN), TARGET_REPORT_LIMIT_MAX);
 
 
 const getUploadModeLabel = (mode?: string | null) => {
@@ -8825,27 +8830,72 @@ useEffect(() => {
                               <div className="space-y-3">
                                 <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
                                   <span>Quantité à exporter</span>
-                                  <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs text-slate-700 shadow-inner dark:bg-slate-800/80 dark:text-slate-100">
-                                    {section.limit}
+                                  <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-slate-600 shadow-inner dark:bg-slate-800/80 dark:text-slate-200">
+                                    Min {TARGET_REPORT_LIMIT_MIN} • Max {TARGET_REPORT_LIMIT_MAX}
                                   </span>
                                 </div>
-                                <input
-                                  type="range"
-                                  min={1}
-                                  max={200}
-                                  value={section.limit}
-                                  disabled={!section.enabled}
-                                  onChange={(event) =>
-                                    updateTargetReportSection(section.id, {
-                                      limit: Number(event.target.value)
-                                    })
-                                  }
-                                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200/80 accent-blue-600 disabled:cursor-not-allowed dark:bg-slate-700/60"
-                                />
-                                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                                  <span>Min 1</span>
-                                  <span>Max 200</span>
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <div className="flex items-center gap-2 rounded-full bg-white/80 px-3 py-2 shadow-inner dark:bg-slate-900/60">
+                                    <button
+                                      type="button"
+                                      disabled={!section.enabled || section.limit <= TARGET_REPORT_LIMIT_MIN}
+                                      onClick={() =>
+                                        updateTargetReportSection(section.id, {
+                                          limit: clampTargetReportLimit(section.limit - 1)
+                                        })
+                                      }
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min={TARGET_REPORT_LIMIT_MIN}
+                                      max={TARGET_REPORT_LIMIT_MAX}
+                                      step={1}
+                                      value={section.limit}
+                                      disabled={!section.enabled}
+                                      onChange={(event) =>
+                                        updateTargetReportSection(section.id, {
+                                          limit: clampTargetReportLimit(Number(event.target.value))
+                                        })
+                                      }
+                                      className="w-20 bg-transparent text-center text-sm font-semibold text-slate-700 focus:outline-none disabled:cursor-not-allowed dark:text-slate-100"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={!section.enabled || section.limit >= TARGET_REPORT_LIMIT_MAX}
+                                      onClick={() =>
+                                        updateTargetReportSection(section.id, {
+                                          limit: clampTargetReportLimit(section.limit + 1)
+                                        })
+                                      }
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2 text-xs">
+                                    {[5, 10, 25, 50].map((value) => (
+                                      <button
+                                        key={value}
+                                        type="button"
+                                        disabled={!section.enabled}
+                                        onClick={() =>
+                                          updateTargetReportSection(section.id, {
+                                            limit: clampTargetReportLimit(value)
+                                          })
+                                        }
+                                        className="rounded-full border border-white/60 bg-white/70 px-3 py-1 font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:text-blue-200"
+                                      >
+                                        {value}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  Saisissez manuellement le nombre de données à inclure dans le rapport PDF.
+                                </p>
                               </div>
                             </div>
                           </div>
