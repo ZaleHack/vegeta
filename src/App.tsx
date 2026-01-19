@@ -6575,19 +6575,6 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={() => navigateToPage('requests')}
-              title="Demandes"
-              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
-                currentPage === 'requests'
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
-                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
-              } ${!sidebarOpen && 'justify-center px-0'}`}
-            >
-              <ClipboardList className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
-              {sidebarOpen && <span className="ml-3">Demandes</span>}
-            </button>
-
-            <button
               onClick={() => {
                 navigateToPage('profiles');
                 setShowProfileForm(false);
@@ -6601,6 +6588,19 @@ useEffect(() => {
             >
               <FileText className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
               {sidebarOpen && <span className="ml-3">Fiches de profil</span>}
+            </button>
+
+            <button
+              onClick={() => navigateToPage('requests')}
+              title="Demandes"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'requests'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <ClipboardList className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Demandes</span>}
             </button>
 
             <button
