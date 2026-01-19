@@ -123,7 +123,7 @@ const TARGET_REPORT_SECTIONS = [
   {
     id: 'contacts',
     label: 'Personnes en contact',
-    description: 'Réseau de contacts directs et fréquents.',
+    description: 'Liste des numéros en contact direct ou fréquent.',
     defaultLimit: 20,
     icon: Users,
     accent: 'from-blue-500/15 via-indigo-500/15 to-purple-500/10'
@@ -131,7 +131,7 @@ const TARGET_REPORT_SECTIONS = [
   {
     id: 'top-places',
     label: 'Lieux les plus visités',
-    description: 'Localisations dominantes et points d’ancrage.',
+    description: 'Localisations dominantes avec coordonnées GPS.',
     defaultLimit: 12,
     icon: MapPin,
     accent: 'from-emerald-500/15 via-cyan-500/15 to-sky-500/10'
@@ -139,7 +139,7 @@ const TARGET_REPORT_SECTIONS = [
   {
     id: 'travel-history',
     label: 'Historique des déplacements',
-    description: 'Chronologie des mouvements observés.',
+    description: 'Circuits de déplacements avec coordonnées détaillées.',
     defaultLimit: 25,
     icon: History,
     accent: 'from-amber-500/15 via-orange-500/15 to-rose-500/10'
@@ -147,7 +147,7 @@ const TARGET_REPORT_SECTIONS = [
   {
     id: 'recent-locations',
     label: 'Localisations récentes',
-    description: 'Dernières positions enregistrées.',
+    description: 'Dernières positions avec coordonnées GPS.',
     defaultLimit: 15,
     icon: Radar,
     accent: 'from-violet-500/15 via-fuchsia-500/15 to-pink-500/10'
@@ -155,7 +155,7 @@ const TARGET_REPORT_SECTIONS = [
   {
     id: 'last-location',
     label: 'Dernière localisation connue',
-    description: 'Point final connu avant la génération du rapport.',
+    description: 'Point final avec coordonnées du centre.',
     defaultLimit: 1,
     icon: SatelliteDish,
     accent: 'from-slate-500/15 via-blue-500/15 to-indigo-500/10'
