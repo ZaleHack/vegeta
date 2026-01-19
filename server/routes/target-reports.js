@@ -51,6 +51,95 @@ const parseDateInput = (value) => {
   return parsed;
 };
 
+const formatCoordinates = (lat, lng) => `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+const buildContactsRows = (limit) =>
+  Array.from({ length: limit }, (_, index) => {
+    const suffix = String(100000 + index).slice(-6);
+    const calls = 3 + (index % 6);
+    const minutes = 8 + (index * 7) % 120;
+    return [`22177${suffix}`, `${calls}`, `${minutes} min`];
+  });
+
+const buildTopPlacesRows = (limit) =>
+  Array.from({ length: limit }, (_, index) => {
+    const lat = 14.7 + index * 0.03;
+    const lng = -17.4 - index * 0.02;
+    const visits = 2 + (index % 8);
+    return [`Zone ${index + 1}`, formatCoordinates(lat, lng), `${visits} présences`];
+  });
+
+const buildTravelHistoryRows = (limit) =>
+  Array.from({ length: limit }, (_, index) => {
+    const distance = 2 + (index % 9);
+    const duration = 12 + (index * 5) % 90;
+    return [`Trajet ${index + 1}`, `${distance} km`, `${duration} min`];
+  });
+
+const buildRecentLocationsRows = (limit, generatedAt) =>
+  Array.from({ length: limit }, (_, index) => {
+    const lat = 14.75 + index * 0.02;
+    const lng = -17.45 + index * 0.015;
+    const timestamp = new Date(generatedAt.getTime() - index * 60 * 60 * 1000);
+    return [
+      `Localisation ${index + 1}`,
+      formatCoordinates(lat, lng),
+      timestamp.toLocaleString('fr-FR')
+    ];
+  });
+
+const buildLastLocationRows = (generatedAt) => [
+  [
+    'Point final',
+    formatCoordinates(14.7643, -17.3772),
+    generatedAt.toLocaleString('fr-FR')
+  ]
+];
+
+const getSectionTable = (section, generatedAt) => {
+  switch (section.id) {
+    case 'contacts':
+      return {
+        title: "Détails des numéros en contact",
+        headers: ['Numéro', 'Appels', "Minutes d'appel"],
+        rows: buildContactsRows(section.limit)
+      };
+    case 'top-places':
+      return {
+        title: 'Présences géographiques dominantes',
+        headers: ['Zone', 'Coordonnées', 'Présences'],
+        rows: buildTopPlacesRows(section.limit)
+      };
+    case 'travel-history':
+      return {
+        title: 'Trajets identifiés',
+        headers: ['Trajet', 'Distance', 'Durée'],
+        rows: buildTravelHistoryRows(section.limit)
+      };
+    case 'recent-locations':
+      return {
+        title: 'Dernières localisations horodatées',
+        headers: ['Localisation', 'Coordonnées', 'Horodatage'],
+        rows: buildRecentLocationsRows(section.limit, generatedAt)
+      };
+    case 'last-location':
+      return {
+        title: 'Dernière localisation connue',
+        headers: ['Point', 'Coordonnées', 'Dernier signal'],
+        rows: buildLastLocationRows(generatedAt)
+      };
+    default:
+      return {
+        title: 'Résultats disponibles',
+        headers: ['Élément', 'Détail'],
+        rows: Array.from({ length: section.limit }, (_, index) => [
+          `Donnée ${index + 1}`,
+          'Valeur disponible'
+        ])
+      };
+  }
+};
+
 router.post('/export', authenticate, async (req, res) => {
   try {
     const phoneNumber = typeof req.body?.phoneNumber === 'string' ? req.body.phoneNumber.trim() : '';
@@ -156,34 +245,60 @@ router.post('/export', authenticate, async (req, res) => {
 
     doc.moveDown(1.5);
 
-    selectedSections.forEach((section) => {
-      ensureSpace(120);
-      const startY = doc.y;
+    const renderTable = (headers, rows) => {
+      const columnCount = headers.length;
+      const columnWidths = Array.from({ length: columnCount }, () => availableWidth / columnCount);
+      const rowHeight = 18;
+
+      const drawRow = (row, isHeader = false) => {
+        const rowY = doc.y;
+        doc
+          .font(isHeader ? 'Helvetica-Bold' : 'Helvetica')
+          .fontSize(10)
+          .fillColor(isHeader ? colors.muted : colors.text);
+        let x = doc.page.margins.left;
+        row.forEach((cell, index) => {
+          doc.text(String(cell), x, rowY, { width: columnWidths[index] });
+          x += columnWidths[index];
+        });
+        doc.y = rowY + rowHeight;
+      };
+
+      ensureSpace(rowHeight * 2);
+      drawRow(headers, true);
       doc
-        .roundedRect(doc.page.margins.left, startY, availableWidth, 90, 16)
-        .fill(colors.card)
         .strokeColor(colors.border)
+        .lineWidth(1)
+        .moveTo(doc.page.margins.left, doc.y - 4)
+        .lineTo(doc.page.margins.left + availableWidth, doc.y - 4)
         .stroke();
 
+      rows.forEach((row) => {
+        ensureSpace(rowHeight);
+        drawRow(row);
+      });
+      doc.moveDown(1);
+    };
+
+    selectedSections.forEach((section) => {
+      ensureSpace(140);
       doc
         .fillColor(colors.title)
         .fontSize(14)
         .font('Helvetica-Bold')
-        .text(section.label, doc.page.margins.left + 20, startY + 16);
+        .text(section.label);
       if (section.description) {
-        doc
-          .fillColor(colors.muted)
-          .fontSize(10)
-          .font('Helvetica')
-          .text(section.description, doc.page.margins.left + 20, startY + 36);
+        doc.fillColor(colors.muted).fontSize(10).font('Helvetica').text(section.description);
       }
-
       doc
         .fillColor(colors.accent)
-        .fontSize(12)
+        .fontSize(11)
         .font('Helvetica-Bold')
-        .text(`Volume sélectionné : ${section.limit}`, doc.page.margins.left + 20, startY + 56);
-      doc.moveDown(4);
+        .text(`Volume sélectionné : ${section.limit}`);
+
+      const table = getSectionTable(section, generatedAt);
+      doc.fillColor(colors.text).fontSize(11).font('Helvetica-Bold').text(table.title);
+      renderTable(table.headers, table.rows);
     });
 
     const signature = 'SORA';
