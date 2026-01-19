@@ -57,6 +57,7 @@ import {
   Fingerprint,
   Radar,
   SatelliteDish,
+  Calendar,
   Sparkles
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
@@ -2278,6 +2279,8 @@ const App: React.FC = () => {
   const [cdrExportError, setCdrExportError] = useState('');
   const [cdrExportInfo, setCdrExportInfo] = useState('');
   const [targetReportPhone, setTargetReportPhone] = useState('');
+  const [targetReportStart, setTargetReportStart] = useState('');
+  const [targetReportEnd, setTargetReportEnd] = useState('');
   const [targetReportSections, setTargetReportSections] = useState<TargetReportSectionState[]>(() =>
     TARGET_REPORT_SECTIONS.map(({ defaultLimit, ...section }) => ({
       ...section,
@@ -5198,6 +5201,12 @@ useEffect(() => {
       return;
     }
 
+    if (targetReportStart && targetReportEnd && new Date(targetReportStart) > new Date(targetReportEnd)) {
+      setTargetReportError('La date de début doit précéder la date de fin.');
+      setTargetReportInfo('');
+      return;
+    }
+
     try {
       setTargetReportExporting(true);
       setTargetReportError('');
@@ -5205,6 +5214,8 @@ useEffect(() => {
 
       const payload = {
         phoneNumber: trimmedNumber,
+        startDate: targetReportStart || undefined,
+        endDate: targetReportEnd || undefined,
         sections: selectedSections.map((section) => ({
           id: section.id,
           label: section.label,
@@ -8702,6 +8713,37 @@ useEffect(() => {
                             />
                             <p className="text-xs text-slate-500 dark:text-slate-400">
                               Le rapport regroupe uniquement les données liées à ce numéro.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/60 dark:shadow-black/30">
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                              <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+                              Intervalle d'export
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                              <input
+                                type="date"
+                                value={targetReportStart}
+                                onChange={(event) => {
+                                  setTargetReportStart(event.target.value);
+                                  if (targetReportError) setTargetReportError('');
+                                }}
+                                className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                              />
+                              <input
+                                type="date"
+                                value={targetReportEnd}
+                                onChange={(event) => {
+                                  setTargetReportEnd(event.target.value);
+                                  if (targetReportError) setTargetReportError('');
+                                }}
+                                className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                              />
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              Limitez les données incluses dans le rapport à une période spécifique.
                             </p>
                           </div>
                         </div>
