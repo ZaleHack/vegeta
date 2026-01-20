@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
-import { GitBranch, Maximize2, Minimize2, Network, User, X } from 'lucide-react';
+import { Maximize2, Minimize2, Network, User, X } from 'lucide-react';
 import { forceLink, forceManyBody } from 'd3-force';
 import type { ForceLink } from 'd3-force';
 
@@ -303,23 +303,25 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
     return () => clearTimeout(timeout);
   }, [graphData, hierarchicalGraph, viewMode]);
 
-  const overlayClasses = `fixed inset-0 bg-slate-950/80 backdrop-blur-xl flex items-center justify-center z-50 ${
+  const overlayClasses = `fixed inset-0 bg-slate-100/90 backdrop-blur-xl dark:bg-slate-950/80 flex items-center justify-center z-50 ${
     isFullscreen ? '' : 'p-4'
   }`;
-  const containerClasses = `relative overflow-hidden border border-white/10 bg-gradient-to-br from-[#0b1020] via-[#0f172a] to-[#1a1339] ${
+  const containerClasses = `relative overflow-hidden border border-slate-200/80 bg-white/95 ${
     isFullscreen ? 'rounded-none' : 'rounded-3xl'
-  } shadow-[0_35px_120px_-60px_rgba(59,130,246,0.75)] w-[94vw] max-w-6xl ${isFullscreen ? 'h-full w-full max-w-none' : 'h-[84vh]'} flex flex-col`;
+  } shadow-[0_35px_120px_-60px_rgba(15,23,42,0.35)] w-[94vw] max-w-6xl ${
+    isFullscreen ? 'h-full w-full max-w-none' : 'h-[84vh]'
+  } flex flex-col dark:border-white/10 dark:bg-gradient-to-br dark:from-[#0b1020] dark:via-[#0f172a] dark:to-[#1a1339] dark:shadow-[0_35px_120px_-60px_rgba(59,130,246,0.75)]`;
 
   return (
     <div className={overlayClasses}>
       <div className={containerClasses}>
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.18),transparent_35%),radial-gradient(circle_at_70%_30%,rgba(168,85,247,0.18),transparent_40%),radial-gradient(circle_at_50%_80%,rgba(14,165,233,0.16),transparent_40%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:42px_42px] opacity-30" />
-        <div className="relative flex flex-col gap-4 px-6 py-5 text-white">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.12),transparent_35%),radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.12),transparent_40%),radial-gradient(circle_at_50%_80%,rgba(14,165,233,0.1),transparent_40%)] dark:bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.18),transparent_35%),radial-gradient(circle_at_70%_30%,rgba(168,85,247,0.18),transparent_40%),radial-gradient(circle_at_50%_80%,rgba(14,165,233,0.16),transparent_40%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.25)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.25)_1px,transparent_1px)] bg-[size:42px_42px] opacity-20 dark:bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] dark:opacity-30" />
+        <div className="relative flex flex-col gap-4 px-6 py-5 text-slate-900 dark:text-white">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-tight">Diagramme des liens</h2>
-              <p className="text-sm text-white/80">
+              <p className="text-sm text-slate-600 dark:text-white/80">
                 Visualisation immersive inspirée des graphes d'investigation type Maltego.
               </p>
             </div>
@@ -327,14 +329,14 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
               <button
                 type="button"
                 onClick={() => setIsFullscreen((value) => !value)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-700 transition hover:bg-white dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                 aria-label={isFullscreen ? 'Réduire le diagramme' : 'Agrandir le diagramme'}
               >
                 {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
               </button>
               <button
                 type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-700 transition hover:bg-white dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                 onClick={() => {
                   setIsFullscreen(false);
                   onClose();
@@ -345,33 +347,25 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
               </button>
             </div>
           </div>
-          <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 shadow-inner backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/10 p-1 text-sm font-medium">
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white/80 p-3 shadow-inner backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-white/5">
+            <div className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-white p-1 text-sm font-medium shadow-sm dark:border-white/10 dark:bg-white/10">
               <button
                 type="button"
                 onClick={() => setViewMode('network')}
                 className={`flex items-center gap-2 rounded-full px-4 py-1.5 transition ${
-                  viewMode === 'network' ? 'bg-white text-blue-700' : 'text-white/80 hover:bg-white/10'
+                  viewMode === 'network'
+                    ? 'bg-indigo-600 text-white shadow'
+                    : 'text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10'
                 }`}
               >
                 <Network className="h-4 w-4" />
                 Vue réseau
               </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('hierarchical')}
-                className={`flex items-center gap-2 rounded-full px-4 py-1.5 transition ${
-                  viewMode === 'hierarchical' ? 'bg-white text-blue-700' : 'text-white/80 hover:bg-white/10'
-                }`}
-              >
-                <GitBranch className="h-4 w-4" />
-                Vue hiérarchique
-              </button>
             </div>
             {effectiveRoot && (
-              <div className="flex flex-col gap-1 text-sm text-white sm:flex-row sm:items-center sm:gap-2">
-                <span className="text-white/80">Numéro racine :</span>
-                <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-semibold">
+              <div className="flex flex-col gap-1 text-sm text-slate-700 sm:flex-row sm:items-center sm:gap-2 dark:text-white">
+                <span className="text-slate-500 dark:text-white/80">Numéro racine :</span>
+                <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 shadow-sm dark:border-white/20 dark:bg-white/10 dark:text-white">
                   <User className="h-4 w-4" />
                   <span>{effectiveRoot}</span>
                 </div>
@@ -386,7 +380,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
             enableNodeDrag={viewMode === 'network'}
             dagMode={viewMode === 'hierarchical' ? 'radialinout' : undefined}
             dagLevelDistance={viewMode === 'hierarchical' ? 200 : undefined}
-            backgroundColor={document.documentElement.classList.contains('dark') ? '#040611' : '#070b16'}
+            backgroundColor={document.documentElement.classList.contains('dark') ? '#040611' : '#ffffff'}
             warmupTicks={viewMode === 'network' ? 80 : 40}
             cooldownTicks={viewMode === 'network' ? 140 : 90}
             minZoom={0.35}
@@ -428,7 +422,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
               ctx.save();
               ctx.shadowColor = node.color;
               ctx.shadowBlur = 22 / globalScale;
-              ctx.fillStyle = isDarkMode ? 'rgba(7, 13, 26, 0.9)' : 'rgba(10, 18, 35, 0.95)';
+              ctx.fillStyle = isDarkMode ? 'rgba(7, 13, 26, 0.9)' : 'rgba(255, 255, 255, 0.98)';
               drawRoundedRect(ctx, x, y, boxWidth, boxHeight, 10 / globalScale);
               ctx.fill();
               ctx.restore();
@@ -467,14 +461,14 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
               const labelHeight = 16 / globalScale;
               const labelX = node.x - labelWidth / 2;
               const labelY = node.y + boxHeight / 2 + 8 / globalScale;
-              ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+              ctx.fillStyle = isDarkMode ? 'rgba(15, 23, 42, 0.85)' : 'rgba(226, 232, 240, 0.95)';
               drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 8 / globalScale);
               ctx.fill();
               ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
               ctx.lineWidth = 1 / globalScale;
               drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 8 / globalScale);
               ctx.stroke();
-              ctx.fillStyle = isDarkMode ? '#f8fafc' : '#e2e8f0';
+              ctx.fillStyle = isDarkMode ? '#f8fafc' : '#0f172a';
               ctx.textBaseline = 'middle';
               ctx.fillText(label, node.x, labelY + labelHeight / 2);
             }}
@@ -520,15 +514,15 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
               const textY = (start.y + end.y) / 2;
               const isDarkMode = document.documentElement.classList.contains('dark');
               ctx.font = `${fontSize}px sans-serif`;
-              ctx.fillStyle = isDarkMode ? 'rgba(226,232,240,0.8)' : 'rgba(226,232,240,0.8)';
+              ctx.fillStyle = isDarkMode ? 'rgba(226,232,240,0.8)' : 'rgba(15,23,42,0.7)';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.fillText(label, textX, textY);
             }}
           />
           <div className="absolute top-4 left-4 space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-sm text-white shadow-lg backdrop-blur">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
+            <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-3 text-sm text-slate-700 shadow-lg backdrop-blur dark:border-white/10 dark:bg-white/10 dark:text-white">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
                 Légende des types
               </p>
               <div className="space-y-1.5">
@@ -540,15 +534,15 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
                     >
                       📞
                     </span>
-                    <span className="font-medium text-slate-100">
+                    <span className="font-medium text-slate-800 dark:text-slate-100">
                       {typeLabel[type as keyof typeof typeLabel] ?? type}
                     </span>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-xs text-slate-200 shadow-lg backdrop-blur">
-              <p className="font-semibold text-slate-100">Interactions</p>
+            <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-3 text-xs text-slate-600 shadow-lg backdrop-blur dark:border-white/10 dark:bg-white/10 dark:text-slate-200">
+              <p className="font-semibold text-slate-900 dark:text-slate-100">Interactions</p>
               <p>Flux et taille des cartes proportionnels aux relations observées.</p>
               {viewMode === 'hierarchical' && effectiveRoot && (
                 <p className="mt-2 font-medium text-sky-300">
@@ -558,16 +552,16 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
             </div>
           </div>
           <div className="absolute top-4 right-4 w-72 space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-3 text-sm text-slate-100 shadow-lg backdrop-blur">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-300">Liens détectés</p>
+            <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-3 text-sm text-slate-700 shadow-lg backdrop-blur dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Liens détectés</p>
               {rootConnections.length === 0 ? (
-                <p className="text-xs text-slate-300">Aucun lien détecté pour ce numéro.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-300">Aucun lien détecté pour ce numéro.</p>
               ) : (
                 <ul className="space-y-2 text-xs">
                   {rootConnections.slice(0, 8).map((entry) => (
-                    <li key={entry.number} className="rounded-xl border border-white/10 bg-slate-800/60 p-2">
-                      <p className="font-semibold text-slate-100">{entry.number}</p>
-                      <p className="text-slate-300">
+                    <li key={entry.number} className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-slate-800/60">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{entry.number}</p>
+                      <p className="text-slate-500 dark:text-slate-300">
                         {entry.callCount} appels · {entry.smsCount} SMS
                       </p>
                     </li>
