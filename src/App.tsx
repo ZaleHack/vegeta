@@ -1355,6 +1355,7 @@ interface GraphLink {
 interface LinkDiagramData {
   nodes: GraphNode[];
   links: GraphLink[];
+  root?: string | null;
 }
 
 interface BlacklistEntry {
@@ -2256,12 +2257,9 @@ const App: React.FC = () => {
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
-  const [linkDiagramInput, setLinkDiagramInput] = useState('');
-  const [linkDiagramNumbers, setLinkDiagramNumbers] = useState<string[]>([]);
+  const [linkDiagramNumber, setLinkDiagramNumber] = useState('');
   const [linkDiagramStart, setLinkDiagramStart] = useState('');
   const [linkDiagramEnd, setLinkDiagramEnd] = useState('');
-  const [linkDiagramStartTime, setLinkDiagramStartTime] = useState('');
-  const [linkDiagramEndTime, setLinkDiagramEndTime] = useState('');
   const [linkDiagramLoading, setLinkDiagramLoading] = useState(false);
   const [linkDiagramError, setLinkDiagramError] = useState('');
   const [linkDiagramInfo, setLinkDiagramInfo] = useState('');
@@ -2674,21 +2672,6 @@ const App: React.FC = () => {
     },
     [setCdrIdentifiers]
   );
-
-  const addLinkDiagramNumbersFromInput = useCallback(() => {
-    if (!linkDiagramInput.trim()) return;
-    const candidates = linkDiagramInput
-      .split(/[\s,\n;]+/)
-      .map((value) => normalizeCdrNumber(value))
-      .filter(Boolean);
-    if (candidates.length === 0) return;
-    setLinkDiagramNumbers((prev) => Array.from(new Set([...prev, ...candidates])));
-    setLinkDiagramInput('');
-  }, [linkDiagramInput, normalizeCdrNumber]);
-
-  const removeLinkDiagramNumber = useCallback((value: string) => {
-    setLinkDiagramNumbers((prev) => prev.filter((item) => item !== value));
-  }, []);
 
   const effectiveCdrIdentifiers = useMemo(
     () => getEffectiveCdrIdentifiers(),
@@ -5110,14 +5093,15 @@ useEffect(() => {
   };
 
   const handleStandaloneLinkDiagram = async () => {
-    const normalizedNumbers = linkDiagramNumbers
-      .map((identifier) => normalizeCdrNumber(identifier))
-      .filter((n) => n && LINK_DIAGRAM_PREFIXES.some((prefix) => n.startsWith(prefix)));
+    const normalizedNumber = normalizeCdrNumber(linkDiagramNumber);
+    const isAllowedPrefix = normalizedNumber && LINK_DIAGRAM_PREFIXES.some((prefix) => normalizedNumber.startsWith(prefix));
 
-    const uniqueNumbers = Array.from(new Set(normalizedNumbers));
-
-    if (uniqueNumbers.length < 2) {
-      setLinkDiagramError('Ajoutez au moins deux numéros valides (préfixes 221).');
+    if (!normalizedNumber || !isAllowedPrefix) {
+      setLinkDiagramError('Ajoutez un numéro valide (préfixe 221).');
+      return;
+    }
+    if (linkDiagramStart && linkDiagramEnd && new Date(linkDiagramStart) > new Date(linkDiagramEnd)) {
+      setLinkDiagramError('La date de début doit précéder la date de fin.');
       return;
     }
 
@@ -5126,11 +5110,9 @@ useEffect(() => {
       setLinkDiagramError('');
       setLinkDiagramInfo('');
 
-      const payload: Record<string, unknown> = { numbers: uniqueNumbers };
+      const payload: Record<string, unknown> = { numbers: [normalizedNumber] };
       if (linkDiagramStart) payload.start = new Date(linkDiagramStart).toISOString().split('T')[0];
       if (linkDiagramEnd) payload.end = new Date(linkDiagramEnd).toISOString().split('T')[0];
-      if (linkDiagramStartTime) payload.startTime = linkDiagramStartTime;
-      if (linkDiagramEndTime) payload.endTime = linkDiagramEndTime;
 
       const res = await fetch('/api/cdr/realtime/link-diagram', {
         method: 'POST',
@@ -5153,7 +5135,7 @@ useEffect(() => {
         setLinkDiagramInfo('');
       } else {
         setLinkDiagram(null);
-        setLinkDiagramInfo(responseError || 'Aucune liaison trouvée pour ces numéros.');
+        setLinkDiagramInfo(responseError || 'Aucune liaison trouvée pour ce numéro.');
       }
     } catch (error) {
       console.error('Erreur diagramme des liens (menu):', error);
@@ -7630,68 +7612,23 @@ useEffect(() => {
                       <p className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Configuration</p>
                       <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Composez votre graphe</h2>
                       <p className="text-sm text-slate-600 dark:text-slate-300">
-                        Ajoutez plusieurs numéros (221) pour identifier les liens entre eux. Les filtres temporels affinent la
-                        période d'analyse.
+                        Renseignez un numéro (221) pour découvrir ses interactions. Les filtres temporels affinent la période
+                        d'analyse.
                       </p>
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ajouter des numéros</label>
+                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Numéro de téléphone</label>
                       <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50">
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <input
-                            type="text"
-                            placeholder="Ex: 221781234567, +22177..."
-                            value={linkDiagramInput}
-                            onChange={(event) => setLinkDiagramInput(event.target.value)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') {
-                                event.preventDefault();
-                                addLinkDiagramNumbersFromInput();
-                              }
-                            }}
-                            className="flex-1 rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
-                          />
-                          <button
-                            type="button"
-                            onClick={addLinkDiagramNumbersFromInput}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
-                          >
-                            <Plus className="h-4 w-4" />
-                            <span>Ajouter</span>
-                          </button>
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Séparez les numéros par une virgule, un espace ou un retour à la ligne.</p>
+                        <input
+                          type="text"
+                          placeholder="Ex: 221781234567 ou +22177..."
+                          value={linkDiagramNumber}
+                          onChange={(event) => setLinkDiagramNumber(event.target.value)}
+                          className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                        />
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Un seul numéro maximum pour analyser son écosystème relationnel.</p>
                       </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Numéros sélectionnés</label>
-                      {linkDiagramNumbers.length === 0 ? (
-                        <div className="flex items-center gap-3 rounded-2xl border border-dashed border-slate-300/70 bg-white/70 px-4 py-3 text-sm text-slate-500 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
-                          <Info className="h-4 w-4" />
-                          Ajoutez au moins deux numéros pour lancer la recherche.
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200/70 bg-white/70 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                          {linkDiagramNumbers.map((value) => (
-                            <span
-                              key={value}
-                              className="inline-flex items-center gap-2 rounded-full bg-indigo-600/10 px-3 py-1 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200/70 dark:bg-indigo-500/10 dark:text-indigo-100 dark:ring-indigo-500/30"
-                            >
-                              {value}
-                              <button
-                                type="button"
-                                onClick={() => removeLinkDiagramNumber(value)}
-                                className="text-indigo-500 transition hover:text-indigo-700 dark:hover:text-indigo-200"
-                                aria-label={`Retirer ${value}`}
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-2">
@@ -7705,29 +7642,11 @@ useEffect(() => {
                         />
                       </div>
                       <div className="flex flex-col gap-2">
-                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Heure de début</label>
-                        <input
-                          type="time"
-                          value={linkDiagramStartTime}
-                          onChange={(event) => setLinkDiagramStartTime(event.target.value)}
-                          className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-2">
                         <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Date de fin</label>
                         <input
                           type="date"
                           value={linkDiagramEnd}
                           onChange={(event) => setLinkDiagramEnd(event.target.value)}
-                          className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Heure de fin</label>
-                        <input
-                          type="time"
-                          value={linkDiagramEndTime}
-                          onChange={(event) => setLinkDiagramEndTime(event.target.value)}
                           className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
                         />
                       </div>
@@ -7754,17 +7673,14 @@ useEffect(() => {
                         className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:-translate-y-0.5 hover:shadow-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {linkDiagramLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-                        <span>Générer le diagramme</span>
+                        <span>Analyser</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          setLinkDiagramNumbers([]);
-                          setLinkDiagramInput('');
+                          setLinkDiagramNumber('');
                           setLinkDiagramStart('');
                           setLinkDiagramEnd('');
-                          setLinkDiagramStartTime('');
-                          setLinkDiagramEndTime('');
                           setLinkDiagramError('');
                           setLinkDiagramInfo('');
                         }}
@@ -7796,8 +7712,10 @@ useEffect(() => {
                           <p className="text-lg font-bold text-slate-900 dark:text-white">{LINK_DIAGRAM_PREFIXES.length}</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Numéros prêts</p>
-                          <p className="text-lg font-bold text-slate-900 dark:text-white">{linkDiagramNumbers.length}</p>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Numéro sélectionné</p>
+                          <p className="text-lg font-bold text-slate-900 dark:text-white">
+                            {linkDiagramNumber.trim() ? linkDiagramNumber : '--'}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -7830,7 +7748,11 @@ useEffect(() => {
               </section>
 
               {linkDiagram && (
-                <LinkDiagram data={linkDiagram} onClose={() => setLinkDiagram(null)} />
+                <LinkDiagram
+                  data={linkDiagram}
+                  rootId={linkDiagram.root ?? linkDiagramNumber}
+                  onClose={() => setLinkDiagram(null)}
+                />
               )}
             </div>
           )}
@@ -9234,7 +9156,11 @@ useEffect(() => {
                 </>
               )}
               {linkDiagram && (
-                <LinkDiagram data={linkDiagram} onClose={() => setLinkDiagram(null)} />
+                <LinkDiagram
+                  data={linkDiagram}
+                  rootId={linkDiagram.root ?? linkDiagramNumber}
+                  onClose={() => setLinkDiagram(null)}
+                />
               )}
               </div>
             )}
