@@ -7693,33 +7693,6 @@ useEffect(() => {
                   </div>
 
                   <div className="space-y-4">
-                    <div className="overflow-hidden rounded-3xl border border-white/60 bg-white/80 p-6 shadow-xl shadow-indigo-500/15 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30">
-                          <Sparkles className="h-6 w-6" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">Diagrame temps réel</p>
-                          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Visualisation immersive</h3>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-                        Les liens sont mis en forme automatiquement pour révéler les points de convergence, la densité de trafic et les acteurs centraux.
-                      </p>
-                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Préfixes suivis</p>
-                          <p className="text-lg font-bold text-slate-900 dark:text-white">{LINK_DIAGRAM_PREFIXES.length}</p>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Numéro sélectionné</p>
-                          <p className="text-lg font-bold text-slate-900 dark:text-white">
-                            {linkDiagramNumber.trim() ? linkDiagramNumber : '--'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
                     <div className="rounded-3xl border border-white/60 bg-gradient-to-br from-indigo-600 via-blue-600 to-purple-700 p-6 text-white shadow-2xl shadow-indigo-600/30 backdrop-blur dark:border-indigo-500/50">
                       <div className="flex items-center justify-between gap-3">
                         <div>
