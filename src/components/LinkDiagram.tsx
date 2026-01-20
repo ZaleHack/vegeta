@@ -175,7 +175,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
   }, [graphNodes]);
 
   useEffect(() => {
-    if (preferredRoot && graphNodes.some((node) => node.id === preferredRoot)) {
+    if (preferredRoot) {
       setSelectedRoot(preferredRoot);
       return;
     }
@@ -891,15 +891,6 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
                   </div>
                 ))}
               </div>
-            </div>
-            <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-3 text-xs text-slate-600 shadow-lg backdrop-blur dark:border-white/10 dark:bg-white/10 dark:text-slate-200">
-              <p className="font-semibold text-slate-900 dark:text-slate-100">Interactions</p>
-              <p>Flux et taille des cartes proportionnels aux relations observées.</p>
-              {viewMode === 'hierarchical' && effectiveRoot && (
-                <p className="mt-2 font-medium text-sky-300">
-                  Racine actuelle : {effectiveRoot}
-                </p>
-              )}
             </div>
           </div>
           <div className="absolute top-4 right-4 w-72 space-y-3">
