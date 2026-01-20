@@ -841,14 +841,40 @@ class RealtimeCdrService {
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
+    const schemaName =
+      REALTIME_CDR_TABLE_SCHEMA ||
+      (await this.database.queryOne('SELECT DATABASE() AS schema_name'))?.schema_name ||
+      '';
+
+    let hasCallTimestamp = false;
+
+    if (schemaName) {
+      const columnInfo = await this.database.queryOne(
+        `
+          SELECT 1
+          FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = 'call_timestamp'
+        `,
+        [schemaName, REALTIME_CDR_TABLE_NAME]
+      );
+      hasCallTimestamp = Boolean(columnInfo);
+    }
+
+    const selectColumns = [
+      'c.numero_appelant AS caller',
+      'c.numero_appele AS callee',
+      'c.type_appel AS call_type',
+      'c.date_debut',
+      'c.heure_debut'
+    ];
+
+    if (hasCallTimestamp) {
+      selectColumns.push('c.call_timestamp');
+    }
+
     const sql = `
       SELECT
-        c.numero_appelant AS caller,
-        c.numero_appele AS callee,
-        c.type_appel AS call_type,
-        c.date_debut,
-        c.heure_debut,
-        c.call_timestamp
+        ${selectColumns.join(',\n        ')}
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
       ${whereClause}
       LIMIT 20000
