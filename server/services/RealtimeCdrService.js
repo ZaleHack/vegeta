@@ -795,9 +795,11 @@ class RealtimeCdrService {
       : [];
 
     const uniqueNumbers = Array.from(new Set(normalizedNumbers));
+    const rootNumber = uniqueNumbers[0] || null;
+    const singleSource = uniqueNumbers.length === 1;
 
     if (uniqueNumbers.length === 0) {
-      return { nodes: [], links: [] };
+      return { nodes: [], links: [], root: null };
     }
 
     const startDate = typeof options.startDate === 'string' ? options.startDate.trim() : '';
@@ -927,12 +929,15 @@ class RealtimeCdrService {
       }
     }
 
-    const nodes = uniqueNumbers.map((number) => ({ id: number, type: 'source' }));
+    const nodes = uniqueNumbers.map((number) => ({
+      id: number,
+      type: number === rootNumber ? 'root' : 'source'
+    }));
     const links = [];
 
     for (const contact in contactSources) {
       const sourcesSet = contactSources[contact];
-      if (sourcesSet.size >= 2) {
+      if (singleSource || sourcesSet.size >= 2) {
         nodes.push({ id: contact, type: 'contact' });
         for (const source of sourcesSet) {
           const edgeKey = `${source}-${contact}`;
@@ -943,7 +948,7 @@ class RealtimeCdrService {
       }
     }
 
-    return { nodes, links };
+    return { nodes, links, root: rootNumber };
   }
 
   async enrichMissingCoordinates(options = {}) {

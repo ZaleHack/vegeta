@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
-import { GitBranch, Maximize2, Minimize2, Network, X } from 'lucide-react';
+import { GitBranch, Maximize2, Minimize2, Network, User, X } from 'lucide-react';
 import { forceLink, forceManyBody } from 'd3-force';
 import type { ForceLink } from 'd3-force';
 
@@ -17,7 +17,8 @@ interface GraphLink {
 }
 
 interface LinkDiagramProps {
-  data: { nodes: GraphNode[]; links: GraphLink[] };
+  data: { nodes: GraphNode[]; links: GraphLink[]; root?: string | null };
+  rootId?: string | null;
   onClose: () => void;
 }
 
@@ -38,6 +39,8 @@ interface NormalizedNode extends GraphNode {
   color: string;
   degree: number;
   val: number;
+  fx?: number;
+  fy?: number;
 }
 
 interface NormalizedLink extends GraphLink {
@@ -46,20 +49,33 @@ interface NormalizedLink extends GraphLink {
   synthetic?: boolean;
 }
 
-const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
+const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('network');
   const [selectedRoot, setSelectedRoot] = useState<string | null>(null);
   const graphRef = useRef<ForceGraphMethods | null>(null);
   const nodeTypes = useMemo(() => Array.from(new Set(data.nodes.map((n) => n.type))), [data]);
+  const preferredRoot = rootId ?? data.root ?? null;
 
   const colorByType = useMemo(() => {
     const map: Record<string, string> = {};
     nodeTypes.forEach((type, idx) => {
       map[type] = typePalette[idx % typePalette.length];
     });
+    if (!map.root) {
+      map.root = '#facc15';
+    }
     return map;
   }, [nodeTypes]);
+
+  const typeLabel = useMemo(
+    () => ({
+      root: 'Numéro cible',
+      source: 'Numéro source',
+      contact: 'Numéro lié'
+    }),
+    []
+  );
 
   const degreeByNode = useMemo(() => {
     const map: Record<string, number> = {};
@@ -73,16 +89,19 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
     return map;
   }, [data.links]);
 
-  const graphNodes: NormalizedNode[] = useMemo(
-    () =>
-      data.nodes.map((node) => ({
+  const graphNodes: NormalizedNode[] = useMemo(() => {
+    const root = preferredRoot;
+    return data.nodes.map((node) => {
+      const degree = degreeByNode[node.id] || 0;
+      const isRoot = root && node.id === root;
+      return {
         ...node,
-        color: colorByType[node.type],
-        degree: degreeByNode[node.id] || 0,
-        val: Math.max(1, degreeByNode[node.id] || 1)
-      })),
-    [data.nodes, colorByType, degreeByNode]
-  );
+        color: colorByType[node.type] || (isRoot ? '#facc15' : '#3b82f6'),
+        degree,
+        val: Math.max(1, degree || 1) * (isRoot ? 1.6 : 1)
+      };
+    });
+  }, [data.nodes, colorByType, degreeByNode, preferredRoot]);
 
   const graphLinks: NormalizedLink[] = useMemo(() => {
     const normalize = (value: string | GraphNode) => (typeof value === 'string' ? value : value.id);
@@ -100,10 +119,14 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
   }, [graphNodes]);
 
   useEffect(() => {
+    if (preferredRoot && graphNodes.some((node) => node.id === preferredRoot)) {
+      setSelectedRoot(preferredRoot);
+      return;
+    }
     if (!selectedRoot || !graphNodes.some((node) => node.id === selectedRoot)) {
       setSelectedRoot(defaultRoot);
     }
-  }, [defaultRoot, graphNodes, selectedRoot]);
+  }, [defaultRoot, graphNodes, preferredRoot, selectedRoot]);
 
   const metricsByPair = useMemo(() => {
     const map = new Map<string, { callCount: number; smsCount: number }>();
@@ -191,6 +214,30 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
     };
   }, [adjacency, defaultRoot, graphLinks, graphNodes, metricsByPair, selectedRoot]);
 
+  const rootConnections = useMemo(() => {
+    if (!effectiveRoot) return [];
+    const summary = new Map<string, { callCount: number; smsCount: number }>();
+    graphLinks.forEach((link) => {
+      const source = link.source;
+      const target = link.target;
+      if (source !== effectiveRoot && target !== effectiveRoot) return;
+      const neighbor = source === effectiveRoot ? target : source;
+      const prev = summary.get(neighbor) || { callCount: 0, smsCount: 0 };
+      summary.set(neighbor, {
+        callCount: prev.callCount + (link.callCount || 0),
+        smsCount: prev.smsCount + (link.smsCount || 0)
+      });
+    });
+    return Array.from(summary.entries())
+      .map(([number, stats]) => ({
+        number,
+        callCount: stats.callCount,
+        smsCount: stats.smsCount,
+        total: stats.callCount + stats.smsCount
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [effectiveRoot, graphLinks]);
+
   const graphData = useMemo(
     () => ({
       nodes: graphNodes,
@@ -222,6 +269,15 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
   }, [viewMode]);
 
   useEffect(() => {
+    if (!graphRef.current || !preferredRoot) return;
+    const rootNode = graphNodes.find((node) => node.id === preferredRoot);
+    if (!rootNode) return;
+    rootNode.fx = 0;
+    rootNode.fy = 0;
+    graphRef.current.zoomToFit(400, 120);
+  }, [graphNodes, preferredRoot]);
+
+  useEffect(() => {
     if (!graphRef.current) return;
     const timeout = setTimeout(() => {
       graphRef.current?.zoomToFit(600, 80);
@@ -239,11 +295,11 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
   return (
     <div className={overlayClasses}>
       <div className={containerClasses}>
-        <div className="flex flex-col gap-4 px-6 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white">
+        <div className="flex flex-col gap-4 px-6 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold">Diagramme des liens</h2>
-              <p className="text-sm text-white/80">Comparez la vue réseau et la vue hiérarchique des entités liées.</p>
+              <p className="text-sm text-white/80">Visualisation inspirée des graphes d'investigation type Maltego.</p>
             </div>
             <div className="flex items-center gap-2 self-end sm:self-auto">
               <button
@@ -290,20 +346,13 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
                 Vue hiérarchique
               </button>
             </div>
-            {viewMode === 'hierarchical' && effectiveRoot && (
+            {effectiveRoot && (
               <div className="flex flex-col gap-1 text-sm text-white sm:flex-row sm:items-center sm:gap-2">
-                <span className="text-white/80">Entité racine :</span>
-                <select
-                  className="rounded-xl border-0 bg-white/90 px-3 py-1.5 text-sm font-medium text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={selectedRoot ?? effectiveRoot}
-                  onChange={(event) => setSelectedRoot(event.target.value)}
-                >
-                  {graphNodes.map((node) => (
-                    <option key={node.id} value={node.id}>
-                      {node.id}
-                    </option>
-                  ))}
-                </select>
+                <span className="text-white/80">Numéro racine :</span>
+                <div className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold">
+                  <User className="h-4 w-4" />
+                  <span>{effectiveRoot}</span>
+                </div>
               </div>
             )}
           </div>
@@ -315,7 +364,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
             enableNodeDrag={viewMode === 'network'}
             dagMode={viewMode === 'hierarchical' ? 'radialinout' : undefined}
             dagLevelDistance={viewMode === 'hierarchical' ? 200 : undefined}
-            backgroundColor={document.documentElement.classList.contains('dark') ? '#0f172a' : '#f8fafc'}
+            backgroundColor={document.documentElement.classList.contains('dark') ? '#05070d' : '#0b1120'}
             warmupTicks={viewMode === 'network' ? 80 : 40}
             cooldownTicks={viewMode === 'network' ? 140 : 90}
             minZoom={0.35}
@@ -338,27 +387,35 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
             nodeCanvasObject={(node: any, ctx, globalScale) => {
               const label = node.id;
               const isDarkMode = document.documentElement.classList.contains('dark');
-              const baseRadius = 14 + (node.degree || 0) * 2;
+              const isRoot = effectiveRoot && node.id === effectiveRoot;
+              const baseRadius = (isRoot ? 20 : 14) + (node.degree || 0) * 2;
               const radius = Math.max(10, baseRadius / globalScale);
               const fontSize = Math.max(12 / globalScale, 10);
               ctx.beginPath();
               ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
               ctx.fillStyle = node.color;
               ctx.fill();
-              ctx.lineWidth = 1.2;
-              ctx.strokeStyle = isDarkMode ? '#1f2937' : '#e5e7eb';
+              ctx.lineWidth = isRoot ? 2.4 : 1.2;
+              ctx.strokeStyle = isRoot ? '#fef3c7' : isDarkMode ? '#111827' : '#e5e7eb';
               ctx.stroke();
-              if (viewMode === 'hierarchical' && effectiveRoot && node.id === effectiveRoot) {
+              if (effectiveRoot && node.id === effectiveRoot) {
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, radius + 4, 0, 2 * Math.PI);
-                ctx.strokeStyle = isDarkMode ? '#facc15' : '#f97316';
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = isDarkMode ? '#fde68a' : '#f59e0b';
+                ctx.lineWidth = 2.2;
                 ctx.stroke();
+              }
+              if (isRoot) {
+                ctx.font = `${Math.max(16 / globalScale, 12)}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = isDarkMode ? '#111827' : '#0f172a';
+                ctx.fillText('👤', node.x, node.y + 1);
               }
               ctx.font = `${fontSize}px sans-serif`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'top';
-              ctx.fillStyle = isDarkMode ? '#f9fafb' : '#111827';
+              ctx.fillStyle = isDarkMode ? '#f8fafc' : '#e2e8f0';
               ctx.fillText(label, node.x, node.y + radius + 4);
             }}
             nodePointerAreaPaint={(node: any, color, ctx) => {
@@ -372,13 +429,13 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               if (link.synthetic) {
                 return document.documentElement.classList.contains('dark') ? '#4b5563' : '#d1d5db';
               }
-              return document.documentElement.classList.contains('dark') ? '#93c5fd' : '#2563eb';
+              return document.documentElement.classList.contains('dark') ? '#38bdf8' : '#38bdf8';
             }}
             linkDirectionalArrowColor={(link: any) => {
               if (link.synthetic) {
                 return document.documentElement.classList.contains('dark') ? '#4b5563' : '#d1d5db';
               }
-              return document.documentElement.classList.contains('dark') ? '#93c5fd' : '#2563eb';
+              return document.documentElement.classList.contains('dark') ? '#38bdf8' : '#38bdf8';
             }}
             linkWidth={(link: any) => 1 + Math.log((link.callCount || 0) + (link.smsCount || 0) + 1)}
             linkDirectionalParticles={viewMode === 'network' ? 2 : 0}
@@ -399,7 +456,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
               const textY = (start.y + end.y) / 2;
               const isDarkMode = document.documentElement.classList.contains('dark');
               ctx.font = `${fontSize}px sans-serif`;
-              ctx.fillStyle = isDarkMode ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)';
+              ctx.fillStyle = isDarkMode ? 'rgba(226,232,240,0.8)' : 'rgba(226,232,240,0.8)';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.fillText(label, textX, textY);
@@ -417,7 +474,9 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
                       className="h-3.5 w-3.5 rounded-full"
                       style={{ backgroundColor: colorByType[type] }}
                     ></span>
-                    <span className="capitalize font-medium text-gray-800 dark:text-gray-200">{type}</span>
+                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                      {typeLabel[type as keyof typeof typeLabel] ?? type}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -429,6 +488,25 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, onClose }) => {
                 <p className="mt-2 font-medium text-blue-600 dark:text-blue-300">
                   Racine actuelle : {effectiveRoot}
                 </p>
+              )}
+            </div>
+          </div>
+          <div className="absolute top-4 right-4 w-72 space-y-3">
+            <div className="rounded-xl bg-slate-900/85 p-3 text-sm text-slate-100 shadow ring-1 ring-white/10 backdrop-blur">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-300">Liens détectés</p>
+              {rootConnections.length === 0 ? (
+                <p className="text-xs text-slate-300">Aucun lien détecté pour ce numéro.</p>
+              ) : (
+                <ul className="space-y-2 text-xs">
+                  {rootConnections.slice(0, 8).map((entry) => (
+                    <li key={entry.number} className="rounded-lg bg-slate-800/80 p-2">
+                      <p className="font-semibold text-slate-100">{entry.number}</p>
+                      <p className="text-slate-300">
+                        {entry.callCount} appels · {entry.smsCount} SMS
+                      </p>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </div>
