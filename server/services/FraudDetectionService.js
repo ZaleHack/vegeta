@@ -36,10 +36,45 @@ const normalizeDateValue = (value) => {
   return str;
 };
 
-const normalizeImei = (value) => {
+const sanitizeImei = (value) => {
   if (!value) return '';
   const digits = String(value).replace(/\D/g, '').trim();
-  return digits.length >= 5 ? digits : '';
+  return digits;
+};
+
+const computeImeiCheckDigit = (imeiBody) => {
+  const digits = sanitizeImei(imeiBody);
+  if (digits.length !== 14) {
+    return '';
+  }
+
+  let sum = 0;
+  for (let index = 0; index < digits.length; index += 1) {
+    const digit = Number(digits[index]);
+    if (Number.isNaN(digit)) {
+      return '';
+    }
+    const isEvenPosition = (index + 1) % 2 === 0;
+    if (isEvenPosition) {
+      const doubled = digit * 2;
+      sum += doubled > 9 ? doubled - 9 : doubled;
+    } else {
+      sum += digit;
+    }
+  }
+
+  return String((10 - (sum % 10)) % 10);
+};
+
+const normalizeImei = (value) => {
+  const digits = sanitizeImei(value);
+  if (!digits) return '';
+  if (digits.length < 14) {
+    return digits;
+  }
+  const base = digits.slice(0, 14);
+  const checkDigit = computeImeiCheckDigit(base);
+  return checkDigit ? `${base}${checkDigit}` : digits;
 };
 
 class FraudDetectionService {
@@ -92,7 +127,8 @@ class FraudDetectionService {
         const rows = await this.cdrService.getImeiNumberPairs(caseId, { startDate, endDate });
 
         for (const row of rows) {
-          const imei = String(row.imei || '').trim();
+          const rawImei = String(row.imei || '').trim();
+          const imei = normalizeImei(rawImei);
           const normalizedNumber = normalizePhoneNumber(row.numero);
           if (!imei || !normalizedNumber) {
             continue;
