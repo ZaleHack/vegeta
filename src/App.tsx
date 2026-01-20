@@ -122,6 +122,12 @@ const FRAUD_ROLE_LABELS: Record<string, string> = {
 const FRAUD_MONITORING_STORAGE_KEY = 'fraudMonitoringByUser';
 const TARGET_REPORT_LIMIT_MIN = 1;
 const TARGET_REPORT_LIMIT_MAX = 200;
+const REQUIRED_TARGET_REPORT_SECTION_IDS = new Set([
+  'top-places',
+  'travel-history',
+  'recent-locations',
+  'last-location'
+]);
 const TARGET_REPORT_SECTIONS = [
   {
     id: 'contacts',
@@ -5183,7 +5189,15 @@ useEffect(() => {
   const updateTargetReportSection = useCallback(
     (id: string, updates: Partial<TargetReportSectionState>) => {
       setTargetReportSections((prev) =>
-        prev.map((section) => (section.id === id ? { ...section, ...updates } : section))
+        prev.map((section) => {
+          if (section.id !== id) {
+            return section;
+          }
+          if (updates.enabled === false && REQUIRED_TARGET_REPORT_SECTION_IDS.has(section.id)) {
+            return { ...section, enabled: true };
+          }
+          return { ...section, ...updates };
+        })
       );
     },
     []
@@ -5199,7 +5213,9 @@ useEffect(() => {
       return;
     }
 
-    const selectedSections = targetReportSections.filter((section) => section.enabled);
+    const selectedSections = targetReportSections.filter(
+      (section) => section.enabled || REQUIRED_TARGET_REPORT_SECTION_IDS.has(section.id)
+    );
     if (selectedSections.length === 0) {
       setTargetReportError('Sélectionnez au moins un type de données à exporter.');
       setTargetReportInfo('');
@@ -5225,7 +5241,7 @@ useEffect(() => {
           id: section.id,
           label: section.label,
           limit: section.limit,
-          enabled: section.enabled
+          enabled: section.enabled || REQUIRED_TARGET_REPORT_SECTION_IDS.has(section.id)
         }))
       };
 
@@ -8789,6 +8805,7 @@ useEffect(() => {
                     <div className="grid gap-5 lg:grid-cols-2">
                       {targetReportSections.map((section) => {
                         const Icon = section.icon;
+                        const isRequired = REQUIRED_TARGET_REPORT_SECTION_IDS.has(section.id);
                         return (
                           <div
                             key={section.id}
@@ -8814,17 +8831,25 @@ useEffect(() => {
                                     </p>
                                   </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => updateTargetReportSection(section.id, { enabled: !section.enabled })}
-                                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                                    section.enabled
-                                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40'
-                                      : 'bg-white/70 text-slate-600 shadow-inner dark:bg-slate-800/70 dark:text-slate-200'
-                                  }`}
-                                >
-                                  {section.enabled ? 'Inclus' : 'Exclu'}
-                                </button>
+                                {isRequired ? (
+                                  <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
+                                    Obligatoire
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateTargetReportSection(section.id, { enabled: !section.enabled })
+                                    }
+                                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                                      section.enabled
+                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40'
+                                        : 'bg-white/70 text-slate-600 shadow-inner dark:bg-slate-800/70 dark:text-slate-200'
+                                    }`}
+                                  >
+                                    {section.enabled ? 'Inclus' : 'Exclu'}
+                                  </button>
+                                )}
                               </div>
 
                               <div className="space-y-3">
@@ -8834,47 +8859,21 @@ useEffect(() => {
                                     Min {TARGET_REPORT_LIMIT_MIN} • Max {TARGET_REPORT_LIMIT_MAX}
                                   </span>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-3">
-                                  <div className="flex items-center gap-2 rounded-full bg-white/80 px-3 py-2 shadow-inner dark:bg-slate-900/60">
-                                    <button
-                                      type="button"
-                                      disabled={!section.enabled || section.limit <= TARGET_REPORT_LIMIT_MIN}
-                                      onClick={() =>
-                                        updateTargetReportSection(section.id, {
-                                          limit: clampTargetReportLimit(section.limit - 1)
-                                        })
-                                      }
-                                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                                    >
-                                      -
-                                    </button>
-                                    <input
-                                      type="number"
-                                      min={TARGET_REPORT_LIMIT_MIN}
-                                      max={TARGET_REPORT_LIMIT_MAX}
-                                      step={1}
-                                      value={section.limit}
-                                      disabled={!section.enabled}
-                                      onChange={(event) =>
-                                        updateTargetReportSection(section.id, {
-                                          limit: clampTargetReportLimit(Number(event.target.value))
-                                        })
-                                      }
-                                      className="w-20 bg-transparent text-center text-sm font-semibold text-slate-700 focus:outline-none disabled:cursor-not-allowed dark:text-slate-100"
-                                    />
-                                    <button
-                                      type="button"
-                                      disabled={!section.enabled || section.limit >= TARGET_REPORT_LIMIT_MAX}
-                                      onClick={() =>
-                                        updateTargetReportSection(section.id, {
-                                          limit: clampTargetReportLimit(section.limit + 1)
-                                        })
-                                      }
-                                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
+                                <div className="grid gap-3 sm:grid-cols-[minmax(0,120px)_1fr] sm:items-center">
+                                  <input
+                                    type="number"
+                                    min={TARGET_REPORT_LIMIT_MIN}
+                                    max={TARGET_REPORT_LIMIT_MAX}
+                                    step={1}
+                                    value={section.limit}
+                                    disabled={!section.enabled}
+                                    onChange={(event) =>
+                                      updateTargetReportSection(section.id, {
+                                        limit: clampTargetReportLimit(Number(event.target.value))
+                                      })
+                                    }
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800"
+                                  />
                                   <div className="flex flex-wrap gap-2 text-xs">
                                     {[5, 10, 25, 50].map((value) => (
                                       <button
@@ -8894,7 +8893,7 @@ useEffect(() => {
                                   </div>
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                  Saisissez manuellement le nombre de données à inclure dans le rapport PDF.
+                                  Indiquez le nombre d'éléments à inclure pour ce module.
                                 </p>
                               </div>
                             </div>
