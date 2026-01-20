@@ -705,13 +705,27 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
             }}
             nodePointerAreaPaint={(node: any, color, ctx) => {
               if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
-              const size = 36 + (node.degree || 0) * 2;
-              const width = size;
-              const height = size * 0.7;
-              const x = node.x - width / 2;
-              const y = node.y - height / 2;
+              const globalScale = graphRef.current?.zoom() ?? 1;
+              const isRoot = effectiveRoot && node.id === effectiveRoot;
+              const degreeBoost = Math.min((node.degree || 0) * 2, 20);
+              const baseSize = (isRoot ? 42 : 34) + degreeBoost;
+              const size = baseSize / globalScale;
+              const boxWidth = size * 1.8;
+              const boxHeight = size * 1.25;
+              const boxX = node.x - boxWidth / 2;
+              const boxY = node.y - boxHeight / 2;
+              const labelFont = Math.max(12 / globalScale, 9);
+              ctx.font = `${labelFont}px "Inter", sans-serif`;
+              const labelWidth = ctx.measureText(node.id).width + 18 / globalScale;
+              const labelHeight = 16 / globalScale;
+              const labelX = node.x - labelWidth / 2;
+              const labelY = node.y + boxHeight / 2 + 8 / globalScale;
+              const minX = Math.min(boxX, labelX);
+              const minY = Math.min(boxY, labelY);
+              const maxX = Math.max(boxX + boxWidth, labelX + labelWidth);
+              const maxY = Math.max(boxY + boxHeight, labelY + labelHeight);
               ctx.fillStyle = color;
-              drawRoundedRect(ctx, x, y, width, height, 8);
+              drawRoundedRect(ctx, minX, minY, maxX - minX, maxY - minY, 8 / globalScale);
               ctx.fill();
             }}
             linkColor={(link: any) => {
