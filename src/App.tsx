@@ -5111,8 +5111,8 @@ useEffect(() => {
       setLinkDiagramInfo('');
 
       const payload: Record<string, unknown> = { numbers: [normalizedNumber] };
-      if (linkDiagramStart) payload.start = new Date(linkDiagramStart).toISOString().split('T')[0];
-      if (linkDiagramEnd) payload.end = new Date(linkDiagramEnd).toISOString().split('T')[0];
+      if (linkDiagramStart) payload.start = linkDiagramStart.trim();
+      if (linkDiagramEnd) payload.end = linkDiagramEnd.trim();
 
       const res = await fetch('/api/cdr/realtime/link-diagram', {
         method: 'POST',
