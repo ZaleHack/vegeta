@@ -210,6 +210,42 @@ interface PhoneIdentifierResult {
   devices: PhoneIdentifierDevice[];
 }
 
+const computeImeiCheckDigit = (baseImei: string): number => {
+  const digits = baseImei.replace(/\D/g, '');
+  if (digits.length !== 14) {
+    return 0;
+  }
+
+  let sum = 0;
+  for (let index = 0; index < digits.length; index += 1) {
+    const digit = Number(digits[index]);
+    if (Number.isNaN(digit)) {
+      return 0;
+    }
+
+    const isEvenPosition = (index + 1) % 2 === 0;
+    if (isEvenPosition) {
+      const doubled = digit * 2;
+      sum += doubled > 9 ? doubled - 9 : doubled;
+    } else {
+      sum += digit;
+    }
+  }
+
+  return (10 - (sum % 10)) % 10;
+};
+
+const normalizeImeiWithCheckDigit = (imei: string): string => {
+  const digits = imei.replace(/\D/g, '');
+  if (digits.length < 14) {
+    return imei;
+  }
+
+  const base = digits.slice(0, 14);
+  const checkDigit = computeImeiCheckDigit(base);
+  return `${base}${checkDigit}`;
+};
+
 const extractHitsFromPayload = (hits: RawHitsPayload): RawSearchResult[] => {
   if (Array.isArray(hits)) {
     return hits;
@@ -3496,7 +3532,20 @@ const App: React.FC = () => {
           throw new Error(data.error || "Impossible de lancer la recherche pour ce numéro.");
         }
 
-        setPhoneIdentifierResult(data);
+        const normalizedDevices = (data.devices || []).map((device) => ({
+          ...device,
+          imei: normalizeImeiWithCheckDigit(device.imei)
+        }));
+        const normalizedImeis = new Set(normalizedDevices.map((device) => device.imei));
+
+        setPhoneIdentifierResult({
+          ...data,
+          devices: normalizedDevices,
+          stats: {
+            ...data.stats,
+            uniqueImeis: normalizedImeis.size
+          }
+        });
       } catch (error) {
         console.error('Erreur identification téléphone:', error);
         const message = error instanceof Error ? error.message : "Une erreur est survenue.";
