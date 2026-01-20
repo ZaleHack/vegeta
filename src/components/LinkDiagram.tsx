@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
-import { FileDown, Maximize2, Minimize2, Network, User, X } from 'lucide-react';
+import { FileDown, Maximize2, MessageSquare, Minimize2, Network, PhoneIncoming, PhoneOutgoing, User, X } from 'lucide-react';
 import { forceLink, forceManyBody } from 'd3-force';
 import type { ForceLink } from 'd3-force';
 
@@ -61,6 +61,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(startFullscreen);
   const [viewMode, setViewMode] = useState<ViewMode>('network');
   const [selectedRoot, setSelectedRoot] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showReportOptions, setShowReportOptions] = useState(false);
   const [selectedReportSections, setSelectedReportSections] = useState<string[]>([
     'summary',
@@ -144,6 +145,44 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
       setSelectedRoot(defaultRoot);
     }
   }, [defaultRoot, graphNodes, preferredRoot, selectedRoot]);
+
+  useEffect(() => {
+    if (!selectedNodeId) return;
+    if (!graphNodes.some((node) => node.id === selectedNodeId)) {
+      setSelectedNodeId(null);
+    }
+  }, [graphNodes, selectedNodeId]);
+
+  const nodeStats = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        incomingCalls: number;
+        outgoingCalls: number;
+        smsCount: number;
+      }
+    >();
+    graphNodes.forEach((node) => {
+      map.set(node.id, { incomingCalls: 0, outgoingCalls: 0, smsCount: 0 });
+    });
+    graphLinks.forEach((link) => {
+      const sourceStats = map.get(link.source);
+      const targetStats = map.get(link.target);
+      const callCount = link.callCount || 0;
+      const smsCount = link.smsCount || 0;
+      if (sourceStats) {
+        sourceStats.outgoingCalls += callCount;
+        sourceStats.smsCount += smsCount;
+      }
+      if (targetStats) {
+        targetStats.incomingCalls += callCount;
+        targetStats.smsCount += smsCount;
+      }
+    });
+    return map;
+  }, [graphLinks, graphNodes]);
+
+  const selectedNodeStats = selectedNodeId ? nodeStats.get(selectedNodeId) : null;
 
   const metricsByPair = useMemo(() => {
     const map = new Map<string, { callCount: number; smsCount: number }>();
@@ -588,6 +627,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
               const label = node.id;
               const isDarkMode = document.documentElement.classList.contains('dark');
               const isRoot = effectiveRoot && node.id === effectiveRoot;
+              const isSelected = selectedNodeId && node.id === selectedNodeId;
               const degreeBoost = Math.min((node.degree || 0) * 2, 20);
               const baseSize = (isRoot ? 42 : 34) + degreeBoost;
               const size = baseSize / globalScale;
@@ -623,6 +663,21 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
                   12 / globalScale
                 );
                 ctx.strokeStyle = 'rgba(250, 204, 21, 0.75)';
+                ctx.stroke();
+              }
+              if (isSelected) {
+                ctx.shadowColor = '#22d3ee';
+                ctx.shadowBlur = 14 / globalScale;
+                ctx.lineWidth = 2.6 / globalScale;
+                drawRoundedRect(
+                  ctx,
+                  x - 6 / globalScale,
+                  y - 6 / globalScale,
+                  boxWidth + 12 / globalScale,
+                  boxHeight + 12 / globalScale,
+                  12 / globalScale
+                );
+                ctx.strokeStyle = 'rgba(34, 211, 238, 0.7)';
                 ctx.stroke();
               }
               ctx.restore();
@@ -677,6 +732,9 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
             linkDirectionalArrowLength={8}
             linkDirectionalArrowRelPos={0.9}
             linkCanvasObjectMode={() => 'after'}
+            onNodeClick={(node: any) => {
+              setSelectedNodeId(node?.id ?? null);
+            }}
             linkCanvasObject={(link: any, ctx, globalScale) => {
               const start = link.source;
               const end = link.target;
@@ -746,6 +804,66 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
               )}
             </div>
           </div>
+          {selectedNodeStats && (
+            <div className="pointer-events-none absolute inset-0 flex items-end justify-center p-6">
+              <div className="pointer-events-auto w-full max-w-md rounded-3xl border border-slate-200/80 bg-white/95 p-4 shadow-2xl backdrop-blur dark:border-white/10 dark:bg-slate-900/90">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                      Détails de l'appel
+                    </p>
+                    <p className="text-lg font-semibold text-slate-900 dark:text-white">{selectedNodeId}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedNodeId(null)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    aria-label="Fermer le détail"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+                  <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-3 text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200">
+                      <PhoneIncoming className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-300">Appels entrants</p>
+                      <p className="text-base font-semibold text-slate-900 dark:text-white">
+                        {selectedNodeStats.incomingCalls}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-3 text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-200">
+                      <PhoneOutgoing className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-300">Appels sortants</p>
+                      <p className="text-base font-semibold text-slate-900 dark:text-white">
+                        {selectedNodeStats.outgoingCalls}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-3 text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
+                      <MessageSquare className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-300">SMS</p>
+                      <p className="text-base font-semibold text-slate-900 dark:text-white">
+                        {selectedNodeStats.smsCount}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-slate-500 dark:text-slate-300">
+                  Cliquez sur un autre numéro pour afficher ses métriques.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
