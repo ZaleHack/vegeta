@@ -222,6 +222,19 @@ const normalizeImeiWithCheckDigit = (value) => {
   return checkDigit ? `${base}${checkDigit}` : digits;
 };
 
+const normalizeImeiForComparison = (value) => {
+  const digits = sanitizeImei(value);
+  if (digits.length < 14) {
+    return digits;
+  }
+  const base = digits.slice(0, 14);
+  if (digits.length === 15) {
+    return digits.slice(0, 15);
+  }
+  const checkDigit = computeImeiCheckDigit(base);
+  return checkDigit ? `${base}${checkDigit}` : digits;
+};
+
 const normalizePhoneNumber = (value) => {
   const sanitized = sanitizeNumber(value);
   if (!sanitized) {
@@ -578,6 +591,7 @@ class RealtimeCdrService {
     this.coordinateSelectClausePromise = null;
     this.coordinateFallbackColumns = null;
     this.btsLookupSegmentsPromise = null;
+    this.realtimeColumnAvailability = new Map();
 
     this.initializationPromise = this.elasticEnabled && this.autoStart
       ? this.#initializeElasticsearch().catch((error) => {
@@ -697,6 +711,7 @@ class RealtimeCdrService {
     const sanitizedImei = sanitizeImei(trimmedIdentifier);
     const sanitizedNumber = sanitizeNumber(trimmedIdentifier);
     const searchType = sanitizedImei && sanitizedImei.length >= 14 ? 'imei' : 'phone';
+    const normalizedImeiInput = searchType === 'imei' ? normalizeImeiForComparison(trimmedIdentifier) : '';
     const variants = buildIdentifierVariants(trimmedIdentifier, searchType);
 
     if (variants.size === 0) {
@@ -766,27 +781,103 @@ class RealtimeCdrService {
       return { imeis: [], numbers: [], updatedAt: new Date().toISOString() };
     }
 
+    let imeiEntrantRows = [];
+    if (searchType === 'imei' && normalizedImeiInput) {
+      const hasImeiEntrant = await this.#hasRealtimeColumn('imei_entrant');
+      const imeiEntrantBody = normalizedImeiInput.length >= 14 ? normalizedImeiInput.slice(0, 14) : '';
+      if (hasImeiEntrant && imeiEntrantBody) {
+        const entrantConditions = [];
+        const entrantParams = [];
+        entrantConditions.push(`c.imei_entrant IN (${[imeiEntrantBody].map(() => '?').join(', ')})`);
+        entrantParams.push(imeiEntrantBody);
+
+        if (startDate) {
+          entrantConditions.push('c.date_debut >= ?');
+          entrantParams.push(startDate);
+        }
+
+        if (endDate) {
+          entrantConditions.push('COALESCE(c.date_fin, c.date_debut) <= ?');
+          entrantParams.push(endDate);
+        }
+
+        const entrantWhereClause = entrantConditions.length ? `WHERE ${entrantConditions.join(' AND ')}` : '';
+        const entrantSql = `
+          SELECT
+            c.numero_appelant AS number,
+            c.imei_entrant AS imei_entrant,
+            COUNT(*) AS occurrences,
+            MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
+            MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
+          FROM ${REALTIME_CDR_TABLE_SQL} AS c
+          ${entrantWhereClause}
+          GROUP BY c.numero_appelant, c.imei_entrant
+          HAVING c.numero_appelant IS NOT NULL AND c.numero_appelant <> ''
+          ORDER BY last_seen DESC, occurrences DESC
+        `;
+
+        try {
+          imeiEntrantRows = await this.database.query(entrantSql, entrantParams, {
+            suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+            suppressErrorLog: true
+          });
+        } catch (error) {
+          console.error('Erreur recherche IMEI entrant CDR temps réel:', error);
+          imeiEntrantRows = [];
+        }
+      }
+    }
+
     const updatedAt = new Date().toISOString();
 
     if (searchType === 'imei') {
-      const imeiValue = sanitizedImei || trimmedIdentifier;
-      const numbers = rows
-        .map((row) => {
-          const normalizedNumber = normalizePhoneNumber(row.number) || sanitizeNumber(row.number) || '';
-          if (!normalizedNumber) {
-            return null;
-          }
+      const imeiValue = normalizedImeiInput || sanitizedImei || trimmedIdentifier;
+      const numbersMap = new Map();
 
-          return {
+      const addNumberRow = (row) => {
+        const normalizedNumber = normalizePhoneNumber(row.number) || sanitizeNumber(row.number) || '';
+        if (!normalizedNumber) {
+          return;
+        }
+
+        const occurrences = Number(row.occurrences) || 0;
+        const firstSeen = normalizeDateValue(row.first_seen);
+        const lastSeen = normalizeDateValue(row.last_seen);
+        const current = numbersMap.get(normalizedNumber);
+
+        if (!current) {
+          numbersMap.set(normalizedNumber, {
             number: normalizedNumber,
-            occurrences: Number(row.occurrences) || 0,
-            firstSeen: normalizeDateValue(row.first_seen),
-            lastSeen: normalizeDateValue(row.last_seen),
+            occurrences,
+            firstSeen,
+            lastSeen,
             roles: [],
             cases: []
-          };
-        })
-        .filter(Boolean);
+          });
+          return;
+        }
+
+        current.occurrences += occurrences;
+        if (!current.firstSeen || (firstSeen && firstSeen < current.firstSeen)) {
+          current.firstSeen = firstSeen;
+        }
+        if (!current.lastSeen || (lastSeen && lastSeen > current.lastSeen)) {
+          current.lastSeen = lastSeen;
+        }
+      };
+
+      rows.forEach(addNumberRow);
+
+      if (Array.isArray(imeiEntrantRows) && imeiEntrantRows.length > 0) {
+        imeiEntrantRows.forEach((row) => {
+          const normalizedFromEntrant = normalizeImeiWithCheckDigit(row.imei_entrant);
+          if (normalizedFromEntrant && normalizedImeiInput && normalizedFromEntrant === normalizedImeiInput) {
+            addNumberRow(row);
+          }
+        });
+      }
+
+      const numbers = Array.from(numbersMap.values());
 
       return {
         imeis: [
@@ -1172,6 +1263,52 @@ class RealtimeCdrService {
     }
 
     return this.coordinateSelectClausePromise;
+  }
+
+  async #hasRealtimeColumn(columnName) {
+    const normalized = columnName ? String(columnName).toLowerCase() : '';
+    if (!normalized) {
+      return false;
+    }
+
+    if (this.realtimeColumnAvailability.has(normalized)) {
+      return this.realtimeColumnAvailability.get(normalized);
+    }
+
+    const schemaCondition = REALTIME_CDR_TABLE_SCHEMA
+      ? 'AND TABLE_SCHEMA = ?'
+      : 'AND TABLE_SCHEMA = DATABASE()';
+
+    const sql = `
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_NAME = ?
+        ${schemaCondition}
+        AND LOWER(COLUMN_NAME) = ?
+      LIMIT 1
+    `;
+
+    const params = REALTIME_CDR_TABLE_SCHEMA
+      ? [REALTIME_CDR_TABLE_NAME, REALTIME_CDR_TABLE_SCHEMA, normalized]
+      : [REALTIME_CDR_TABLE_NAME, normalized];
+
+    let hasColumn = false;
+
+    try {
+      const rows = await this.database.query(sql, params, {
+        suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+        suppressErrorLog: true
+      });
+      hasColumn = Array.isArray(rows) && rows.length > 0;
+    } catch (error) {
+      console.warn(
+        '⚠️ Impossible de vérifier la présence de la colonne CDR demandée.',
+        error?.message || error
+      );
+    }
+
+    this.realtimeColumnAvailability.set(normalized, hasColumn);
+    return hasColumn;
   }
 
   async #resolveCoordinateSelectClause() {
