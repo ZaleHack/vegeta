@@ -188,6 +188,40 @@ const sanitizeImei = (value) => {
   return text;
 };
 
+const computeImeiCheckDigit = (imeiBody) => {
+  const digits = sanitizeImei(imeiBody);
+  if (digits.length !== 14) {
+    return '';
+  }
+
+  let sum = 0;
+  for (let index = 0; index < digits.length; index += 1) {
+    const digit = Number(digits[index]);
+    if (Number.isNaN(digit)) {
+      return '';
+    }
+    const isEvenPosition = (index + 1) % 2 === 0;
+    if (isEvenPosition) {
+      const doubled = digit * 2;
+      sum += doubled > 9 ? doubled - 9 : doubled;
+    } else {
+      sum += digit;
+    }
+  }
+
+  return String((10 - (sum % 10)) % 10);
+};
+
+const normalizeImeiWithCheckDigit = (value) => {
+  const digits = sanitizeImei(value);
+  if (digits.length < 14) {
+    return digits;
+  }
+  const base = digits.slice(0, 14);
+  const checkDigit = computeImeiCheckDigit(base);
+  return checkDigit ? `${base}${checkDigit}` : digits;
+};
+
 const normalizePhoneNumber = (value) => {
   const sanitized = sanitizeNumber(value);
   if (!sanitized) {
@@ -210,6 +244,13 @@ const buildIdentifierVariants = (value, type = 'phone') => {
     const sanitized = sanitizeImei(value);
     if (sanitized) {
       variants.add(sanitized);
+    }
+    if (sanitized.length >= 14) {
+      variants.add(sanitized.slice(0, 14));
+    }
+    const normalized = normalizeImeiWithCheckDigit(sanitized);
+    if (normalized) {
+      variants.add(normalized);
     }
     return variants;
   }
@@ -263,7 +304,14 @@ const matchesIdentifier = (identifierSet, value, type = 'phone') => {
       return true;
     }
     const sanitized = sanitizeImei(value);
-    if (sanitized && identifierSet.has(sanitized)) {
+    if (!sanitized) {
+      return false;
+    }
+    const normalized = normalizeImeiWithCheckDigit(sanitized);
+    if (normalized && identifierSet.has(normalized)) {
+      return true;
+    }
+    if (identifierSet.has(sanitized)) {
       return true;
     }
     return false;
