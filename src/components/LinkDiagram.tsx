@@ -1,6 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
-import { FileDown, Maximize2, MessageSquare, Minimize2, PhoneIncoming, PhoneOutgoing, User, X } from 'lucide-react';
+import {
+  FileDown,
+  Maximize2,
+  MessageSquare,
+  Minimize2,
+  PhoneIncoming,
+  PhoneOutgoing,
+  User,
+  X,
+  ZoomIn,
+  ZoomOut
+} from 'lucide-react';
 import { forceCollide, forceLink, forceManyBody, forceRadial } from 'd3-force';
 import type { ForceLink } from 'd3-force';
 
@@ -578,6 +589,13 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
   } shadow-[0_35px_120px_-60px_rgba(15,23,42,0.35)] w-[94vw] max-w-6xl ${
     isFullscreen ? 'h-full w-full max-w-none' : 'h-[84vh]'
   } flex flex-col dark:border-white/10 dark:bg-gradient-to-br dark:from-[#0b1020] dark:via-[#0f172a] dark:to-[#1a1339] dark:shadow-[0_35px_120px_-60px_rgba(59,130,246,0.75)]`;
+  const handleZoom = (direction: 'in' | 'out') => {
+    if (!graphRef.current) return;
+    const currentZoom = graphRef.current.zoom() ?? 1;
+    const factor = direction === 'in' ? 1.2 : 1 / 1.2;
+    const nextZoom = Math.min(Math.max(currentZoom * factor, 0.2), 6);
+    graphRef.current.zoom(nextZoom, 200);
+  };
 
   return (
     <div className={overlayClasses}>
@@ -593,6 +611,22 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => handleZoom('in')}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-700 transition hover:bg-white dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                aria-label="Zoomer sur le diagramme"
+              >
+                <ZoomIn className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleZoom('out')}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-700 transition hover:bg-white dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                aria-label="Dézoomer le diagramme"
+              >
+                <ZoomOut className="h-5 w-5" />
+              </button>
               <div className="relative">
                 <button
                   type="button"
