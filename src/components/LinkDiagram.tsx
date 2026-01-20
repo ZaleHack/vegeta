@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
-import { Maximize2, Minimize2, Network, User, X } from 'lucide-react';
+import { FileDown, Maximize2, Minimize2, Network, User, X } from 'lucide-react';
 import { forceLink, forceManyBody } from 'd3-force';
 import type { ForceLink } from 'd3-force';
 
@@ -19,6 +19,7 @@ interface GraphLink {
 interface LinkDiagramProps {
   data: { nodes: GraphNode[]; links: GraphLink[]; root?: string | null };
   rootId?: string | null;
+  filters?: { number?: string; start?: string; end?: string };
   onClose: () => void;
   startFullscreen?: boolean;
 }
@@ -50,10 +51,25 @@ interface NormalizedLink extends GraphLink {
   synthetic?: boolean;
 }
 
-const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose, startFullscreen = false }) => {
+const LinkDiagram: React.FC<LinkDiagramProps> = ({
+  data,
+  rootId,
+  filters,
+  onClose,
+  startFullscreen = false
+}) => {
   const [isFullscreen, setIsFullscreen] = useState(startFullscreen);
   const [viewMode, setViewMode] = useState<ViewMode>('network');
   const [selectedRoot, setSelectedRoot] = useState<string | null>(null);
+  const [showReportOptions, setShowReportOptions] = useState(false);
+  const [selectedReportSections, setSelectedReportSections] = useState<string[]>([
+    'summary',
+    'nodes',
+    'links',
+    'rootConnections'
+  ]);
+  const [reportError, setReportError] = useState('');
+  const [isExportingReport, setIsExportingReport] = useState(false);
   const graphRef = useRef<ForceGraphMethods | null>(null);
   const nodeTypes = useMemo(() => Array.from(new Set(data.nodes.map((n) => n.type))), [data]);
   const preferredRoot = rootId ?? data.root ?? null;
@@ -247,6 +263,100 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose, startF
     [graphLinks, graphNodes]
   );
 
+  const reportSections = useMemo(
+    () => [
+      {
+        id: 'summary',
+        label: 'Synthèse générale',
+        description: 'Indicateurs clés et aperçu global.'
+      },
+      {
+        id: 'nodes',
+        label: 'Noeuds principaux',
+        description: 'Liste des numéros classés par importance.'
+      },
+      {
+        id: 'links',
+        label: 'Relations observées',
+        description: 'Détails des interactions entre numéros.'
+      },
+      {
+        id: 'rootConnections',
+        label: 'Connexions directes',
+        description: 'Contacts les plus liés au numéro racine.'
+      }
+    ],
+    []
+  );
+
+  const toggleReportSection = (sectionId: string) => {
+    setSelectedReportSections((prev) => {
+      if (prev.includes(sectionId)) {
+        return prev.filter((id) => id !== sectionId);
+      }
+      return [...prev, sectionId];
+    });
+    setReportError('');
+  };
+
+  const handleExportReport = async () => {
+    if (selectedReportSections.length === 0) {
+      setReportError('Sélectionnez au moins une section.');
+      return;
+    }
+
+    try {
+      setIsExportingReport(true);
+      setReportError('');
+      const reportRoot = effectiveRoot ?? selectedRoot ?? preferredRoot ?? '';
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/cdr/realtime/link-diagram/report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({
+          nodes: data.nodes,
+          links: data.links,
+          root: reportRoot,
+          filters: {
+            number: filters?.number || reportRoot,
+            start: filters?.start,
+            end: filters?.end
+          },
+          sections: selectedReportSections
+        })
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        const errorMessage = payload?.error || "Impossible d'exporter le rapport.";
+        setReportError(errorMessage);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const sanitizedName = (filters?.number || reportRoot || 'diagramme')
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]+/g, '_');
+      link.href = url;
+      link.download = `${sanitizedName || 'diagramme'}_rapport-liens.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setShowReportOptions(false);
+    } catch (error) {
+      console.error('Erreur export rapport diagramme:', error);
+      setReportError("Impossible d'exporter le rapport.");
+    } finally {
+      setIsExportingReport(false);
+    }
+  };
+
   const drawRoundedRect = (
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -326,7 +436,72 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose, startF
                 Visualisation immersive inspirée des graphes d'investigation type Maltego.
               </p>
             </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowReportOptions((value) => !value)}
+                  className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 text-sm font-semibold text-slate-700 transition hover:bg-white dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                >
+                  <FileDown className="h-4 w-4" />
+                  Exporter rapport
+                </button>
+                {showReportOptions && (
+                  <div className="absolute right-0 top-full z-20 mt-3 w-80 rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-900/90">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">Contenu du PDF</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-300">
+                        Sélectionnez les sections à inclure dans le rapport.
+                      </p>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {reportSections.map((section) => (
+                        <label
+                          key={section.id}
+                          className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-left text-xs text-slate-700 shadow-sm transition hover:border-indigo-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            checked={selectedReportSections.includes(section.id)}
+                            onChange={() => toggleReportSection(section.id)}
+                          />
+                          <span>
+                            <span className="block text-sm font-semibold text-slate-900 dark:text-white">
+                              {section.label}
+                            </span>
+                            <span className="block text-xs text-slate-500 dark:text-slate-300">
+                              {section.description}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    {reportError && (
+                      <p className="mt-3 text-xs font-semibold text-rose-600 dark:text-rose-300">
+                        {reportError}
+                      </p>
+                    )}
+                    <div className="mt-4 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowReportOptions(false)}
+                        className="rounded-full border border-slate-200/70 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800 dark:border-white/10 dark:text-slate-200"
+                      >
+                        Fermer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportReport}
+                        disabled={isExportingReport}
+                        className="rounded-full bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isExportingReport ? 'Export...' : 'Générer PDF'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setIsFullscreen((value) => !value)}

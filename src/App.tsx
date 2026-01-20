@@ -7698,6 +7698,11 @@ useEffect(() => {
                 <LinkDiagram
                   data={linkDiagram}
                   rootId={linkDiagram.root ?? linkDiagramNumber}
+                  filters={{
+                    number: linkDiagramNumber,
+                    start: linkDiagramStart,
+                    end: linkDiagramEnd
+                  }}
                   startFullscreen
                   onClose={() => setLinkDiagram(null)}
                 />
@@ -9107,6 +9112,11 @@ useEffect(() => {
                 <LinkDiagram
                   data={linkDiagram}
                   rootId={linkDiagram.root ?? linkDiagramNumber}
+                  filters={{
+                    number: linkDiagramNumber,
+                    start: linkDiagramStart,
+                    end: linkDiagramEnd
+                  }}
                   onClose={() => setLinkDiagram(null)}
                 />
               )}
