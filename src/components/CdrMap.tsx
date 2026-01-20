@@ -43,6 +43,7 @@ import {
   NUMBER_COLOR_PALETTE,
   MAP_POINT_COLOR
 } from './mapColors';
+import { normalizeImeiWithCheckDigit } from '../utils/imei';
 
 interface Point {
   latitude: string;
@@ -1503,7 +1504,8 @@ const CdrMap: React.FC<Props> = ({
 
       const durationValue = formatPointDuration(point) ?? 'N/A';
       const imsiValue = point.imsiCaller?.trim() || 'N/A';
-      const imeiValue = point.imeiCaller?.trim() || 'N/A';
+      const imeiRawValue = point.imeiCaller?.trim();
+      const imeiValue = imeiRawValue ? normalizeImeiWithCheckDigit(imeiRawValue) : 'N/A';
       const coordsValue =
         point.latitude && point.longitude ? `${point.latitude}, ${point.longitude}` : 'N/A';
 
