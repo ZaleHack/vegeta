@@ -1417,6 +1417,71 @@ interface ImeiCheckResult {
 
 const IMEICHECK_API_KEY = 'F06A-ED7C-BE0F-C912-1C69-28KX';
 
+const isImeiCheckSuccess = (data?: ImeiCheckResult | null): boolean => {
+  if (!data) {
+    return false;
+  }
+
+  const status = data.status?.toLowerCase() ?? '';
+  return status.startsWith('succes') || status.startsWith('success') || status === 'ok';
+};
+
+const mapImeiCheckToInfo = (
+  data?: ImeiCheckResult | null
+): PhoneIdentifierDevice['imeiInfo'] | null => {
+  if (!data) {
+    return null;
+  }
+
+  const payload = data.object ?? {};
+  const brand = payload.brand?.trim() || '';
+  const model = payload.model?.trim() || '';
+  const name = payload.name?.trim() || '';
+  const resultText = data.result?.trim() || '';
+  const fallbackName = [brand, model].filter(Boolean).join(' ').trim();
+  const displayName = name || resultText || fallbackName;
+  const hasDetails = Boolean(brand || model || displayName);
+
+  if (isImeiCheckSuccess(data) || hasDetails) {
+    return {
+      brand,
+      model,
+      name: displayName,
+      status: data.status,
+      result: data.result
+    };
+  }
+
+  return {
+    brand,
+    model,
+    name: displayName,
+    status: data.status,
+    result: data.result,
+    error: data.error || data.result || "La vérification n'a pas abouti."
+  };
+};
+
+const fetchImeiCheckDetails = async (imei: string): Promise<ImeiCheckResult> => {
+  const imeiCheckParams = new URLSearchParams({
+    key: IMEICHECK_API_KEY,
+    imei,
+    format: 'json'
+  });
+
+  const response = await fetch(
+    `https://alpha.imeicheck.com/api/free_with_key/modelBrandName?${imeiCheckParams.toString()}`
+  );
+
+  const data: ImeiCheckResult = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.result || data.error || "Impossible de vérifier cet IMEI pour le moment.");
+  }
+
+  return { ...data, imei };
+};
+
 const App: React.FC = () => {
   const { notifySuccess, notifyError, notifyWarning, notifyInfo } = useNotifications();
   const { currentPage, navigateToPage } = usePageNavigation();
@@ -3536,14 +3601,41 @@ const App: React.FC = () => {
           ...device,
           imei: normalizeImeiWithCheckDigit(device.imei)
         }));
-        const normalizedImeis = new Set(normalizedDevices.map((device) => device.imei));
+        const normalizedImeis = [...new Set(normalizedDevices.map((device) => device.imei).filter(Boolean))];
+        const imeiCheckLookups = await Promise.allSettled(
+          normalizedImeis.map((imei) => fetchImeiCheckDetails(imei))
+        );
+        const imeiCheckMap = new Map<string, ImeiCheckResult>();
+        imeiCheckLookups.forEach((lookup, index) => {
+          const imei = normalizedImeis[index];
+          if (!imei) {
+            return;
+          }
+
+          if (lookup.status === 'fulfilled') {
+            imeiCheckMap.set(imei, lookup.value);
+          } else {
+            imeiCheckMap.set(imei, { imei, error: "Impossible de récupérer les détails IMEI." });
+          }
+        });
+
+        const enrichedDevices = normalizedDevices.map((device) => {
+          const imeiCheckResult = imeiCheckMap.get(device.imei);
+          const mappedInfo = mapImeiCheckToInfo(imeiCheckResult);
+          const shouldUseFallback = mappedInfo?.error && device.imeiInfo;
+
+          return {
+            ...device,
+            imeiInfo: shouldUseFallback ? device.imeiInfo : mappedInfo ?? device.imeiInfo
+          };
+        });
 
         setPhoneIdentifierResult({
           ...data,
-          devices: normalizedDevices,
+          devices: enrichedDevices,
           stats: {
             ...data.stats,
-            uniqueImeis: normalizedImeis.size
+            uniqueImeis: normalizedImeis.length
           }
         });
       } catch (error) {
