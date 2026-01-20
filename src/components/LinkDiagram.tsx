@@ -124,6 +124,15 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
     []
   );
 
+  const typeIcon = useMemo(
+    () => ({
+      root: PhoneIncoming,
+      source: PhoneOutgoing,
+      contact: User
+    }),
+    []
+  );
+
   const degreeByNode = useMemo(() => {
     const map: Record<string, number> = {};
     const normalize = (value: string | GraphNode) => (typeof value === 'string' ? value : value.id);
@@ -869,10 +878,12 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
                 {nodeTypes.map((type) => (
                   <div key={type} className="flex items-center gap-2">
                     <span
-                      className="flex h-6 w-6 items-center justify-center rounded-lg text-sm shadow"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg shadow"
                       style={{ backgroundColor: colorByType[type] }}
                     >
-                      📞
+                      {React.createElement(typeIcon[type as keyof typeof typeIcon] ?? User, {
+                        className: 'h-4 w-4 text-white'
+                      })}
                     </span>
                     <span className="font-medium text-slate-800 dark:text-slate-100">
                       {typeLabel[type as keyof typeof typeLabel] ?? type}
@@ -893,12 +904,12 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
           </div>
           <div className="absolute top-4 right-4 w-72 space-y-3">
             <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-3 text-sm text-slate-700 shadow-lg backdrop-blur dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Liens détectés</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Personnes en contact</p>
               {rootConnections.length === 0 ? (
                 <p className="text-xs text-slate-500 dark:text-slate-300">Aucun lien détecté pour ce numéro.</p>
               ) : (
-                <ul className="space-y-2 text-xs">
-                  {rootConnections.slice(0, 8).map((entry) => (
+                <ul className="max-h-64 space-y-2 overflow-y-auto pr-1 text-xs">
+                  {rootConnections.map((entry) => (
                     <li key={entry.number} className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-slate-800/60">
                       <p className="font-semibold text-slate-900 dark:text-slate-100">{entry.number}</p>
                       <p className="text-slate-500 dark:text-slate-300">
