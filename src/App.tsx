@@ -2598,6 +2598,32 @@ const App: React.FC = () => {
     return sanitized;
   }, []);
 
+  const computeImeiLuhnCheckDigit = useCallback((imeiBody: string) => {
+    const digits = imeiBody.split('').map((digit) => Number(digit));
+    let sum = 0;
+    for (let index = digits.length - 1; index >= 0; index -= 1) {
+      let value = digits[index];
+      const positionFromRight = digits.length - 1 - index;
+      if (positionFromRight % 2 === 0) {
+        value *= 2;
+        if (value > 9) value -= 9;
+      }
+      sum += value;
+    }
+    return String((10 - (sum % 10)) % 10);
+  }, []);
+
+  const formatImeiForDisplay = useCallback(
+    (value: string) => {
+      const normalized = normalizeImei(value);
+      if (!normalized) return value;
+      if (normalized.length < 14) return normalized;
+      const body = normalized.slice(0, 14);
+      return `${body}${computeImeiLuhnCheckDigit(body)}`;
+    },
+    [computeImeiLuhnCheckDigit, normalizeImei]
+  );
+
   const normalizeCdrIdentifier = useCallback(
     (value: string) => {
       if (cdrIdentifierType === 'imei') {
@@ -8780,7 +8806,9 @@ useEffect(() => {
                                   <AlertTriangle className="h-7 w-7" />
                                 </div>
                                 <div>
-                                  <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">IMEI {imeiEntry.imei}</h4>
+                                  <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                                    IMEI {formatImeiForDisplay(imeiEntry.imei)}
+                                  </h4>
                                   <div className="mt-2 flex flex-wrap gap-2">
                                     <span
                                       className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
@@ -8811,8 +8839,6 @@ useEffect(() => {
                                 <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/5 dark:text-slate-400">
                                   <tr>
                                     <th className="px-4 py-3 text-left">Numéro</th>
-                                    <th className="px-4 py-3 text-left">Occurrences</th>
-                                    <th className="px-4 py-3 text-left">Première apparition</th>
                                     <th className="px-4 py-3 text-left">Dernière apparition</th>
                                   </tr>
                                 </thead>
@@ -8824,10 +8850,6 @@ useEffect(() => {
                                     >
                                       <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">
                                         {numberEntry.number}
-                                      </td>
-                                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{numberEntry.occurrences}</td>
-                                      <td className="px-4 py-3 text-slate-500 dark:text-slate-300">
-                                        {formatFraudDate(numberEntry.firstSeen)}
                                       </td>
                                       <td className="px-4 py-3 text-slate-500 dark:text-slate-300">
                                         {formatFraudDate(numberEntry.lastSeen)}
@@ -8886,8 +8908,6 @@ useEffect(() => {
                                   <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/5 dark:text-slate-400">
                                     <tr>
                                       <th className="px-4 py-3 text-left">IMEI</th>
-                                      <th className="px-4 py-3 text-left">Occurrences</th>
-                                      <th className="px-4 py-3 text-left">Première apparition</th>
                                       <th className="px-4 py-3 text-left">Dernière apparition</th>
                                     </tr>
                                   </thead>
@@ -8898,11 +8918,7 @@ useEffect(() => {
                                         className="odd:bg-white even:bg-slate-50/60 dark:odd:bg-slate-900/40 dark:even:bg-slate-900/20"
                                       >
                                         <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">
-                                          {imeiInfo.imei}
-                                        </td>
-                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{imeiInfo.occurrences}</td>
-                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-300">
-                                          {formatFraudDate(imeiInfo.firstSeen)}
+                                          {formatImeiForDisplay(imeiInfo.imei)}
                                         </td>
                                         <td className="px-4 py-3 text-slate-500 dark:text-slate-300">
                                           {formatFraudDate(imeiInfo.lastSeen)}
