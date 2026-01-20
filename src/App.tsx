@@ -8562,7 +8562,7 @@ useEffect(() => {
               <PageHeader
                 icon={<Download className="h-6 w-6" />}
                 title="Données téléphoniques"
-                subtitle="Générez un fichier Excel à partir de la table cdr_temps_reel."
+                subtitle="Générez un fichier Excel à partir de la table Realtime."
               />
 
               <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-8 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
@@ -9399,7 +9399,7 @@ useEffect(() => {
                         <p className="text-sm font-semibold text-blue-600 dark:text-blue-300">Recherche téléphonique</p>
                         <h3 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Identifier un téléphone</h3>
                         <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                          Analysez la table <span className="font-semibold text-blue-600 dark:text-blue-300">cdr_temps_reel</span>
+                          Analysez la table <span className="font-semibold text-blue-600 dark:text-blue-300">Realtime</span>
                           &nbsp;pour révéler toutes les IMEI et IMSI associées au numéro fourni, puis enrichir chaque terminal.
                         </p>
                       </div>
@@ -9501,7 +9501,7 @@ useEffect(() => {
                       </div>
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Source live</p>
-                        <p className="text-lg font-bold text-slate-900 dark:text-slate-50">cdr_temps_reel</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-slate-50">Realtime</p>
                         <p className="text-sm text-slate-500 dark:text-slate-300">Extraction directe des enregistrements temps réel.</p>
                       </div>
                     </div>
@@ -9598,7 +9598,7 @@ useEffect(() => {
 
                 {!phoneIdentifierLoading && phoneIdentifierResult && phoneIdentifierResult.devices.length === 0 && (
                   <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-10 text-center text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-300">
-                    Aucun terminal associé n'a été trouvé dans la table cdr_temps_reel.
+                    Aucun terminal associé n'a été trouvé dans la table Realtime.
                   </div>
                 )}
 
@@ -9631,11 +9631,6 @@ useEffect(() => {
                               <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
                                 {device.imeiInfo?.name || device.imeiInfo?.result || 'Description non disponible'}
                               </p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-800/60">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Occurences</p>
-                              <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{device.occurrences}</p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">Repérée dans les CDR</p>
                             </div>
                           </div>
 
