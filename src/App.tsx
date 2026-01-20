@@ -7606,7 +7606,7 @@ useEffect(() => {
 
               <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-indigo-50/70 p-8 shadow-[0_30px_60px_-24px_rgba(79,70,229,0.35)] backdrop-blur dark:border-slate-700/60 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/50">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.12),transparent_25%),radial-gradient(circle_at_80%_0%,rgba(147,51,234,0.14),transparent_28%),radial-gradient(circle_at_50%_80%,rgba(16,185,129,0.12),transparent_30%)]" aria-hidden />
-                <div className="relative grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+                <div className="relative grid gap-10 lg:grid-cols-1 lg:items-start">
                   <div className="space-y-6 rounded-3xl border border-white/60 bg-white/80 p-8 shadow-xl shadow-indigo-500/15 ring-1 ring-white/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:ring-slate-800/60">
                     <div className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 dark:border-slate-700/60">
                       <p className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Configuration</p>
@@ -7691,32 +7691,6 @@ useEffect(() => {
                       </button>
                     </div>
                   </div>
-
-                  <div className="space-y-4">
-                    <div className="rounded-3xl border border-white/60 bg-gradient-to-br from-indigo-600 via-blue-600 to-purple-700 p-6 text-white shadow-2xl shadow-indigo-600/30 backdrop-blur dark:border-indigo-500/50">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-100/90">Conseils</p>
-                          <h3 className="text-xl font-bold leading-tight">Optimisez vos recherches</h3>
-                        </div>
-                        <Radar className="h-10 w-10 text-indigo-100/90" />
-                      </div>
-                      <ul className="mt-4 space-y-2 text-sm text-indigo-50">
-                        <li className="flex items-start gap-2">
-                          <span className="mt-1 h-2 w-2 rounded-full bg-white/80" aria-hidden />
-                          Combinez des numéros d'opérateurs différents pour révéler des passerelles inattendues.
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="mt-1 h-2 w-2 rounded-full bg-white/80" aria-hidden />
-                          Ajustez les heures pour isoler les échanges avant ou après un événement clé.
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="mt-1 h-2 w-2 rounded-full bg-white/80" aria-hidden />
-                          Pensez à renommer vos dossiers pour suivre l'historique des analyses.
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
                 </div>
               </section>
 
@@ -7724,6 +7698,7 @@ useEffect(() => {
                 <LinkDiagram
                   data={linkDiagram}
                   rootId={linkDiagram.root ?? linkDiagramNumber}
+                  startFullscreen
                   onClose={() => setLinkDiagram(null)}
                 />
               )}

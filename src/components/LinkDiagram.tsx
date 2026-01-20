@@ -20,6 +20,7 @@ interface LinkDiagramProps {
   data: { nodes: GraphNode[]; links: GraphLink[]; root?: string | null };
   rootId?: string | null;
   onClose: () => void;
+  startFullscreen?: boolean;
 }
 
 const typePalette = [
@@ -49,8 +50,8 @@ interface NormalizedLink extends GraphLink {
   synthetic?: boolean;
 }
 
-const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
-  const [isFullscreen, setIsFullscreen] = useState(false);
+const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose, startFullscreen = false }) => {
+  const [isFullscreen, setIsFullscreen] = useState(startFullscreen);
   const [viewMode, setViewMode] = useState<ViewMode>('network');
   const [selectedRoot, setSelectedRoot] = useState<string | null>(null);
   const graphRef = useRef<ForceGraphMethods | null>(null);
