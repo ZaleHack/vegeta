@@ -854,10 +854,19 @@ class RealtimeCdrService {
       LIMIT 20000
     `;
 
-    const rows = await this.database.query(sql, params, {
-      suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
-      suppressErrorLog: true
-    });
+    let rows = [];
+
+    try {
+      rows = await this.database.query(sql, params, {
+        suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+        suppressErrorLog: true
+      });
+    } catch (error) {
+      if (error?.code === 'ER_NO_SUCH_TABLE' || error?.code === '42S02') {
+        return { nodes: [], links: [], root: rootNumber };
+      }
+      throw error;
+    }
 
     const filteredSet = new Set(uniqueNumbers);
     const contactSources = {};
