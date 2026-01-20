@@ -63,13 +63,50 @@ const normalizeDateTime = (value) => {
   }
 };
 
+const computeImeiCheckDigit = (baseImei) => {
+  const digits = String(baseImei || '').replace(/\D/g, '');
+  if (digits.length !== 14) {
+    return 0;
+  }
+
+  let sum = 0;
+  for (let index = 0; index < digits.length; index += 1) {
+    const digit = Number(digits[index]);
+    if (Number.isNaN(digit)) {
+      return 0;
+    }
+
+    const isEvenPosition = (index + 1) % 2 === 0;
+    if (isEvenPosition) {
+      const doubled = digit * 2;
+      sum += doubled > 9 ? doubled - 9 : doubled;
+    } else {
+      sum += digit;
+    }
+  }
+
+  return (10 - (sum % 10)) % 10;
+};
+
+const normalizeImeiWithCheckDigit = (imei) => {
+  const digits = String(imei || '').replace(/\D/g, '');
+  if (digits.length < 14) {
+    return imei;
+  }
+
+  const base = digits.slice(0, 14);
+  const checkDigit = computeImeiCheckDigit(base);
+  return `${base}${checkDigit}`;
+};
+
 const resolveImeiDetails = async (imeis = []) => {
   const results = await Promise.all(
     imeis.map(async (imei) => {
-      const tac = imei ? String(imei).replace(/\D/g, '').slice(0, 8) : '';
+      const normalizedImei = normalizeImeiWithCheckDigit(imei);
+      const tac = normalizedImei ? String(normalizedImei).replace(/\D/g, '').slice(0, 8) : '';
 
       try {
-        const data = await checkImei(imei);
+        const data = await checkImei(normalizedImei);
         const brand = data.object?.brand || data.brand || '';
         const model = data.object?.model || data.model || '';
         const name = data.object?.name || data.name || [brand, model].filter(Boolean).join(' ').trim();
