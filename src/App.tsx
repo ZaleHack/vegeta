@@ -2257,7 +2257,8 @@ const App: React.FC = () => {
   const [showCdrMap, setShowCdrMap] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CdrCase | null>(null);
   const [linkDiagram, setLinkDiagram] = useState<LinkDiagramData | null>(null);
-  const [linkDiagramNumber, setLinkDiagramNumber] = useState('');
+  const [linkDiagramNumbers, setLinkDiagramNumbers] = useState<string[]>([]);
+  const [linkDiagramNumberInput, setLinkDiagramNumberInput] = useState('');
   const [linkDiagramStart, setLinkDiagramStart] = useState('');
   const [linkDiagramEnd, setLinkDiagramEnd] = useState('');
   const [linkDiagramLoading, setLinkDiagramLoading] = useState(false);
@@ -2747,6 +2748,79 @@ const App: React.FC = () => {
   const removeCdrIdentifier = (index: number) => {
     setCdrIdentifiers(cdrIdentifiers.filter((_, i) => i !== index));
   };
+
+  const normalizeLinkDiagramEntry = useCallback(
+    (value: string) => {
+      const normalized = normalizeCdrNumber(value);
+      if (!normalized) return null;
+      const isAllowedPrefix = LINK_DIAGRAM_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+      return isAllowedPrefix ? normalized : null;
+    },
+    [normalizeCdrNumber]
+  );
+
+  const splitLinkDiagramInput = useCallback((input: string) => {
+    if (!input) return [];
+    return input
+      .split(/[\s,;]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }, []);
+
+  const collectLinkDiagramNumbers = useCallback(() => {
+    const tokens = splitLinkDiagramInput(linkDiagramNumberInput);
+    const normalizedFromInput: string[] = [];
+    const invalidTokens: string[] = [];
+    tokens.forEach((token) => {
+      const normalized = normalizeLinkDiagramEntry(token);
+      if (normalized) {
+        normalizedFromInput.push(normalized);
+      } else {
+        invalidTokens.push(token);
+      }
+    });
+
+    const numbers = Array.from(new Set([...linkDiagramNumbers, ...normalizedFromInput]));
+    return { numbers, invalidTokens };
+  }, [linkDiagramNumberInput, linkDiagramNumbers, normalizeLinkDiagramEntry, splitLinkDiagramInput]);
+
+  const addLinkDiagramNumbersFromInput = useCallback(() => {
+    const tokens = splitLinkDiagramInput(linkDiagramNumberInput);
+    if (tokens.length === 0) return;
+    const validNumbers: string[] = [];
+    const invalidTokens: string[] = [];
+
+    tokens.forEach((token) => {
+      const normalized = normalizeLinkDiagramEntry(token);
+      if (normalized) {
+        validNumbers.push(normalized);
+      } else {
+        invalidTokens.push(token);
+      }
+    });
+
+    if (validNumbers.length > 0) {
+      setLinkDiagramNumbers((prev) => Array.from(new Set([...prev, ...validNumbers])));
+    }
+
+    setLinkDiagramNumberInput('');
+
+    if (invalidTokens.length > 0) {
+      setLinkDiagramError(`Numéros invalides ou préfixe non supporté : ${invalidTokens.join(', ')}`);
+      return;
+    }
+
+    setLinkDiagramError('');
+  }, [linkDiagramNumberInput, normalizeLinkDiagramEntry, splitLinkDiagramInput]);
+
+  const removeLinkDiagramNumber = useCallback((value: string) => {
+    setLinkDiagramNumbers((prev) => prev.filter((item) => item !== value));
+  }, []);
+
+  const linkDiagramPrimaryNumber = useMemo(
+    () => linkDiagramNumbers[0] ?? null,
+    [linkDiagramNumbers]
+  );
 
   // Vérification de l'authentification au démarrage
   useEffect(() => {
@@ -5093,11 +5167,15 @@ useEffect(() => {
   };
 
   const handleStandaloneLinkDiagram = async () => {
-    const normalizedNumber = normalizeCdrNumber(linkDiagramNumber);
-    const isAllowedPrefix = normalizedNumber && LINK_DIAGRAM_PREFIXES.some((prefix) => normalizedNumber.startsWith(prefix));
+    const { numbers, invalidTokens } = collectLinkDiagramNumbers();
 
-    if (!normalizedNumber || !isAllowedPrefix) {
-      setLinkDiagramError('Ajoutez un numéro valide (préfixe 221).');
+    if (invalidTokens.length > 0) {
+      setLinkDiagramError(`Numéros invalides ou préfixe non supporté : ${invalidTokens.join(', ')}`);
+      return;
+    }
+
+    if (numbers.length === 0) {
+      setLinkDiagramError('Ajoutez au moins un numéro valide (préfixe 221).');
       return;
     }
     if (linkDiagramStart && linkDiagramEnd && new Date(linkDiagramStart) > new Date(linkDiagramEnd)) {
@@ -5109,8 +5187,10 @@ useEffect(() => {
       setLinkDiagramLoading(true);
       setLinkDiagramError('');
       setLinkDiagramInfo('');
+      setLinkDiagramNumbers(numbers);
+      setLinkDiagramNumberInput('');
 
-      const payload: Record<string, unknown> = { numbers: [normalizedNumber] };
+      const payload: Record<string, unknown> = { numbers };
       if (linkDiagramStart) payload.start = linkDiagramStart.trim();
       if (linkDiagramEnd) payload.end = linkDiagramEnd.trim();
 
@@ -7618,16 +7698,50 @@ useEffect(() => {
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Numéro de téléphone</label>
-                      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50">
-                        <input
-                          type="text"
-                          placeholder="Ex: 221781234567 ou +22177..."
-                          value={linkDiagramNumber}
-                          onChange={(event) => setLinkDiagramNumber(event.target.value)}
-                          className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
-                        />
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Un seul numéro maximum pour analyser son écosystème relationnel.</p>
+                      <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Numéros de téléphone</label>
+                      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/50">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {linkDiagramNumbers.map((number) => (
+                            <span
+                              key={number}
+                              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/80 dark:text-slate-100"
+                            >
+                              {number}
+                              <button
+                                type="button"
+                                onClick={() => removeLinkDiagramNumber(number)}
+                                className="text-slate-400 transition hover:text-rose-500"
+                                aria-label={`Supprimer ${number}`}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                          <input
+                            type="text"
+                            placeholder="Ex: 221781234567, +22177..."
+                            value={linkDiagramNumberInput}
+                            onChange={(event) => setLinkDiagramNumberInput(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ',') {
+                                event.preventDefault();
+                                addLinkDiagramNumbersFromInput();
+                              }
+                            }}
+                            onBlur={() => addLinkDiagramNumbersFromInput()}
+                            className="min-w-[200px] flex-1 rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addLinkDiagramNumbersFromInput()}
+                            className="inline-flex items-center justify-center rounded-full border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:text-indigo-700 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:border-indigo-500/60 dark:hover:text-indigo-100"
+                          >
+                            Ajouter
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Ajoutez plusieurs numéros (préfixe 221). Séparez-les par une virgule ou validez avec Entrée.
+                        </p>
                       </div>
                     </div>
 
@@ -7678,7 +7792,8 @@ useEffect(() => {
                       <button
                         type="button"
                         onClick={() => {
-                          setLinkDiagramNumber('');
+                          setLinkDiagramNumbers([]);
+                          setLinkDiagramNumberInput('');
                           setLinkDiagramStart('');
                           setLinkDiagramEnd('');
                           setLinkDiagramError('');
@@ -7697,9 +7812,9 @@ useEffect(() => {
               {linkDiagram && (
                 <LinkDiagram
                   data={linkDiagram}
-                  rootId={linkDiagram.root ?? linkDiagramNumber}
+                  rootId={linkDiagram.root ?? linkDiagramPrimaryNumber}
                   filters={{
-                    number: linkDiagramNumber,
+                    number: linkDiagramPrimaryNumber ?? undefined,
                     start: linkDiagramStart,
                     end: linkDiagramEnd
                   }}
@@ -9111,9 +9226,9 @@ useEffect(() => {
               {linkDiagram && (
                 <LinkDiagram
                   data={linkDiagram}
-                  rootId={linkDiagram.root ?? linkDiagramNumber}
+                  rootId={linkDiagram.root ?? linkDiagramPrimaryNumber}
                   filters={{
-                    number: linkDiagramNumber,
+                    number: linkDiagramPrimaryNumber ?? undefined,
                     start: linkDiagramStart,
                     end: linkDiagramEnd
                   }}
