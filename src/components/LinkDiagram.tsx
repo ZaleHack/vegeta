@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
-import { FileDown, Maximize2, MessageSquare, Minimize2, Network, PhoneIncoming, PhoneOutgoing, User, X } from 'lucide-react';
-import { forceLink, forceManyBody } from 'd3-force';
+import { FileDown, Maximize2, MessageSquare, Minimize2, PhoneIncoming, PhoneOutgoing, User, X } from 'lucide-react';
+import { forceCollide, forceLink, forceManyBody, forceRadial } from 'd3-force';
 import type { ForceLink } from 'd3-force';
 
 interface GraphNode {
@@ -35,7 +35,7 @@ const typePalette = [
   '#14b8a6'
 ];
 
-type ViewMode = 'network' | 'hierarchical';
+type ViewMode = 'network' | 'hierarchical' | 'radial' | 'cluster';
 
 interface NormalizedNode extends GraphNode {
   color: string;
@@ -74,6 +74,35 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
   const graphRef = useRef<ForceGraphMethods | null>(null);
   const nodeTypes = useMemo(() => Array.from(new Set(data.nodes.map((n) => n.type))), [data]);
   const preferredRoot = rootId ?? data.root ?? null;
+  const viewModeOptions = useMemo(
+    () => [
+      {
+        id: 'network' as const,
+        label: 'Organique',
+        description: 'Disposition libre avec flux animés.',
+        icon: '🌐'
+      },
+      {
+        id: 'hierarchical' as const,
+        label: 'Hiérarchique',
+        description: 'Niveaux centrés sur la racine.',
+        icon: '🧭'
+      },
+      {
+        id: 'radial' as const,
+        label: 'Radial',
+        description: 'Orbits concentrés autour du nœud central.',
+        icon: '🌀'
+      },
+      {
+        id: 'cluster' as const,
+        label: 'Cluster',
+        description: 'Regroupe les nœuds par densité.',
+        icon: '🔶'
+      }
+    ],
+    []
+  );
 
   const colorByType = useMemo(() => {
     const map: Record<string, string> = {};
@@ -270,6 +299,26 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
     };
   }, [adjacency, defaultRoot, graphLinks, graphNodes, metricsByPair, selectedRoot]);
 
+  const depthByNode = useMemo(() => {
+    const root = effectiveRoot ?? preferredRoot ?? defaultRoot;
+    const depthMap = new Map<string, number>();
+    if (!root) return depthMap;
+    const queue: string[] = [root];
+    depthMap.set(root, 0);
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const neighbors = adjacency.get(current);
+      if (!neighbors) continue;
+      neighbors.forEach((neighbor) => {
+        if (!depthMap.has(neighbor)) {
+          depthMap.set(neighbor, (depthMap.get(current) ?? 0) + 1);
+          queue.push(neighbor);
+        }
+      });
+    }
+    return depthMap;
+  }, [adjacency, defaultRoot, effectiveRoot, preferredRoot]);
+
   const rootConnections = useMemo(() => {
     if (!effectiveRoot) return [];
     const summary = new Map<string, { callCount: number; smsCount: number }>();
@@ -418,8 +467,20 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
     const graphInstance = graphRef.current;
     if (!graphInstance) return;
 
-    const distance = () => (viewMode === 'network' ? 190 : 150);
-    const chargeForce = forceManyBody().strength(viewMode === 'network' ? -260 : -160).distanceMax(650);
+    const distanceByMode: Record<ViewMode, number> = {
+      network: 190,
+      hierarchical: 150,
+      radial: 140,
+      cluster: 110
+    };
+    const chargeStrengthByMode: Record<ViewMode, number> = {
+      network: -260,
+      hierarchical: -160,
+      radial: -180,
+      cluster: -140
+    };
+    const distance = () => distanceByMode[viewMode];
+    const chargeForce = forceManyBody().strength(chargeStrengthByMode[viewMode]).distanceMax(650);
     graphInstance.d3Force('charge', chargeForce);
 
     const linkForce = graphInstance.d3Force('link') as ForceLink<NormalizedNode, NormalizedLink> | undefined;
@@ -430,11 +491,31 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
       graphInstance.d3Force('link', forceLink<NormalizedNode, NormalizedLink>().distance(distance).strength(0.85));
     }
 
+    if (viewMode === 'radial') {
+      const radialForce = forceRadial((node: NormalizedNode) => {
+        const depth = depthByNode.get(node.id) ?? 1;
+        return 120 + depth * 90;
+      }).strength(0.95);
+      graphInstance.d3Force('radial', radialForce);
+    } else {
+      graphInstance.d3Force('radial', null);
+    }
+
+    if (viewMode === 'cluster') {
+      const collideForce = forceCollide((node: NormalizedNode) => {
+        const sizeBoost = Math.min((node.degree || 0) * 1.8, 18);
+        return 24 + sizeBoost;
+      }).strength(0.8);
+      graphInstance.d3Force('collide', collideForce);
+    } else {
+      graphInstance.d3Force('collide', null);
+    }
+
     const velocityDecay = (graphInstance as ForceGraphMethods & { d3VelocityDecay?: (decay: number) => void }).d3VelocityDecay;
     if (typeof velocityDecay === 'function') {
       velocityDecay.call(graphInstance, 0.25);
     }
-  }, [viewMode]);
+  }, [depthByNode, viewMode]);
 
   useEffect(() => {
     if (!graphRef.current || !preferredRoot) return;
@@ -563,19 +644,30 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
             </div>
           </div>
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white/80 p-3 shadow-inner backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-white/5">
-            <div className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-white p-1 text-sm font-medium shadow-sm dark:border-white/10 dark:bg-white/10">
-              <button
-                type="button"
-                onClick={() => setViewMode('network')}
-                className={`flex items-center gap-2 rounded-full px-4 py-1.5 transition ${
-                  viewMode === 'network'
-                    ? 'bg-indigo-600 text-white shadow'
-                    : 'text-slate-600 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10'
-                }`}
-              >
-                <Network className="h-4 w-4" />
-                Vue réseau
-              </button>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                Type d&apos;affichage
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {viewModeOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setViewMode(option.id)}
+                    title={option.description}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      viewMode === option.id
+                        ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:text-white/80 dark:hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-sm" aria-hidden="true">
+                      {option.icon}
+                    </span>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
             {effectiveRoot && (
               <div className="flex flex-col gap-1 text-sm text-slate-700 sm:flex-row sm:items-center sm:gap-2 dark:text-white">
@@ -591,8 +683,8 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
         <div className="relative flex-1">
           <ForceGraph2D
             ref={graphRef}
-            graphData={viewMode === 'network' ? graphData : hierarchicalGraph}
-            enableNodeDrag={viewMode === 'network'}
+            graphData={viewMode === 'hierarchical' ? hierarchicalGraph : graphData}
+            enableNodeDrag={viewMode !== 'hierarchical'}
             dagMode={viewMode === 'hierarchical' ? 'radialinout' : undefined}
             dagLevelDistance={viewMode === 'hierarchical' ? 200 : undefined}
             backgroundColor={document.documentElement.classList.contains('dark') ? '#040611' : '#ffffff'}
@@ -601,17 +693,17 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
             minZoom={0.35}
             maxZoom={3}
             onNodeDragStart={(node: any) => {
-              if (viewMode !== 'network') return;
+              if (viewMode === 'hierarchical') return;
               node.fx = node.x;
               node.fy = node.y;
             }}
             onNodeDrag={(node: any) => {
-              if (viewMode !== 'network') return;
+              if (viewMode === 'hierarchical') return;
               node.fx = node.x;
               node.fy = node.y;
             }}
             onNodeDragEnd={(node: any) => {
-              if (viewMode !== 'network') return;
+              if (viewMode === 'hierarchical') return;
               node.fx = node.x;
               node.fy = node.y;
             }}
@@ -741,7 +833,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
               return document.documentElement.classList.contains('dark') ? '#38bdf8' : '#38bdf8';
             }}
             linkWidth={(link: any) => 1 + Math.log((link.callCount || 0) + (link.smsCount || 0) + 1)}
-            linkDirectionalParticles={viewMode === 'network' ? 2 : 0}
+            linkDirectionalParticles={viewMode === 'network' ? 2 : viewMode === 'radial' ? 1 : 0}
             linkDirectionalParticleSpeed={0.006}
             linkDirectionalArrowLength={8}
             linkDirectionalArrowRelPos={0.9}
