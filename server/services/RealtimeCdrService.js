@@ -675,7 +675,7 @@ class RealtimeCdrService {
     }
 
     if (endDate) {
-      conditions.push('c.date_debut <= ?');
+      conditions.push('COALESCE(c.date_fin, c.date_debut) <= ?');
       params.push(endDate);
     }
 
@@ -825,7 +825,7 @@ class RealtimeCdrService {
     }
 
     if (endDate) {
-      conditions.push('c.date_debut <= ?');
+      conditions.push('COALESCE(c.date_fin, c.date_debut) <= ?');
       params.push(endDate);
     }
 
@@ -900,11 +900,14 @@ class RealtimeCdrService {
 
     const withinDateRange = (row) => {
       if (!startDate && !endDate) return true;
-      const timestamp = row.call_timestamp || (row.date_debut ? `${row.date_debut}T${row.heure_debut || '00:00:00'}` : null);
-      if (!timestamp) return false;
-      const datePart = String(timestamp).slice(0, 10);
-      if (startDate && datePart < startDate) return false;
-      if (endDate && datePart > endDate) return false;
+      const startTimestamp =
+        row.call_timestamp ||
+        (row.date_debut ? `${row.date_debut}T${row.heure_debut || '00:00:00'}` : null);
+      if (!startTimestamp) return false;
+      const startDatePart = String(startTimestamp).slice(0, 10);
+      const endDatePart = row.date_fin || row.date_debut || startDatePart;
+      if (startDate && startDatePart < startDate) return false;
+      if (endDate && endDatePart > endDate) return false;
       return true;
     };
 

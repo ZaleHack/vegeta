@@ -246,6 +246,24 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
     [graphLinks, graphNodes]
   );
 
+  const drawRoundedRect = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ) => {
+    const clampedRadius = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + clampedRadius, y);
+    ctx.arcTo(x + width, y, x + width, y + height, clampedRadius);
+    ctx.arcTo(x + width, y + height, x, y + height, clampedRadius);
+    ctx.arcTo(x, y + height, x, y, clampedRadius);
+    ctx.arcTo(x, y, x + width, y, clampedRadius);
+    ctx.closePath();
+  };
+
   useEffect(() => {
     const graphInstance = graphRef.current;
     if (!graphInstance) return;
@@ -285,34 +303,38 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
     return () => clearTimeout(timeout);
   }, [graphData, hierarchicalGraph, viewMode]);
 
-  const overlayClasses = `fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 ${
+  const overlayClasses = `fixed inset-0 bg-slate-950/80 backdrop-blur-xl flex items-center justify-center z-50 ${
     isFullscreen ? '' : 'p-4'
   }`;
-  const containerClasses = `bg-white dark:bg-gray-900 ${
-    isFullscreen ? 'rounded-none' : 'rounded-2xl'
-  } shadow-2xl w-[92vw] max-w-6xl ${isFullscreen ? 'h-full w-full max-w-none' : 'h-[82vh]'} relative flex flex-col overflow-hidden`;
+  const containerClasses = `relative overflow-hidden border border-white/10 bg-gradient-to-br from-[#0b1020] via-[#0f172a] to-[#1a1339] ${
+    isFullscreen ? 'rounded-none' : 'rounded-3xl'
+  } shadow-[0_35px_120px_-60px_rgba(59,130,246,0.75)] w-[94vw] max-w-6xl ${isFullscreen ? 'h-full w-full max-w-none' : 'h-[84vh]'} flex flex-col`;
 
   return (
     <div className={overlayClasses}>
       <div className={containerClasses}>
-        <div className="flex flex-col gap-4 px-6 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.18),transparent_35%),radial-gradient(circle_at_70%_30%,rgba(168,85,247,0.18),transparent_40%),radial-gradient(circle_at_50%_80%,rgba(14,165,233,0.16),transparent_40%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:42px_42px] opacity-30" />
+        <div className="relative flex flex-col gap-4 px-6 py-5 text-white">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Diagramme des liens</h2>
-              <p className="text-sm text-white/80">Visualisation inspirée des graphes d'investigation type Maltego.</p>
+              <h2 className="text-2xl font-semibold tracking-tight">Diagramme des liens</h2>
+              <p className="text-sm text-white/80">
+                Visualisation immersive inspirée des graphes d'investigation type Maltego.
+              </p>
             </div>
             <div className="flex items-center gap-2 self-end sm:self-auto">
               <button
                 type="button"
                 onClick={() => setIsFullscreen((value) => !value)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/50 bg-white/20 text-white transition hover:bg-white/30"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20"
                 aria-label={isFullscreen ? 'Réduire le diagramme' : 'Agrandir le diagramme'}
               >
                 {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
               </button>
               <button
                 type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/50 bg-white/20 text-white transition hover:bg-white/30"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20"
                 onClick={() => {
                   setIsFullscreen(false);
                   onClose();
@@ -323,8 +345,8 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
               </button>
             </div>
           </div>
-          <div className="flex flex-col gap-3 rounded-2xl bg-white/10 p-3 shadow-inner backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 rounded-full bg-white/20 p-1 text-sm font-medium">
+          <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 shadow-inner backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/10 p-1 text-sm font-medium">
               <button
                 type="button"
                 onClick={() => setViewMode('network')}
@@ -349,7 +371,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
             {effectiveRoot && (
               <div className="flex flex-col gap-1 text-sm text-white sm:flex-row sm:items-center sm:gap-2">
                 <span className="text-white/80">Numéro racine :</span>
-                <div className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold">
+                <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-semibold">
                   <User className="h-4 w-4" />
                   <span>{effectiveRoot}</span>
                 </div>
@@ -364,7 +386,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
             enableNodeDrag={viewMode === 'network'}
             dagMode={viewMode === 'hierarchical' ? 'radialinout' : undefined}
             dagLevelDistance={viewMode === 'hierarchical' ? 200 : undefined}
-            backgroundColor={document.documentElement.classList.contains('dark') ? '#05070d' : '#0b1120'}
+            backgroundColor={document.documentElement.classList.contains('dark') ? '#040611' : '#070b16'}
             warmupTicks={viewMode === 'network' ? 80 : 40}
             cooldownTicks={viewMode === 'network' ? 140 : 90}
             minZoom={0.35}
@@ -388,59 +410,92 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
               const label = node.id;
               const isDarkMode = document.documentElement.classList.contains('dark');
               const isRoot = effectiveRoot && node.id === effectiveRoot;
-              const baseRadius = (isRoot ? 20 : 14) + (node.degree || 0) * 2;
-              const radius = Math.max(10, baseRadius / globalScale);
-              const fontSize = Math.max(12 / globalScale, 10);
-              ctx.beginPath();
-              ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
-              ctx.fillStyle = node.color;
+              const degreeBoost = Math.min((node.degree || 0) * 2, 20);
+              const baseSize = (isRoot ? 42 : 34) + degreeBoost;
+              const size = baseSize / globalScale;
+              const boxWidth = size * 1.8;
+              const boxHeight = size * 1.25;
+              const x = node.x - boxWidth / 2;
+              const y = node.y - boxHeight / 2;
+              ctx.save();
+              ctx.shadowColor = node.color;
+              ctx.shadowBlur = 22 / globalScale;
+              ctx.fillStyle = isDarkMode ? 'rgba(7, 13, 26, 0.9)' : 'rgba(10, 18, 35, 0.95)';
+              drawRoundedRect(ctx, x, y, boxWidth, boxHeight, 10 / globalScale);
               ctx.fill();
-              ctx.lineWidth = isRoot ? 2.4 : 1.2;
-              ctx.strokeStyle = isRoot ? '#fef3c7' : isDarkMode ? '#111827' : '#e5e7eb';
+              ctx.restore();
+              ctx.save();
+              const gradient = ctx.createLinearGradient(x, y, x + boxWidth, y + boxHeight);
+              gradient.addColorStop(0, node.color);
+              gradient.addColorStop(1, isRoot ? '#f59e0b' : '#22d3ee');
+              ctx.strokeStyle = gradient;
+              ctx.lineWidth = 2.2 / globalScale;
+              drawRoundedRect(ctx, x, y, boxWidth, boxHeight, 10 / globalScale);
               ctx.stroke();
-              if (effectiveRoot && node.id === effectiveRoot) {
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, radius + 4, 0, 2 * Math.PI);
-                ctx.strokeStyle = isDarkMode ? '#fde68a' : '#f59e0b';
-                ctx.lineWidth = 2.2;
+              if (isRoot) {
+                ctx.shadowColor = '#facc15';
+                ctx.shadowBlur = 18 / globalScale;
+                ctx.lineWidth = 2.4 / globalScale;
+                drawRoundedRect(
+                  ctx,
+                  x - 4 / globalScale,
+                  y - 4 / globalScale,
+                  boxWidth + 8 / globalScale,
+                  boxHeight + 8 / globalScale,
+                  12 / globalScale
+                );
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.75)';
                 ctx.stroke();
               }
-              if (isRoot) {
-                ctx.font = `${Math.max(16 / globalScale, 12)}px sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = isDarkMode ? '#111827' : '#0f172a';
-                ctx.fillText('👤', node.x, node.y + 1);
-              }
-              ctx.font = `${fontSize}px sans-serif`;
+              ctx.restore();
+              ctx.font = `${Math.max(18 / globalScale, 12)}px "Inter", sans-serif`;
               ctx.textAlign = 'center';
-              ctx.textBaseline = 'top';
+              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#e2e8f0';
+              ctx.fillText('📞', node.x, node.y + 1);
+              const labelFont = Math.max(12 / globalScale, 9);
+              ctx.font = `${labelFont}px "Inter", sans-serif`;
+              const labelWidth = ctx.measureText(label).width + 18 / globalScale;
+              const labelHeight = 16 / globalScale;
+              const labelX = node.x - labelWidth / 2;
+              const labelY = node.y + boxHeight / 2 + 8 / globalScale;
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+              drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 8 / globalScale);
+              ctx.fill();
+              ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+              ctx.lineWidth = 1 / globalScale;
+              drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 8 / globalScale);
+              ctx.stroke();
               ctx.fillStyle = isDarkMode ? '#f8fafc' : '#e2e8f0';
-              ctx.fillText(label, node.x, node.y + radius + 4);
+              ctx.textBaseline = 'middle';
+              ctx.fillText(label, node.x, labelY + labelHeight / 2);
             }}
             nodePointerAreaPaint={(node: any, color, ctx) => {
-              const radius = 12 + (node.degree || 0);
-              ctx.beginPath();
-              ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
+              const size = 36 + (node.degree || 0) * 2;
+              const width = size;
+              const height = size * 0.7;
+              const x = node.x - width / 2;
+              const y = node.y - height / 2;
               ctx.fillStyle = color;
+              drawRoundedRect(ctx, x, y, width, height, 8);
               ctx.fill();
             }}
             linkColor={(link: any) => {
               if (link.synthetic) {
-                return document.documentElement.classList.contains('dark') ? '#4b5563' : '#d1d5db';
+                return document.documentElement.classList.contains('dark') ? '#475569' : '#94a3b8';
               }
               return document.documentElement.classList.contains('dark') ? '#38bdf8' : '#38bdf8';
             }}
             linkDirectionalArrowColor={(link: any) => {
               if (link.synthetic) {
-                return document.documentElement.classList.contains('dark') ? '#4b5563' : '#d1d5db';
+                return document.documentElement.classList.contains('dark') ? '#475569' : '#94a3b8';
               }
               return document.documentElement.classList.contains('dark') ? '#38bdf8' : '#38bdf8';
             }}
             linkWidth={(link: any) => 1 + Math.log((link.callCount || 0) + (link.smsCount || 0) + 1)}
             linkDirectionalParticles={viewMode === 'network' ? 2 : 0}
-            linkDirectionalParticleSpeed={0.005}
-            linkDirectionalArrowLength={6}
+            linkDirectionalParticleSpeed={0.006}
+            linkDirectionalArrowLength={8}
             linkDirectionalArrowRelPos={0.9}
             linkCanvasObjectMode={() => 'after'}
             linkCanvasObject={(link: any, ctx, globalScale) => {
@@ -463,43 +518,45 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
             }}
           />
           <div className="absolute top-4 left-4 space-y-3">
-            <div className="rounded-xl bg-white/85 p-3 text-sm shadow dark:bg-gray-800/85">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-sm text-white shadow-lg backdrop-blur">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
                 Légende des types
               </p>
               <div className="space-y-1.5">
                 {nodeTypes.map((type) => (
                   <div key={type} className="flex items-center gap-2">
                     <span
-                      className="h-3.5 w-3.5 rounded-full"
+                      className="flex h-6 w-6 items-center justify-center rounded-lg text-sm shadow"
                       style={{ backgroundColor: colorByType[type] }}
-                    ></span>
-                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                    >
+                      📞
+                    </span>
+                    <span className="font-medium text-slate-100">
                       {typeLabel[type as keyof typeof typeLabel] ?? type}
                     </span>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="rounded-xl bg-white/85 p-3 text-xs shadow text-gray-600 dark:bg-gray-800/85 dark:text-gray-300">
-              <p className="font-semibold text-gray-700 dark:text-gray-200">Interactions</p>
-              <p>Largeur et taille des nœuds proportionnelles au nombre de connexions.</p>
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 text-xs text-slate-200 shadow-lg backdrop-blur">
+              <p className="font-semibold text-slate-100">Interactions</p>
+              <p>Flux et taille des cartes proportionnels aux relations observées.</p>
               {viewMode === 'hierarchical' && effectiveRoot && (
-                <p className="mt-2 font-medium text-blue-600 dark:text-blue-300">
+                <p className="mt-2 font-medium text-sky-300">
                   Racine actuelle : {effectiveRoot}
                 </p>
               )}
             </div>
           </div>
           <div className="absolute top-4 right-4 w-72 space-y-3">
-            <div className="rounded-xl bg-slate-900/85 p-3 text-sm text-slate-100 shadow ring-1 ring-white/10 backdrop-blur">
+            <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-3 text-sm text-slate-100 shadow-lg backdrop-blur">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-300">Liens détectés</p>
               {rootConnections.length === 0 ? (
                 <p className="text-xs text-slate-300">Aucun lien détecté pour ce numéro.</p>
               ) : (
                 <ul className="space-y-2 text-xs">
                   {rootConnections.slice(0, 8).map((entry) => (
-                    <li key={entry.number} className="rounded-lg bg-slate-800/80 p-2">
+                    <li key={entry.number} className="rounded-xl border border-white/10 bg-slate-800/60 p-2">
                       <p className="font-semibold text-slate-100">{entry.number}</p>
                       <p className="text-slate-300">
                         {entry.callCount} appels · {entry.smsCount} SMS
