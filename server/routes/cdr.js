@@ -5,6 +5,7 @@ import database from '../config/database.js';
 import Blacklist from '../models/Blacklist.js';
 import UserLog from '../models/UserLog.js';
 import realtimeCdrService from '../services/RealtimeCdrService.js';
+import createLinkDiagramReport from '../services/LinkDiagramReportService.js';
 import cgiBtsEnricher from '../services/CgiBtsEnrichmentService.js';
 import { REALTIME_CDR_TABLE_SQL } from '../config/realtime-table.js';
 import { normalizeCgi } from '../utils/cgi.js';
@@ -409,6 +410,40 @@ router.post('/realtime/link-diagram', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Erreur diagramme des liens temps réel:', error);
     res.status(500).json({ error: 'Erreur lors de la génération du diagramme' });
+  }
+});
+
+router.post('/realtime/link-diagram/report', authenticate, async (req, res) => {
+  try {
+    const nodes = Array.isArray(req.body?.nodes) ? req.body.nodes : [];
+    const links = Array.isArray(req.body?.links) ? req.body.links : [];
+    const root = typeof req.body?.root === 'string' ? req.body.root.trim() : '';
+    const filters = req.body?.filters && typeof req.body.filters === 'object' ? req.body.filters : {};
+    const sections = Array.isArray(req.body?.sections) ? req.body.sections : [];
+
+    if (nodes.length === 0) {
+      return res.status(400).json({ error: 'Le diagramme ne contient aucun noeud.' });
+    }
+
+    if (sections.length === 0) {
+      return res.status(400).json({ error: 'Sélectionnez au moins une section.' });
+    }
+
+    const reportBuffer = await createLinkDiagramReport({
+      nodes,
+      links,
+      root: root || null,
+      filters,
+      sections
+    });
+
+    const timestamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=\"rapport-diagramme-liens-${timestamp}.pdf\"`);
+    return res.status(200).send(reportBuffer);
+  } catch (error) {
+    console.error('Erreur export rapport diagramme des liens:', error);
+    return res.status(500).json({ error: 'Erreur lors de la génération du rapport.' });
   }
 });
 
