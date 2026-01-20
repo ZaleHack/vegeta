@@ -9530,32 +9530,6 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  <div className="rounded-3xl border border-slate-200/70 bg-gradient-to-br from-slate-900 via-slate-900/90 to-indigo-900/80 p-6 text-white shadow-xl shadow-indigo-500/20 dark:border-slate-700/60">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-indigo-200">Timeline</p>
-                        <p className="mt-2 text-xl font-bold">Synthèse chronologique</p>
-                        <p className="mt-1 text-sm text-indigo-100/90">Visualisez instantanément la période d'activité du terminal.</p>
-                      </div>
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white">
-                        <Activity className="h-6 w-6" />
-                      </div>
-                    </div>
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl bg-white/10 p-4 shadow-inner shadow-indigo-800/30">
-                        <p className="text-xs uppercase tracking-wide text-indigo-100">Première trace</p>
-                        <p className="mt-1 text-sm font-semibold text-white">
-                          {formatPhoneIdentifierDate(phoneIdentifierResult?.stats.firstSeen ?? null)}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white/10 p-4 shadow-inner shadow-indigo-800/30">
-                        <p className="text-xs uppercase tracking-wide text-indigo-100">Dernière trace</p>
-                        <p className="mt-1 text-sm font-semibold text-white">
-                          {formatPhoneIdentifierDate(phoneIdentifierResult?.stats.lastSeen ?? null)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
 
