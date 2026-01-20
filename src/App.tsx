@@ -7813,6 +7813,7 @@ useEffect(() => {
                 <LinkDiagram
                   data={linkDiagram}
                   rootId={linkDiagram.root ?? linkDiagramPrimaryNumber}
+                  rootIds={linkDiagramNumbers}
                   filters={{
                     number: linkDiagramPrimaryNumber ?? undefined,
                     start: linkDiagramStart,
@@ -9227,6 +9228,7 @@ useEffect(() => {
                 <LinkDiagram
                   data={linkDiagram}
                   rootId={linkDiagram.root ?? linkDiagramPrimaryNumber}
+                  rootIds={linkDiagramNumbers}
                   filters={{
                     number: linkDiagramPrimaryNumber ?? undefined,
                     start: linkDiagramStart,

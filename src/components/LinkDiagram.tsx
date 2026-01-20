@@ -19,6 +19,7 @@ interface GraphLink {
 interface LinkDiagramProps {
   data: { nodes: GraphNode[]; links: GraphLink[]; root?: string | null };
   rootId?: string | null;
+  rootIds?: string[];
   filters?: { number?: string; start?: string; end?: string };
   onClose: () => void;
   startFullscreen?: boolean;
@@ -54,6 +55,7 @@ interface NormalizedLink extends GraphLink {
 const LinkDiagram: React.FC<LinkDiagramProps> = ({
   data,
   rootId,
+  rootIds,
   filters,
   onClose,
   startFullscreen = false
@@ -73,7 +75,11 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
   const [isExportingReport, setIsExportingReport] = useState(false);
   const graphRef = useRef<ForceGraphMethods | null>(null);
   const nodeTypes = useMemo(() => Array.from(new Set(data.nodes.map((n) => n.type))), [data]);
-  const preferredRoot = rootId ?? data.root ?? null;
+  const rootNumbers = useMemo(() => {
+    const rawRoots = rootIds?.length ? rootIds : rootId ? [rootId] : data.root ? [data.root] : [];
+    return Array.from(new Set(rawRoots.filter((root): root is string => Boolean(root))));
+  }, [data.root, rootId, rootIds]);
+  const preferredRoot = rootNumbers[0] ?? null;
   const viewModeOptions = useMemo(
     () => [
       {
@@ -328,29 +334,50 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
     return depthMap;
   }, [adjacency, defaultRoot, effectiveRoot, preferredRoot]);
 
-  const rootConnections = useMemo(() => {
-    if (!effectiveRoot) return [];
-    const summary = new Map<string, { callCount: number; smsCount: number }>();
+  const rootConnectionsByNumber = useMemo(() => {
+    const roots = rootNumbers.length > 0 ? rootNumbers : effectiveRoot ? [effectiveRoot] : [];
+    if (roots.length === 0) return [];
+    const rootSet = new Set(roots);
+    const summaryByRoot = new Map<string, Map<string, { callCount: number; smsCount: number }>>();
+    roots.forEach((root) => summaryByRoot.set(root, new Map()));
+
     graphLinks.forEach((link) => {
       const source = link.source;
       const target = link.target;
-      if (source !== effectiveRoot && target !== effectiveRoot) return;
-      const neighbor = source === effectiveRoot ? target : source;
-      const prev = summary.get(neighbor) || { callCount: 0, smsCount: 0 };
-      summary.set(neighbor, {
-        callCount: prev.callCount + (link.callCount || 0),
-        smsCount: prev.smsCount + (link.smsCount || 0)
-      });
+      const sourceIsRoot = rootSet.has(source);
+      const targetIsRoot = rootSet.has(target);
+      if (!sourceIsRoot && !targetIsRoot) return;
+      if (sourceIsRoot) {
+        const summary = summaryByRoot.get(source)!;
+        const prev = summary.get(target) || { callCount: 0, smsCount: 0 };
+        summary.set(target, {
+          callCount: prev.callCount + (link.callCount || 0),
+          smsCount: prev.smsCount + (link.smsCount || 0)
+        });
+      }
+      if (targetIsRoot) {
+        const summary = summaryByRoot.get(target)!;
+        const prev = summary.get(source) || { callCount: 0, smsCount: 0 };
+        summary.set(source, {
+          callCount: prev.callCount + (link.callCount || 0),
+          smsCount: prev.smsCount + (link.smsCount || 0)
+        });
+      }
     });
-    return Array.from(summary.entries())
-      .map(([number, stats]) => ({
-        number,
-        callCount: stats.callCount,
-        smsCount: stats.smsCount,
-        total: stats.callCount + stats.smsCount
-      }))
-      .sort((a, b) => b.total - a.total);
-  }, [effectiveRoot, graphLinks]);
+
+    return roots.map((root) => {
+      const summary = summaryByRoot.get(root) ?? new Map();
+      const connections = Array.from(summary.entries())
+        .map(([number, stats]) => ({
+          number,
+          callCount: stats.callCount,
+          smsCount: stats.smsCount,
+          total: stats.callCount + stats.smsCount
+        }))
+        .sort((a, b) => b.total - a.total);
+      return { root, connections };
+    });
+  }, [effectiveRoot, graphLinks, rootNumbers]);
 
   const graphData = useMemo(
     () => ({
@@ -678,12 +705,23 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
                 ))}
               </div>
             </div>
-            {effectiveRoot && (
+            {(rootNumbers.length > 0 || effectiveRoot) && (
               <div className="flex flex-col gap-1 text-sm text-slate-700 sm:flex-row sm:items-center sm:gap-2 dark:text-white">
-                <span className="text-slate-500 dark:text-white/80">Numéro racine :</span>
-                <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 shadow-sm dark:border-white/20 dark:bg-white/10 dark:text-white">
-                  <User className="h-4 w-4" />
-                  <span>{effectiveRoot}</span>
+                <span className="text-slate-500 dark:text-white/80">
+                  {rootNumbers.length > 1 ? 'Numéros racines :' : 'Numéro racine :'}
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {(rootNumbers.length > 0 ? rootNumbers : effectiveRoot ? [effectiveRoot] : []).map(
+                    (root) => (
+                      <div
+                        key={root}
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 shadow-sm dark:border-white/20 dark:bg-white/10 dark:text-white"
+                      >
+                        <User className="h-4 w-4" />
+                        <span>{root}</span>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
             )}
@@ -896,19 +934,39 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({
           <div className="absolute top-4 right-4 w-72 space-y-3">
             <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-3 text-sm text-slate-700 shadow-lg backdrop-blur dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Personnes en contact</p>
-              {rootConnections.length === 0 ? (
+              {rootConnectionsByNumber.length === 0 ? (
                 <p className="text-xs text-slate-500 dark:text-slate-300">Aucun lien détecté pour ce numéro.</p>
               ) : (
-                <ul className="max-h-64 space-y-2 overflow-y-auto pr-1 text-xs">
-                  {rootConnections.map((entry) => (
-                    <li key={entry.number} className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-slate-800/60">
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{entry.number}</p>
-                      <p className="text-slate-500 dark:text-slate-300">
-                        {entry.callCount} appels · {entry.smsCount} SMS
-                      </p>
-                    </li>
+                <div className="max-h-64 space-y-3 overflow-y-auto pr-1 text-xs">
+                  {rootConnectionsByNumber.map((group) => (
+                    <div key={group.root} className="space-y-2">
+                      {rootConnectionsByNumber.length > 1 && (
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-300">
+                          {group.root}
+                        </p>
+                      )}
+                      {group.connections.length === 0 ? (
+                        <p className="text-xs text-slate-500 dark:text-slate-300">
+                          Aucun lien détecté pour ce numéro.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {group.connections.map((entry) => (
+                            <li
+                              key={`${group.root}-${entry.number}`}
+                              className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-slate-800/60"
+                            >
+                              <p className="font-semibold text-slate-900 dark:text-slate-100">{entry.number}</p>
+                              <p className="text-slate-500 dark:text-slate-300">
+                                {entry.callCount} appels · {entry.smsCount} SMS
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           </div>
