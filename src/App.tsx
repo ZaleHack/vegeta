@@ -9622,29 +9622,6 @@ useEffect(() => {
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3 text-sm text-slate-600 dark:text-slate-300">
-                            <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 shadow-inner dark:border-slate-700/60 dark:bg-slate-800/60">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Marque / Modèle</p>
-                              <p className="mt-1 font-semibold text-slate-900 dark:text-slate-100">
-                                {device.imeiInfo?.brand || 'Inconnu'} {device.imeiInfo?.model || ''}
-                              </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
-                                {device.imeiInfo?.name || device.imeiInfo?.result || 'Description non disponible'}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-3 text-sm shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70">
-                            <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              <History className="h-4 w-4" />
-                              Chronologie
-                            </div>
-                            <p className="mt-2 font-semibold text-slate-900 dark:text-slate-100">
-                              {formatPhoneIdentifierDate(device.lastSeen)}
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Première apparition : {formatPhoneIdentifierDate(device.firstSeen)}</p>
-                          </div>
-
                           <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50 via-white to-blue-50 p-4 text-sm shadow-sm dark:border-indigo-800/50 dark:from-slate-900/60 dark:via-slate-900/70 dark:to-blue-950/40">
                           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-200">
                             <Sparkles className="h-4 w-4" />
