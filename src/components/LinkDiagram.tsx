@@ -407,6 +407,14 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
               node.fy = node.y;
             }}
             nodeCanvasObject={(node: any, ctx, globalScale) => {
+              if (
+                !Number.isFinite(node.x) ||
+                !Number.isFinite(node.y) ||
+                !Number.isFinite(globalScale) ||
+                globalScale === 0
+              ) {
+                return;
+              }
               const label = node.id;
               const isDarkMode = document.documentElement.classList.contains('dark');
               const isRoot = effectiveRoot && node.id === effectiveRoot;
@@ -471,6 +479,7 @@ const LinkDiagram: React.FC<LinkDiagramProps> = ({ data, rootId, onClose }) => {
               ctx.fillText(label, node.x, labelY + labelHeight / 2);
             }}
             nodePointerAreaPaint={(node: any, color, ctx) => {
+              if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
               const size = 36 + (node.degree || 0) * 2;
               const width = size;
               const height = size * 0.7;
