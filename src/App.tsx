@@ -2618,9 +2618,8 @@ const App: React.FC = () => {
     (value: string) => {
       const normalized = normalizeImei(value);
       if (!normalized) return '';
-      const lastIndex = normalized.length - 1;
-      if (lastIndex < 0) return '';
-      return `${normalized.slice(0, lastIndex)}0`;
+      if (normalized.length < 15) return normalized;
+      return `${normalized.slice(0, 14)}0`;
     },
     [normalizeImei]
   );
@@ -5136,6 +5135,10 @@ useEffect(() => {
     if (globalFraudStart && globalFraudEnd && new Date(globalFraudStart) > new Date(globalFraudEnd)) {
       setGlobalFraudError('La date de début doit précéder la date de fin');
       return;
+    }
+
+    if (globalFraudIdentifierType === 'imei' && normalizedIdentifier !== trimmedIdentifier) {
+      setGlobalFraudIdentifier(normalizedIdentifier);
     }
 
     setGlobalFraudLoading(true);
