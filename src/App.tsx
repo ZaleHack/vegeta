@@ -122,7 +122,6 @@ const FRAUD_ROLE_LABELS: Record<string, string> = {
   target: 'Cible'
 };
 const FRAUD_MONITORING_STORAGE_KEY = 'fraudMonitoringByUser';
-const CDR_SAVED_IDENTIFIERS_STORAGE_KEY = 'cdrSavedIdentifiersByCase';
 const getUploadModeLabel = (mode?: string | null) => {
   switch (mode) {
     case 'new_table':
@@ -1234,14 +1233,6 @@ interface CdrCase {
   shared_with_me?: boolean;
 }
 
-interface CdrSavedIdentifier {
-  value: string;
-  createdAt: string;
-  createdById?: number;
-  createdByLogin?: string;
-}
-
-type CdrSavedIdentifiersStorage = Record<string, CdrSavedIdentifier[]>;
 
 interface FraudFileInfo {
   id: number;
@@ -2285,7 +2276,6 @@ const App: React.FC = () => {
   const [cdrIdentifiers, setCdrIdentifiers] = useState<string[]>([]);
   const [cdrIdentifierInput, setCdrIdentifierInput] = useState('');
   const [cdrIdentifierType, setCdrIdentifierType] = useState<'phone' | 'imei'>('phone');
-  const [cdrSavedIdentifiers, setCdrSavedIdentifiers] = useState<CdrSavedIdentifier[]>([]);
   const [cdrStart, setCdrStart] = useState('');
   const [cdrEnd, setCdrEnd] = useState('');
   const [cdrStartTime, setCdrStartTime] = useState('');
@@ -2307,7 +2297,6 @@ const App: React.FC = () => {
   const [showCaseExportModal, setShowCaseExportModal] = useState(false);
   const [caseExportTarget, setCaseExportTarget] = useState<CdrCase | null>(null);
   const [caseExportNumber, setCaseExportNumber] = useState('');
-  const [caseExportIdentifiers, setCaseExportIdentifiers] = useState<CdrSavedIdentifier[]>([]);
   const [cases, setCases] = useState<CdrCase[]>([]);
   const [renamingCaseId, setRenamingCaseId] = useState<number | null>(null);
   const [renamingCaseName, setRenamingCaseName] = useState('');
@@ -2390,63 +2379,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const sanitizeSavedIdentifiers = useCallback((value: unknown): CdrSavedIdentifier[] => {
-    if (!Array.isArray(value)) return [];
-    return value
-      .filter((item): item is CdrSavedIdentifier =>
-        item &&
-        typeof item === 'object' &&
-        typeof (item as CdrSavedIdentifier).value === 'string'
-      )
-      .map((item) => ({
-        value: item.value,
-        createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString(),
-        createdById: typeof item.createdById === 'number' ? item.createdById : undefined,
-        createdByLogin: typeof item.createdByLogin === 'string' ? item.createdByLogin : undefined,
-      }));
-  }, []);
-
-  const readCdrSavedIdentifiersStorage = useCallback((): CdrSavedIdentifiersStorage => {
-    if (typeof window === 'undefined') return {};
-    try {
-      const raw = localStorage.getItem(CDR_SAVED_IDENTIFIERS_STORAGE_KEY);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as CdrSavedIdentifiersStorage;
-      }
-    } catch (error) {
-      console.warn('Impossible de lire les identifiants enregistrés:', error);
-    }
-    return {};
-  }, []);
-
-  const persistCdrSavedIdentifiersStorage = useCallback((storage: CdrSavedIdentifiersStorage) => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(CDR_SAVED_IDENTIFIERS_STORAGE_KEY, JSON.stringify(storage));
-  }, []);
-
-  const getSavedIdentifiersForCase = useCallback(
-    (caseId: number) => {
-      const storage = readCdrSavedIdentifiersStorage();
-      const raw = storage[String(caseId)];
-      return sanitizeSavedIdentifiers(raw);
-    },
-    [readCdrSavedIdentifiersStorage, sanitizeSavedIdentifiers]
-  );
-
-  const updateSavedIdentifiersForCase = useCallback(
-    (caseId: number, updater: (items: CdrSavedIdentifier[]) => CdrSavedIdentifier[]) => {
-      const storage = readCdrSavedIdentifiersStorage();
-      const key = String(caseId);
-      const current = sanitizeSavedIdentifiers(storage[key]);
-      const next = updater(current);
-      storage[key] = next;
-      persistCdrSavedIdentifiersStorage(storage);
-      return next;
-    },
-    [persistCdrSavedIdentifiersStorage, readCdrSavedIdentifiersStorage, sanitizeSavedIdentifiers]
-  );
 
   const sanitizeTargetsForUser = useCallback(
     (targets: unknown, user: User): FraudMonitoringTarget[] => {
@@ -2646,14 +2578,6 @@ const App: React.FC = () => {
     setFraudError('');
   }, [selectedCase, cdrIdentifiers]);
 
-  useEffect(() => {
-    if (!selectedCase) {
-      setCdrSavedIdentifiers([]);
-      return;
-    }
-    setCdrSavedIdentifiers(getSavedIdentifiersForCase(selectedCase.id));
-  }, [currentUser, getSavedIdentifiersForCase, selectedCase]);
-
   const normalizeCdrNumber = useCallback((value: string) => {
     let sanitized = value.trim();
     if (!sanitized) return '';
@@ -2754,74 +2678,6 @@ const App: React.FC = () => {
       return result;
     },
     [normalizeCdrIdentifier]
-  );
-
-  const canRemoveSavedIdentifier = useCallback(
-    (identifier: CdrSavedIdentifier) => {
-      if (!currentUser) return false;
-      if (!identifier.createdById && !identifier.createdByLogin) return true;
-      if (identifier.createdById && identifier.createdById === currentUser.id) return true;
-      if (identifier.createdByLogin && identifier.createdByLogin === currentUser.login) return true;
-      return false;
-    },
-    [currentUser]
-  );
-
-  const persistCdrIdentifiersForCase = useCallback(
-    (identifiers: string[]) => {
-      if (!selectedCase || !currentUser) return;
-      const normalized = dedupeCdrIdentifiers(identifiers);
-      if (normalized.length === 0) return;
-      const now = new Date().toISOString();
-
-      const next = updateSavedIdentifiersForCase(selectedCase.id, (prev) => {
-        const existing = new Set(prev.map((item) => item.value));
-        const newEntries = normalized
-          .filter((value) => !existing.has(value))
-          .map((value) => ({
-            value,
-            createdAt: now,
-            createdById: currentUser.id,
-            createdByLogin: currentUser.login,
-          }));
-        if (newEntries.length === 0) {
-          return prev;
-        }
-        return [...newEntries, ...prev];
-      });
-
-      setCdrSavedIdentifiers(next);
-    },
-    [currentUser, dedupeCdrIdentifiers, selectedCase, updateSavedIdentifiersForCase]
-  );
-
-  const handleRemoveSavedIdentifier = useCallback(
-    (identifier: CdrSavedIdentifier) => {
-      if (!selectedCase || !currentUser) {
-        notifyWarning('Connectez-vous pour gérer les numéros enregistrés.');
-        return;
-      }
-      if (!canRemoveSavedIdentifier(identifier)) {
-        notifyWarning('Seul l’initiateur peut supprimer ce numéro.');
-        return;
-      }
-      if (!window.confirm(`Supprimer le numéro ${identifier.value} ?`)) {
-        return;
-      }
-      const next = updateSavedIdentifiersForCase(selectedCase.id, (prev) =>
-        prev.filter((item) => item.value !== identifier.value)
-      );
-      setCdrSavedIdentifiers(next);
-    },
-    [canRemoveSavedIdentifier, currentUser, notifyWarning, selectedCase, updateSavedIdentifiersForCase]
-  );
-
-  const handleUseSavedIdentifier = useCallback(
-    (value: string) => {
-      if (!value) return;
-      setCdrIdentifiers((prev) => (prev.includes(value) ? prev : [...prev, value]));
-    },
-    [setCdrIdentifiers]
   );
 
   const normalizeMonitoringValue = useCallback(
@@ -2965,15 +2821,6 @@ const App: React.FC = () => {
     }
   };
 
-  const formatSavedIdentifierDate = (value?: string | null) => {
-    if (!value) return '';
-    try {
-      return formatDistanceToNow(parseISO(value), { addSuffix: true, locale: fr });
-    } catch {
-      return value;
-    }
-  };
-
   // États des statistiques
   const [statsData, setStatsData] = useState<DashboardStats | null>(null);
   const [cardOrder, setCardOrder] = useState<string[]>(() => {
@@ -3015,7 +2862,6 @@ const App: React.FC = () => {
     const normalized = normalizeCdrIdentifier(cdrIdentifierInput);
     if (normalized && !cdrIdentifiers.includes(normalized)) {
       setCdrIdentifiers([...cdrIdentifiers, normalized]);
-      persistCdrIdentifiersForCase([normalized]);
       setCdrIdentifierInput('');
     } else {
       setCdrIdentifierInput(normalized);
@@ -5423,6 +5269,29 @@ useEffect(() => {
     }
   }, [globalFraudResult, monitoringTargets, notifyWarning]);
 
+  const logCdrSearch = useCallback(
+    async (identifiers: string[]) => {
+      if (!currentUser || identifiers.length === 0) return;
+      try {
+        await fetch('/api/logs', {
+          method: 'POST',
+          headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            action: 'cdr_geolocation_search',
+            details: {
+              identifiers,
+              case_id: selectedCase?.id ?? null,
+              case_name: selectedCase?.name ?? null
+            }
+          })
+        });
+      } catch (error) {
+        console.error('Erreur log géolocalisation:', error);
+      }
+    },
+    [createAuthHeaders, currentUser, selectedCase]
+  );
+
   const handleCdrSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!selectedCase) return;
@@ -5439,7 +5308,7 @@ useEffect(() => {
       setCdrIdentifierInput('');
     }
     commitCdrIdentifiers(identifiers);
-    persistCdrIdentifiersForCase(identifiers);
+    await logCdrSearch(identifiers);
     await fetchCdrData(identifiers);
   };
 
@@ -5930,17 +5799,15 @@ useEffect(() => {
     (cdrCase: CdrCase) => {
       setCaseExportTarget(cdrCase);
       setCaseExportNumber('');
-      setCaseExportIdentifiers(getSavedIdentifiersForCase(cdrCase.id));
       setShowCaseExportModal(true);
     },
-    [getSavedIdentifiersForCase]
+    []
   );
 
   const closeCaseExportModal = useCallback(() => {
     setShowCaseExportModal(false);
     setCaseExportTarget(null);
     setCaseExportNumber('');
-    setCaseExportIdentifiers([]);
   }, []);
 
   const handleExportCaseReport = async (cdrCase: CdrCase, targetNumber?: string) => {
@@ -6612,81 +6479,6 @@ useEffect(() => {
                     className="flex-1 min-w-[150px] border-none bg-transparent py-1 text-sm focus:outline-none focus:ring-0"
                   />
                 </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-4 text-sm shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                      Numéros enregistrés
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Sauvegardez vos cibles pour cette opération et réutilisez-les.
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500 dark:bg-slate-800/70 dark:text-slate-300">
-                    {cdrSavedIdentifiers.length} enregistré{cdrSavedIdentifiers.length > 1 ? 's' : ''}
-                  </span>
-                </div>
-                {cdrSavedIdentifiers.length === 0 ? (
-                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                    Aucun numéro sauvegardé pour cette opération.
-                  </p>
-                ) : (
-                  <ul className="mt-4 space-y-2">
-                    {cdrSavedIdentifiers.map((identifier) => {
-                      const canRemove = canRemoveSavedIdentifier(identifier);
-                      const createdByLabel = identifier.createdByLogin
-                        ? `par ${identifier.createdByLogin}`
-                        : currentUser
-                          ? 'par vous'
-                          : '';
-                      const createdAtLabel = formatSavedIdentifierDate(identifier.createdAt);
-                      return (
-                        <li
-                          key={identifier.value}
-                          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70"
-                        >
-                          <div>
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">
-                              {identifier.value}
-                            </p>
-                            {(createdByLabel || createdAtLabel) && (
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {createdByLabel}
-                                {createdByLabel && createdAtLabel ? ' • ' : ''}
-                                {createdAtLabel}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleUseSavedIdentifier(identifier.value)}
-                              className="inline-flex items-center gap-1 rounded-full border border-blue-200/80 bg-blue-50/80 px-3 py-1 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:text-blue-800 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-100"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                              Ajouter
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveSavedIdentifier(identifier)}
-                              disabled={!canRemove}
-                              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition ${
-                                canRemove
-                                  ? 'border border-rose-200/80 bg-rose-50/80 text-rose-600 hover:border-rose-300 hover:text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200'
-                                  : 'cursor-not-allowed border border-slate-200/70 bg-slate-100 text-slate-400 dark:border-slate-700/60 dark:bg-slate-800/60 dark:text-slate-500'
-                              }`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Supprimer
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -12527,47 +12319,23 @@ useEffect(() => {
             </div>
             <div className="space-y-4 px-6 py-5">
               <p className="text-sm text-slate-600 dark:text-slate-300">
-                Sélectionnez un numéro enregistré ou recherché pour générer son rapport.
+                Saisissez un numéro recherché pour générer son rapport ciblé.
               </p>
-
-              {caseExportIdentifiers.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300/70 bg-slate-50/80 p-4 text-sm text-slate-500 dark:border-slate-600/60 dark:bg-slate-900/60 dark:text-slate-400">
-                  Aucun numéro enregistré pour cette opération. Vous pouvez générer le rapport complet.
-                </div>
-              ) : (
-                <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200/70 bg-white/80 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60">
-                  <ul className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                    {caseExportIdentifiers.map((identifier) => {
-                      const createdByLabel = identifier.createdByLogin
-                        ? `par ${identifier.createdByLogin}`
-                        : 'par un utilisateur';
-                      const createdAtLabel = formatSavedIdentifierDate(identifier.createdAt);
-                      return (
-                        <li key={identifier.value} className="px-4 py-3">
-                          <label className="flex cursor-pointer items-start gap-3">
-                            <input
-                              type="radio"
-                              name="case-export-number"
-                              className="mt-1 h-4 w-4 rounded-full border-slate-300 text-blue-600 focus:ring-blue-500"
-                              checked={caseExportNumber === identifier.value}
-                              onChange={() => setCaseExportNumber(identifier.value)}
-                            />
-                            <div>
-                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">
-                                {identifier.value}
-                              </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {createdByLabel}
-                                {createdAtLabel ? ` • ${createdAtLabel}` : ''}
-                              </p>
-                            </div>
-                          </label>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                  Numéro cible
+                </label>
+                <input
+                  type="text"
+                  value={caseExportNumber}
+                  onChange={(event) => setCaseExportNumber(event.target.value)}
+                  placeholder="Ex : 221771234567"
+                  className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100"
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Laissez vide pour exporter le rapport complet.
+                </p>
+              </div>
             </div>
             <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 px-6 py-4 dark:border-slate-700">
               <button
@@ -12584,16 +12352,14 @@ useEffect(() => {
               >
                 Exporter le rapport complet
               </button>
-              {caseExportIdentifiers.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleExportCaseWithNumber}
-                  disabled={!caseExportNumber}
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-500/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Exporter le rapport du numéro
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleExportCaseWithNumber}
+                disabled={!caseExportNumber}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-500/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Exporter le rapport du numéro
+              </button>
             </div>
           </div>
         </div>
