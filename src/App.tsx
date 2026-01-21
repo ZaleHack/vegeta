@@ -2618,7 +2618,7 @@ const App: React.FC = () => {
     (value: string) => {
       const normalized = normalizeImei(value);
       if (!normalized) return '';
-      if (normalized.length < 15) return normalized;
+      if (normalized.length !== 15) return normalized;
       return `${normalized.slice(0, 14)}0`;
     },
     [normalizeImei]
