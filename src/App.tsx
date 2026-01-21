@@ -8760,19 +8760,6 @@ useEffect(() => {
                               className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-12 py-3 text-base font-medium text-slate-800 shadow-inner focus:border-transparent focus:outline-none focus:ring-4 focus:ring-purple-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
                             />
                           </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            L'analyse s'effectue sur l'ensemble du réseau mobile.
-                          </p>
-                          {globalFraudIdentifierType === 'imei' && (
-                            <button
-                              type="button"
-                              onClick={handleReplaceImeiCheckDigit}
-                              className="inline-flex items-center gap-2 rounded-full border border-purple-200/80 bg-purple-50/80 px-4 py-2 text-xs font-semibold text-purple-700 transition hover:border-purple-300 hover:text-purple-800 dark:border-purple-400/40 dark:bg-purple-500/10 dark:text-purple-100 dark:hover:border-purple-300"
-                            >
-                              <Eraser className="h-3.5 w-3.5" />
-                              <span>Mettre le 15ᵉ chiffre à 0</span>
-                            </button>
-                          )}
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
