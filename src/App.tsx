@@ -2614,14 +2614,13 @@ const App: React.FC = () => {
     return String((10 - (sum % 10)) % 10);
   }, []);
 
-  const stripImeiLuhnCheckDigit = useCallback(
+  const normalizeImeiForDetection = useCallback(
     (value: string) => {
       const normalized = normalizeImei(value);
       if (!normalized) return '';
-      if (normalized.length <= 14) {
-        return normalized;
-      }
-      return normalized.slice(0, 14);
+      const lastIndex = normalized.length - 1;
+      if (lastIndex < 0) return '';
+      return `${normalized.slice(0, lastIndex)}0`;
     },
     [normalizeImei]
   );
@@ -5128,7 +5127,7 @@ useEffect(() => {
     e?.preventDefault();
     const trimmedIdentifier = globalFraudIdentifier.trim();
     const normalizedIdentifier =
-      globalFraudIdentifierType === 'imei' ? stripImeiLuhnCheckDigit(trimmedIdentifier) : trimmedIdentifier;
+      globalFraudIdentifierType === 'imei' ? normalizeImeiForDetection(trimmedIdentifier) : trimmedIdentifier;
     if (!normalizedIdentifier) {
       setGlobalFraudError('Numéro ou IMEI requis');
       setGlobalFraudResult(null);
