@@ -2613,6 +2613,23 @@ const App: React.FC = () => {
     return String((10 - (sum % 10)) % 10);
   }, []);
 
+  const stripImeiLuhnCheckDigit = useCallback(
+    (value: string) => {
+      const normalized = normalizeImei(value);
+      if (!normalized) return '';
+      if (normalized.length === 14) {
+        return normalized;
+      }
+      if (normalized.length === 15) {
+        const body = normalized.slice(0, 14);
+        const checkDigit = computeImeiLuhnCheckDigit(body);
+        return normalized.endsWith(checkDigit) ? body : normalized;
+      }
+      return value.trim();
+    },
+    [computeImeiLuhnCheckDigit, normalizeImei]
+  );
+
   const formatImeiForDisplay = useCallback(
     (value: string) => {
       const normalized = normalizeImei(value);
@@ -5114,7 +5131,8 @@ useEffect(() => {
   const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmedIdentifier = globalFraudIdentifier.trim();
-    if (!trimmedIdentifier) {
+    const normalizedIdentifier = stripImeiLuhnCheckDigit(trimmedIdentifier);
+    if (!normalizedIdentifier) {
       setGlobalFraudError('Numéro ou IMEI requis');
       setGlobalFraudResult(null);
       return;
@@ -5130,7 +5148,7 @@ useEffect(() => {
     try {
       const token = localStorage.getItem('token');
       const params = new URLSearchParams();
-      params.append('identifier', trimmedIdentifier);
+      params.append('identifier', normalizedIdentifier);
       if (globalFraudStart) params.append('start', globalFraudStart);
       if (globalFraudEnd) params.append('end', globalFraudEnd);
       const query = params.toString();
