@@ -2625,6 +2625,16 @@ const App: React.FC = () => {
     [normalizeImei]
   );
 
+  const replaceImeiCheckDigitWithZero = useCallback(
+    (value: string) => {
+      const normalized = normalizeImei(value);
+      if (!normalized) return '';
+      if (normalized.length < 15) return normalized;
+      return `${normalized.slice(0, 14)}0`;
+    },
+    [normalizeImei]
+  );
+
   const formatImeiForDisplay = useCallback(
     (value: string) => {
       const normalized = normalizeImei(value);
@@ -5124,18 +5134,13 @@ useEffect(() => {
   };
 
   const handleReplaceImeiCheckDigit = useCallback(() => {
-    const normalized = normalizeImei(globalFraudIdentifier);
-    if (!normalized) {
+    if (!globalFraudIdentifier.trim()) {
       setGlobalFraudError('IMEI requis');
       return;
     }
-    if (normalized.length < 15) {
-      setGlobalFraudIdentifier(normalized);
-      return;
-    }
-    setGlobalFraudIdentifier(`${normalized.slice(0, 14)}0`);
+    setGlobalFraudIdentifier(replaceImeiCheckDigitWithZero(globalFraudIdentifier));
     if (globalFraudError) setGlobalFraudError('');
-  }, [globalFraudError, globalFraudIdentifier, normalizeImei]);
+  }, [globalFraudError, globalFraudIdentifier, replaceImeiCheckDigitWithZero]);
 
   const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -8739,7 +8744,11 @@ useEffect(() => {
                               type="text"
                               value={globalFraudIdentifier}
                               onChange={(e) => {
-                                setGlobalFraudIdentifier(e.target.value);
+                                const nextValue =
+                                  globalFraudIdentifierType === 'imei'
+                                    ? replaceImeiCheckDigitWithZero(e.target.value)
+                                    : e.target.value;
+                                setGlobalFraudIdentifier(nextValue);
                                 if (globalFraudError) setGlobalFraudError('');
                               }}
                               placeholder={
