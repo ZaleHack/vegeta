@@ -2618,17 +2618,12 @@ const App: React.FC = () => {
     (value: string) => {
       const normalized = normalizeImei(value);
       if (!normalized) return '';
-      if (normalized.length === 14) {
+      if (normalized.length <= 14) {
         return normalized;
       }
-      if (normalized.length === 15) {
-        const body = normalized.slice(0, 14);
-        const checkDigit = computeImeiLuhnCheckDigit(body);
-        return normalized.endsWith(checkDigit) ? body : normalized;
-      }
-      return value.trim();
+      return normalized.slice(0, 14);
     },
-    [computeImeiLuhnCheckDigit, normalizeImei]
+    [normalizeImei]
   );
 
   const formatImeiForDisplay = useCallback(
