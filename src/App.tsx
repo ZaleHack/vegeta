@@ -50,6 +50,7 @@ import {
   X,
   Info,
   Scan,
+  Eraser,
   MapPin,
   MapPinOff,
   CheckCircle2,
@@ -5122,6 +5123,20 @@ useEffect(() => {
     await fetchFraudDetection(numbersForDetection);
   };
 
+  const handleReplaceImeiCheckDigit = useCallback(() => {
+    const normalized = normalizeImei(globalFraudIdentifier);
+    if (!normalized) {
+      setGlobalFraudError('IMEI requis');
+      return;
+    }
+    if (normalized.length < 15) {
+      setGlobalFraudIdentifier(normalized);
+      return;
+    }
+    setGlobalFraudIdentifier(`${normalized.slice(0, 14)}0`);
+    if (globalFraudError) setGlobalFraudError('');
+  }, [globalFraudError, globalFraudIdentifier, normalizeImei]);
+
   const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmedIdentifier = globalFraudIdentifier.trim();
@@ -8739,6 +8754,16 @@ useEffect(() => {
                           <p className="text-xs text-slate-500 dark:text-slate-400">
                             L'analyse s'effectue sur l'ensemble du réseau mobile.
                           </p>
+                          {globalFraudIdentifierType === 'imei' && (
+                            <button
+                              type="button"
+                              onClick={handleReplaceImeiCheckDigit}
+                              className="inline-flex items-center gap-2 rounded-full border border-purple-200/80 bg-purple-50/80 px-4 py-2 text-xs font-semibold text-purple-700 transition hover:border-purple-300 hover:text-purple-800 dark:border-purple-400/40 dark:bg-purple-500/10 dark:text-purple-100 dark:hover:border-purple-300"
+                            >
+                              <Eraser className="h-3.5 w-3.5" />
+                              <span>Mettre le 15ᵉ chiffre à 0</span>
+                            </button>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
