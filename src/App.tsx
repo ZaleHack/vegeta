@@ -8745,9 +8745,7 @@ useEffect(() => {
                               value={globalFraudIdentifier}
                               onChange={(e) => {
                                 const nextValue =
-                                  globalFraudIdentifierType === 'imei'
-                                    ? replaceImeiCheckDigitWithZero(e.target.value)
-                                    : e.target.value;
+                                  globalFraudIdentifierType === 'imei' ? normalizeImei(e.target.value) : e.target.value;
                                 setGlobalFraudIdentifier(nextValue);
                                 if (globalFraudError) setGlobalFraudError('');
                               }}
