@@ -5137,10 +5137,6 @@ useEffect(() => {
       return;
     }
 
-    if (globalFraudIdentifierType === 'imei' && normalizedIdentifier !== trimmedIdentifier) {
-      setGlobalFraudIdentifier(normalizedIdentifier);
-    }
-
     setGlobalFraudLoading(true);
     setGlobalFraudError('');
 
