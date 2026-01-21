@@ -5844,8 +5844,10 @@ useEffect(() => {
   };
 
   const handleExportCaseWithNumber = useCallback(async () => {
-    if (!caseExportTarget || !caseExportNumber) return;
-    await handleExportCaseReport(caseExportTarget, caseExportNumber);
+    if (!caseExportTarget) return;
+    const trimmedNumber = caseExportNumber.trim();
+    if (!trimmedNumber) return;
+    await handleExportCaseReport(caseExportTarget, trimmedNumber);
     closeCaseExportModal();
   }, [caseExportNumber, caseExportTarget, closeCaseExportModal, handleExportCaseReport]);
 
@@ -12355,7 +12357,7 @@ useEffect(() => {
               <button
                 type="button"
                 onClick={handleExportCaseWithNumber}
-                disabled={!caseExportNumber}
+                disabled={!caseExportNumber.trim()}
                 className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-500/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Exporter le rapport du numéro
