@@ -364,7 +364,7 @@ class CaseService {
     await this.cdrService.deleteByFile(fileId, existingCase.id);
   }
 
-  async generateReport(caseId, user) {
+  async generateReport(caseId, user, targetNumber = '') {
     const existingCase = await this.getCaseById(caseId, user);
     if (!existingCase) {
       const error = new Error('Case not found');
@@ -377,13 +377,17 @@ class CaseService {
       User.findById(existingCase.user_id)
     ]);
 
-    const caseNumbers = Array.from(
+    let caseNumbers = Array.from(
       new Set(
         files
-          .map((file) => (file.cdr_number ? String(file.cdr_number).trim() : ''))
+          .map((file) => normalizeCaseNumber(file.cdr_number))
           .filter((n) => n)
       )
     );
+    const normalizedTarget = normalizeCaseNumber(targetNumber);
+    if (normalizedTarget) {
+      caseNumbers = [normalizedTarget];
+    }
 
     let insights = null;
     if (caseNumbers.length > 0) {
