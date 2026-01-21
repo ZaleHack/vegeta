@@ -9405,58 +9405,6 @@ useEffect(() => {
                 </div>
               )}
 
-              <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-lg shadow-slate-200/60 dark:border-slate-700/60 dark:bg-slate-900/70">
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-indigo-500/10" />
-                <div className="relative space-y-6">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30">
-                      <Sparkles className="h-6 w-6" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">
-                        Numéros recherchés
-                      </p>
-                      <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-                        Ensemble des cibles de l'opération
-                      </h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-300">
-                        Visualisez tous les numéros ajoutés à la recherche pour cette opération.
-                      </p>
-                    </div>
-                    <div className="ml-auto inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                      <Phone className="h-3.5 w-3.5" />
-                      {cdrTrackedIdentifiers.length} numéro{cdrTrackedIdentifiers.length > 1 ? 's' : ''} suivi{cdrTrackedIdentifiers.length > 1 ? 's' : ''}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/60 bg-white/80 p-5 shadow-inner backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60">
-                    {cdrTrackedIdentifiers.length === 0 ? (
-                      <div className="flex flex-col items-start gap-2 text-sm text-slate-500 dark:text-slate-300">
-                        <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/70 dark:text-slate-300">
-                          <Info className="h-3.5 w-3.5" />
-                          Aucun numéro enregistré
-                        </span>
-                        <p>
-                          Ajoutez des numéros via le formulaire ci-dessous pour enrichir cette opération.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {cdrTrackedIdentifiers.map((identifier) => (
-                          <span
-                            key={identifier}
-                            className="inline-flex items-center gap-2 rounded-full border border-blue-200/70 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-200"
-                          >
-                            <Phone className="h-4 w-4" />
-                            {identifier}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </section>
-
               {!showCdrMap && (
                 <div className="grid grid-cols-1 gap-6">
                   {renderCdrSearchForm('standalone')}
