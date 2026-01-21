@@ -387,7 +387,8 @@ router.get('/:id/report', authenticate, async (req, res) => {
     if (!Number.isInteger(caseId)) {
       return res.status(400).json({ error: 'ID de dossier invalide' });
     }
-    const pdf = await caseService.generateReport(caseId, req.user);
+    const targetNumber = typeof req.query.number === 'string' ? req.query.number : '';
+    const pdf = await caseService.generateReport(caseId, req.user, targetNumber);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="operation-${caseId}.pdf"`);
     res.send(pdf);
