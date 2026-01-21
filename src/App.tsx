@@ -6364,7 +6364,7 @@ useEffect(() => {
               <div>
                 <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Entrer la cible</label>
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  <span className="uppercase tracking-wide">Rechercher par</span>
+                  <span className="uppercase tracking-wide">Rechercher par téléphone</span>
                   <div className="inline-flex rounded-full bg-slate-100/80 p-1 shadow-inner dark:bg-slate-800/60">
                     <button
                       type="button"
@@ -6378,19 +6378,6 @@ useEffect(() => {
                     >
                       <Phone className="h-3.5 w-3.5" />
                       <span>Téléphone</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCdrIdentifierTypeChange('imei')}
-                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 transition ${
-                        cdrIdentifierType === 'imei'
-                          ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
-                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                      }`}
-                      aria-pressed={cdrIdentifierType === 'imei'}
-                    >
-                      <Fingerprint className="h-3.5 w-3.5" />
-                      <span>IMEI</span>
                     </button>
                   </div>
                 </div>
@@ -6421,10 +6408,8 @@ useEffect(() => {
                         addCdrIdentifier();
                       }
                     }}
-                    placeholder={
-                      cdrIdentifierType === 'imei' ? 'Ajouter un IMEI' : 'Ajouter un numéro'
-                    }
-                    inputMode={cdrIdentifierType === 'imei' ? 'numeric' : 'tel'}
+                    placeholder="Ajouter un numéro"
+                    inputMode="tel"
                     className="flex-1 min-w-[150px] border-none bg-transparent py-1 text-sm focus:outline-none focus:ring-0"
                   />
                 </div>
