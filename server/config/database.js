@@ -659,7 +659,7 @@ class DatabaseManager {
       await this.pool.execute(`
         UPDATE autres.search_logs
         SET extra_searches = 0
-        WHERE extra_searches IS NULL OR extra_searches = ''
+        WHERE extra_searches IS NULL OR CAST(extra_searches AS CHAR) = ''
       `);
 
       await ensureColumnDefinition('autres.search_logs', 'extra_searches', {
