@@ -5,13 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "client": "vite",
+    "client": "BROWSERSLIST_IGNORE_OLD_DATA=1 vite",
     "server": "node server/app.js",
     "init-db": "node server/scripts/init-database.js",
     "sync": "node server/scripts/sync-all.js",
     "create-indexes": "node server/scripts/create-search-indexes.js",
     "search:bootstrap": "node server/scripts/bootstrap-search.js",
-    "build": "tsc && vite build",
+    "build": "BROWSERSLIST_IGNORE_OLD_DATA=1 tsc && BROWSERSLIST_IGNORE_OLD_DATA=1 vite build",
     "lint": "NODE_OPTIONS=\"--loader ./stubs/alias-loader.mjs\" eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "test": "NODE_OPTIONS=\"--loader ./stubs/alias-loader.mjs\" node --test tests/cgiBtsEnrichment.test.js tests/realtimeCdrService.integration.test.js tests/filter-utils.test.js tests/unifiedSearchFallback.test.js tests/elasticsearchEnvironment.test.js"
