@@ -36,6 +36,7 @@ import targetReportsRoutes from './routes/target-reports.js';
 import { authenticate } from './middleware/auth.js';
 import { payloadEncryptionMiddleware } from './middleware/payloadEncryption.js';
 import requestLogger from './middleware/requestLogger.js';
+import { serializeDates } from './utils/dateFormat.js';
 import {
   ensureEnvironment,
   resolveAllowedOrigins,
@@ -119,6 +120,11 @@ app.use(enforceCors);
 app.use(payloadEncryptionMiddleware);
 app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 app.use(requestLogger);
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = (payload) => originalJson(serializeDates(payload));
+  next();
+});
 
 const uploadsPath = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsPath)) {
