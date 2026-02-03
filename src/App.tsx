@@ -91,6 +91,12 @@ import ConfirmDialog, { ConfirmDialogOptions } from './components/ConfirmDialog'
 import { useNotifications } from './components/NotificationProvider';
 import { normalizePreview, NormalizedPreviewEntry, BaseSearchHit } from './utils/search';
 import { normalizeImeiWithCheckDigit } from './utils/imei';
+import {
+  formatServerDate,
+  formatServerDateLong,
+  formatServerDateTime,
+  parseServerDate
+} from './utils/dateTime';
 import BtsPage, { BtsProvider } from './features/bts/BtsPage';
 
 const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -1712,8 +1718,8 @@ const App: React.FC = () => {
     logsData.forEach((log) => {
       if (!log?.created_at) return;
       try {
-        const parsed = parseISO(log.created_at);
-        if (Number.isNaN(parsed.getTime())) return;
+        const parsed = parseServerDate(log.created_at);
+        if (!parsed) return;
         if (!latest || parsed > latest) {
           latest = parsed;
         }
@@ -1725,9 +1731,9 @@ const App: React.FC = () => {
     if (!latest) return null;
 
     try {
-      return format(latest, 'Pp', { locale: fr });
+      return formatServerDateTime(latest);
     } catch {
-      return latest.toLocaleString('fr-FR');
+      return formatServerDateTime(latest);
     }
   }, [logsData]);
   interface ExtraField {
@@ -2824,23 +2830,9 @@ const App: React.FC = () => {
   );
   const hasFraudDetectionNumbers = effectiveCdrIdentifiers.length > 0;
 
-  const formatFraudDate = (value?: string | null) => {
-    if (!value) return '-';
-    try {
-      return format(parseISO(value), 'P', { locale: fr });
-    } catch {
-      return value;
-    }
-  };
+  const formatFraudDate = (value?: string | null) => formatServerDate(value ?? null);
 
-  const formatFraudDateTime = (value?: string | null) => {
-    if (!value) return '-';
-    try {
-      return format(parseISO(value), 'Pp', { locale: fr });
-    } catch {
-      return value;
-    }
-  };
+  const formatFraudDateTime = (value?: string | null) => formatServerDateTime(value ?? null);
 
   // États des statistiques
   const [statsData, setStatsData] = useState<DashboardStats | null>(null);
@@ -3696,8 +3688,9 @@ const App: React.FC = () => {
   const formatPhoneIdentifierDate = useCallback((value: string | null) => {
     if (!value) return 'Non renseignée';
     try {
-      const parsed = parseISO(value);
-      const absolute = format(parsed, "dd MMM yyyy 'à' HH:mm", { locale: fr });
+      const parsed = parseServerDate(value);
+      if (!parsed) return value;
+      const absolute = formatServerDateTime(parsed);
       const relative = formatDistanceToNow(parsed, { locale: fr, addSuffix: true });
       return `${absolute} · ${relative}`;
     } catch (error) {
@@ -7883,7 +7876,7 @@ useEffect(() => {
                               <td className="px-6 py-4 whitespace-nowrap">{entry.souscategorie}</td>
                               <td className="px-6 py-4 whitespace-nowrap">{entry.secteur}</td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                {entry.created_at ? new Date(entry.created_at).toLocaleDateString() : ''}
+                                {entry.created_at ? formatServerDate(entry.created_at) : ''}
                               </td>
                             </tr>
                           );
@@ -11004,7 +10997,7 @@ useEffect(() => {
                   ) : (
                     divisions.map((division) => {
                       const memberCount = divisionUserCount[division.id] ?? 0;
-                      const createdLabel = division.created_at ? new Date(division.created_at).toLocaleDateString('fr-FR') : null;
+                      const createdLabel = division.created_at ? formatServerDate(division.created_at) : null;
                       return (
                         <div
                           key={division.id}
@@ -11140,11 +11133,7 @@ useEffect(() => {
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-300">
-                            {new Date(user.created_at).toLocaleDateString('fr-FR', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
+                            {formatServerDateLong(user.created_at)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex items-center space-x-3">
