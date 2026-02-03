@@ -2411,6 +2411,9 @@ const CdrMap: React.FC<Props> = ({
         summary.callDurationSeconds ??
         parseDurationToSeconds(summary.callDuration || '') ??
         0;
+      const summaryCallMinutes = summaryDurationSeconds > 0
+        ? Math.ceil(summaryDurationSeconds / 60)
+        : 0;
 
       supplementalContacts.push({
         id: `${trackedLabel}|${normalizedNumber}|summary-${index}`,
@@ -2421,7 +2424,7 @@ const CdrMap: React.FC<Props> = ({
         smsCount: summary.smsCount ?? 0,
         ussdCount: 0,
         callDuration: formatDuration(summaryDurationSeconds),
-        total: summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0),
+        total: summaryCallMinutes + (summary.smsCount ?? 0),
         events: summary.events || []
       });
     });
