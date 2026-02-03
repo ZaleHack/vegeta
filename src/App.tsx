@@ -10613,8 +10613,54 @@ useEffect(() => {
                         if (isAlertLog || hasPageName) {
                           return '';
                         }
+                        if (log.action === 'cdr_geolocation_search') {
+                          const identifiers = Array.isArray(details.identifiers)
+                            ? details.identifiers.filter((value: unknown) => typeof value === 'string' && value.trim() !== '')
+                            : [];
+                          const caseLabel = typeof details.case_name === 'string' && details.case_name.trim() !== ''
+                            ? details.case_name.trim()
+                            : details.case_id
+                              ? `#${details.case_id}`
+                              : '';
+                          const parts = [];
+                          if (identifiers.length > 0) {
+                            parts.push(`Identifiants : ${identifiers.join(', ')}`);
+                          }
+                          if (caseLabel) {
+                            parts.push(`Dossier : ${caseLabel}`);
+                          }
+                          if (parts.length > 0) {
+                            return parts.join(' • ');
+                          }
+                        }
                         if (typeof details.description === 'string' && details.description.trim() !== '') {
                           return details.description.trim();
+                        }
+                        const ignoredDetailKeys = new Set(['page', 'alert', 'message', 'context', 'profile_id']);
+                        const detailEntries = Object.entries(details).filter(([key, value]) => {
+                          if (ignoredDetailKeys.has(key)) {
+                            return false;
+                          }
+                          if (value === null || value === undefined || value === '') {
+                            return false;
+                          }
+                          if (Array.isArray(value)) {
+                            return value.length > 0;
+                          }
+                          return true;
+                        });
+                        if (detailEntries.length > 0) {
+                          return detailEntries
+                            .map(([key, value]) => {
+                              const label = key.replace(/_/g, ' ');
+                              const formattedValue = Array.isArray(value)
+                                ? value.join(', ')
+                                : typeof value === 'object'
+                                  ? JSON.stringify(value)
+                                  : String(value);
+                              return `${label} : ${formattedValue}`;
+                            })
+                            .join(' • ');
                         }
                         if (typeof log.details === 'string' && log.details.trim() !== '') {
                           return log.details.trim();
