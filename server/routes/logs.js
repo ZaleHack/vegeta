@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
 import UserLog from '../models/UserLog.js';
+import { formatLocalDateTime } from '../utils/dateFormat.js';
 import UserSession from '../models/UserSession.js';
 
 const router = express.Router();
@@ -42,7 +43,13 @@ router.get('/export', authenticate, async (req, res) => {
   const { rows } = await UserLog.getLogs(1, 1000, username, userId);
   const headers = ['id','username','action','details','duration_ms','created_at'];
   const csv = [headers.join(',')]
-    .concat(rows.map(l => headers.map(h => JSON.stringify(l[h] ?? '')).join(',')))
+    .concat(rows.map((log) => headers.map((h) => {
+      const value = log?.[h];
+      if (value instanceof Date) {
+        return JSON.stringify(formatLocalDateTime(value) ?? '');
+      }
+      return JSON.stringify(value ?? '');
+    }).join(',')))
     .join('\n');
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="logs.csv"');
