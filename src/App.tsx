@@ -968,6 +968,27 @@ const parseDurationToSeconds = (duration: string): number => {
   return 0;
 };
 
+const normalizeDateParam = (value?: string | null): string => {
+  if (!value) {
+    return '';
+  }
+  const trimmed = String(value).trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return trimmed;
+  }
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const getCallDurationInSeconds = (record: Record<string, unknown>): number => {
   const durationValue = normalizeOptionalTextField(record.duration);
   if (durationValue) {
@@ -4767,8 +4788,10 @@ useEffect(() => {
       for (const id of ids) {
         const params = new URLSearchParams();
         params.append(requestParam, id);
-        if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
-        if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
+        const startDate = normalizeDateParam(cdrStart);
+        const endDate = normalizeDateParam(cdrEnd);
+        if (startDate) params.append('start', startDate);
+        if (endDate) params.append('end', endDate);
         if (cdrStartTime) params.append('startTime', cdrStartTime);
         if (cdrEndTime) params.append('endTime', cdrEndTime);
         const requestDescription = `/api/cdr/realtime/search?${params.toString()}`;
@@ -5094,8 +5117,10 @@ useEffect(() => {
     try {
       const token = localStorage.getItem('token');
       const params = new URLSearchParams();
-      if (cdrStart) params.append('start', new Date(cdrStart).toISOString().split('T')[0]);
-      if (cdrEnd) params.append('end', new Date(cdrEnd).toISOString().split('T')[0]);
+      const startDate = normalizeDateParam(cdrStart);
+      const endDate = normalizeDateParam(cdrEnd);
+      if (startDate) params.append('start', startDate);
+      if (endDate) params.append('end', endDate);
       numbersForRequest.forEach((identifier) => {
         params.append('numbers', identifier);
       });
