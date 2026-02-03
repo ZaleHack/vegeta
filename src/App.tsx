@@ -4265,8 +4265,9 @@ useEffect(() => {
   const topSearchTerms = useMemo(() => statsData?.top_search_terms ?? [], [statsData]);
 
   const handleUserRoleChange = (adminValue: number) => {
+    const normalizedAdminValue = adminValue === 1 ? 1 : 0;
     setUserFormData(prev => {
-      if (adminValue === 1) {
+      if (normalizedAdminValue === 1) {
         return {
           ...prev,
           admin: 1,
@@ -4291,7 +4292,7 @@ useEffect(() => {
     setLoading(true);
 
     try {
-      const isAdminRole = userFormData.admin === 1;
+      const isAdminRole = Number(userFormData.admin) === 1;
       if (!isAdminRole && (!userFormData.divisionId || userFormData.divisionId <= 0)) {
         notifyWarning('Veuillez sélectionner une division');
         setLoading(false);
@@ -4303,8 +4304,8 @@ useEffect(() => {
         body: JSON.stringify({
           login: userFormData.login,
           password: userFormData.password,
-          role: userFormData.admin === 1 ? 'ADMIN' : 'USER',
-          active: userFormData.active === 1 ? 1 : 0,
+          role: isAdminRole ? 'ADMIN' : 'USER',
+          active: Number(userFormData.active) === 1 ? 1 : 0,
           divisionId: isAdminRole ? null : userFormData.divisionId
         })
       });
@@ -4342,7 +4343,7 @@ useEffect(() => {
     setLoading(true);
 
     try {
-      const isAdminRole = userFormData.admin === 1;
+      const isAdminRole = Number(userFormData.admin) === 1;
       if (!isAdminRole && (!userFormData.divisionId || userFormData.divisionId <= 0)) {
         notifyWarning('Veuillez sélectionner une division');
         setLoading(false);
@@ -4357,8 +4358,8 @@ useEffect(() => {
         },
         body: JSON.stringify({
           login: userFormData.login,
-          admin: userFormData.admin,
-          active: userFormData.active === 1 ? 1 : 0,
+          admin: Number(userFormData.admin),
+          active: Number(userFormData.active) === 1 ? 1 : 0,
           divisionId: isAdminRole ? null : userFormData.divisionId
         })
       });
@@ -4547,14 +4548,16 @@ useEffect(() => {
   };
 
     const openEditModal = (user: User) => {
+      const normalizedAdmin = Number(user.admin) === 1 ? 1 : 0;
+      const normalizedActive = Number(user.active) === 1 ? 1 : 0;
       setEditingUser(user);
       setUserFormData({
         login: user.login,
         password: '',
-        admin: user.admin,
-        active: user.active,
-        divisionId: (user.admin === 1)
-          ? 0
+        admin: normalizedAdmin,
+        active: normalizedActive,
+        divisionId: normalizedAdmin === 1
+          ? null
           : (typeof user.division_id === 'number' && user.division_id > 0
             ? user.division_id
             : divisions[0]?.id || 0)
@@ -12114,10 +12117,10 @@ useEffect(() => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={userFormData.divisionId ?? 0}
                   onChange={(e) => setUserFormData({ ...userFormData, divisionId: parseInt(e.target.value, 10) })}
-                  required={userFormData.admin !== 1}
-                  disabled={userFormData.admin === 1}
+                  required={Number(userFormData.admin) !== 1}
+                  disabled={Number(userFormData.admin) === 1}
                 >
-                  {userFormData.admin === 1 ? (
+                  {Number(userFormData.admin) === 1 ? (
                     <option value={0}>Aucune division (administrateur)</option>
                   ) : divisions.length === 0 ? (
                     <option value={0}>Aucune division disponible</option>
@@ -12129,7 +12132,7 @@ useEffect(() => {
                     ))
                   )}
                 </select>
-                {userFormData.admin === 1 && (
+                {Number(userFormData.admin) === 1 && (
                   <p className="mt-1 text-sm text-gray-500">
                     Les administrateurs n'appartiennent à aucune division.
                   </p>
