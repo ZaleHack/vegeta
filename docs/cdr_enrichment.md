@@ -2,6 +2,9 @@
 
 Cette note décrit deux approches pour enrichir la table `cdr_temps_reel` avec les colonnes `longitude`, `latitude`, `azimut` et `nom_bts` en se basant sur la valeur de `cgi`.
 
+Les nouvelles tables normalisées `bts_orange."3g"`, `bts_orange."4g"` et `bts_orange."5g"` sont désormais utilisées en priorité.
+Les tables héritées `radio_3g`/`radio_4g`/`radio_5g` restent supportées en secours pour assurer la rétrocompatibilité.
+
 ## 1. Mise à jour SQL massive
 
 La solution SQL effectue un `UPDATE` sur la table principale en s'appuyant sur des jointures conditionnelles avec les tables radio 2G, 3G, 4G et 5G. Elle détecte automatiquement la technologie en vérifiant la présence du `cgi` dans chaque table.
