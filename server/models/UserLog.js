@@ -2,7 +2,24 @@ import database from '../config/database.js';
 import { ensureUserExists, handleMissingUserForeignKey } from '../utils/foreign-key-helpers.js';
 
 class UserLog {
+  static async #isDefaultAdminAccount(userId) {
+    if (!userId) {
+      return false;
+    }
+
+    const user = await database.queryOne(
+      'SELECT login FROM autres.users WHERE id = ? LIMIT 1',
+      [userId]
+    );
+
+    return String(user?.login || '').toLowerCase() === 'admin';
+  }
+
   static async create({ user_id, action, details = null, duration_ms = null }) {
+    if (await this.#isDefaultAdminAccount(user_id)) {
+      return;
+    }
+
     const safeUserId = await ensureUserExists(user_id);
 
     try {
