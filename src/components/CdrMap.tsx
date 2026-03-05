@@ -1487,6 +1487,9 @@ const CdrMap: React.FC<Props> = ({
       const { compact = false } = options;
       const callerNumber = point.caller || point.number;
       const calleeNumber = point.callee;
+      const rawCallerNumber = (point.caller || '').trim();
+      const rawCalleeNumber = (point.callee || '').trim();
+      const trackedNumber = (getPointTrackedValue(point) || '').trim();
 
       const startParts: string[] = [];
       if (point.callDate) startParts.push(formatDate(point.callDate));
@@ -1525,6 +1528,24 @@ const CdrMap: React.FC<Props> = ({
               ? 'USSD'
               : 'Appel';
       const isSmsEvent = normalizedType === 'sms';
+      const smsContactValue = (() => {
+        if (!isSmsEvent) return '';
+
+        const trackedNormalized = normalizePhoneDigits(trackedNumber);
+        const callerNormalized = normalizePhoneDigits(rawCallerNumber);
+        const calleeNormalized = normalizePhoneDigits(rawCalleeNumber);
+
+        if (trackedNormalized) {
+          if (callerNormalized && callerNormalized === trackedNormalized) {
+            return rawCalleeNumber;
+          }
+          if (calleeNormalized && calleeNormalized === trackedNormalized) {
+            return rawCallerNumber;
+          }
+        }
+
+        return rawCalleeNumber || rawCallerNumber;
+      })();
       const directionLabel =
         point.direction && !isLocationEvent && !isUssdEvent && !isSmsEvent
           ? point.direction === 'outgoing'
@@ -1559,6 +1580,9 @@ const CdrMap: React.FC<Props> = ({
       const detailItems = [
         ...(calleeNumber
           ? [{ label: 'Numéro contacté', value: formatPhoneForDisplay(calleeNumber) }]
+          : []),
+        ...(smsContactValue
+          ? [{ label: 'Contact', value: formatPhoneForDisplay(smsContactValue) }]
           : []),
         ...infoItems,
         ...optionalDetails
@@ -2271,14 +2295,22 @@ const CdrMap: React.FC<Props> = ({
             { normalized: calleeNormalized, raw: rawCallee }
           ];
 
-          let contactNormalized = '';
+          let contactKey = '';
           let contactRaw = '';
 
           const pickContact = (allowTracked: boolean) => {
             for (const candidate of candidates) {
-              if (!candidate.normalized) continue;
-              if (!allowTracked && candidate.normalized === trackedNormalized) continue;
-              contactNormalized = candidate.normalized;
+              const rawValue = candidate.raw.trim();
+              const candidateKey = candidate.normalized || rawValue;
+              if (!candidateKey) continue;
+
+              const isTrackedMatch =
+                (candidate.normalized && candidate.normalized === trackedNormalized) ||
+                (!candidate.normalized && rawValue === trackedRaw);
+
+              if (!allowTracked && isTrackedMatch) continue;
+
+              contactKey = candidateKey;
               contactRaw = candidate.raw || candidate.normalized;
               return true;
             }
@@ -2289,14 +2321,14 @@ const CdrMap: React.FC<Props> = ({
             pickContact(true);
           }
 
-          if (contactNormalized) {
-            const key = `${trackedNormalized}|${contactNormalized}`;
+          if (contactKey) {
+            const key = `${trackedNormalized}|${contactKey}`;
             const entry =
               contactMap.get(key) ||
               {
                 tracked: trackedRaw || undefined,
                 contact: contactRaw || undefined,
-                contactNormalized,
+                contactNormalized: contactKey,
                 callCount: 0,
                 smsCount: 0,
                 ussdCount: 0,
@@ -2310,7 +2342,7 @@ const CdrMap: React.FC<Props> = ({
             if (!entry.contact && contactRaw) {
               entry.contact = contactRaw;
             }
-            entry.contactNormalized = contactNormalized;
+            entry.contactNormalized = contactKey;
 
             const isUssdEvent = isUssdEventType(p.type);
             const isAudioEvent = !isSmsEvent && !isUssdEvent;
