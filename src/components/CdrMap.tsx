@@ -3831,7 +3831,7 @@ const CdrMap: React.FC<Props> = ({
                         className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
                       >
                         <td className="pr-4">{formatPhoneForDisplay(c.tracked)}</td>
-                        <td className="pr-4">{formatPhoneForDisplay(c.contact)}</td>
+                        <td className="pr-4">{c.contact?.trim() || '—'}</td>
                         <td className="pr-4">{c.callCount}</td>
                         <td className="pr-4">{c.callDuration}</td>
                         <td className="pr-4">{c.smsCount}</td>
@@ -3876,7 +3876,7 @@ const CdrMap: React.FC<Props> = ({
                     <div>
                       <p className="text-xs uppercase tracking-[0.35em] text-white/70">Contact sélectionné</p>
                       <p className="mt-2 text-2xl font-semibold">
-                        {formatPhoneForDisplay(selectedContactDetails.contact)}
+                        {selectedContactDetails.contact?.trim() || '—'}
                       </p>
                       <p className="text-sm text-white/80">
                         Suivi via {formatPhoneForDisplay(selectedContactDetails.tracked)}
