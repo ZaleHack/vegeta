@@ -1528,8 +1528,8 @@ const CdrMap: React.FC<Props> = ({
               ? 'USSD'
               : 'Appel';
       const isSmsEvent = normalizedType === 'sms';
-      const smsContactValue = (() => {
-        if (!isSmsEvent) return '';
+      const counterpartValue = (() => {
+        if (isLocationEvent || isUssdEvent) return '';
 
         const trackedNormalized = normalizePhoneDigits(trackedNumber);
         const callerNormalized = normalizePhoneDigits(rawCallerNumber);
@@ -1578,11 +1578,11 @@ const CdrMap: React.FC<Props> = ({
       ].filter((item) => item.value && item.value !== 'N/A');
 
       const detailItems = [
-        ...(calleeNumber
-          ? [{ label: 'Numéro contacté', value: formatPhoneForDisplay(calleeNumber) }]
+        ...(counterpartValue
+          ? [{ label: 'Numéro contacté', value: formatPhoneForDisplay(counterpartValue) }]
           : []),
-        ...(smsContactValue
-          ? [{ label: 'Contact', value: formatPhoneForDisplay(smsContactValue) }]
+        ...(isSmsEvent && counterpartValue
+          ? [{ label: 'Correspondant', value: formatPhoneForDisplay(counterpartValue) }]
           : []),
         ...infoItems,
         ...optionalDetails
@@ -2298,7 +2298,7 @@ const CdrMap: React.FC<Props> = ({
           let contactKey = '';
           let contactRaw = '';
 
-          const pickContact = (allowTracked: boolean) => {
+          const pickContact = () => {
             for (const candidate of candidates) {
               const rawValue = candidate.raw.trim();
               const candidateKey = candidate.normalized || rawValue;
@@ -2308,7 +2308,7 @@ const CdrMap: React.FC<Props> = ({
                 (candidate.normalized && candidate.normalized === trackedNormalized) ||
                 (!candidate.normalized && rawValue === trackedRaw);
 
-              if (!allowTracked && isTrackedMatch) continue;
+              if (isTrackedMatch) continue;
 
               contactKey = candidateKey;
               contactRaw = candidate.raw || candidate.normalized;
@@ -2317,9 +2317,7 @@ const CdrMap: React.FC<Props> = ({
             return false;
           };
 
-          if (!pickContact(false)) {
-            pickContact(true);
-          }
+          pickContact();
 
           if (contactKey) {
             const key = `${trackedNormalized}|${contactKey}`;
