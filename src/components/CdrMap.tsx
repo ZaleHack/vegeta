@@ -1524,8 +1524,9 @@ const CdrMap: React.FC<Props> = ({
             : isUssdEvent
               ? 'USSD'
               : 'Appel';
+      const isSmsEvent = normalizedType === 'sms';
       const directionLabel =
-        point.direction && !isLocationEvent && !isUssdEvent
+        point.direction && !isLocationEvent && !isUssdEvent && !isSmsEvent
           ? point.direction === 'outgoing'
             ? 'Sortant'
             : 'Entrant'
