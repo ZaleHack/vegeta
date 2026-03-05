@@ -2271,9 +2271,10 @@ const CdrMap: React.FC<Props> = ({
           })();
 
           type ContactCandidate = { key?: string; raw: string };
+          const numberKey = normalizePhoneDigits(rawNumber);
           const candidates: ContactCandidate[] = [
             ...(preferredSmsContact ? [preferredSmsContact] : []),
-            { key: normalizeContactKey(rawNumber), raw: rawNumber },
+            { key: numberKey, raw: rawNumber },
             { key: callerKey, raw: rawCaller },
             { key: calleeKey, raw: rawCallee }
           ];
