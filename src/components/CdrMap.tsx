@@ -2248,8 +2248,23 @@ const CdrMap: React.FC<Props> = ({
 
           const callerNormalized = normalizePhoneDigits(rawCaller);
           const calleeNormalized = normalizePhoneDigits(rawCallee);
+          const normalizedEventType = (p.type || '').trim().toLowerCase();
+          const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
+
+          const preferredSmsContact = (() => {
+            if (!isSmsEvent) return null;
+            if (callerNormalized && callerNormalized === trackedNormalized) {
+              return { normalized: calleeNormalized, raw: rawCallee };
+            }
+            if (calleeNormalized && calleeNormalized === trackedNormalized) {
+              return { normalized: callerNormalized, raw: rawCaller };
+            }
+            return null;
+          })();
+
           type ContactCandidate = { normalized?: string; raw: string };
           const candidates: ContactCandidate[] = [
+            ...(preferredSmsContact ? [preferredSmsContact] : []),
             { normalized: normalizePhoneDigits(rawNumber), raw: rawNumber },
             { normalized: callerNormalized, raw: rawCaller },
             { normalized: calleeNormalized, raw: rawCallee }
@@ -2296,8 +2311,6 @@ const CdrMap: React.FC<Props> = ({
             }
             entry.contactNormalized = contactNormalized;
 
-            const normalizedEventType = (p.type || '').trim().toLowerCase();
-            const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
             const isUssdEvent = isUssdEventType(p.type);
             const isAudioEvent = !isSmsEvent && !isUssdEvent;
 
