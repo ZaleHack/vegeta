@@ -362,6 +362,32 @@ router.post('/export', authenticate, async (req, res) => {
     };
     const emptyRowFallback = (columnCount, label = 'Aucune donnée disponible') =>
       Array.from({ length: columnCount }, (_, index) => (index === 0 ? label : '—'));
+    const isSmsType = (value) => String(value || '').trim().toLowerCase().includes('sms');
+    const resolveContactForInteraction = (row) => {
+      const caller = String(row?.numero_appelant || '').trim();
+      const callee = String(row?.numero_appele || '').trim();
+      const callerIsTracked = isNumberMatch(caller);
+      const calleeIsTracked = isNumberMatch(callee);
+
+      if (callerIsTracked && !calleeIsTracked) {
+        return callee;
+      }
+
+      if (calleeIsTracked && !callerIsTracked) {
+        return caller;
+      }
+
+      if (isSmsType(row?.type_appel)) {
+        if (callee && !isNumberMatch(callee)) {
+          return callee;
+        }
+        if (caller && !isNumberMatch(caller)) {
+          return caller;
+        }
+      }
+
+      return callerIsTracked ? callee : caller;
+    };
 
     const sectionTables = new Map();
 
@@ -402,8 +428,7 @@ router.post('/export', authenticate, async (req, res) => {
       const rows =
         travelHistoryRows.length > 0
           ? travelHistoryRows.map((row) => {
-              const isCaller = isNumberMatch(row.numero_appelant);
-              const contact = isCaller ? row.numero_appele : row.numero_appelant;
+              const contact = resolveContactForInteraction(row);
               return [
                 formatDateTimeValue(row.date_debut, row.heure_debut),
                 contact || '—',
