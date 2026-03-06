@@ -2249,8 +2249,22 @@ const CdrMap: React.FC<Props> = ({
 
           const callerNormalized = normalizePhoneDigits(rawCaller);
           const calleeNormalized = normalizePhoneDigits(rawCallee);
+          const normalizedEventType = (p.type || '').trim().toLowerCase();
+          const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
+          const smsOppositeCandidate = (() => {
+            if (!isSmsEvent) return null;
+            if (callerNormalized && trackedNormalized === callerNormalized && calleeNormalized) {
+              return { normalized: calleeNormalized, raw: rawCallee || calleeNormalized };
+            }
+            if (calleeNormalized && trackedNormalized === calleeNormalized && callerNormalized) {
+              return { normalized: callerNormalized, raw: rawCaller || callerNormalized };
+            }
+            return null;
+          })();
+
           type ContactCandidate = { normalized?: string; raw: string };
           const candidates: ContactCandidate[] = [
+            ...(smsOppositeCandidate ? [smsOppositeCandidate] : []),
             { normalized: normalizePhoneDigits(rawNumber), raw: rawNumber },
             { normalized: callerNormalized, raw: rawCaller },
             { normalized: calleeNormalized, raw: rawCallee }
@@ -2297,8 +2311,6 @@ const CdrMap: React.FC<Props> = ({
             }
             entry.contactNormalized = contactNormalized;
 
-            const normalizedEventType = (p.type || '').trim().toLowerCase();
-            const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
             const isUssdEvent = isUssdEventType(p.type);
             const isAudioEvent = !isSmsEvent && !isUssdEvent;
 
