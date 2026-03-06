@@ -499,9 +499,6 @@ const formatPhoneForDisplay = (value?: string): string => {
   return value?.trim() || 'N/A';
 };
 
-const isSmsOnlyContact = (contact: { callCount: number; smsCount: number; ussdCount: number }): boolean =>
-  contact.smsCount > 0 && contact.callCount === 0 && contact.ussdCount === 0;
-
 const getArrowIcon = (angle: number) => {
   const size = 22;
   const icon = (
@@ -1490,9 +1487,6 @@ const CdrMap: React.FC<Props> = ({
       const { compact = false } = options;
       const callerNumber = point.caller || point.number;
       const calleeNumber = point.callee;
-      const rawCallerNumber = (point.caller || '').trim();
-      const rawCalleeNumber = (point.callee || '').trim();
-      const trackedNumber = (getPointTrackedValue(point) || '').trim();
 
       const startParts: string[] = [];
       if (point.callDate) startParts.push(formatDate(point.callDate));
@@ -1531,24 +1525,6 @@ const CdrMap: React.FC<Props> = ({
               ? 'USSD'
               : 'Appel';
       const isSmsEvent = normalizedType === 'sms';
-      const counterpartValue = (() => {
-        if (isLocationEvent || isUssdEvent) return '';
-
-        const trackedNormalized = normalizePhoneDigits(trackedNumber);
-        const callerNormalized = normalizePhoneDigits(rawCallerNumber);
-        const calleeNormalized = normalizePhoneDigits(rawCalleeNumber);
-
-        if (trackedNormalized) {
-          if (callerNormalized && callerNormalized === trackedNormalized) {
-            return rawCalleeNumber;
-          }
-          if (calleeNormalized && calleeNormalized === trackedNormalized) {
-            return rawCallerNumber;
-          }
-        }
-
-        return rawCalleeNumber || rawCallerNumber;
-      })();
       const directionLabel =
         point.direction && !isLocationEvent && !isUssdEvent && !isSmsEvent
           ? point.direction === 'outgoing'
@@ -1581,11 +1557,8 @@ const CdrMap: React.FC<Props> = ({
       ].filter((item) => item.value && item.value !== 'N/A');
 
       const detailItems = [
-        ...(counterpartValue
-          ? [{ label: 'Numéro contacté', value: formatPhoneForDisplay(counterpartValue) }]
-          : []),
-        ...(isSmsEvent && counterpartValue
-          ? [{ label: 'Correspondant', value: formatPhoneForDisplay(counterpartValue) }]
+        ...(calleeNumber
+          ? [{ label: 'Numéro contacté', value: formatPhoneForDisplay(calleeNumber) }]
           : []),
         ...infoItems,
         ...optionalDetails
@@ -2276,59 +2249,39 @@ const CdrMap: React.FC<Props> = ({
 
           const callerNormalized = normalizePhoneDigits(rawCaller);
           const calleeNormalized = normalizePhoneDigits(rawCallee);
-          const normalizedEventType = (p.type || '').trim().toLowerCase();
-          const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
-
-          const preferredCounterpartContact = (() => {
-            if (callerNormalized && callerNormalized === trackedNormalized) {
-              return { normalized: calleeNormalized, raw: rawCallee };
-            }
-            if (calleeNormalized && calleeNormalized === trackedNormalized) {
-              return { normalized: callerNormalized, raw: rawCaller };
-            }
-            return null;
-          })();
-
           type ContactCandidate = { normalized?: string; raw: string };
           const candidates: ContactCandidate[] = [
-            ...(preferredCounterpartContact ? [preferredCounterpartContact] : []),
+            { normalized: normalizePhoneDigits(rawNumber), raw: rawNumber },
             { normalized: callerNormalized, raw: rawCaller },
-            { normalized: calleeNormalized, raw: rawCallee },
-            { normalized: normalizePhoneDigits(rawNumber), raw: rawNumber }
+            { normalized: calleeNormalized, raw: rawCallee }
           ];
 
-          let contactKey = '';
+          let contactNormalized = '';
           let contactRaw = '';
 
-          const pickContact = () => {
+          const pickContact = (allowTracked: boolean) => {
             for (const candidate of candidates) {
-              const rawValue = candidate.raw.trim();
-              const candidateKey = candidate.normalized || rawValue;
-              if (!candidateKey) continue;
-
-              const isTrackedMatch =
-                (candidate.normalized && candidate.normalized === trackedNormalized) ||
-                (!candidate.normalized && rawValue === trackedRaw);
-
-              if (isTrackedMatch) continue;
-
-              contactKey = candidateKey;
+              if (!candidate.normalized) continue;
+              if (!allowTracked && candidate.normalized === trackedNormalized) continue;
+              contactNormalized = candidate.normalized;
               contactRaw = candidate.raw || candidate.normalized;
               return true;
             }
             return false;
           };
 
-          pickContact();
+          if (!pickContact(false)) {
+            pickContact(true);
+          }
 
-          if (contactKey) {
-            const key = `${trackedNormalized}|${contactKey}`;
+          if (contactNormalized) {
+            const key = `${trackedNormalized}|${contactNormalized}`;
             const entry =
               contactMap.get(key) ||
               {
                 tracked: trackedRaw || undefined,
                 contact: contactRaw || undefined,
-                contactNormalized: contactKey,
+                contactNormalized,
                 callCount: 0,
                 smsCount: 0,
                 ussdCount: 0,
@@ -2342,8 +2295,10 @@ const CdrMap: React.FC<Props> = ({
             if (!entry.contact && contactRaw) {
               entry.contact = contactRaw;
             }
-            entry.contactNormalized = contactKey;
+            entry.contactNormalized = contactNormalized;
 
+            const normalizedEventType = (p.type || '').trim().toLowerCase();
+            const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
             const isUssdEvent = isUssdEventType(p.type);
             const isAudioEvent = !isSmsEvent && !isUssdEvent;
 
@@ -3827,16 +3782,13 @@ const CdrMap: React.FC<Props> = ({
                       toggleKey && showMeetingPoints && activeMeetingNumber === toggleKey;
                     const toggleValue = contactNumber || toggleKey;
                     const isActiveDetails = activeContactDetailsId === c.id;
-                    const displayRawSmsValue = isSmsOnlyContact(c);
                     return (
                       <tr
                         key={c.id}
                         className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
                       >
                         <td className="pr-4">{formatPhoneForDisplay(c.tracked)}</td>
-                        <td className="pr-4">
-                          {displayRawSmsValue ? c.contact?.trim() || '—' : formatPhoneForDisplay(c.contact)}
-                        </td>
+                        <td className="pr-4">{formatPhoneForDisplay(c.contact)}</td>
                         <td className="pr-4">{c.callCount}</td>
                         <td className="pr-4">{c.callDuration}</td>
                         <td className="pr-4">{c.smsCount}</td>
@@ -3881,9 +3833,7 @@ const CdrMap: React.FC<Props> = ({
                     <div>
                       <p className="text-xs uppercase tracking-[0.35em] text-white/70">Contact sélectionné</p>
                       <p className="mt-2 text-2xl font-semibold">
-                        {isSmsOnlyContact(selectedContactDetails)
-                          ? selectedContactDetails.contact?.trim() || '—'
-                          : formatPhoneForDisplay(selectedContactDetails.contact)}
+                        {formatPhoneForDisplay(selectedContactDetails.contact)}
                       </p>
                       <p className="text-sm text-white/80">
                         Suivi via {formatPhoneForDisplay(selectedContactDetails.tracked)}
