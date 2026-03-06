@@ -2249,22 +2249,8 @@ const CdrMap: React.FC<Props> = ({
 
           const callerNormalized = normalizePhoneDigits(rawCaller);
           const calleeNormalized = normalizePhoneDigits(rawCallee);
-          const normalizedEventType = (p.type || '').trim().toLowerCase();
-          const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
-          const smsOppositeCandidate = (() => {
-            if (!isSmsEvent) return null;
-            if (callerNormalized && trackedNormalized === callerNormalized && calleeNormalized) {
-              return { normalized: calleeNormalized, raw: rawCallee || calleeNormalized };
-            }
-            if (calleeNormalized && trackedNormalized === calleeNormalized && callerNormalized) {
-              return { normalized: callerNormalized, raw: rawCaller || callerNormalized };
-            }
-            return null;
-          })();
-
           type ContactCandidate = { normalized?: string; raw: string };
           const candidates: ContactCandidate[] = [
-            ...(smsOppositeCandidate ? [smsOppositeCandidate] : []),
             { normalized: normalizePhoneDigits(rawNumber), raw: rawNumber },
             { normalized: callerNormalized, raw: rawCaller },
             { normalized: calleeNormalized, raw: rawCallee }
@@ -2284,7 +2270,9 @@ const CdrMap: React.FC<Props> = ({
             return false;
           };
 
-          pickContact(false);
+          if (!pickContact(false)) {
+            pickContact(true);
+          }
 
           if (contactNormalized) {
             const key = `${trackedNormalized}|${contactNormalized}`;
@@ -2309,6 +2297,8 @@ const CdrMap: React.FC<Props> = ({
             }
             entry.contactNormalized = contactNormalized;
 
+            const normalizedEventType = (p.type || '').trim().toLowerCase();
+            const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
             const isUssdEvent = isUssdEventType(p.type);
             const isAudioEvent = !isSmsEvent && !isUssdEvent;
 
@@ -2411,21 +2401,10 @@ const CdrMap: React.FC<Props> = ({
     const supplementalContacts: Contact[] = [];
     const defaultTracked = selectedSource || sourceNumbers[0] || undefined;
     const trackedLabel = defaultTracked || 'summary';
-    const trackedNumbers = new Set(
-      sourceNumbers
-        .map((num) => normalizePhoneDigits(num) || num.trim())
-        .filter((num) => Boolean(num))
-    );
-    const defaultTrackedNormalized = defaultTracked
-      ? normalizePhoneDigits(defaultTracked) || defaultTracked.trim()
-      : '';
 
     contactSummaries.forEach((summary, index) => {
       const normalizedNumber = normalizePhoneDigits(summary.number) || summary.number.trim();
-      const matchesTracked =
-        (defaultTrackedNormalized && normalizedNumber === defaultTrackedNormalized) ||
-        trackedNumbers.has(normalizedNumber);
-      if (!normalizedNumber || normalizedContacts.has(normalizedNumber) || matchesTracked) {
+      if (!normalizedNumber || normalizedContacts.has(normalizedNumber)) {
         return;
       }
 

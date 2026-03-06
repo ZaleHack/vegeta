@@ -4903,7 +4903,7 @@ useEffect(() => {
           }
         });
       }
-      const excludeTrackedContacts = trackedNumbersSet.size >= 1;
+      const excludeTrackedContacts = trackedNumbersSet.size >= 2;
 
       const contactsMap = new Map<
         string,
@@ -4925,17 +4925,12 @@ useEffect(() => {
           const rawCallee = (p.callee ?? '').toString().trim();
 
           const callerNormalized = normalizeCdrNumber(rawCaller);
-          const normalizeContactKey = (value: string) => {
-            const trimmed = value.trim();
-            if (!trimmed) return '';
-            const normalizedPhone = normalizeCdrNumber(trimmed);
-            return normalizedPhone || trimmed;
-          };
+          const calleeNormalized = normalizeCdrNumber(rawCallee);
           type ContactCandidate = { normalized?: string; raw: string };
           const candidates: ContactCandidate[] = [
-            { normalized: normalizeContactKey(rawNumber), raw: rawNumber },
+            { normalized: normalizeCdrNumber(rawNumber), raw: rawNumber },
             { normalized: callerNormalized, raw: rawCaller },
-            { normalized: normalizeContactKey(rawCallee), raw: rawCallee }
+            { normalized: calleeNormalized, raw: rawCallee }
           ];
 
           let contactNormalized = '';
@@ -4952,7 +4947,9 @@ useEffect(() => {
             return false;
           };
 
-          pickContact(false);
+          if (!pickContact(false)) {
+            pickContact(true);
+          }
 
           if (contactNormalized) {
             if (!excludeTrackedContacts || !trackedNumbersSet.has(contactNormalized)) {
@@ -5018,10 +5015,6 @@ useEffect(() => {
 
       const mergedContactsMap = new Map(contactsMap);
       contactSummariesMap.forEach((summary, key) => {
-        if (excludeTrackedContacts && trackedNumbersSet.has(key)) {
-          return;
-        }
-
         const entry =
           mergedContactsMap.get(key) || {
             number: summary.number || key,
