@@ -3754,8 +3754,6 @@ const CdrMap: React.FC<Props> = ({
                   <tr className="text-left">
                     <th className="pr-4">Numéro suivi</th>
                     <th className="pr-4">Contact</th>
-                    <th className="pr-4">numero_appelant</th>
-                    <th className="pr-4">numero appelé</th>
                     <th className="pr-4">Appels</th>
                     <th className="pr-4">Durée</th>
                     <th className="pr-4">SMS</th>
@@ -3791,8 +3789,6 @@ const CdrMap: React.FC<Props> = ({
                       >
                         <td className="pr-4">{formatPhoneForDisplay(c.tracked)}</td>
                         <td className="pr-4">{formatPhoneForDisplay(c.contact)}</td>
-                        <td className="pr-4">{c.tracked || '—'}</td>
-                        <td className="pr-4">{c.contact || '—'}</td>
                         <td className="pr-4">{c.callCount}</td>
                         <td className="pr-4">{c.callDuration}</td>
                         <td className="pr-4">{c.smsCount}</td>
