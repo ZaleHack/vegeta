@@ -2284,9 +2284,7 @@ const CdrMap: React.FC<Props> = ({
             return false;
           };
 
-          if (!pickContact(false)) {
-            pickContact(true);
-          }
+          pickContact(false);
 
           if (contactNormalized) {
             const key = `${trackedNormalized}|${contactNormalized}`;
