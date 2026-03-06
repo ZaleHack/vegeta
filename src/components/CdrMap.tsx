@@ -2411,10 +2411,21 @@ const CdrMap: React.FC<Props> = ({
     const supplementalContacts: Contact[] = [];
     const defaultTracked = selectedSource || sourceNumbers[0] || undefined;
     const trackedLabel = defaultTracked || 'summary';
+    const trackedNumbers = new Set(
+      sourceNumbers
+        .map((num) => normalizePhoneDigits(num) || num.trim())
+        .filter((num) => Boolean(num))
+    );
+    const defaultTrackedNormalized = defaultTracked
+      ? normalizePhoneDigits(defaultTracked) || defaultTracked.trim()
+      : '';
 
     contactSummaries.forEach((summary, index) => {
       const normalizedNumber = normalizePhoneDigits(summary.number) || summary.number.trim();
-      if (!normalizedNumber || normalizedContacts.has(normalizedNumber)) {
+      const matchesTracked =
+        (defaultTrackedNormalized && normalizedNumber === defaultTrackedNormalized) ||
+        trackedNumbers.has(normalizedNumber);
+      if (!normalizedNumber || normalizedContacts.has(normalizedNumber) || matchesTracked) {
         return;
       }
 
