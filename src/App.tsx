@@ -4903,7 +4903,7 @@ useEffect(() => {
           }
         });
       }
-      const excludeTrackedContacts = trackedNumbersSet.size >= 2;
+      const excludeTrackedContacts = trackedNumbersSet.size >= 1;
 
       const contactsMap = new Map<
         string,
@@ -4952,9 +4952,7 @@ useEffect(() => {
             return false;
           };
 
-          if (!pickContact(false)) {
-            pickContact(true);
-          }
+          pickContact(false);
 
           if (contactNormalized) {
             if (!excludeTrackedContacts || !trackedNumbersSet.has(contactNormalized)) {
@@ -5020,6 +5018,10 @@ useEffect(() => {
 
       const mergedContactsMap = new Map(contactsMap);
       contactSummariesMap.forEach((summary, key) => {
+        if (excludeTrackedContacts && trackedNumbersSet.has(key)) {
+          return;
+        }
+
         const entry =
           mergedContactsMap.get(key) || {
             number: summary.number || key,
