@@ -499,6 +499,9 @@ const formatPhoneForDisplay = (value?: string): string => {
   return value?.trim() || 'N/A';
 };
 
+const isSmsOnlyContact = (contact: { callCount: number; smsCount: number; ussdCount: number }): boolean =>
+  contact.smsCount > 0 && contact.callCount === 0 && contact.ussdCount === 0;
+
 const getArrowIcon = (angle: number) => {
   const size = 22;
   const icon = (
@@ -3824,6 +3827,7 @@ const CdrMap: React.FC<Props> = ({
                       toggleKey && showMeetingPoints && activeMeetingNumber === toggleKey;
                     const toggleValue = contactNumber || toggleKey;
                     const isActiveDetails = activeContactDetailsId === c.id;
+                    const displayRawSmsValue = isSmsOnlyContact(c);
                     return (
                       <tr
                         key={c.id}
@@ -3831,7 +3835,7 @@ const CdrMap: React.FC<Props> = ({
                       >
                         <td className="pr-4">{formatPhoneForDisplay(c.tracked)}</td>
                         <td className="pr-4">
-                          {c.smsCount > 0 ? c.contact?.trim() || '—' : formatPhoneForDisplay(c.contact)}
+                          {displayRawSmsValue ? c.contact?.trim() || '—' : formatPhoneForDisplay(c.contact)}
                         </td>
                         <td className="pr-4">{c.callCount}</td>
                         <td className="pr-4">{c.callDuration}</td>
@@ -3877,7 +3881,7 @@ const CdrMap: React.FC<Props> = ({
                     <div>
                       <p className="text-xs uppercase tracking-[0.35em] text-white/70">Contact sélectionné</p>
                       <p className="mt-2 text-2xl font-semibold">
-                        {selectedContactDetails.smsCount > 0
+                        {isSmsOnlyContact(selectedContactDetails)
                           ? selectedContactDetails.contact?.trim() || '—'
                           : formatPhoneForDisplay(selectedContactDetails.contact)}
                       </p>
