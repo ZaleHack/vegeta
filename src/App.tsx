@@ -4925,12 +4925,17 @@ useEffect(() => {
           const rawCallee = (p.callee ?? '').toString().trim();
 
           const callerNormalized = normalizeCdrNumber(rawCaller);
-          const calleeNormalized = normalizeCdrNumber(rawCallee);
+          const normalizeContactKey = (value: string) => {
+            const trimmed = value.trim();
+            if (!trimmed) return '';
+            const normalizedPhone = normalizeCdrNumber(trimmed);
+            return normalizedPhone || trimmed;
+          };
           type ContactCandidate = { normalized?: string; raw: string };
           const candidates: ContactCandidate[] = [
-            { normalized: normalizeCdrNumber(rawNumber), raw: rawNumber },
+            { normalized: normalizeContactKey(rawNumber), raw: rawNumber },
             { normalized: callerNormalized, raw: rawCaller },
-            { normalized: calleeNormalized, raw: rawCallee }
+            { normalized: normalizeContactKey(rawCallee), raw: rawCallee }
           ];
 
           let contactNormalized = '';
