@@ -4927,11 +4927,17 @@ useEffect(() => {
           const callerNormalized = normalizeCdrNumber(rawCaller);
           const calleeNormalized = normalizeCdrNumber(rawCallee);
           type ContactCandidate = { normalized?: string; raw: string };
-          const candidates: ContactCandidate[] = [
-            { normalized: normalizeCdrNumber(rawNumber), raw: rawNumber },
-            { normalized: callerNormalized, raw: rawCaller },
-            { normalized: calleeNormalized, raw: rawCallee }
-          ];
+          const candidates: ContactCandidate[] = eventType === 'sms'
+            ? [
+                { normalized: callerNormalized, raw: rawCaller },
+                { normalized: calleeNormalized, raw: rawCallee },
+                { normalized: normalizeCdrNumber(rawNumber), raw: rawNumber }
+              ]
+            : [
+                { normalized: normalizeCdrNumber(rawNumber), raw: rawNumber },
+                { normalized: callerNormalized, raw: rawCaller },
+                { normalized: calleeNormalized, raw: rawCallee }
+              ];
 
           let contactNormalized = '';
           let contactRaw = '';
