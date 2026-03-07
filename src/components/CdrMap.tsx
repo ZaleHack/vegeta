@@ -2263,16 +2263,6 @@ const CdrMap: React.FC<Props> = ({
           let contactNormalized = '';
           let contactRaw = '';
 
-          const resolveContactFromParties = () => {
-            if (callerNormalized && callerNormalized !== trackedKey) {
-              return { normalized: callerNormalized, raw: rawCaller || callerNormalized };
-            }
-            if (calleeNormalized && calleeNormalized !== trackedKey) {
-              return { normalized: calleeNormalized, raw: rawCallee || calleeNormalized };
-            }
-            return null;
-          };
-
           const pickContact = (allowTracked: boolean) => {
             for (const candidate of candidates) {
               if (!candidate.normalized) continue;
@@ -2285,11 +2275,7 @@ const CdrMap: React.FC<Props> = ({
           };
 
           if (!pickContact(false)) {
-            const partyContact = resolveContactFromParties();
-            if (partyContact) {
-              contactNormalized = partyContact.normalized;
-              contactRaw = partyContact.raw;
-            }
+            pickContact(true);
           }
 
           if (contactNormalized) {
