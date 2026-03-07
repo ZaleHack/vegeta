@@ -462,6 +462,14 @@ const normalizePhoneDigits = (value?: string): string => {
   return digits;
 };
 
+const normalizeContactKey = (value?: string): string => {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const normalizedDigits = normalizePhoneDigits(trimmed);
+  return normalizedDigits || trimmed.toLowerCase();
+};
+
 const getPointTrackedValue = (point: Point): string | undefined => {
   const tracked = point.tracked?.trim();
   if (tracked) return tracked;
@@ -2243,30 +2251,46 @@ const CdrMap: React.FC<Props> = ({
     contactEvents.forEach((p) => {
       if (!isLocationEventType(p.type)) {
         const trackedRaw = getPointTrackedValue(p) || '';
-        const trackedNormalized = normalizePhoneDigits(trackedRaw);
-        if (trackedNormalized) {
+        const trackedKey = normalizeContactKey(trackedRaw);
+        if (trackedKey) {
           const rawCaller = (p.caller || '').trim();
           const rawCallee = (p.callee || '').trim();
           const rawNumber = (p.number || '').trim();
 
-          const callerNormalized = normalizePhoneDigits(rawCaller);
-          const calleeNormalized = normalizePhoneDigits(rawCallee);
-          type ContactCandidate = { normalized?: string; raw: string };
+          const callerKey = normalizeContactKey(rawCaller);
+          const calleeKey = normalizeContactKey(rawCallee);
+          const normalizedEventType = (p.type || '').trim().toLowerCase();
+          const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
+
+          const preferredSmsContact = (() => {
+            if (!isSmsEvent) return null;
+            if (callerKey && callerKey === trackedKey) {
+              return { key: calleeKey, raw: rawCallee };
+            }
+            if (calleeKey && calleeKey === trackedKey) {
+              return { key: callerKey, raw: rawCaller };
+            }
+            return null;
+          })();
+
+          type ContactCandidate = { key?: string; raw: string };
+          const numberKey = normalizePhoneDigits(rawNumber);
           const candidates: ContactCandidate[] = [
-            { normalized: normalizePhoneDigits(rawNumber), raw: rawNumber },
-            { normalized: callerNormalized, raw: rawCaller },
-            { normalized: calleeNormalized, raw: rawCallee }
+            ...(preferredSmsContact ? [preferredSmsContact] : []),
+            { key: numberKey, raw: rawNumber },
+            { key: callerKey, raw: rawCaller },
+            { key: calleeKey, raw: rawCallee }
           ];
 
-          let contactNormalized = '';
+          let contactKey = '';
           let contactRaw = '';
 
           const pickContact = (allowTracked: boolean) => {
             for (const candidate of candidates) {
-              if (!candidate.normalized) continue;
-              if (!allowTracked && candidate.normalized === trackedNormalized) continue;
-              contactNormalized = candidate.normalized;
-              contactRaw = candidate.raw || candidate.normalized;
+              if (!candidate.key) continue;
+              if (!allowTracked && candidate.key === trackedKey) continue;
+              contactKey = candidate.key;
+              contactRaw = candidate.raw || candidate.key;
               return true;
             }
             return false;
@@ -2276,14 +2300,14 @@ const CdrMap: React.FC<Props> = ({
             pickContact(true);
           }
 
-          if (contactNormalized) {
-            const key = `${trackedNormalized}|${contactNormalized}`;
+          if (contactKey) {
+            const key = `${trackedKey}|${contactKey}`;
             const entry =
               contactMap.get(key) ||
               {
                 tracked: trackedRaw || undefined,
                 contact: contactRaw || undefined,
-                contactNormalized,
+                contactNormalized: contactKey,
                 callCount: 0,
                 smsCount: 0,
                 ussdCount: 0,
@@ -2297,10 +2321,8 @@ const CdrMap: React.FC<Props> = ({
             if (!entry.contact && contactRaw) {
               entry.contact = contactRaw;
             }
-            entry.contactNormalized = contactNormalized;
+            entry.contactNormalized = contactKey;
 
-            const normalizedEventType = (p.type || '').trim().toLowerCase();
-            const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
             const isUssdEvent = isUssdEventType(p.type);
             const isAudioEvent = !isSmsEvent && !isUssdEvent;
 
