@@ -2804,6 +2804,11 @@ const CdrMap: React.FC<Props> = ({
     return selectedContactDetails.events.slice(0, 6);
   }, [selectedContactDetails]);
 
+  const contactDetailRenderableTotal = useMemo(() => {
+    if (!selectedContactDetails) return 0;
+    return selectedContactDetails.events.length;
+  }, [selectedContactDetails]);
+
   const historyEvents = useMemo(() => {
     return displayedPoints
       .map((p) => ({
@@ -3892,7 +3897,7 @@ const CdrMap: React.FC<Props> = ({
                     <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-slate-800">
                       <span>Dernières interactions</span>
                       <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-                        {contactDetailEvents.length}/{selectedContactDetails.total} listés
+                        {contactDetailEvents.length}/{contactDetailRenderableTotal} listés
                       </span>
                     </div>
                     <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
