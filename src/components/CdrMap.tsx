@@ -515,6 +515,41 @@ const sanitizeContactEndpoint = (value?: string): string => {
   return trimmed;
 };
 
+const CONTACT_ENDPOINT_SEPARATOR = ' | ';
+
+const splitContactEndpoints = (value?: string): string[] => {
+  if (!value) return [];
+  return value
+    .split(CONTACT_ENDPOINT_SEPARATOR)
+    .map((candidate) => candidate.trim())
+    .filter(Boolean);
+};
+
+const mergeContactEndpoints = (existing?: string, incoming?: string): string | undefined => {
+  const values = [...splitContactEndpoints(existing), ...splitContactEndpoints(incoming)];
+  if (!values.length) return undefined;
+
+  const deduped = new Map<string, string>();
+  for (const value of values) {
+    const normalized = normalizePhoneDigits(value) || value.toLowerCase();
+    if (!deduped.has(normalized)) {
+      deduped.set(normalized, value);
+    }
+  }
+
+  return Array.from(deduped.values())
+    .sort((a, b) => (normalizePhoneDigits(a) || a).localeCompare(normalizePhoneDigits(b) || b))
+    .join(CONTACT_ENDPOINT_SEPARATOR);
+};
+
+const formatContactEndpointForDisplay = (value?: string, fallback?: string): string => {
+  const endpoints = splitContactEndpoints(value);
+  if (endpoints.length === 0) {
+    return formatPhoneForDisplay(fallback);
+  }
+  return endpoints.map((endpoint) => formatPhoneForDisplay(endpoint)).join(' / ');
+};
+
 const getArrowIcon = (angle: number) => {
   const size = 22;
   const icon = (
@@ -2318,12 +2353,8 @@ const CdrMap: React.FC<Props> = ({
             if (!entry.contact && contactRaw) {
               entry.contact = contactRaw;
             }
-            if (sender) {
-              entry.sender = sender;
-            }
-            if (receiver) {
-              entry.receiver = receiver;
-            }
+            entry.sender = mergeContactEndpoints(entry.sender, sender);
+            entry.receiver = mergeContactEndpoints(entry.receiver, receiver);
             entry.contactNormalized = contactNormalized;
 
             const normalizedEventType = (p.type || '').trim().toLowerCase();
@@ -3845,8 +3876,8 @@ const CdrMap: React.FC<Props> = ({
                         key={c.id}
                         className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
                       >
-                        <td className="pr-4">{formatPhoneForDisplay(c.sender || c.tracked)}</td>
-                        <td className="pr-4">{formatPhoneForDisplay(c.receiver || c.contact)}</td>
+                        <td className="pr-4">{formatContactEndpointForDisplay(c.sender, c.tracked)}</td>
+                        <td className="pr-4">{formatContactEndpointForDisplay(c.receiver, c.contact)}</td>
                         <td className="pr-4">{c.callCount}</td>
                         <td className="pr-4">{c.callDuration}</td>
                         <td className="pr-4">{c.smsCount}</td>
