@@ -54,6 +54,8 @@ interface Point {
   number?: string;
   caller?: string;
   callee?: string;
+  numero_appelant?: string;
+  numero_appele?: string;
   callDate: string;
   endDate?: string;
   startTime: string;
@@ -2307,6 +2309,9 @@ const CdrMap: React.FC<Props> = ({
             if (isSmsEvent) {
               entry.smsCount += 1;
               const timestamp = getPointTimestamp(p);
+              const smsSender = (p.caller || p.numero_appelant || '').trim();
+              const smsReceiver = (p.callee || p.numero_appele || '').trim();
+
               entry.events.push({
                 id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
                 timestamp,
@@ -2318,8 +2323,8 @@ const CdrMap: React.FC<Props> = ({
                 location: p.nom,
                 source: getPointSourceValue(p),
                 cell: p.cgi,
-                sender: p.caller,
-                receiver: p.callee
+                sender: smsSender || undefined,
+                receiver: smsReceiver || undefined
               });
             } else if (isUssdEvent) {
               entry.ussdCount += 1;
