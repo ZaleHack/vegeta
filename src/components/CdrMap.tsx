@@ -87,6 +87,8 @@ interface ContactCallDetail {
   location?: string;
   source?: string;
   cell?: string;
+  sender?: string;
+  receiver?: string;
 }
 
 interface Contact {
@@ -2304,6 +2306,21 @@ const CdrMap: React.FC<Props> = ({
 
             if (isSmsEvent) {
               entry.smsCount += 1;
+              const timestamp = getPointTimestamp(p);
+              entry.events.push({
+                id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
+                timestamp,
+                date: p.callDate,
+                time: p.startTime || p.endTime,
+                duration: null,
+                direction: p.direction,
+                type: p.type,
+                location: p.nom,
+                source: getPointSourceValue(p),
+                cell: p.cgi,
+                sender: p.caller,
+                receiver: p.callee
+              });
             } else if (isUssdEvent) {
               entry.ussdCount += 1;
             } else if (isAudioEvent) {
@@ -3873,21 +3890,36 @@ const CdrMap: React.FC<Props> = ({
                   </div>
                   <div className="mx-4 mb-4 rounded-2xl bg-white text-slate-900 shadow-xl dark:bg-slate-900 dark:text-white">
                     <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-slate-800">
-                      <span>Derniers appels</span>
+                      <span>Dernières interactions</span>
                       <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-                        {contactDetailEvents.length}/{selectedContactDetails.callCount} listés
+                        {contactDetailEvents.length}/{selectedContactDetails.total} listés
                       </span>
                     </div>
                     <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                       {contactDetailEvents.length > 0 ? (
                         contactDetailEvents.map((event) => {
                           const direction = (event.direction || '').toLowerCase();
-                          const Icon = direction === 'outgoing' ? PhoneOutgoing : PhoneIncoming;
+                          const normalizedType = (event.type || '').toLowerCase();
+                          const isSmsEvent = normalizedType === 'sms' || normalizedType.includes('sms');
+                          const Icon = isSmsEvent
+                            ? MessageSquare
+                            : direction === 'outgoing'
+                              ? PhoneOutgoing
+                              : PhoneIncoming;
                           const toneClasses =
-                            direction === 'outgoing'
+                            isSmsEvent
+                              ? 'bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-200'
+                              : direction === 'outgoing'
                               ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200'
                               : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200';
                           const dateLabel = event.date ? formatDate(event.date) : 'Date inconnue';
+                          const title = isSmsEvent
+                            ? direction === 'outgoing'
+                              ? 'SMS sortant'
+                              : 'SMS entrant'
+                            : direction === 'outgoing'
+                              ? 'Appel sortant'
+                              : 'Appel entrant';
                           return (
                             <div key={event.id} className="flex items-start gap-3 px-4 py-3">
                               <div className={`rounded-2xl p-2 ${toneClasses}`}>
@@ -3895,9 +3927,9 @@ const CdrMap: React.FC<Props> = ({
                               </div>
                               <div className="flex-1 text-sm">
                                 <div className="flex items-center justify-between text-sm font-semibold">
-                                  <span>{direction === 'outgoing' ? 'Appel sortant' : 'Appel entrant'}</span>
+                                  <span>{title}</span>
                                   <span className="text-xs text-slate-500 dark:text-slate-300">
-                                    {event.duration || 'Durée inconnue'}
+                                    {isSmsEvent ? '—' : event.duration || 'Durée inconnue'}
                                   </span>
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -3908,6 +3940,16 @@ const CdrMap: React.FC<Props> = ({
                                   <p className="text-sm text-slate-700 dark:text-slate-200">{event.location}</p>
                                 )}
                                 <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                  {isSmsEvent && event.sender && (
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
+                                      Émetteur {formatPhoneForDisplay(event.sender)}
+                                    </span>
+                                  )}
+                                  {isSmsEvent && event.receiver && (
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
+                                      Récepteur {formatPhoneForDisplay(event.receiver)}
+                                    </span>
+                                  )}
                                   {event.cell && (
                                     <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
                                       Cellule {event.cell}
