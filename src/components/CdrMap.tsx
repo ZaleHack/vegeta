@@ -2243,17 +2243,17 @@ const CdrMap: React.FC<Props> = ({
     contactEvents.forEach((p) => {
       if (!isLocationEventType(p.type)) {
         const trackedRaw = getPointTrackedValue(p) || '';
-        const trackedNormalized = normalizePhoneDigits(trackedRaw);
-        if (trackedNormalized) {
+        const trackedKey = normalizeSourceKey(trackedRaw);
+        if (trackedKey) {
           const rawCaller = (p.caller || '').trim();
           const rawCallee = (p.callee || '').trim();
           const rawNumber = (p.number || '').trim();
 
-          const callerNormalized = normalizePhoneDigits(rawCaller);
-          const calleeNormalized = normalizePhoneDigits(rawCallee);
+          const callerNormalized = normalizeSourceKey(rawCaller);
+          const calleeNormalized = normalizeSourceKey(rawCallee);
           type ContactCandidate = { normalized?: string; raw: string };
           const candidates: ContactCandidate[] = [
-            { normalized: normalizePhoneDigits(rawNumber), raw: rawNumber },
+            { normalized: normalizeSourceKey(rawNumber), raw: rawNumber },
             { normalized: callerNormalized, raw: rawCaller },
             { normalized: calleeNormalized, raw: rawCallee }
           ];
@@ -2264,7 +2264,7 @@ const CdrMap: React.FC<Props> = ({
           const pickContact = (allowTracked: boolean) => {
             for (const candidate of candidates) {
               if (!candidate.normalized) continue;
-              if (!allowTracked && candidate.normalized === trackedNormalized) continue;
+              if (!allowTracked && candidate.normalized === trackedKey) continue;
               contactNormalized = candidate.normalized;
               contactRaw = candidate.raw || candidate.normalized;
               return true;
@@ -2277,7 +2277,7 @@ const CdrMap: React.FC<Props> = ({
           }
 
           if (contactNormalized) {
-            const key = `${trackedNormalized}|${contactNormalized}`;
+            const key = `${trackedKey}|${contactNormalized}`;
             const entry =
               contactMap.get(key) ||
               {
@@ -3953,11 +3953,6 @@ const CdrMap: React.FC<Props> = ({
                                   {isSmsEvent && event.receiver && (
                                     <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
                                       Récepteur {formatPhoneForDisplay(event.receiver)}
-                                    </span>
-                                  )}
-                                  {event.cell && (
-                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
-                                      Cellule {event.cell}
                                     </span>
                                   )}
                                   {event.source && (
