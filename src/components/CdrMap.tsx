@@ -503,6 +503,14 @@ const formatPhoneForDisplay = (value?: string): string => {
   return value?.trim() || 'N/A';
 };
 
+const sanitizeContactEndpoint = (value?: string): string => {
+  const trimmed = (value || '').trim();
+  if (!trimmed || trimmed === '—' || trimmed === '-') {
+    return '';
+  }
+  return trimmed;
+};
+
 const getArrowIcon = (angle: number) => {
   const size = 22;
   const icon = (
@@ -2309,8 +2317,10 @@ const CdrMap: React.FC<Props> = ({
             if (isSmsEvent) {
               entry.smsCount += 1;
               const timestamp = getPointTimestamp(p);
-              const smsSender = (p.caller || p.numero_appelant || '').trim();
-              const smsReceiver = (p.callee || p.numero_appele || '').trim();
+              const smsSender =
+                sanitizeContactEndpoint(p.caller) || sanitizeContactEndpoint(p.numero_appelant);
+              const smsReceiver =
+                sanitizeContactEndpoint(p.numero_appele) || sanitizeContactEndpoint(p.callee);
 
               entry.events.push({
                 id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
