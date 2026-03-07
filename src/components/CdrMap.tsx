@@ -97,8 +97,6 @@ interface Contact {
   id: string;
   tracked?: string;
   contact?: string;
-  sender?: string;
-  receiver?: string;
   contactNormalized?: string;
   callCount: number;
   smsCount: number;
@@ -176,8 +174,6 @@ const NO_SOURCE_KEY = '__no_source__';
 type ContactAccumulator = {
   tracked?: string;
   contact?: string;
-  sender?: string;
-  receiver?: string;
   contactNormalized?: string;
   callCount: number;
   smsCount: number;
@@ -513,41 +509,6 @@ const sanitizeContactEndpoint = (value?: string): string => {
     return '';
   }
   return trimmed;
-};
-
-const CONTACT_ENDPOINT_SEPARATOR = ' | ';
-
-const splitContactEndpoints = (value?: string): string[] => {
-  if (!value) return [];
-  return value
-    .split(CONTACT_ENDPOINT_SEPARATOR)
-    .map((candidate) => candidate.trim())
-    .filter(Boolean);
-};
-
-const mergeContactEndpoints = (existing?: string, incoming?: string): string | undefined => {
-  const values = [...splitContactEndpoints(existing), ...splitContactEndpoints(incoming)];
-  if (!values.length) return undefined;
-
-  const deduped = new Map<string, string>();
-  for (const value of values) {
-    const normalized = normalizePhoneDigits(value) || value.toLowerCase();
-    if (!deduped.has(normalized)) {
-      deduped.set(normalized, value);
-    }
-  }
-
-  return Array.from(deduped.values())
-    .sort((a, b) => (normalizePhoneDigits(a) || a).localeCompare(normalizePhoneDigits(b) || b))
-    .join(CONTACT_ENDPOINT_SEPARATOR);
-};
-
-const formatContactEndpointForDisplay = (value?: string, fallback?: string): string => {
-  const endpoints = splitContactEndpoints(value);
-  if (endpoints.length === 0) {
-    return formatPhoneForDisplay(fallback);
-  }
-  return endpoints.map((endpoint) => formatPhoneForDisplay(endpoint)).join(' / ');
 };
 
 const getArrowIcon = (angle: number) => {
@@ -2332,8 +2293,6 @@ const CdrMap: React.FC<Props> = ({
               {
                 tracked: trackedRaw || undefined,
                 contact: contactRaw || undefined,
-                sender: undefined,
-                receiver: undefined,
                 contactNormalized,
                 callCount: 0,
                 smsCount: 0,
@@ -2342,19 +2301,12 @@ const CdrMap: React.FC<Props> = ({
                 events: []
               };
 
-            const sender =
-              sanitizeContactEndpoint(p.caller) || sanitizeContactEndpoint(p.numero_appelant);
-            const receiver =
-              sanitizeContactEndpoint(p.callee) || sanitizeContactEndpoint(p.numero_appele);
-
             if (!entry.tracked && trackedRaw) {
               entry.tracked = trackedRaw;
             }
             if (!entry.contact && contactRaw) {
               entry.contact = contactRaw;
             }
-            entry.sender = mergeContactEndpoints(entry.sender, sender);
-            entry.receiver = mergeContactEndpoints(entry.receiver, receiver);
             entry.contactNormalized = contactNormalized;
 
             const normalizedEventType = (p.type || '').trim().toLowerCase();
@@ -2365,8 +2317,10 @@ const CdrMap: React.FC<Props> = ({
             if (isSmsEvent) {
               entry.smsCount += 1;
               const timestamp = getPointTimestamp(p);
-              const smsSender = sender;
-              const smsReceiver = receiver;
+              const smsSender =
+                sanitizeContactEndpoint(p.caller) || sanitizeContactEndpoint(p.numero_appelant);
+              const smsReceiver =
+                sanitizeContactEndpoint(p.numero_appele) || sanitizeContactEndpoint(p.callee);
 
               entry.events.push({
                 id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
@@ -2398,9 +2352,7 @@ const CdrMap: React.FC<Props> = ({
                 type: p.type,
                 location: p.nom,
                 source: getPointSourceValue(p),
-                cell: p.cgi,
-                sender: sender || undefined,
-                receiver: receiver || undefined
+                cell: p.cgi
               });
             }
 
@@ -2463,8 +2415,6 @@ const CdrMap: React.FC<Props> = ({
         id,
         tracked: c.tracked,
         contact: c.contact,
-        sender: c.sender,
-        receiver: c.receiver,
         contactNormalized: c.contactNormalized,
         callCount: c.callCount,
         smsCount: c.smsCount,
@@ -2505,8 +2455,6 @@ const CdrMap: React.FC<Props> = ({
         id: `${trackedLabel}|${normalizedNumber}|summary-${index}`,
         tracked: defaultTracked,
         contact: summary.number,
-        sender: undefined,
-        receiver: undefined,
         contactNormalized: normalizedNumber,
         callCount: summary.callCount ?? 0,
         smsCount: summary.smsCount ?? 0,
@@ -3841,8 +3789,8 @@ const CdrMap: React.FC<Props> = ({
               <table className="min-w-full border-collapse">
                 <thead>
                   <tr className="text-left">
-                    <th className="pr-4">Émetteur</th>
-                    <th className="pr-4">Récepteur</th>
+                    <th className="pr-4">Numéro suivi</th>
+                    <th className="pr-4">Contact</th>
                     <th className="pr-4">Appels</th>
                     <th className="pr-4">Durée</th>
                     <th className="pr-4">SMS</th>
@@ -3876,8 +3824,8 @@ const CdrMap: React.FC<Props> = ({
                         key={c.id}
                         className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
                       >
-                        <td className="pr-4">{formatContactEndpointForDisplay(c.sender, c.tracked)}</td>
-                        <td className="pr-4">{formatContactEndpointForDisplay(c.receiver, c.contact)}</td>
+                        <td className="pr-4">{formatPhoneForDisplay(c.tracked)}</td>
+                        <td className="pr-4">{formatPhoneForDisplay(c.contact)}</td>
                         <td className="pr-4">{c.callCount}</td>
                         <td className="pr-4">{c.callDuration}</td>
                         <td className="pr-4">{c.smsCount}</td>
