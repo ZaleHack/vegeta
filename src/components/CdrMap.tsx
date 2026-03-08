@@ -87,18 +87,16 @@ interface ContactCallDetail {
   location?: string;
   source?: string;
   cell?: string;
-  networkRoute?: string;
 }
 
 interface Contact {
   id: string;
-  emitter: string;
-  destinataire: string;
-  emitterNormalized: string;
-  destinataireNormalized: string;
+  tracked?: string;
+  contact?: string;
+  contactNormalized?: string;
   callCount: number;
   smsCount: number;
-  meetingCount: number;
+  ussdCount: number;
   callDuration: string;
   total: number;
   events: ContactCallDetail[];
@@ -170,12 +168,12 @@ interface TriangulationCell {
 const NO_SOURCE_KEY = '__no_source__';
 
 type ContactAccumulator = {
-  emitter: string;
-  destinataire: string;
-  emitterNormalized: string;
-  destinataireNormalized: string;
+  tracked?: string;
+  contact?: string;
+  contactNormalized?: string;
   callCount: number;
   smsCount: number;
+  ussdCount: number;
   callDurationSeconds: number;
   events: ContactCallDetail[];
 };
@@ -460,15 +458,6 @@ const normalizePhoneDigits = (value?: string): string => {
     digits = digits.slice(3);
   }
   return digits;
-};
-
-const normalizeContactIdentifier = (value?: string): string => {
-  if (!value) return '';
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  const normalizedDigits = normalizePhoneDigits(trimmed);
-  if (normalizedDigits) return normalizedDigits;
-  return trimmed.toLowerCase().replace(/\s+/g, ' ');
 };
 
 const getPointTrackedValue = (point: Point): string | undefined => {
@@ -1528,16 +1517,15 @@ const CdrMap: React.FC<Props> = ({
       const normalizedType = (point.type || '').toLowerCase();
       const isLocationEvent = isLocationEventType(point.type);
       const isUssdEvent = isUssdEventType(point.type);
-      const isSmsEvent = normalizedType === 'sms';
       const eventTypeBase = isLocationEvent
         ? 'Position'
-        : isSmsEvent
+        : normalizedType === 'sms'
             ? 'SMS'
             : isUssdEvent
               ? 'USSD'
               : 'Appel';
       const directionLabel =
-        point.direction && !isLocationEvent && !isUssdEvent && !isSmsEvent
+        point.direction && !isLocationEvent && !isUssdEvent
           ? point.direction === 'outgoing'
             ? 'Sortant'
             : 'Entrant'
@@ -2227,70 +2215,116 @@ const CdrMap: React.FC<Props> = ({
   };
 
   const { topContacts, topLocations, recentLocations, total } = useMemo(() => {
-    const PAIR_MEETING_WINDOW_MS = 15 * 60 * 1000;
     const contactMap = new Map<string, ContactAccumulator>();
     const locationMap = new Map<string, LocationStat>();
     const displayedSet = new Set(displayedPoints);
+    const normalizedSelected = normalizePhoneDigits(selectedSource ?? '');
     let contactEvents = contactPoints;
+    if (selectedSource && normalizedSelected) {
+      const filtered = points.filter((point) => {
+        const trackedNormalized = normalizePhoneDigits(point.tracked);
+        if (!trackedNormalized || trackedNormalized !== normalizedSelected) {
+          return false;
+        }
+        return true;
+      });
+
+      if (filtered.length > 0) {
+        const merged = new Set(contactEvents);
+        filtered.forEach((p) => merged.add(p));
+        contactEvents = Array.from(merged);
+      }
+    }
 
     const contactSet = new Set(contactEvents);
     contactEvents.forEach((p) => {
       if (!isLocationEventType(p.type)) {
-        const callerRaw = (p.caller || '').trim();
-        const calleeRaw = (p.callee || '').trim();
-        const callerNormalized = normalizePhoneDigits(callerRaw);
-        const calleeNormalized = normalizePhoneDigits(calleeRaw);
-        if (callerNormalized && calleeNormalized) {
-          const [emitterNormalized, destinataireNormalized] =
-            callerNormalized <= calleeNormalized
-              ? [callerNormalized, calleeNormalized]
-              : [calleeNormalized, callerNormalized];
-          const emitterRaw = callerNormalized <= calleeNormalized ? callerRaw : calleeRaw;
-          const destinataireRaw = callerNormalized <= calleeNormalized ? calleeRaw : callerRaw;
-          const key = `${emitterNormalized}|${destinataireNormalized}`;
-          const entry =
-            contactMap.get(key) ||
-            {
-              emitter: emitterRaw || emitterNormalized,
-              destinataire: destinataireRaw || destinataireNormalized,
-              emitterNormalized,
-              destinataireNormalized,
-              callCount: 0,
-              smsCount: 0,
-              callDurationSeconds: 0,
-              events: []
-            };
+        const trackedRaw = getPointTrackedValue(p) || '';
+        const trackedNormalized = normalizePhoneDigits(trackedRaw);
+        if (trackedNormalized) {
+          const rawCaller = (p.caller || '').trim();
+          const rawCallee = (p.callee || '').trim();
+          const rawNumber = (p.number || '').trim();
 
-          const normalizedEventType = (p.type || '').trim().toLowerCase();
-          const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
-          const isAudioEvent = !isSmsEvent && !isUssdEventType(p.type);
+          const callerNormalized = normalizePhoneDigits(rawCaller);
+          const calleeNormalized = normalizePhoneDigits(rawCallee);
+          type ContactCandidate = { normalized?: string; raw: string };
+          const candidates: ContactCandidate[] = [
+            { normalized: normalizePhoneDigits(rawNumber), raw: rawNumber },
+            { normalized: callerNormalized, raw: rawCaller },
+            { normalized: calleeNormalized, raw: rawCallee }
+          ];
 
-          if (isSmsEvent || isAudioEvent) {
-            const timestamp = getPointTimestamp(p);
-            if (isSmsEvent) {
-              entry.smsCount += 1;
+          let contactNormalized = '';
+          let contactRaw = '';
+
+          const pickContact = (allowTracked: boolean) => {
+            for (const candidate of candidates) {
+              if (!candidate.normalized) continue;
+              if (!allowTracked && candidate.normalized === trackedNormalized) continue;
+              contactNormalized = candidate.normalized;
+              contactRaw = candidate.raw || candidate.normalized;
+              return true;
             }
-            if (isAudioEvent) {
-              entry.callCount += 1;
-              entry.callDurationSeconds += getPointDurationInSeconds(p);
-            }
+            return false;
+          };
 
-            entry.events.push({
-              id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
-              timestamp,
-              date: p.callDate,
-              time: p.startTime || p.endTime,
-              duration: isAudioEvent ? formatPointDuration(p) : null,
-              direction: p.direction,
-              type: p.type,
-              location: p.nom,
-              source: getPointSourceValue(p),
-              cell: p.cgi,
-              networkRoute: p.networkRoute
-            });
+          if (!pickContact(false)) {
+            pickContact(true);
           }
 
-          contactMap.set(key, entry);
+          if (contactNormalized) {
+            const key = `${trackedNormalized}|${contactNormalized}`;
+            const entry =
+              contactMap.get(key) ||
+              {
+                tracked: trackedRaw || undefined,
+                contact: contactRaw || undefined,
+                contactNormalized,
+                callCount: 0,
+                smsCount: 0,
+                ussdCount: 0,
+                callDurationSeconds: 0,
+                events: []
+              };
+
+            if (!entry.tracked && trackedRaw) {
+              entry.tracked = trackedRaw;
+            }
+            if (!entry.contact && contactRaw) {
+              entry.contact = contactRaw;
+            }
+            entry.contactNormalized = contactNormalized;
+
+            const normalizedEventType = (p.type || '').trim().toLowerCase();
+            const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
+            const isUssdEvent = isUssdEventType(p.type);
+            const isAudioEvent = !isSmsEvent && !isUssdEvent;
+
+            if (isSmsEvent) {
+              entry.smsCount += 1;
+            } else if (isUssdEvent) {
+              entry.ussdCount += 1;
+            } else if (isAudioEvent) {
+              entry.callCount += 1;
+              entry.callDurationSeconds += getPointDurationInSeconds(p);
+              const timestamp = getPointTimestamp(p);
+              entry.events.push({
+                id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
+                timestamp,
+                date: p.callDate,
+                time: p.startTime || p.endTime,
+                duration: formatPointDuration(p),
+                direction: p.direction,
+                type: p.type,
+                location: p.nom,
+                source: getPointSourceValue(p),
+                cell: p.cgi
+              });
+            }
+
+            contactMap.set(key, entry);
+          }
         }
       }
 
@@ -2346,48 +2380,59 @@ const CdrMap: React.FC<Props> = ({
     const contacts: Contact[] = Array.from(contactMap.entries())
       .map(([id, c]) => ({
         id,
-        emitter: c.emitter,
-        destinataire: c.destinataire,
-        emitterNormalized: c.emitterNormalized,
-        destinataireNormalized: c.destinataireNormalized,
+        tracked: c.tracked,
+        contact: c.contact,
+        contactNormalized: c.contactNormalized,
         callCount: c.callCount,
         smsCount: c.smsCount,
-        meetingCount: 0,
+        ussdCount: c.ussdCount,
         callDuration: formatDuration(c.callDurationSeconds),
-        total: c.callCount + c.smsCount,
+        total: c.callCount + c.smsCount + c.ussdCount,
         events: c.events.slice().sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
       }))
       .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total);
-    const mergedContacts = contacts
-      .map((contact) => {
-        const eventsWithCells = contact.events
-          .filter((event) => Boolean(event.cell) && Boolean(event.timestamp))
-          .map((event) => ({
-            cell: (event.cell || '').trim(),
-            timestamp: event.timestamp || 0
-          }))
-          .sort((a, b) => a.timestamp - b.timestamp);
-        let meetingCount = 0;
-        let lastMeetingAt: number | null = null;
-        eventsWithCells.forEach((event) => {
-          if (lastMeetingAt === null) {
-            meetingCount += 1;
-            lastMeetingAt = event.timestamp;
-            return;
-          }
-          if (event.timestamp - lastMeetingAt > PAIR_MEETING_WINDOW_MS) {
-            meetingCount += 1;
-            lastMeetingAt = event.timestamp;
-          }
-        });
-        return {
-          ...contact,
-          total: contact.callCount + contact.smsCount,
-          meetingCount
-        };
-      })
-      .sort((a, b) => b.total - a.total);
+
+    const normalizedContacts = new Set(
+      contacts.map((c) => normalizePhoneDigits(c.contact) || c.contactNormalized || '')
+    );
+
+    const supplementalContacts: Contact[] = [];
+    const defaultTracked = selectedSource || sourceNumbers[0] || undefined;
+    const trackedLabel = defaultTracked || 'summary';
+
+    contactSummaries.forEach((summary, index) => {
+      const normalizedNumber = normalizePhoneDigits(summary.number) || summary.number.trim();
+      if (!normalizedNumber || normalizedContacts.has(normalizedNumber)) {
+        return;
+      }
+
+      const summaryDurationSeconds =
+        summary.callDurationSeconds ??
+        parseDurationToSeconds(summary.callDuration || '') ??
+        0;
+      const summaryCallMinutes =
+        summaryDurationSeconds > 0 ? Math.ceil(summaryDurationSeconds / 60) : 0;
+      const fallbackTotal =
+        summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0);
+      const summaryTotal =
+        summaryCallMinutes > 0 ? summaryCallMinutes + (summary.smsCount ?? 0) : fallbackTotal;
+
+      supplementalContacts.push({
+        id: `${trackedLabel}|${normalizedNumber}|summary-${index}`,
+        tracked: defaultTracked,
+        contact: summary.number,
+        contactNormalized: normalizedNumber,
+        callCount: summary.callCount ?? 0,
+        smsCount: summary.smsCount ?? 0,
+        ussdCount: 0,
+        callDuration: formatDuration(summaryDurationSeconds),
+        total: summaryTotal,
+        events: summary.events || []
+      });
+    });
+
+    const mergedContacts = [...contacts, ...supplementalContacts].sort((a, b) => b.total - a.total);
 
     const allLocations = Array.from(locationMap.values()).filter(
       (loc) =>
@@ -2738,7 +2783,7 @@ const CdrMap: React.FC<Props> = ({
 
   const contactDetailEvents = useMemo(() => {
     if (!selectedContactDetails) return [] as ContactCallDetail[];
-    return selectedContactDetails.events;
+    return selectedContactDetails.events.slice(0, 6);
   }, [selectedContactDetails]);
 
   const historyEvents = useMemo(() => {
@@ -3706,8 +3751,8 @@ const CdrMap: React.FC<Props> = ({
               <table className="min-w-full border-collapse">
                 <thead>
                   <tr className="text-left">
-                    <th className="pr-4">Émetteur</th>
-                    <th className="pr-4">Destinataire</th>
+                    <th className="pr-4">Numéro suivi</th>
+                    <th className="pr-4">Contact</th>
                     <th className="pr-4">Appels</th>
                     <th className="pr-4">Durée</th>
                     <th className="pr-4">SMS</th>
@@ -3719,18 +3764,48 @@ const CdrMap: React.FC<Props> = ({
                 <tbody>
                   {paginatedContacts.map((c, i) => {
                     const idx = (contactPage - 1) * pageSize + i;
+                    const contactNumber = c.contact?.trim() || '';
+                    const toggleKey = contactNumber
+                      ? normalizePhoneDigits(contactNumber) || contactNumber
+                      : c.contactNormalized || '';
+                    const meetingCount = toggleKey
+                      ? meetingPoints.filter((m) =>
+                          m.numbers.some((num) => {
+                            const normalized = normalizePhoneDigits(num);
+                            const candidate = normalized || num.trim();
+                            return candidate === toggleKey;
+                          })
+                        ).length
+                      : 0;
+                    const isActiveMeeting =
+                      toggleKey && showMeetingPoints && activeMeetingNumber === toggleKey;
+                    const toggleValue = contactNumber || toggleKey;
                     const isActiveDetails = activeContactDetailsId === c.id;
                     return (
                       <tr
                         key={c.id}
                         className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
                       >
-                        <td className="pr-4">{formatPhoneForDisplay(c.emitter)}</td>
-                        <td className="pr-4">{formatPhoneForDisplay(c.destinataire)}</td>
+                        <td className="pr-4">{formatPhoneForDisplay(c.tracked)}</td>
+                        <td className="pr-4">{formatPhoneForDisplay(c.contact)}</td>
                         <td className="pr-4">{c.callCount}</td>
                         <td className="pr-4">{c.callDuration}</td>
                         <td className="pr-4">{c.smsCount}</td>
-                        <td className="pr-4">{c.meetingCount}</td>
+                        <td className="pr-4">
+                          {meetingCount}
+                          {meetingCount > 0 && toggleValue && (
+                            <button
+                              className="ml-1 text-blue-600"
+                              onClick={() => handleToggleMeetingPoint(toggleValue)}
+                            >
+                              {isActiveMeeting ? (
+                                <EyeOff size={16} />
+                              ) : (
+                                <Eye size={16} />
+                              )}
+                            </button>
+                          )}
+                        </td>
                         <td className="pr-4">
                           <button
                             type="button"
@@ -3757,9 +3832,11 @@ const CdrMap: React.FC<Props> = ({
                     <div>
                       <p className="text-xs uppercase tracking-[0.35em] text-white/70">Contact sélectionné</p>
                       <p className="mt-2 text-2xl font-semibold">
-                        {formatPhoneForDisplay(selectedContactDetails.emitter)} ↔ {formatPhoneForDisplay(selectedContactDetails.destinataire)}
+                        {formatPhoneForDisplay(selectedContactDetails.contact)}
                       </p>
-                      <p className="text-sm text-white/80">Paire bidirectionnelle agrégée</p>
+                      <p className="text-sm text-white/80">
+                        Suivi via {formatPhoneForDisplay(selectedContactDetails.tracked)}
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -3795,21 +3872,20 @@ const CdrMap: React.FC<Props> = ({
                   </div>
                   <div className="mx-4 mb-4 rounded-2xl bg-white text-slate-900 shadow-xl dark:bg-slate-900 dark:text-white">
                     <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-slate-800">
-                      <span>Détails des événements</span>
+                      <span>Derniers appels</span>
                       <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-                        {contactDetailEvents.length}/{selectedContactDetails.callCount + selectedContactDetails.smsCount} listés
+                        {contactDetailEvents.length}/{selectedContactDetails.callCount} listés
                       </span>
                     </div>
                     <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                       {contactDetailEvents.length > 0 ? (
                         contactDetailEvents.map((event) => {
-                          const normalizedType = (event.type || '').trim().toLowerCase();
-                          const isSmsEvent = normalizedType === 'sms' || normalizedType.includes('sms');
-                          const Icon = isSmsEvent ? MessageSquare : Activity;
+                          const direction = (event.direction || '').toLowerCase();
+                          const Icon = direction === 'outgoing' ? PhoneOutgoing : PhoneIncoming;
                           const toneClasses =
-                            isSmsEvent
-                              ? 'bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-200'
-                              : 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200';
+                            direction === 'outgoing'
+                              ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200'
+                              : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200';
                           const dateLabel = event.date ? formatDate(event.date) : 'Date inconnue';
                           return (
                             <div key={event.id} className="flex items-start gap-3 px-4 py-3">
@@ -3818,9 +3894,9 @@ const CdrMap: React.FC<Props> = ({
                               </div>
                               <div className="flex-1 text-sm">
                                 <div className="flex items-center justify-between text-sm font-semibold">
-                                  <span>{isSmsEvent ? 'SMS' : 'Appel'}</span>
+                                  <span>{direction === 'outgoing' ? 'Appel sortant' : 'Appel entrant'}</span>
                                   <span className="text-xs text-slate-500 dark:text-slate-300">
-                                    {isSmsEvent ? 'Sans durée' : event.duration || 'Durée inconnue'}
+                                    {event.duration || 'Durée inconnue'}
                                   </span>
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -3836,11 +3912,6 @@ const CdrMap: React.FC<Props> = ({
                                       Cellule {event.cell}
                                     </span>
                                   )}
-                                  {event.networkRoute && (
-                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
-                                      Route {event.networkRoute}
-                                    </span>
-                                  )}
                                   {event.source && (
                                     <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
                                       {formatPhoneForDisplay(event.source)}
@@ -3853,7 +3924,7 @@ const CdrMap: React.FC<Props> = ({
                         })
                       ) : (
                         <p className="px-4 py-6 text-sm text-slate-500 dark:text-slate-300">
-                          Aucune interaction détaillée pour ce contact.
+                          Aucun appel détaillé pour ce contact.
                         </p>
                       )}
                     </div>
