@@ -1517,15 +1517,16 @@ const CdrMap: React.FC<Props> = ({
       const normalizedType = (point.type || '').toLowerCase();
       const isLocationEvent = isLocationEventType(point.type);
       const isUssdEvent = isUssdEventType(point.type);
+      const isSmsEvent = normalizedType === 'sms';
       const eventTypeBase = isLocationEvent
         ? 'Position'
-        : normalizedType === 'sms'
+        : isSmsEvent
             ? 'SMS'
             : isUssdEvent
               ? 'USSD'
               : 'Appel';
       const directionLabel =
-        point.direction && !isLocationEvent && !isUssdEvent
+        point.direction && !isLocationEvent && !isUssdEvent && !isSmsEvent
           ? point.direction === 'outgoing'
             ? 'Sortant'
             : 'Entrant'
