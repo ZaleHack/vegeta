@@ -2624,6 +2624,14 @@ const App: React.FC = () => {
     return sanitized ? `221${sanitized}` : '';
   }, []);
 
+  const normalizeCdrContactIdentifier = useCallback((value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    const normalizedNumber = normalizeCdrNumber(trimmed);
+    if (normalizedNumber) return normalizedNumber;
+    return trimmed.toLowerCase().replace(/\s+/g, ' ');
+  }, [normalizeCdrNumber]);
+
   const normalizeImei = useCallback((value: string) => {
     let sanitized = value.trim();
     if (!sanitized) return '';
@@ -4806,7 +4814,7 @@ useEffect(() => {
 
             const record = rawPoint as Record<string, unknown>;
             const candidate = normalizeOptionalTextField(record.number);
-            const normalizedCandidate = candidate ? normalizeCdrNumber(candidate) : '';
+            const normalizedCandidate = candidate ? normalizeCdrContactIdentifier(candidate) : '';
 
             if (normalizedCandidate && normalizedCandidate.startsWith('2214')) {
               return { ...record, number: null };
@@ -4924,11 +4932,11 @@ useEffect(() => {
           const rawCaller = (p.caller ?? '').toString().trim();
           const rawCallee = (p.callee ?? '').toString().trim();
 
-          const callerNormalized = normalizeCdrNumber(rawCaller);
-          const calleeNormalized = normalizeCdrNumber(rawCallee);
+          const callerNormalized = normalizeCdrContactIdentifier(rawCaller);
+          const calleeNormalized = normalizeCdrContactIdentifier(rawCallee);
           type ContactCandidate = { normalized?: string; raw: string };
           const candidates: ContactCandidate[] = [
-            { normalized: normalizeCdrNumber(rawNumber), raw: rawNumber },
+            { normalized: normalizeCdrContactIdentifier(rawNumber), raw: rawNumber },
             { normalized: callerNormalized, raw: rawCaller },
             { normalized: calleeNormalized, raw: rawCallee }
           ];
