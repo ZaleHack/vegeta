@@ -87,18 +87,19 @@ interface ContactCallDetail {
   location?: string;
   source?: string;
   cell?: string;
+  networkRoute?: string;
 }
 
 interface Contact {
   id: string;
-  tracked?: string;
-  contact?: string;
-  contactNormalized?: string;
+  emitter: string;
+  recipient: string;
   callCount: number;
   smsCount: number;
   ussdCount: number;
   callDuration: string;
   total: number;
+  meetingCount: number;
   events: ContactCallDetail[];
 }
 
@@ -167,10 +168,12 @@ interface TriangulationCell {
 
 const NO_SOURCE_KEY = '__no_source__';
 
+type ContactSortKey = 'emitter' | 'recipient' | 'callCount' | 'callDurationSeconds' | 'smsCount' | 'meetingCount' | 'total';
+type SortDirection = 'asc' | 'desc';
+
 type ContactAccumulator = {
-  tracked?: string;
-  contact?: string;
-  contactNormalized?: string;
+  emitter: string;
+  recipient: string;
   callCount: number;
   smsCount: number;
   ussdCount: number;
@@ -1491,6 +1494,8 @@ const CdrMap: React.FC<Props> = ({
   const [isSatellite, setIsSatellite] = useState(false);
   const [showLatestLocationDetailsPanel, setShowLatestLocationDetailsPanel] = useState(false);
   const [activeContactDetailsId, setActiveContactDetailsId] = useState<string | null>(null);
+  const [contactSortKey, setContactSortKey] = useState<ContactSortKey>('total');
+  const [contactSortDirection, setContactSortDirection] = useState<SortDirection>('desc');
   const renderEventPopupContent = useCallback(
     (point: Point, options: { compact?: boolean; showLocation?: boolean } = {}) => {
       const { compact = false } = options;
@@ -1695,6 +1700,15 @@ const CdrMap: React.FC<Props> = ({
 
   const handleContactDetailsToggle = (contactId: string) => {
     setActiveContactDetailsId((prev) => (prev === contactId ? null : contactId));
+  };
+
+  const handleContactSort = (key: ContactSortKey) => {
+    if (contactSortKey === key) {
+      setContactSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setContactSortKey(key);
+    setContactSortDirection(key === 'emitter' || key === 'recipient' ? 'asc' : 'desc');
   };
 
   const handleMeetingPointsClick = () => {
@@ -2249,104 +2263,69 @@ const CdrMap: React.FC<Props> = ({
     const contactSet = new Set(contactEvents);
     contactEvents.forEach((p) => {
       if (!isLocationEventType(p.type)) {
-        const trackedRaw = getPointTrackedValue(p) || '';
-        const trackedNormalized = normalizePhoneDigits(trackedRaw);
-        if (trackedNormalized) {
-          const rawCaller = (p.caller || '').trim();
-          const rawCallee = (p.callee || '').trim();
-          const rawNumber = (p.number || '').trim();
+        const rawCaller = (p.caller || '').trim();
+        const rawCallee = (p.callee || '').trim();
+        const callerNormalized = normalizeContactIdentifier(rawCaller);
+        const calleeNormalized = normalizeContactIdentifier(rawCallee);
 
-          const callerNormalized = normalizeContactIdentifier(rawCaller);
-          const calleeNormalized = normalizeContactIdentifier(rawCallee);
-          type ContactCandidate = { normalized?: string; raw: string };
-          const candidates: ContactCandidate[] = [
-            { normalized: normalizeContactIdentifier(rawNumber), raw: rawNumber },
-            { normalized: callerNormalized, raw: rawCaller },
-            { normalized: calleeNormalized, raw: rawCallee }
-          ];
+        if (callerNormalized && calleeNormalized) {
+          const [pairA, pairB] = [callerNormalized, calleeNormalized].sort((a, b) =>
+            a > b ? 1 : a < b ? -1 : 0
+          );
+          const key = `${pairA}|${pairB}`;
+          const entry =
+            contactMap.get(key) ||
+            {
+              emitter: pairA,
+              recipient: pairB,
+              callCount: 0,
+              smsCount: 0,
+              ussdCount: 0,
+              callDurationSeconds: 0,
+              events: []
+            };
 
-          let contactNormalized = '';
-          let contactRaw = '';
+          const normalizedEventType = (p.type || '').trim().toLowerCase();
+          const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
+          const isUssdEvent = isUssdEventType(p.type);
+          const isAudioEvent = !isSmsEvent && !isUssdEvent;
 
-          const pickContact = (allowTracked: boolean) => {
-            for (const candidate of candidates) {
-              if (!candidate.normalized) continue;
-              if (!allowTracked && candidate.normalized === trackedNormalized) continue;
-              contactNormalized = candidate.normalized;
-              contactRaw = candidate.raw || candidate.normalized;
-              return true;
-            }
-            return false;
-          };
-
-          if (!pickContact(false)) {
-            pickContact(true);
+          const timestamp = getPointTimestamp(p);
+          if (isSmsEvent) {
+            entry.smsCount += 1;
+            entry.events.push({
+              id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
+              timestamp,
+              date: p.callDate,
+              time: p.startTime || p.endTime,
+              duration: null,
+              type: p.type,
+              location: p.nom,
+              source: getPointSourceValue(p),
+              cell: p.cgi,
+              networkRoute: p.networkRoute
+            });
+          } else if (isUssdEvent) {
+            entry.ussdCount += 1;
+          } else if (isAudioEvent) {
+            entry.callCount += 1;
+            entry.callDurationSeconds += getPointDurationInSeconds(p);
+            entry.events.push({
+              id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
+              timestamp,
+              date: p.callDate,
+              time: p.startTime || p.endTime,
+              duration: formatPointDuration(p),
+              direction: p.direction,
+              type: p.type,
+              location: p.nom,
+              source: getPointSourceValue(p),
+              cell: p.cgi,
+              networkRoute: p.networkRoute
+            });
           }
 
-          if (contactNormalized) {
-            const key = `${trackedNormalized}|${contactNormalized}`;
-            const entry =
-              contactMap.get(key) ||
-              {
-                tracked: trackedRaw || undefined,
-                contact: contactRaw || undefined,
-                contactNormalized,
-                callCount: 0,
-                smsCount: 0,
-                ussdCount: 0,
-                callDurationSeconds: 0,
-                events: []
-              };
-
-            if (!entry.tracked && trackedRaw) {
-              entry.tracked = trackedRaw;
-            }
-            if (!entry.contact && contactRaw) {
-              entry.contact = contactRaw;
-            }
-            entry.contactNormalized = contactNormalized;
-
-            const normalizedEventType = (p.type || '').trim().toLowerCase();
-            const isSmsEvent = normalizedEventType === 'sms' || normalizedEventType.includes('sms');
-            const isUssdEvent = isUssdEventType(p.type);
-            const isAudioEvent = !isSmsEvent && !isUssdEvent;
-
-            if (isSmsEvent) {
-              entry.smsCount += 1;
-              const timestamp = getPointTimestamp(p);
-              entry.events.push({
-                id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
-                timestamp,
-                date: p.callDate,
-                time: p.startTime || p.endTime,
-                duration: null,
-                type: p.type,
-                location: p.nom,
-                source: getPointSourceValue(p),
-                cell: p.cgi
-              });
-            } else if (isUssdEvent) {
-              entry.ussdCount += 1;
-            } else if (isAudioEvent) {
-              entry.callCount += 1;
-              entry.callDurationSeconds += getPointDurationInSeconds(p);
-              const timestamp = getPointTimestamp(p);
-              entry.events.push({
-                id: `${key}-${entry.events.length + 1}-${timestamp ?? 'ts'}`,
-                timestamp,
-                date: p.callDate,
-                time: p.startTime || p.endTime,
-                duration: formatPointDuration(p),
-                direction: p.direction,
-                type: p.type,
-                location: p.nom,
-                source: getPointSourceValue(p),
-                cell: p.cgi
-              });
-            }
-
-            contactMap.set(key, entry);
-          }
+          contactMap.set(key, entry);
         }
       }
 
@@ -2402,59 +2381,27 @@ const CdrMap: React.FC<Props> = ({
     const contacts: Contact[] = Array.from(contactMap.entries())
       .map(([id, c]) => ({
         id,
-        tracked: c.tracked,
-        contact: c.contact,
-        contactNormalized: c.contactNormalized,
+        emitter: c.emitter,
+        recipient: c.recipient,
         callCount: c.callCount,
         smsCount: c.smsCount,
         ussdCount: c.ussdCount,
         callDuration: formatDuration(c.callDurationSeconds),
-        total: c.callCount + c.smsCount + c.ussdCount,
+        total: c.callCount + c.smsCount,
+        meetingCount: 0,
         events: c.events.slice().sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
       }))
-      .filter((c) => c.total > 0)
-      .sort((a, b) => b.total - a.total);
+      .filter((c) => c.total > 0);
 
-    const normalizedContacts = new Set(
-      contacts.map((c) => normalizeContactIdentifier(c.contact) || c.contactNormalized || '')
-    );
-
-    const supplementalContacts: Contact[] = [];
-    const defaultTracked = selectedSource || sourceNumbers[0] || undefined;
-    const trackedLabel = defaultTracked || 'summary';
-
-    contactSummaries.forEach((summary, index) => {
-      const normalizedNumber = normalizeContactIdentifier(summary.number) || summary.number.trim();
-      if (!normalizedNumber || normalizedContacts.has(normalizedNumber)) {
-        return;
-      }
-
-      const summaryDurationSeconds =
-        summary.callDurationSeconds ??
-        parseDurationToSeconds(summary.callDuration || '') ??
-        0;
-      const summaryCallMinutes =
-        summaryDurationSeconds > 0 ? Math.ceil(summaryDurationSeconds / 60) : 0;
-      const fallbackTotal =
-        summary.total ?? (summary.callCount ?? 0) + (summary.smsCount ?? 0);
-      const summaryTotal =
-        summaryCallMinutes > 0 ? summaryCallMinutes + (summary.smsCount ?? 0) : fallbackTotal;
-
-      supplementalContacts.push({
-        id: `${trackedLabel}|${normalizedNumber}|summary-${index}`,
-        tracked: defaultTracked,
-        contact: summary.number,
-        contactNormalized: normalizedNumber,
-        callCount: summary.callCount ?? 0,
-        smsCount: summary.smsCount ?? 0,
-        ussdCount: 0,
-        callDuration: formatDuration(summaryDurationSeconds),
-        total: summaryTotal,
-        events: summary.events || []
-      });
+    const contactsWithMeetings = contacts.map((contact) => {
+      const meetingCount = meetingPoints.filter((m) => {
+        const normalizedNumbers = m.numbers.map((num) => normalizePhoneDigits(num) || num.trim());
+        return normalizedNumbers.includes(contact.emitter) && normalizedNumbers.includes(contact.recipient);
+      }).length;
+      return { ...contact, meetingCount };
     });
 
-    const mergedContacts = [...contacts, ...supplementalContacts].sort((a, b) => b.total - a.total);
+    const mergedContacts = contactsWithMeetings.sort((a, b) => b.total - a.total);
 
     const allLocations = Array.from(locationMap.values()).filter(
       (loc) =>
@@ -2482,10 +2429,10 @@ const CdrMap: React.FC<Props> = ({
       total: displayedPoints.length
     };
   }, [
-    contactSummaries,
     sourceNumbers,
     contactPoints,
     displayedPoints,
+    meetingPoints,
     points,
     selectedSource
   ]);
@@ -2793,20 +2740,32 @@ const CdrMap: React.FC<Props> = ({
   const [routeTrackerStyle, setRouteTrackerStyle] = useState<'person' | 'car'>('person');
   const [historyDateFilter, setHistoryDateFilter] = useState('');
 
+  const sortedContacts = useMemo(() => {
+    const sorted = [...topContacts];
+    sorted.sort((a, b) => {
+      const direction = contactSortDirection === 'asc' ? 1 : -1;
+      if (contactSortKey === 'emitter' || contactSortKey === 'recipient') {
+        return direction * a[contactSortKey].localeCompare(b[contactSortKey]);
+      }
+      if (contactSortKey === 'callDurationSeconds') {
+        const aDuration = parseDurationToSeconds(a.callDuration);
+        const bDuration = parseDurationToSeconds(b.callDuration);
+        return direction * (aDuration - bDuration);
+      }
+      return direction * (a[contactSortKey] - b[contactSortKey]);
+    });
+    return sorted;
+  }, [topContacts, contactSortDirection, contactSortKey]);
+
   const paginatedContacts = useMemo(() => {
     const start = (contactPage - 1) * pageSize;
-    return topContacts.slice(start, start + pageSize);
-  }, [topContacts, contactPage, pageSize]);
+    return sortedContacts.slice(start, start + pageSize);
+  }, [sortedContacts, contactPage, pageSize]);
 
   const selectedContactDetails = useMemo(() => {
     if (!activeContactDetailsId) return null;
-    return topContacts.find((c) => c.id === activeContactDetailsId) ?? null;
-  }, [activeContactDetailsId, topContacts]);
-
-  const contactDetailEvents = useMemo(() => {
-    if (!selectedContactDetails) return [] as ContactCallDetail[];
-    return selectedContactDetails.events.slice(0, 6);
-  }, [selectedContactDetails]);
+    return sortedContacts.find((c) => c.id === activeContactDetailsId) ?? null;
+  }, [activeContactDetailsId, sortedContacts]);
 
   const historyEvents = useMemo(() => {
     return displayedPoints
@@ -3769,206 +3728,135 @@ const CdrMap: React.FC<Props> = ({
           )}
           {activeInfo === 'contacts' && topContacts.length > 0 && (
             <div>
-              <p className="font-semibold mb-2">Personnes en contact</p>
-              <table className="min-w-full border-collapse">
-                <thead>
-                  <tr className="text-left">
-                    <th className="pr-4">Numéro suivi</th>
-                    <th className="pr-4">Contact</th>
-                    <th className="pr-4">Appels</th>
-                    <th className="pr-4">Durée</th>
-                    <th className="pr-4">SMS</th>
-                    <th className="pr-4">Rencontres</th>
-                    <th className="pr-4">Détails</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedContacts.map((c, i) => {
-                    const idx = (contactPage - 1) * pageSize + i;
-                    const contactNumber = c.contact?.trim() || '';
-                    const toggleKey = contactNumber
-                      ? normalizeContactIdentifier(contactNumber) || contactNumber
-                      : c.contactNormalized || '';
-                    const meetingCount = toggleKey
-                      ? meetingPoints.filter((m) =>
-                          m.numbers.some((num) => {
-                            const normalized = normalizePhoneDigits(num);
-                            const candidate = normalized || num.trim();
-                            return candidate === toggleKey;
-                          })
-                        ).length
-                      : 0;
-                    const isActiveMeeting =
-                      toggleKey && showMeetingPoints && activeMeetingNumber === toggleKey;
-                    const toggleValue = contactNumber || toggleKey;
-                    const isActiveDetails = activeContactDetailsId === c.id;
-                    return (
-                      <tr
-                        key={c.id}
-                        className={`${idx === 0 ? 'font-bold text-blue-600' : ''} border-t`}
-                      >
-                        <td className="pr-4">{formatPhoneForDisplay(c.tracked)}</td>
-                        <td className="pr-4">{formatPhoneForDisplay(c.contact)}</td>
-                        <td className="pr-4">{c.callCount}</td>
-                        <td className="pr-4">{c.callDuration}</td>
-                        <td className="pr-4">{c.smsCount}</td>
-                        <td className="pr-4">
-                          {meetingCount}
-                          {meetingCount > 0 && toggleValue && (
+              <p className="mb-2 font-semibold">Personnes en contact</p>
+              <div className="overflow-x-auto rounded-2xl border border-slate-700/60 bg-slate-900/90 p-2 text-slate-100">
+                <table className="min-w-full border-collapse text-xs">
+                  <thead>
+                    <tr className="text-left text-slate-300">
+                      {[
+                        { key: 'emitter' as ContactSortKey, label: 'Émetteur' },
+                        { key: 'recipient' as ContactSortKey, label: 'Destinataire' },
+                        { key: 'callCount' as ContactSortKey, label: 'Appels' },
+                        { key: 'callDurationSeconds' as ContactSortKey, label: 'Durée (s)' },
+                        { key: 'smsCount' as ContactSortKey, label: 'SMS' },
+                        { key: 'meetingCount' as ContactSortKey, label: 'Rencontres' },
+                        { key: 'total' as ContactSortKey, label: 'Total' }
+                      ].map((column) => {
+                        const isActive = contactSortKey === column.key;
+                        const arrow = isActive ? (contactSortDirection === 'asc' ? '▲' : '▼') : '';
+                        return (
+                          <th key={column.key} className="pr-4 pb-2">
                             <button
-                              className="ml-1 text-blue-600"
-                              onClick={() => handleToggleMeetingPoint(toggleValue)}
+                              type="button"
+                              onClick={() => handleContactSort(column.key)}
+                              className="inline-flex items-center gap-1 font-semibold text-slate-200 hover:text-white"
                             >
-                              {isActiveMeeting ? (
-                                <EyeOff size={16} />
-                              ) : (
-                                <Eye size={16} />
-                              )}
+                              {column.label}
+                              <span className="text-[10px] text-slate-400">{arrow}</span>
                             </button>
-                          )}
-                        </td>
-                        <td className="pr-4">
-                          <button
-                            type="button"
-                            onClick={() => handleContactDetailsToggle(c.id)}
-                            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                              isActiveDetails
-                                ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-500/40'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                          >
-                            Voir
-                            <ArrowRight className="h-3 w-3" />
-                          </button>
-                        </td>
-                        <td>{c.total}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </th>
+                        );
+                      })}
+                      <th className="pb-2">Détails</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedContacts.map((c) => {
+                      const isActiveDetails = activeContactDetailsId === c.id;
+                      return (
+                        <tr key={c.id} className="border-t border-slate-700/60">
+                          <td className="pr-4 py-2">{formatPhoneForDisplay(c.emitter)}</td>
+                          <td className="pr-4 py-2">{formatPhoneForDisplay(c.recipient)}</td>
+                          <td className="pr-4 py-2">{c.callCount}</td>
+                          <td className="pr-4 py-2">{parseDurationToSeconds(c.callDuration)}</td>
+                          <td className="pr-4 py-2">{c.smsCount}</td>
+                          <td className="pr-4 py-2">{c.meetingCount}</td>
+                          <td className="pr-4 py-2">{c.total}</td>
+                          <td className="py-2">
+                            <button
+                              type="button"
+                              onClick={() => handleContactDetailsToggle(c.id)}
+                              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                                isActiveDetails
+                                  ? 'border-blue-500 bg-blue-600 text-white'
+                                  : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-blue-400 hover:text-white'
+                              }`}
+                            >
+                              Voir
+                              <ArrowRight className="h-3 w-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               {selectedContactDetails && (
-                <div className="mt-4 rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-2xl">
-                  <div className="flex items-start justify-between gap-3 p-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.35em] text-white/70">Contact sélectionné</p>
-                      <p className="mt-2 text-2xl font-semibold">
-                        {formatPhoneForDisplay(selectedContactDetails.contact)}
-                      </p>
-                      <p className="text-sm text-white/80">
-                        Suivi via {formatPhoneForDisplay(selectedContactDetails.tracked)}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveContactDetailsId(null)}
-                      className="rounded-full border border-white/40 p-1 text-white transition hover:bg-white/20"
-                      aria-label="Fermer les détails du contact"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="grid gap-3 px-4 pb-4 text-sm text-white/90 md:grid-cols-4">
-                    {[{
-                      label: 'Appels',
-                      value: selectedContactDetails.callCount
-                    },
-                    {
-                      label: 'Durée cumulée',
-                      value: selectedContactDetails.callDuration
-                    },
-                    {
-                      label: 'SMS',
-                      value: selectedContactDetails.smsCount
-                    },
-                    {
-                      label: 'Total interactions',
-                      value: selectedContactDetails.total
-                    }].map((stat) => (
-                      <div key={stat.label} className="rounded-2xl bg-white/15 p-3 text-center">
-                        <p className="text-[11px] uppercase tracking-wide text-white/70">{stat.label}</p>
-                        <p className="mt-1 text-2xl font-semibold">{stat.value}</p>
+                <div className="fixed inset-0 z-[1200] flex justify-end bg-black/50">
+                  <div className="h-full w-full max-w-xl overflow-y-auto bg-slate-950 p-5 text-slate-100 shadow-2xl">
+                    <div className="mb-4 flex items-start justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-slate-400">Détails CDR</p>
+                        <p className="text-lg font-semibold">
+                          {formatPhoneForDisplay(selectedContactDetails.emitter)} ↔ {formatPhoneForDisplay(selectedContactDetails.recipient)}
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                  <div className="mx-4 mb-4 rounded-2xl bg-white text-slate-900 shadow-xl dark:bg-slate-900 dark:text-white">
-                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-slate-800">
-                      <span>Dernières interactions</span>
-                      <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-                        {contactDetailEvents.length}/{selectedContactDetails.callCount + selectedContactDetails.smsCount} listés
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setActiveContactDetailsId(null)}
+                        className="rounded-full border border-slate-700 p-1 text-slate-200 hover:bg-slate-800"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
-                    <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
-                      {contactDetailEvents.length > 0 ? (
-                        contactDetailEvents.map((event) => {
+                    <div className="mb-4 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-xl bg-slate-800 p-2">Appels: {selectedContactDetails.callCount}</div>
+                      <div className="rounded-xl bg-slate-800 p-2">Durée: {parseDurationToSeconds(selectedContactDetails.callDuration)} s</div>
+                      <div className="rounded-xl bg-slate-800 p-2">SMS: {selectedContactDetails.smsCount}</div>
+                      <div className="rounded-xl bg-slate-800 p-2">Total: {selectedContactDetails.total}</div>
+                    </div>
+                    <div className="space-y-2">
+                      {selectedContactDetails.events.length > 0 ? (
+                        selectedContactDetails.events.map((event) => {
                           const normalizedType = (event.type || '').trim().toLowerCase();
                           const isSmsEvent = normalizedType === 'sms' || normalizedType.includes('sms');
-                          const Icon = isSmsEvent ? MessageSquare : Activity;
-                          const toneClasses =
-                            isSmsEvent
-                              ? 'bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-200'
-                              : 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200';
-                          const dateLabel = event.date ? formatDate(event.date) : 'Date inconnue';
                           return (
-                            <div key={event.id} className="flex items-start gap-3 px-4 py-3">
-                              <div className={`rounded-2xl p-2 ${toneClasses}`}>
-                                <Icon className="h-4 w-4" />
+                            <div key={event.id} className="rounded-xl border border-slate-700 bg-slate-900 p-3 text-xs">
+                              <div className="mb-1 flex items-center justify-between">
+                                <span className={`rounded-full px-2 py-0.5 font-semibold ${isSmsEvent ? 'bg-emerald-600/30 text-emerald-300' : 'bg-sky-600/30 text-sky-300'}`}>
+                                  {isSmsEvent ? 'SMS' : 'AUDIO'}
+                                </span>
+                                <span>{event.duration ? parseDurationToSeconds(event.duration) : 0}s</span>
                               </div>
-                              <div className="flex-1 text-sm">
-                                <div className="flex items-center justify-between text-sm font-semibold">
-                                  <span>{isSmsEvent ? 'SMS' : 'Appel'}</span>
-                                  <span className="text-xs text-slate-500 dark:text-slate-300">
-                                    {isSmsEvent ? 'Sans durée' : event.duration || 'Durée inconnue'}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                  {dateLabel}
-                                  {event.time ? ` • ${event.time}` : ''}
-                                </p>
-                                {event.location && (
-                                  <p className="text-sm text-slate-700 dark:text-slate-200">{event.location}</p>
-                                )}
-                                <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                                  {event.cell && (
-                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
-                                      Cellule {event.cell}
-                                    </span>
-                                  )}
-                                  {event.source && (
-                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
-                                      {formatPhoneForDisplay(event.source)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
+                              <p>{event.date ? formatDate(event.date) : 'Date inconnue'} {event.time || ''}</p>
+                              <p className="text-slate-400">CGI: {event.cell || 'N/A'} · Route: {event.networkRoute || 'N/A'}</p>
+                              <p className="text-slate-400">Source: {formatPhoneForDisplay(event.source)}</p>
                             </div>
                           );
                         })
                       ) : (
-                        <p className="px-4 py-6 text-sm text-slate-500 dark:text-slate-300">
-                          Aucune interaction détaillée pour ce contact.
-                        </p>
+                        <p className="text-sm text-slate-400">Aucune interaction détaillée pour ce contact.</p>
                       )}
                     </div>
                   </div>
                 </div>
               )}
-              <div className="flex justify-center items-center space-x-2 mt-2">
+              <div className="mt-2 flex items-center justify-center space-x-2">
                 <button
-                  className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                  className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-50"
                   onClick={() => setContactPage((p) => Math.max(1, p - 1))}
                   disabled={contactPage === 1}
                 >
                   Précédent
                 </button>
                 <span>
-                  Page {contactPage} / {Math.max(1, Math.ceil(topContacts.length / pageSize))}
+                  Page {contactPage} / {Math.max(1, Math.ceil(sortedContacts.length / pageSize))}
                 </span>
                 <button
-                  className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                  className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-50"
                   onClick={() => setContactPage((p) => p + 1)}
-                  disabled={contactPage >= Math.ceil(topContacts.length / pageSize)}
+                  disabled={contactPage >= Math.ceil(sortedContacts.length / pageSize)}
                 >
                   Suivant
                 </button>
