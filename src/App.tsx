@@ -587,8 +587,6 @@ interface CdrPoint {
   number?: string;
   caller?: string;
   callee?: string;
-  numero_appelant?: string;
-  numero_appele?: string;
   callDate: string;
   startTime: string;
   endTime: string;
@@ -1080,12 +1078,6 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
   const callee = normalizeOptionalTextField(
     getFirstDefinedValue(point, CALLEE_FIELD_CANDIDATES)
   );
-  const numeroAppelant = normalizeOptionalTextField(
-    getFirstDefinedValue(point, ['numero_appelant', 'numero appelant', 'numeroAppelant'])
-  );
-  const numeroAppele = normalizeOptionalTextField(
-    getFirstDefinedValue(point, ['numero_appele', 'numero appele', 'numeroAppelee'])
-  );
   const eventType = normalizeTextField(
     getFirstDefinedValue(point, TYPE_FIELD_CANDIDATES),
     ''
@@ -1100,8 +1092,6 @@ const normalizeCdrPointFields = (point: unknown, trackedId: string): CdrPoint | 
     number: normalizeOptionalTextField(record.number),
     caller,
     callee,
-    numero_appelant: numeroAppelant,
-    numero_appele: numeroAppele,
     callDate: normalizeTextField(record.callDate, ''),
     startTime: normalizeTextField(record.startTime, ''),
     endTime: normalizeTextField(record.endTime, ''),
