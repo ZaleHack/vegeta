@@ -234,3 +234,56 @@ test('Realtime CDR search ignores callee matches for position events', async () 
   assert.equal(result.path.length, 0);
   assert.equal(result.locations.length, 0);
 });
+
+test('Realtime CDR search includes SMS contacts when callee is a non-phone label', async () => {
+  const sampleRow = {
+    id: 5,
+    seq_number: 12,
+    type_appel: 'SMS',
+    statut_appel: null,
+    cause_liberation: null,
+    facturation: null,
+    date_debut_appel: '2024-08-01',
+    date_fin_appel: '2024-08-01',
+    heure_debut_appel: '10:30:00',
+    heure_fin_appel: '10:30:00',
+    duree_appel: '0',
+    numero_appelant: '770000000',
+    imei_appelant: null,
+    numero_appele: 'PROMO_ORANGE',
+    imsi_appelant: null,
+    cgi: null,
+    route_reseau: null,
+    device_id: null,
+    longitude: null,
+    latitude: null,
+    azimut: null,
+    nom_bts: null,
+    source_file: null,
+    inserted_at: '2024-08-01T10:30:00Z'
+  };
+
+  const databaseStub = {
+    async query(sql) {
+      if (/INFORMATION_SCHEMA\.COLUMNS/i.test(sql)) {
+        return [];
+      }
+      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`)) {
+        return [JSON.parse(JSON.stringify(sampleRow))];
+      }
+      throw new Error(`Unexpected SQL in test: ${sql}`);
+    }
+  };
+
+  const service = new RealtimeCdrService({
+    autoStart: false,
+    databaseClient: databaseStub
+  });
+
+  const result = await service.search('770000000', { limit: 10 });
+  assert.equal(result.total, 1);
+  assert.equal(result.contacts.length, 1);
+  assert.equal(result.contacts[0]?.number, 'PROMO_ORANGE');
+  assert.equal(result.contacts[0]?.smsCount, 1);
+  assert.equal(result.contacts[0]?.callCount, 0);
+});

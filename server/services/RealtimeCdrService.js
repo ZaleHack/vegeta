@@ -358,6 +358,15 @@ const normalizeForOutput = (value) => {
   return normalized || sanitized;
 };
 
+const normalizeContactForOutput = (value) => {
+  const normalized = normalizeForOutput(value);
+  if (normalized) {
+    return normalized;
+  }
+  const label = normalizeString(value);
+  return label || '';
+};
+
 const normalizeTimeBound = (value) => {
   if (!value) {
     return null;
@@ -2254,8 +2263,8 @@ class RealtimeCdrService {
     const normalizedType = searchType === 'imei' ? 'imei' : 'phone';
 
     for (const row of rows) {
-      const caller = row.numero_appelant ? normalizeForOutput(row.numero_appelant) : '';
-      const callee = row.numero_appele ? normalizeForOutput(row.numero_appele) : '';
+      const caller = row.numero_appelant ? normalizeContactForOutput(row.numero_appelant) : '';
+      const callee = row.numero_appele ? normalizeContactForOutput(row.numero_appele) : '';
 
       const eventType = resolveEventType(row.type_appel);
 
@@ -2290,7 +2299,7 @@ class RealtimeCdrService {
         otherNumber = callee || caller;
       }
 
-      const normalizedOtherNumber = otherNumber ? normalizeForOutput(otherNumber) : '';
+      const normalizedOtherNumber = otherNumber ? normalizeContactForOutput(otherNumber) : '';
       if (normalizedOtherNumber && (eventType === 'call' || eventType === 'sms')) {
         const entry = contactsMap.get(normalizedOtherNumber) || { callCount: 0, smsCount: 0 };
         if (eventType === 'sms') {
