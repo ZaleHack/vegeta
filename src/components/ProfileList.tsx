@@ -1281,24 +1281,24 @@ const ProfileList: React.FC<ProfileListProps> = ({
                       onDragLeave={event => handleDragLeaveFolder(event, folder.id)}
                       onDrop={event => handleDropOnFolder(event, folder)}
                       aria-dropeffect={draggedId !== null ? 'move' : undefined}
-                      className={`group relative isolate flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-slate-200/70 bg-gradient-to-br from-white/95 via-white/70 to-slate-100/60 p-[1px] shadow-lg shadow-slate-200/40 transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400/70 dark:border-slate-700/60 dark:from-slate-900/85 dark:via-slate-900/60 dark:to-slate-900/40 dark:shadow-slate-950/40 ${
+                      className={`group relative isolate flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-blue-200/90 bg-gradient-to-br from-blue-100 via-white to-indigo-100 p-[1px] shadow-xl shadow-blue-200/50 transition-all duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-slate-700/60 dark:from-slate-900/85 dark:via-slate-900/60 dark:to-slate-900/40 dark:shadow-slate-950/40 ${
                         active
-                          ? 'ring-2 ring-blue-400/70 shadow-2xl shadow-blue-300/40'
-                          : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-1 hover:ring-blue-200/60 dark:hover:ring-blue-500/40'
+                          ? 'ring-2 ring-blue-500 shadow-2xl shadow-blue-300/60'
+                          : 'hover:-translate-y-1 hover:shadow-2xl hover:ring-2 hover:ring-blue-300/70 dark:hover:ring-blue-500/40'
                       } ${
                         isFolderDropTarget ? 'ring-2 ring-purple-400/60 shadow-2xl shadow-purple-200/50 dark:shadow-purple-900/40' : ''
                       }`}
                     >
-                      <div className="relative flex h-full flex-col gap-4 rounded-[28px] bg-white/95 p-5 dark:bg-slate-950/60">
-                        <div className="pointer-events-none absolute inset-0 rounded-[28px] bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_65%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.22),transparent_65%)]" />
+                      <div className="relative flex h-full flex-col gap-4 rounded-[28px] bg-white p-5 dark:bg-slate-950/60">
+                        <div className="pointer-events-none absolute inset-0 rounded-[28px] bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.2),transparent_65%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.22),transparent_65%)]" />
                         {isFolderDropTarget && (
                           <div className="pointer-events-none absolute inset-0 rounded-[28px] border-2 border-dashed border-purple-400/70 bg-purple-500/10" />
                         )}
                         <div className="relative flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
                             <span
-                              className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/10 via-indigo-500/20 to-purple-500/20 text-blue-600 shadow-inner shadow-blue-500/20 transition dark:text-blue-200 ${
-                                active ? 'ring-2 ring-blue-400/60' : ''
+                              className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/25 via-indigo-500/30 to-cyan-500/25 text-blue-800 shadow-md shadow-blue-300/50 transition dark:text-blue-200 ${
+                                active ? 'ring-2 ring-blue-500' : ''
                               }`}
                             >
                               <Folder className="h-5 w-5" />
