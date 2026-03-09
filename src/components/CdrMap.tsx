@@ -2236,17 +2236,29 @@ const CdrMap: React.FC<Props> = ({
     const contactSet = new Set(contactEvents);
     contactEvents.forEach((p) => {
       if (!isLocationEventType(p.type)) {
-        const callerRaw = (p.caller || '').trim();
-        const calleeRaw = (p.callee || '').trim();
-        const callerNormalized = normalizePhoneDigits(callerRaw);
-        const calleeNormalized = normalizePhoneDigits(calleeRaw);
-        if (callerNormalized && calleeNormalized) {
-          const [emitterNormalized, destinataireNormalized] =
-            callerNormalized <= calleeNormalized
-              ? [callerNormalized, calleeNormalized]
-              : [calleeNormalized, callerNormalized];
-          const emitterRaw = callerNormalized <= calleeNormalized ? callerRaw : calleeRaw;
-          const destinataireRaw = callerNormalized <= calleeNormalized ? calleeRaw : callerRaw;
+        const partyCandidates: Array<{ raw: string; normalized: string }> = [];
+        const pushPartyCandidate = (rawValue?: string) => {
+          const raw = rawValue?.trim();
+          if (!raw) return;
+          const normalized = normalizeContactIdentifier(raw);
+          if (!normalized) return;
+          if (partyCandidates.some((candidate) => candidate.normalized === normalized)) return;
+          partyCandidates.push({ raw, normalized });
+        };
+
+        pushPartyCandidate(p.caller);
+        pushPartyCandidate(p.callee);
+        pushPartyCandidate(p.number);
+        pushPartyCandidate(getPointTrackedValue(p));
+
+        if (partyCandidates.length >= 2) {
+          const [first, second] = partyCandidates
+            .slice(0, 2)
+            .sort((a, b) => a.normalized.localeCompare(b.normalized));
+          const emitterNormalized = first.normalized;
+          const destinataireNormalized = second.normalized;
+          const emitterRaw = first.raw;
+          const destinataireRaw = second.raw;
           const key = `${emitterNormalized}|${destinataireNormalized}`;
           const entry =
             contactMap.get(key) ||
