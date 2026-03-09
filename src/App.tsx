@@ -1036,6 +1036,32 @@ const formatSecondsAsDuration = (seconds: number): string => {
   return parts.length > 0 ? parts.join(' ') : '-';
 };
 
+const normalizeContactAggregationKey = (
+  value: string,
+  normalizeCdrNumberFn: (candidate: string) => string
+): string => {
+  const raw = value.trim();
+  if (!raw) return '';
+
+  const normalizedNumber = normalizeCdrNumberFn(raw);
+  if (normalizedNumber) {
+    return `num:${normalizedNumber}`;
+  }
+
+  if (/^\[orange(m)?\]$/i.test(raw)) {
+    return 'label:[orange-group]';
+  }
+
+  return `label:${raw.toLowerCase()}`;
+};
+
+const getContactDisplayLabel = (key: string, fallbackRaw: string): string => {
+  if (key === 'label:[orange-group]') {
+    return '[Orange] ou [OrangeM]';
+  }
+  return fallbackRaw || key;
+};
+
 const normalizeCdrContactFields = (
   point: unknown,
   trackedId: string
@@ -4831,22 +4857,24 @@ useEffect(() => {
           apiContacts.forEach((contact: any) => {
             if (!contact || typeof contact !== 'object') return;
             const number = normalizeOptionalTextField(contact.number);
-            const normalized = number ? normalizeCdrNumber(number) : '';
-            if (!normalized) return;
+            if (!number) return;
+
+            const key = normalizeContactAggregationKey(number, normalizeCdrNumber);
+            if (!key) return;
 
             const callCount = Number(contact.callCount ?? 0);
             const smsCount = Number(contact.smsCount ?? 0);
             const existing =
-              contactSummariesMap.get(normalized) || {
-                number: number || normalized,
+              contactSummariesMap.get(key) || {
+                number: getContactDisplayLabel(key, number),
                 callCount: 0,
                 smsCount: 0,
                 callDurationSeconds: 0,
                 events: []
               };
 
-            if (number && (!existing.number || existing.number === normalized)) {
-              existing.number = number;
+            if (number && (!existing.number || existing.number === key)) {
+              existing.number = getContactDisplayLabel(key, number);
             }
 
             if (!Number.isNaN(callCount)) {
@@ -4876,7 +4904,7 @@ useEffect(() => {
                 existing.callDurationSeconds += durationSeconds;
               }
 
-              const eventId = `${normalized}-${existing.events.length + index + 1}-${eventDate || 'event'}`;
+              const eventId = `${key}-${existing.events.length + index + 1}-${eventDate || 'event'}`;
               existing.events.push({
                 id: eventId,
                 date: eventDate,
@@ -4887,21 +4915,11 @@ useEffect(() => {
               });
             });
 
-            contactSummariesMap.set(normalized, existing);
+            contactSummariesMap.set(key, existing);
           });
         } else {
           setCdrError(data.error || 'Erreur lors de la recherche');
         }
-      }
-
-      const trackedNumbersSet = new Set<string>();
-      if (isPhoneSearch) {
-        ids.forEach((value) => {
-          const normalized = normalizeCdrNumber(value);
-          if (normalized) {
-            trackedNumbersSet.add(normalized);
-          }
-        });
       }
 
       const contactsMap = new Map<
@@ -4923,47 +4941,51 @@ useEffect(() => {
           const rawCaller = (p.caller ?? '').toString().trim();
           const rawCallee = (p.callee ?? '').toString().trim();
 
-          const callerNormalized = normalizeCdrNumber(rawCaller);
-          const calleeNormalized = normalizeCdrNumber(rawCallee);
-          type ContactCandidate = { normalized?: string; raw: string };
-          const candidates: ContactCandidate[] = [
-            { normalized: normalizeCdrNumber(rawNumber), raw: rawNumber },
-            { normalized: callerNormalized, raw: rawCaller },
-            { normalized: calleeNormalized, raw: rawCallee }
-          ];
-
-          let contactNormalized = '';
-          let contactRaw = '';
-
-          const pickContact = (allowTracked: boolean) => {
-            for (const candidate of candidates) {
-              if (!candidate.normalized) continue;
-              if (!allowTracked && candidate.normalized === trackedNormalized) continue;
-              contactNormalized = candidate.normalized;
-              contactRaw = candidate.raw || candidate.normalized;
-              return true;
-            }
-            return false;
+          type ContactCandidate = { key: string; raw: string };
+          const candidateRawByKey = new Map<string, string>();
+          const addCandidate = (raw: string) => {
+            if (!raw) return;
+            const aggregationKey = normalizeContactAggregationKey(raw, normalizeCdrNumber);
+            if (!aggregationKey || candidateRawByKey.has(aggregationKey)) return;
+            candidateRawByKey.set(aggregationKey, raw);
           };
 
-          if (!pickContact(false)) {
-            pickContact(true);
+          addCandidate(rawNumber);
+          addCandidate(rawCaller);
+          addCandidate(rawCallee);
+
+          const candidates: ContactCandidate[] = Array.from(candidateRawByKey.entries()).map(([key, raw]) => ({
+            key,
+            raw
+          }));
+
+          let contactKey = '';
+          let contactRaw = '';
+
+          for (const candidate of candidates) {
+            if (!candidate.key) continue;
+            if (candidate.key.startsWith('num:')) {
+              const candidateNumber = candidate.key.slice(4);
+              if (candidateNumber === trackedNormalized) continue;
+            }
+            contactKey = candidate.key;
+            contactRaw = candidate.raw;
+            break;
           }
 
-          if (contactNormalized) {
-            const key = contactNormalized;
+          if (contactKey) {
             const entry =
-              contactsMap.get(key) ||
+              contactsMap.get(contactKey) ||
               {
-                number: contactRaw || key,
+                number: getContactDisplayLabel(contactKey, contactRaw || contactKey),
                 callCount: 0,
                 smsCount: 0,
                 callDurationSeconds: 0,
                 events: []
               };
 
-            if (contactRaw && (!entry.number || entry.number === key)) {
-              entry.number = contactRaw;
+            if (contactRaw && (!entry.number || entry.number === contactKey)) {
+              entry.number = getContactDisplayLabel(contactKey, contactRaw);
             }
 
             const record = (p.rawRecord as Record<string, unknown>) || {};
@@ -4995,7 +5017,7 @@ useEffect(() => {
               const durationLabel = formatSecondsAsDuration(callDurationSeconds);
 
               entry.events.push({
-                id: `${key}-${entry.events.length + 1}-${timestampLabel ?? 'ts'}`,
+                id: `${contactKey}-${entry.events.length + 1}-${timestampLabel ?? 'ts'}`,
                 timestamp: Number.isFinite(timestampLabel) ? timestampLabel : null,
                 date: callDate || undefined,
                 time: startTime || endTime || undefined,
@@ -5005,7 +5027,7 @@ useEffect(() => {
               });
             }
 
-            contactsMap.set(key, entry);
+            contactsMap.set(contactKey, entry);
           }
         }
       });
