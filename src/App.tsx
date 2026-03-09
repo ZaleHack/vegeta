@@ -1048,17 +1048,10 @@ const normalizeContactAggregationKey = (
     return `num:${normalizedNumber}`;
   }
 
-  if (/^\[orange(m)?\]$/i.test(raw)) {
-    return 'label:[orange-group]';
-  }
-
   return `label:${raw.toLowerCase()}`;
 };
 
 const getContactDisplayLabel = (key: string, fallbackRaw: string): string => {
-  if (key === 'label:[orange-group]') {
-    return '[Orange] ou [OrangeM]';
-  }
   return fallbackRaw || key;
 };
 
