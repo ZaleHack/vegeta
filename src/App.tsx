@@ -2332,8 +2332,6 @@ const App: React.FC = () => {
   const [cdrError, setCdrError] = useState('');
   const [cdrInfoMessage, setCdrInfoMessage] = useState('');
   const [cdrSearchRequests, setCdrSearchRequests] = useState<string[]>([]);
-  const [cdrCaseName, setCdrCaseName] = useState('');
-  const [cdrCaseMessage, setCdrCaseMessage] = useState('');
   const [cdrExportNumber, setCdrExportNumber] = useState('');
   const [cdrExportStart, setCdrExportStart] = useState('');
   const [cdrExportEnd, setCdrExportEnd] = useState('');
@@ -5532,6 +5530,20 @@ useEffect(() => {
     }
   };
 
+  useEffect(() => {
+    if (currentPage !== 'cdr') return;
+
+    if (selectedCase) {
+      navigateToPage('cdr-case', { replace: true });
+      return;
+    }
+
+    if (cases.length > 0) {
+      setSelectedCase(cases[0]);
+      navigateToPage('cdr-case', { replace: true });
+    }
+  }, [cases, currentPage, navigateToPage, selectedCase]);
+
   const openShareModalForCase = async (cdrCase: CdrCase) => {
     setShareTargetCase(cdrCase);
     setShareMessage('');
@@ -5752,33 +5764,6 @@ useEffect(() => {
       setFraudError('');
     }
   }, [selectedCase]);
-
-  const handleCreateCase = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cdrCaseName.trim()) return;
-    setCdrCaseMessage('');
-    try {
-      const res = await fetch('/api/cases', {
-        method: 'POST',
-        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ name: cdrCaseName.trim() })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCdrCaseMessage('Opération créée');
-        setCdrCaseName('');
-        await fetchCases();
-        if (currentPage === 'dashboard') {
-          await loadStatistics();
-        }
-      } else {
-        setCdrCaseMessage(data.error || 'Erreur création d\'opération');
-      }
-    } catch (err) {
-      console.error('Erreur création opération:', err);
-      setCdrCaseMessage('Erreur création d\'opération');
-    }
-  };
 
   const startRenameCase = (cdrCase: CdrCase) => {
     setRenamingCaseId(cdrCase.id);
@@ -8470,68 +8455,36 @@ useEffect(() => {
             <div className="space-y-10">
               <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/80 p-8 shadow-[0_30px_60px_-20px_rgba(30,64,175,0.45)] backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70">
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-500/20 via-indigo-500/10 to-purple-500/20" />
-                <div className="relative grid gap-8 lg:grid-cols-[1.15fr_1fr] lg:items-center">
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 shadow-lg shadow-blue-500/40 dark:bg-slate-900/80">
-                        <Clock className="h-6 w-6 text-blue-600 dark:text-blue-200" />
-                      </div>
-                      <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Géolocalisation</h1>
-                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                          Une interface repensée pour gérer vos analyses télécoms en toute fluidité.
-                        </p>
-                      </div>
+                <div className="relative space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 shadow-lg shadow-blue-500/40 dark:bg-slate-900/80">
+                      <Clock className="h-6 w-6 text-blue-600 dark:text-blue-200" />
                     </div>
-                    <div className="flex flex-wrap gap-3">
-                      <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                        <Database className="h-3.5 w-3.5" />
-                        {cases.length} dossier{cases.length > 1 ? 's' : ''}
-                      </span>
-                      {ownedCasesCount > 0 && (
-                        <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                          <User className="h-3.5 w-3.5" />
-                          {ownedCasesCount} à votre charge
-                        </span>
-                      )}
-                      {sharedCasesCount > 0 && (
-                        <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                          <Share2 className="h-3.5 w-3.5" />
-                          {sharedCasesCount} partagées
-                        </span>
-                      )}
+                    <div>
+                      <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Géolocalisation</h1>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                        Accédez directement au formulaire de géolocalisation.
+                      </p>
                     </div>
                   </div>
-                  <form
-                    onSubmit={handleCreateCase}
-                    className="rounded-2xl border border-white/60 bg-white/80 p-6 shadow-xl shadow-blue-500/20 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/80"
-                  >
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Créer une opération</h2>
-                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-                      Nommez votre nouvelle analyse pour démarrer.
-                    </p>
-                    <div className="mt-4 flex flex-col gap-3">
-                      <input
-                        type="text"
-                        placeholder="Nom de l'opération"
-                        value={cdrCaseName}
-                        onChange={(e) => setCdrCaseName(e.target.value)}
-                        className="w-full rounded-full border border-transparent bg-white/90 px-4 py-3 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/30 dark:bg-slate-800/80 dark:text-slate-200"
-                      />
-                      <button
-                        type="submit"
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>Créer l'opération</span>
-                      </button>
-                    </div>
-                    {cdrCaseMessage && (
-                      <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-200">
-                        {cdrCaseMessage}
-                      </div>
+                  <div className="flex flex-wrap gap-3">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                      <Database className="h-3.5 w-3.5" />
+                      {cases.length} dossier{cases.length > 1 ? 's' : ''}
+                    </span>
+                    {ownedCasesCount > 0 && (
+                      <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                        <User className="h-3.5 w-3.5" />
+                        {ownedCasesCount} à votre charge
+                      </span>
                     )}
-                  </form>
+                    {sharedCasesCount > 0 && (
+                      <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
+                        <Share2 className="h-3.5 w-3.5" />
+                        {sharedCasesCount} partagées
+                      </span>
+                    )}
+                  </div>
                 </div>
               </section>
 
