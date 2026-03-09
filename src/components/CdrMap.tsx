@@ -2293,7 +2293,8 @@ const CdrMap: React.FC<Props> = ({
                 smsCount: 0,
                 ussdCount: 0,
                 callDurationSeconds: 0,
-                events: []
+                events: [],
+                smsEventKeys: new Set<string>()
               };
 
             if (!entry.tracked && trackedRaw) {
@@ -2318,9 +2319,26 @@ const CdrMap: React.FC<Props> = ({
               cell: p.cgi
             };
 
+            const smsEventFingerprint = [
+              trackedNormalized,
+              contactNormalized,
+              p.callDate || '',
+              p.startTime || '',
+              p.endTime || '',
+              p.duration || '',
+              p.direction || '',
+              p.type || '',
+              p.cgi || '',
+              p.seqNumber || '',
+              p.sourceFile || ''
+            ].join('|');
+
             if (isSmsEvent) {
-              entry.smsCount += 1;
-              entry.events.push(eventDetail);
+              if (!entry.smsEventKeys.has(smsEventFingerprint)) {
+                entry.smsEventKeys.add(smsEventFingerprint);
+                entry.smsCount += 1;
+                entry.events.push(eventDetail);
+              }
             } else if (isUssdEvent) {
               entry.ussdCount += 1;
               entry.events.push(eventDetail);
