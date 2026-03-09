@@ -2808,7 +2808,7 @@ const CdrMap: React.FC<Props> = ({
 
   const contactDetailEvents = useMemo(() => {
     if (!selectedContactDetails) return [] as ContactCallDetail[];
-    return selectedContactDetails.events.slice(0, 6);
+    return selectedContactDetails.events;
   }, [selectedContactDetails]);
 
   const historyEvents = useMemo(() => {
