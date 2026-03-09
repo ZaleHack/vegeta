@@ -4984,6 +4984,34 @@ useEffect(() => {
             const record = (p.rawRecord as Record<string, unknown>) || {};
             if (eventType === 'sms') {
               entry.smsCount += 1;
+
+              const smsDate =
+                normalizeOptionalTextField(record.callDate) ||
+                normalizeOptionalTextField(record.date_debut_appel) ||
+                '';
+              const smsStartTime =
+                normalizeOptionalTextField(record.startTime) ||
+                normalizeOptionalTextField(record.start_time) ||
+                normalizeOptionalTextField(record.heure_debut_appel) ||
+                '';
+              const smsEndTime =
+                normalizeOptionalTextField(record.endTime) ||
+                normalizeOptionalTextField(record.end_time) ||
+                normalizeOptionalTextField(record.heure_fin_appel) ||
+                '';
+              const smsTimestampLabel = smsDate && smsStartTime
+                ? Date.parse(`${smsDate}T${smsStartTime}`)
+                : null;
+
+              entry.events.push({
+                id: `${contactKey}-${entry.events.length + 1}-${smsTimestampLabel ?? 'sms'}`,
+                timestamp: Number.isFinite(smsTimestampLabel) ? smsTimestampLabel : null,
+                date: smsDate || undefined,
+                time: smsStartTime || smsEndTime || undefined,
+                duration: null,
+                direction: normalizeTextField(record.direction, ''),
+                type: p.type
+              });
             } else {
               entry.callCount += 1;
               const callDurationSeconds = getCallDurationInSeconds(record);
@@ -5040,11 +5068,30 @@ useEffect(() => {
           entry.number = summary.number;
         }
 
-        entry.callCount += summary.callCount ?? 0;
-        entry.smsCount += summary.smsCount ?? 0;
-        entry.callDurationSeconds = (entry.callDurationSeconds ?? 0) + (summary.callDurationSeconds ?? 0);
-        const mergedEvents = [...(entry.events ?? []), ...(summary.events ?? [])];
-        entry.events = mergedEvents;
+        entry.callCount = Math.max(entry.callCount ?? 0, summary.callCount ?? 0);
+        entry.smsCount = Math.max(entry.smsCount ?? 0, summary.smsCount ?? 0);
+        entry.callDurationSeconds = Math.max(
+          entry.callDurationSeconds ?? 0,
+          summary.callDurationSeconds ?? 0
+        );
+
+        const eventKey = (event: CdrContactEvent): string => {
+          return [
+            event.type || '',
+            event.date || '',
+            event.time || '',
+            event.duration || '',
+            event.direction || ''
+          ].join('|');
+        };
+        const dedupedEvents = new Map<string, CdrContactEvent>();
+        [...(entry.events ?? []), ...(summary.events ?? [])].forEach((event) => {
+          const keyValue = `${eventKey(event)}|${event.timestamp ?? ''}`;
+          if (!dedupedEvents.has(keyValue)) {
+            dedupedEvents.set(keyValue, event);
+          }
+        });
+        entry.events = Array.from(dedupedEvents.values());
         mergedContactsMap.set(key, entry);
       });
 
