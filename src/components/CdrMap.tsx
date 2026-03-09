@@ -3917,11 +3917,9 @@ const CdrMap: React.FC<Props> = ({
                               ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200'
                               : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200';
                           const interactionLabel = isSms
-                            ? direction === 'outgoing'
-                              ? 'SMS sortant'
-                              : direction === 'incoming'
-                                ? 'SMS entrant'
-                                : 'SMS'
+                            ? direction === 'incoming'
+                              ? 'SMS entrant'
+                              : 'SMS'
                             : isUssd
                               ? 'USSD'
                               : direction === 'outgoing'
@@ -3948,11 +3946,6 @@ const CdrMap: React.FC<Props> = ({
                                   <p className="text-sm text-slate-700 dark:text-slate-200">{event.location}</p>
                                 )}
                                 <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                                  {event.cell && (
-                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
-                                      Cellule {event.cell}
-                                    </span>
-                                  )}
                                   {event.source && (
                                     <span className="rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800/80">
                                       {formatPhoneForDisplay(event.source)}
