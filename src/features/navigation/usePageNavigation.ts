@@ -16,7 +16,6 @@ export type AppPage =
   | 'phone-identifier'
   | 'cdr-case'
   | 'fraud-detection-form'
-  | 'fraud-monitoring'
   | 'requests'
   | 'profiles'
   | 'blacklist'
@@ -40,7 +39,6 @@ export const pageToPath: Record<AppPage, string> = {
   'phone-identifier': '/identifier-telephone',
   'cdr-case': '/cdr/dossier',
   'fraud-detection-form': '/fraude',
-  'fraud-monitoring': '/fraude/monitoring',
   requests: '/demandes',
   profiles: '/fiches-profil',
   blacklist: '/liste-blanche',
@@ -59,6 +57,7 @@ const normalizePathname = (pathname: string) => {
 
 export const pathToPage = (pathname: string): AppPage => {
   const normalized = normalizePathname(pathname);
+  if (normalized === '/fraude/monitoring') return 'fraud-detection-form';
   const entry = (Object.entries(pageToPath) as [AppPage, string][]).find(([, path]) => path === normalized);
   return entry ? entry[0] : 'dashboard';
 };
