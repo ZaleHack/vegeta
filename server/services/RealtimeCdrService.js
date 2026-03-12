@@ -972,14 +972,25 @@ class RealtimeCdrService {
       END
     `;
 
-    const candidatesSql = `
+    const normalizedCandidatesSql = `
       SELECT
-        ${normalizedCallerSql} AS number,
-        MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
+        ${normalizedCallerSql} AS normalized_number,
+        c.imei_appelant AS imei,
+        CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00')) AS seen_at
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
       WHERE ${conditions.join(' AND ')}
-      GROUP BY number
-      HAVING COUNT(DISTINCT c.imei_appelant) >= 2
+    `;
+
+    const candidatesSql = `
+      SELECT
+        candidates.normalized_number AS number,
+        MAX(candidates.seen_at) AS last_seen
+      FROM (
+        ${normalizedCandidatesSql}
+      ) AS candidates
+      WHERE candidates.normalized_number <> ''
+      GROUP BY candidates.normalized_number
+      HAVING COUNT(DISTINCT candidates.imei) >= 2
       ORDER BY last_seen DESC
       LIMIT ?
     `;
