@@ -962,13 +962,23 @@ class RealtimeCdrService {
       params.push(endDate);
     }
 
+    const sanitizedCallerSql = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(c.numero_appelant), ' ', ''), '+', ''), '-', ''), '(', ''), ')', ''), '.', '')";
+
+    const normalizedCallerSql = `
+      CASE
+        WHEN ${sanitizedCallerSql} = '' THEN ''
+        WHEN ${sanitizedCallerSql} LIKE '221%' THEN ${sanitizedCallerSql}
+        ELSE CONCAT('221', TRIM(LEADING '0' FROM ${sanitizedCallerSql}))
+      END
+    `;
+
     const candidatesSql = `
       SELECT
-        c.numero_appelant AS number,
+        ${normalizedCallerSql} AS number,
         MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
       WHERE ${conditions.join(' AND ')}
-      GROUP BY c.numero_appelant
+      GROUP BY number
       HAVING COUNT(DISTINCT c.imei_appelant) >= 2
       ORDER BY last_seen DESC
       LIMIT ?
@@ -996,6 +1006,7 @@ class RealtimeCdrService {
     const numberPlaceholders = candidateNumbers.map(() => '?').join(', ');
     const sql = `
       SELECT
+        ${normalizedCallerSql} AS normalized_number,
         c.numero_appelant AS number,
         c.imei_appelant AS imei,
         COUNT(*) AS occurrences,
@@ -1003,9 +1014,9 @@ class RealtimeCdrService {
         MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
       WHERE ${conditions.join(' AND ')}
-        AND c.numero_appelant IN (${numberPlaceholders})
-      GROUP BY c.numero_appelant, c.imei_appelant
-      ORDER BY c.numero_appelant ASC, last_seen DESC
+        AND ${normalizedCallerSql} IN (${numberPlaceholders})
+      GROUP BY normalized_number, c.imei_appelant
+      ORDER BY normalized_number ASC, last_seen DESC
     `;
 
     let rows = [];
@@ -1022,7 +1033,9 @@ class RealtimeCdrService {
     const byNumber = new Map();
 
     rows.forEach((row) => {
-      const normalizedNumber = normalizePhoneNumber(row.number) || sanitizeNumber(row.number) || '';
+      const normalizedNumber = row.normalized_number
+        ? String(row.normalized_number).trim()
+        : normalizePhoneNumber(row.number) || sanitizeNumber(row.number) || '';
       const imei = row.imei ? String(row.imei).trim() : '';
       if (!normalizedNumber || !imei) {
         return;
