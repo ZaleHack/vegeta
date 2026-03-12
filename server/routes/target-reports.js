@@ -516,7 +516,7 @@ router.post('/export', authenticate, async (req, res) => {
     doc.on('pageAdded', drawSignature);
 
     doc
-      .roundedRect(doc.page.margins.left, doc.page.margins.top - 12, availableWidth, 105, 22)
+      .roundedRect(doc.page.margins.left, doc.page.margins.top - 12, availableWidth, 98, 22)
       .fill(colors.headerBg);
     doc.fillColor(colors.title).fontSize(26).font('Helvetica-Bold');
     doc.text('Rapport Cible', doc.page.margins.left + 24, doc.page.margins.top + 6);
@@ -531,7 +531,7 @@ router.post('/export', authenticate, async (req, res) => {
       .fillColor(colors.muted)
       .text(`Source : ${REALTIME_CDR_TABLE_METADATA.table}`, doc.page.margins.left + 24, doc.page.margins.top + 62);
 
-    doc.moveDown(3.1);
+    doc.moveDown(2.2);
     doc.fillColor(colors.text).fontSize(12).font('Helvetica-Bold');
     doc.text('Numéro analysé', { continued: true });
     doc.font('Helvetica').text(` : ${phoneNumber}`);
@@ -555,7 +555,7 @@ router.post('/export', authenticate, async (req, res) => {
       doc.text(periodLabel);
     }
 
-    doc.moveDown(1.4);
+    doc.moveDown(0.8);
 
     const drawStatCard = (label, value, x, y, width, height) => {
       doc
