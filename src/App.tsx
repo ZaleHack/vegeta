@@ -7386,7 +7386,7 @@ useEffect(() => {
                 )}
               </div>
           {currentPage === 'search' && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               {/* Header */}
               <PageHeader icon={<Search className="h-6 w-6" />} title="Recherche Unifiée" subtitle="Explorez toutes les bases de données en une seule recherche" />
 
@@ -9583,32 +9583,49 @@ useEffect(() => {
           )}
 
           {currentPage === 'report' && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               <PageHeader
                 icon={<FileDown className="h-6 w-6" />}
                 title="Rapport d'activité"
                 subtitle="Générez en quelques clics un rapport PDF moderne basé sur un numéro de téléphone."
               />
 
-              <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-indigo-50 via-white to-blue-50 p-8 shadow-xl shadow-indigo-200/40 dark:border-slate-700/60 dark:from-slate-900 dark:via-slate-900/80 dark:to-indigo-950/40">
+              <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-indigo-50 via-white to-blue-50 p-6 shadow-xl shadow-indigo-200/40 dark:border-slate-700/60 dark:from-slate-900 dark:via-slate-900/80 dark:to-indigo-950/40 lg:p-7">
                 <div className="pointer-events-none absolute -left-20 top-0 h-56 w-56 rounded-full bg-indigo-400/20 blur-3xl" />
                 <div className="pointer-events-none absolute right-0 top-0 h-52 w-52 rounded-full bg-blue-400/20 blur-3xl" />
 
-                <div className="relative grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-                  <div className="space-y-6">
+                <div className="relative grid gap-5 xl:grid-cols-12">
+                  <div className="space-y-5 xl:col-span-7">
                     <div>
-                      <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">Rapport intelligent</p>
-                      <h3 className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-50">Construire un rapport opérationnel</h3>
-                      <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-                        Entrez un numéro, choisissez les données à exporter dans la fenêtre de configuration, puis générez votre PDF prêt pour l'investigation.
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-600 dark:text-indigo-300">Rapport intelligent</p>
+                      <h3 className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-50 lg:text-3xl">Construire un rapport opérationnel</h3>
+                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                        Saisissez un numéro, configurez les sections utiles, puis exportez un PDF prêt pour l'investigation.
                       </p>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-white/70 bg-white/80 p-3 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sections disponibles</p>
+                        <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{REPORT_SECTION_OPTIONS.length}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/70 bg-white/80 p-3 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Format</p>
+                        <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">PDF</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/70 bg-white/80 p-3 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/70">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Mode</p>
+                        <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-emerald-600 dark:text-emerald-300">
+                          <Activity className="h-4 w-4" /> Opérationnel
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 rounded-2xl border border-white/80 bg-white/85 p-4 shadow-inner backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
                       <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
                         Numéro de téléphone
                       </label>
-                      <div className="flex flex-col gap-3 sm:flex-row">
+                      <div className="flex flex-col gap-2.5 sm:flex-row">
                         <div className="relative flex-1">
                           <Phone className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                           <input
@@ -9617,14 +9634,14 @@ useEffect(() => {
                               setReportPhoneInput(event.target.value);
                               if (reportError) setReportError('');
                             }}
-                            className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-800 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-500/20"
+                            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-11 pr-4 text-sm text-slate-800 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-500/20"
                             placeholder="Ex: +221771234567"
                           />
                         </div>
                         <button
                           type="button"
                           onClick={openReportModal}
-                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:from-indigo-500 hover:to-blue-500"
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:from-indigo-500 hover:to-blue-500"
                         >
                           <Sparkles className="h-4 w-4" />
                           Configurer l'export
@@ -9636,17 +9653,21 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  <div className="space-y-3 rounded-2xl border border-white/70 bg-white/80 p-5 shadow-inner dark:border-slate-700/70 dark:bg-slate-900/70">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Sections disponibles</p>
-                    {REPORT_SECTION_OPTIONS.map((section) => (
-                      <div key={section.id} className="flex items-start gap-3 rounded-xl bg-slate-50/80 p-3 ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/60">
-                        <span className="mt-0.5 text-indigo-600 dark:text-indigo-300">{section.icon}</span>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{section.label}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-300">{section.description}</p>
-                        </div>
+                  <div className="xl:col-span-5">
+                    <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-inner dark:border-slate-700/70 dark:bg-slate-900/70">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Sections disponibles</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {REPORT_SECTION_OPTIONS.map((section) => (
+                          <div key={section.id} className="flex items-start gap-2.5 rounded-xl bg-slate-50/80 p-2.5 ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/60">
+                            <span className="mt-0.5 text-indigo-600 dark:text-indigo-300">{section.icon}</span>
+                            <div>
+                              <p className="text-sm font-semibold leading-tight text-slate-800 dark:text-slate-100">{section.label}</p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-300">{section.description}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </div>
               </div>
