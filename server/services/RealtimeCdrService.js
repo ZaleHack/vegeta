@@ -967,6 +967,11 @@ class RealtimeCdrService {
     const normalizedCallerSql = `
       CASE
         WHEN ${sanitizedCallerSql} = '' THEN ''
+        WHEN SUBSTRING(${sanitizedCallerSql}, 1, 2) = '00' THEN
+          CASE
+            WHEN SUBSTRING(${sanitizedCallerSql}, 3) LIKE '221%' THEN SUBSTRING(${sanitizedCallerSql}, 3)
+            ELSE CONCAT('221', TRIM(LEADING '0' FROM SUBSTRING(${sanitizedCallerSql}, 3)))
+          END
         WHEN ${sanitizedCallerSql} LIKE '221%' THEN ${sanitizedCallerSql}
         ELSE CONCAT('221', TRIM(LEADING '0' FROM ${sanitizedCallerSql}))
       END
