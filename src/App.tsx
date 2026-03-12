@@ -1359,26 +1359,6 @@ interface GlobalFraudDetectionResult {
   updatedAt: string;
 }
 
-interface PhoneChangeImeiEntry {
-  imei: string;
-  occurrences: number;
-  firstSeen: string | null;
-  lastSeen: string | null;
-}
-
-interface PhoneChangeEntry {
-  number: string;
-  imeis: PhoneChangeImeiEntry[];
-  totalOccurrences: number;
-  firstSeen: string | null;
-  lastSeen: string | null;
-}
-
-interface PhoneChangeResult {
-  numbers: PhoneChangeEntry[];
-  updatedAt: string;
-}
-
 type MonitoringType = 'number' | 'imei';
 
 interface FraudMonitoringTarget {
@@ -1540,7 +1520,7 @@ const App: React.FC = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const isFraudPage = currentPage === 'fraud-detection-form' || currentPage === 'fraud-monitoring';
+  const isFraudPage = currentPage === 'fraud-detection-form';
   const isBtsPage = currentPage === 'bts';
 
   useEffect(() => {
@@ -2413,10 +2393,6 @@ const App: React.FC = () => {
   const [globalFraudLoading, setGlobalFraudLoading] = useState(false);
   const [globalFraudError, setGlobalFraudError] = useState('');
   const [globalFraudResult, setGlobalFraudResult] = useState<GlobalFraudDetectionResult | null>(null);
-  const [phoneChangesResult, setPhoneChangesResult] = useState<PhoneChangeResult | null>(null);
-  const [phoneChangesLoading, setPhoneChangesLoading] = useState(false);
-  const [phoneChangesError, setPhoneChangesError] = useState('');
-
   const readMonitoringStorage = useCallback((): FraudMonitoringStorage => {
     if (typeof window === 'undefined') return {};
     const raw = localStorage.getItem(FRAUD_MONITORING_STORAGE_KEY);
@@ -5297,42 +5273,6 @@ useEffect(() => {
   };
 
 
-  const fetchPhoneChanges = useCallback(async () => {
-    setPhoneChangesLoading(true);
-    setPhoneChangesError('');
-    try {
-      const token = localStorage.getItem('token');
-      const params = new URLSearchParams();
-      if (globalFraudStart) params.append('start', globalFraudStart);
-      if (globalFraudEnd) params.append('end', globalFraudEnd);
-      const query = params.toString();
-      const res = await fetch(`/api/fraud-detection${query ? `?${query}` : ''}`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setPhoneChangesResult(null);
-        setPhoneChangesError(data.error || 'Erreur lors du chargement des changements de téléphone');
-        return;
-      }
-      setPhoneChangesResult({
-        numbers: Array.isArray(data?.numbers) ? data.numbers : [],
-        updatedAt: typeof data?.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error('Erreur chargement changements de téléphone:', error);
-      setPhoneChangesResult(null);
-      setPhoneChangesError('Erreur lors du chargement des changements de téléphone');
-    } finally {
-      setPhoneChangesLoading(false);
-    }
-  }, [globalFraudEnd, globalFraudStart]);
-
-  useEffect(() => {
-    if (currentPage !== 'fraud-monitoring' || !currentUser) return;
-    fetchPhoneChanges();
-  }, [currentPage, currentUser, fetchPhoneChanges]);
-
   const resetGlobalFraudSearch = () => {
     setGlobalFraudIdentifier('');
     setGlobalFraudStart('');
@@ -6149,7 +6089,7 @@ useEffect(() => {
       return;
     } else if (notification.type === 'monitoring') {
       setShowNotifications(false);
-      navigateToPage('fraud-monitoring');
+      navigateToPage('fraud-detection-form');
       return;
     }
     setShowNotifications(false);
@@ -7063,18 +7003,6 @@ useEffect(() => {
                     {sidebarOpen && <span className="ml-3">Formulaire de Détection</span>}
                   </button>
 
-                  <button
-                    onClick={() => navigateToPage('fraud-monitoring')}
-                    title="Changement de téléphone"
-                    className={`w-full group flex items-center rounded-xl px-4 py-2 text-sm font-medium transition-all ${
-                      currentPage === 'fraud-monitoring'
-                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
-                        : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
-                    } ${sidebarOpen ? 'pl-10 pr-4' : 'justify-center px-0'}`}
-                  >
-                    <Radar className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
-                    {sidebarOpen && <span className="ml-3">Changement de téléphone</span>}
-                  </button>
                 </div>
               )}
             </div>
@@ -9071,108 +8999,7 @@ useEffect(() => {
             </div>
           )}
 
-          {currentPage === 'fraud-monitoring' && (
-            <div className="space-y-8">
-              <PageHeader
-                icon={<Smartphone className="h-6 w-6" />}
-                title="Changement de téléphone"
-                subtitle="Numéros associés à au moins deux IMEI"
-              />
 
-              <section className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Date de début</label>
-                    <input
-                      type="date"
-                      value={globalFraudStart}
-                      onChange={(e) => setGlobalFraudStart(e.target.value)}
-                      className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Date de fin</label>
-                    <input
-                      type="date"
-                      value={globalFraudEnd}
-                      onChange={(e) => setGlobalFraudEnd(e.target.value)}
-                      className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <button
-                      type="button"
-                      onClick={fetchPhoneChanges}
-                      disabled={phoneChangesLoading}
-                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {phoneChangesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      <span>Actualiser</span>
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              {phoneChangesError && (
-                <div className="rounded-3xl border border-rose-200 bg-rose-50/80 px-6 py-4 text-sm text-rose-700 shadow-sm dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
-                  {phoneChangesError}
-                </div>
-              )}
-
-              {phoneChangesLoading ? (
-                <div className="flex justify-center py-12">
-                  <LoadingSpinner />
-                </div>
-              ) : phoneChangesResult && phoneChangesResult.numbers.length > 0 ? (
-                <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
-                  <div className="border-b border-slate-200/70 px-8 py-5 dark:border-slate-700/60">
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Résultats</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-300">
-                      {phoneChangesResult.numbers.length} numéro{phoneChangesResult.numbers.length > 1 ? 's' : ''} avec changement d'IMEI.
-                    </p>
-                  </div>
-                  <div className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                    {phoneChangesResult.numbers.map((entry) => (
-                      <div key={entry.number} className="space-y-4 p-6">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{formatPhoneDisplay(entry.number)}</p>
-                          <div className="text-sm text-slate-500 dark:text-slate-300">
-                            {entry.imeis.length} IMEI • {entry.totalOccurrences} occurrences
-                          </div>
-                        </div>
-                        <div className="overflow-x-auto rounded-2xl border border-slate-200/70 dark:border-slate-700/60">
-                          <table className="min-w-full divide-y divide-slate-200/70 text-sm dark:divide-slate-700/60">
-                            <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/5 dark:text-slate-400">
-                              <tr>
-                                <th className="px-4 py-3 text-left">IMEI</th>
-                                <th className="px-4 py-3 text-left">Première apparition</th>
-                                <th className="px-4 py-3 text-left">Dernière apparition</th>
-                                <th className="px-4 py-3 text-left">Occurrences</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100/80 dark:divide-white/10">
-                              {entry.imeis.map((imeiInfo) => (
-                                <tr key={`${entry.number}-${imeiInfo.imei}`}>
-                                  <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{formatImeiForDisplay(imeiInfo.imei)}</td>
-                                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatFraudDate(imeiInfo.firstSeen)}</td>
-                                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatFraudDate(imeiInfo.lastSeen)}</td>
-                                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{imeiInfo.occurrences}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : (
-                <section className="rounded-3xl border border-slate-200/80 bg-white/95 p-8 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
-                  <p className="text-sm text-slate-500 dark:text-slate-300">Aucun numéro avec au moins 2 IMEI sur la période sélectionnée.</p>
-                </section>
-              )}
-            </div>
-          )}
 
           {currentPage === 'cdr-case' && selectedCase && (
             <div className="space-y-6">
