@@ -949,6 +949,8 @@ class RealtimeCdrService {
 
     const startDate = typeof options.startDate === 'string' && options.startDate.trim() ? options.startDate.trim() : null;
     const endDate = typeof options.endDate === 'string' && options.endDate.trim() ? options.endDate.trim() : null;
+    const parsedLimit = Number.parseInt(String(options.limit ?? ''), 10);
+    const resultLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 1000) : 200;
 
     if (startDate) {
       conditions.push('c.date_debut >= ?');
@@ -960,6 +962,38 @@ class RealtimeCdrService {
       params.push(endDate);
     }
 
+    const candidatesSql = `
+      SELECT
+        c.numero_appelant AS number,
+        MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
+      FROM ${REALTIME_CDR_TABLE_SQL} AS c
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY c.numero_appelant
+      HAVING COUNT(DISTINCT c.imei_appelant) >= 2
+      ORDER BY last_seen DESC
+      LIMIT ?
+    `;
+
+    let candidateRows = [];
+    try {
+      candidateRows = await this.database.query(candidatesSql, [...params, resultLimit], {
+        suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+        suppressErrorLog: true
+      });
+    } catch (error) {
+      console.error('Erreur recherche changement téléphone:', error);
+      return { numbers: [], updatedAt: new Date().toISOString() };
+    }
+
+    const candidateNumbers = candidateRows
+      .map((row) => (row.number ? String(row.number).trim() : ''))
+      .filter(Boolean);
+
+    if (candidateNumbers.length === 0) {
+      return { numbers: [], updatedAt: new Date().toISOString() };
+    }
+
+    const numberPlaceholders = candidateNumbers.map(() => '?').join(', ');
     const sql = `
       SELECT
         c.numero_appelant AS number,
@@ -969,13 +1003,14 @@ class RealtimeCdrService {
         MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
       FROM ${REALTIME_CDR_TABLE_SQL} AS c
       WHERE ${conditions.join(' AND ')}
+        AND c.numero_appelant IN (${numberPlaceholders})
       GROUP BY c.numero_appelant, c.imei_appelant
       ORDER BY c.numero_appelant ASC, last_seen DESC
     `;
 
     let rows = [];
     try {
-      rows = await this.database.query(sql, params, {
+      rows = await this.database.query(sql, [...params, ...candidateNumbers], {
         suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
         suppressErrorLog: true
       });
@@ -1034,7 +1069,8 @@ class RealtimeCdrService {
         const aTime = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
         const bTime = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
         return bTime - aTime;
-      });
+      })
+      .slice(0, resultLimit);
 
     return {
       numbers,
