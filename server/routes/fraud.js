@@ -16,7 +16,7 @@ const isValidDate = (value) => {
 
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { identifier = '', start, end } = req.query;
+    const { identifier = '', start, end, limit } = req.query;
     const trimmedIdentifier = typeof identifier === 'string' ? identifier.trim() : '';
 
     if ((start && !isValidDate(start)) || (end && !isValidDate(end))) {
@@ -28,9 +28,12 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     if (!trimmedIdentifier) {
+      const parsedLimit = Number.parseInt(String(limit ?? ''), 10);
+      const limitValue = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 200;
       const result = await realtimeCdrService.findPhoneChanges({
         startDate: start || null,
         endDate: end || null,
+        limit: limitValue,
       });
       return res.json(result);
     }
