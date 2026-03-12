@@ -19,16 +19,20 @@ router.get('/', authenticate, async (req, res) => {
     const { identifier = '', start, end } = req.query;
     const trimmedIdentifier = typeof identifier === 'string' ? identifier.trim() : '';
 
-    if (!trimmedIdentifier) {
-      return res.status(400).json({ error: 'Numéro ou IMEI requis' });
-    }
-
     if ((start && !isValidDate(start)) || (end && !isValidDate(end))) {
       return res.status(400).json({ error: 'Format de date invalide (YYYY-MM-DD)' });
     }
 
     if (start && end && new Date(start) > new Date(end)) {
       return res.status(400).json({ error: 'La date de début doit précéder la date de fin' });
+    }
+
+    if (!trimmedIdentifier) {
+      const result = await realtimeCdrService.findPhoneChanges({
+        startDate: start || null,
+        endDate: end || null,
+      });
+      return res.json(result);
     }
 
     const result = await realtimeCdrService.findAssociations(trimmedIdentifier, {

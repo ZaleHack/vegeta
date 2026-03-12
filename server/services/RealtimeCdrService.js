@@ -938,6 +938,110 @@ class RealtimeCdrService {
     };
   }
 
+  async findPhoneChanges(options = {}) {
+    const conditions = [
+      'c.numero_appelant IS NOT NULL',
+      "c.numero_appelant <> ''",
+      'c.imei_appelant IS NOT NULL',
+      "c.imei_appelant <> ''"
+    ];
+    const params = [];
+
+    const startDate = typeof options.startDate === 'string' && options.startDate.trim() ? options.startDate.trim() : null;
+    const endDate = typeof options.endDate === 'string' && options.endDate.trim() ? options.endDate.trim() : null;
+
+    if (startDate) {
+      conditions.push('c.date_debut >= ?');
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      conditions.push('COALESCE(c.date_fin, c.date_debut) <= ?');
+      params.push(endDate);
+    }
+
+    const sql = `
+      SELECT
+        c.numero_appelant AS number,
+        c.imei_appelant AS imei,
+        COUNT(*) AS occurrences,
+        MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
+        MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
+      FROM ${REALTIME_CDR_TABLE_SQL} AS c
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY c.numero_appelant, c.imei_appelant
+      ORDER BY c.numero_appelant ASC, last_seen DESC
+    `;
+
+    let rows = [];
+    try {
+      rows = await this.database.query(sql, params, {
+        suppressErrorCodes: ['ER_NO_SUCH_TABLE', '42S02'],
+        suppressErrorLog: true
+      });
+    } catch (error) {
+      console.error('Erreur recherche changement téléphone:', error);
+      return { numbers: [], updatedAt: new Date().toISOString() };
+    }
+
+    const byNumber = new Map();
+
+    rows.forEach((row) => {
+      const normalizedNumber = normalizePhoneNumber(row.number) || sanitizeNumber(row.number) || '';
+      const imei = row.imei ? String(row.imei).trim() : '';
+      if (!normalizedNumber || !imei) {
+        return;
+      }
+
+      const firstSeen = normalizeDateValue(row.first_seen);
+      const lastSeen = normalizeDateValue(row.last_seen);
+      const item = byNumber.get(normalizedNumber) ?? {
+        number: normalizedNumber,
+        imeis: [],
+        totalOccurrences: 0,
+        firstSeen: null,
+        lastSeen: null,
+      };
+
+      item.imeis.push({
+        imei,
+        occurrences: Number(row.occurrences) || 0,
+        firstSeen,
+        lastSeen,
+      });
+      item.totalOccurrences += Number(row.occurrences) || 0;
+      if (!item.firstSeen || (firstSeen && firstSeen < item.firstSeen)) {
+        item.firstSeen = firstSeen;
+      }
+      if (!item.lastSeen || (lastSeen && lastSeen > item.lastSeen)) {
+        item.lastSeen = lastSeen;
+      }
+
+      byNumber.set(normalizedNumber, item);
+    });
+
+    const numbers = Array.from(byNumber.values())
+      .filter((entry) => entry.imeis.length >= 2)
+      .map((entry) => ({
+        ...entry,
+        imeis: entry.imeis.sort((a, b) => {
+          const aTime = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
+          const bTime = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
+          return bTime - aTime;
+        })
+      }))
+      .sort((a, b) => {
+        const aTime = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
+        const bTime = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
+        return bTime - aTime;
+      });
+
+    return {
+      numbers,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
   async buildLinkDiagram(numbers, options = {}) {
     const normalizedNumbers = Array.isArray(numbers)
       ? numbers

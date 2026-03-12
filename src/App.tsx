@@ -1359,6 +1359,26 @@ interface GlobalFraudDetectionResult {
   updatedAt: string;
 }
 
+interface PhoneChangeImeiEntry {
+  imei: string;
+  occurrences: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+}
+
+interface PhoneChangeEntry {
+  number: string;
+  imeis: PhoneChangeImeiEntry[];
+  totalOccurrences: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+}
+
+interface PhoneChangeResult {
+  numbers: PhoneChangeEntry[];
+  updatedAt: string;
+}
+
 type MonitoringType = 'number' | 'imei';
 
 interface FraudMonitoringTarget {
@@ -2388,12 +2408,14 @@ const App: React.FC = () => {
   const [fraudLoading, setFraudLoading] = useState(false);
   const [fraudError, setFraudError] = useState('');
   const [globalFraudIdentifier, setGlobalFraudIdentifier] = useState('');
-  const [globalFraudIdentifierType, setGlobalFraudIdentifierType] = useState<'number' | 'imei'>('number');
   const [globalFraudStart, setGlobalFraudStart] = useState('');
   const [globalFraudEnd, setGlobalFraudEnd] = useState('');
   const [globalFraudLoading, setGlobalFraudLoading] = useState(false);
   const [globalFraudError, setGlobalFraudError] = useState('');
   const [globalFraudResult, setGlobalFraudResult] = useState<GlobalFraudDetectionResult | null>(null);
+  const [phoneChangesResult, setPhoneChangesResult] = useState<PhoneChangeResult | null>(null);
+  const [phoneChangesLoading, setPhoneChangesLoading] = useState(false);
+  const [phoneChangesError, setPhoneChangesError] = useState('');
 
   const readMonitoringStorage = useCallback((): FraudMonitoringStorage => {
     if (typeof window === 'undefined') return {};
@@ -5229,10 +5251,9 @@ useEffect(() => {
   const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmedIdentifier = globalFraudIdentifier.trim();
-    const normalizedIdentifier =
-      globalFraudIdentifierType === 'imei' ? normalizeImeiForDetection(trimmedIdentifier) : trimmedIdentifier;
+    const normalizedIdentifier = trimmedIdentifier;
     if (!normalizedIdentifier) {
-      setGlobalFraudError('Numéro ou IMEI requis');
+      setGlobalFraudError('Numéro requis');
       setGlobalFraudResult(null);
       return;
     }
@@ -5275,74 +5296,51 @@ useEffect(() => {
     }
   };
 
+
+  const fetchPhoneChanges = useCallback(async () => {
+    setPhoneChangesLoading(true);
+    setPhoneChangesError('');
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      if (globalFraudStart) params.append('start', globalFraudStart);
+      if (globalFraudEnd) params.append('end', globalFraudEnd);
+      const query = params.toString();
+      const res = await fetch(`/api/fraud-detection${query ? `?${query}` : ''}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPhoneChangesResult(null);
+        setPhoneChangesError(data.error || 'Erreur lors du chargement des changements de téléphone');
+        return;
+      }
+      setPhoneChangesResult({
+        numbers: Array.isArray(data?.numbers) ? data.numbers : [],
+        updatedAt: typeof data?.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Erreur chargement changements de téléphone:', error);
+      setPhoneChangesResult(null);
+      setPhoneChangesError('Erreur lors du chargement des changements de téléphone');
+    } finally {
+      setPhoneChangesLoading(false);
+    }
+  }, [globalFraudEnd, globalFraudStart]);
+
+  useEffect(() => {
+    if (currentPage !== 'fraud-monitoring' || !currentUser) return;
+    fetchPhoneChanges();
+  }, [currentPage, currentUser, fetchPhoneChanges]);
+
   const resetGlobalFraudSearch = () => {
     setGlobalFraudIdentifier('');
     setGlobalFraudStart('');
     setGlobalFraudEnd('');
-    setGlobalFraudIdentifierType('number');
     setGlobalFraudResult(null);
     setGlobalFraudError('');
   };
 
-  useEffect(() => {
-    if (!globalFraudResult || monitoringTargets.length === 0) return;
-    const alertsToAdd: FraudMonitoringAlert[] = [];
-    const now = new Date().toISOString();
-
-    setMonitoringTargets((prevTargets) => {
-      let hasChanges = false;
-      const updatedTargets = prevTargets.map((target) => {
-        let peers: string[] = [];
-        if (target.type === 'imei') {
-          const match = globalFraudResult.imeis.find((entry) => entry.imei === target.value);
-          peers = match ? match.numbers.map((number) => number.number) : [];
-        } else {
-          const match = globalFraudResult.numbers.find((entry) => entry.number === target.value);
-          peers = match ? match.imeis.map((imeiEntry) => imeiEntry.imei) : [];
-        }
-
-        if (peers.length === 0) {
-          return target;
-        }
-
-        const newPeers = peers.filter((peer) => !target.knownPeers.includes(peer));
-        if (newPeers.length === 0) {
-          return target;
-        }
-
-        hasChanges = true;
-        const alertId = `${target.id}-${Date.now()}-${newPeers.length}`;
-        alertsToAdd.push({
-          id: alertId,
-          targetId: target.id,
-          targetType: target.type,
-          targetValue: target.value,
-          createdAt: now,
-          newPeers,
-        });
-
-        return {
-          ...target,
-          knownPeers: Array.from(new Set([...target.knownPeers, ...peers])),
-          lastAlertAt: now,
-        };
-      });
-
-      return hasChanges ? updatedTargets : prevTargets;
-    });
-
-    if (alertsToAdd.length > 0) {
-      setMonitoringAlerts((prev) => [...alertsToAdd, ...prev].slice(0, 40));
-      alertsToAdd.forEach((alert) => {
-        const peerLabel = alert.targetType === 'imei' ? 'numéro' : 'IMEI';
-        notifyWarning(
-          `Surveillance: ${alert.newPeers.length} ${peerLabel}${alert.newPeers.length > 1 ? 's' : ''} détecté${
-            alert.newPeers.length > 1 ? 's' : ''
-          } pour ${alert.targetValue}`
-        );
-      });
-    }
-  }, [globalFraudResult, monitoringTargets, notifyWarning]);
 
   const logCdrSearch = useCallback(
     async (identifiers: string[]) => {
@@ -7067,7 +7065,7 @@ useEffect(() => {
 
                   <button
                     onClick={() => navigateToPage('fraud-monitoring')}
-                    title="Monotoring"
+                    title="Changement de téléphone"
                     className={`w-full group flex items-center rounded-xl px-4 py-2 text-sm font-medium transition-all ${
                       currentPage === 'fraud-monitoring'
                         ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
@@ -7075,7 +7073,7 @@ useEffect(() => {
                     } ${sidebarOpen ? 'pl-10 pr-4' : 'justify-center px-0'}`}
                   >
                     <Radar className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
-                    {sidebarOpen && <span className="ml-3">Monotoring</span>}
+                    {sidebarOpen && <span className="ml-3">Changement de téléphone</span>}
                   </button>
                 </div>
               )}
@@ -8780,45 +8778,8 @@ useEffect(() => {
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                            Numéro ou IMEI à analyser
+                            Numéro à analyser
                           </label>
-                          <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            <span className="uppercase tracking-wide">Rechercher par</span>
-                            <div className="inline-flex rounded-full bg-slate-100/80 p-1 shadow-inner dark:bg-slate-800/60">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setGlobalFraudIdentifierType('number');
-                                  if (globalFraudError) setGlobalFraudError('');
-                                }}
-                                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 transition ${
-                                  globalFraudIdentifierType === 'number'
-                                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
-                                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                                }`}
-                                aria-pressed={globalFraudIdentifierType === 'number'}
-                              >
-                                <Phone className="h-3.5 w-3.5" />
-                                <span>Téléphone</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setGlobalFraudIdentifierType('imei');
-                                  if (globalFraudError) setGlobalFraudError('');
-                                }}
-                                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 transition ${
-                                  globalFraudIdentifierType === 'imei'
-                                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
-                                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                                }`}
-                                aria-pressed={globalFraudIdentifierType === 'imei'}
-                              >
-                                <Fingerprint className="h-3.5 w-3.5" />
-                                <span>IMEI</span>
-                              </button>
-                            </div>
-                          </div>
                           <div className="relative">
                             <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
                               <Search className="h-4 w-4" />
@@ -8827,17 +8788,11 @@ useEffect(() => {
                               type="text"
                               value={globalFraudIdentifier}
                               onChange={(e) => {
-                                const nextValue =
-                                  globalFraudIdentifierType === 'imei' ? normalizeImei(e.target.value) : e.target.value;
-                                setGlobalFraudIdentifier(nextValue);
+                                setGlobalFraudIdentifier(e.target.value);
                                 if (globalFraudError) setGlobalFraudError('');
                               }}
-                              placeholder={
-                                globalFraudIdentifierType === 'imei'
-                                  ? 'Ex : 356789104567890'
-                                  : 'Ex : 221771234567'
-                              }
-                              inputMode={globalFraudIdentifierType === 'imei' ? 'numeric' : 'tel'}
+                              placeholder="Ex : 221771234567"
+                              inputMode="tel"
                               className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-12 py-3 text-base font-medium text-slate-800 shadow-inner focus:border-transparent focus:outline-none focus:ring-4 focus:ring-purple-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
                             />
                           </div>
@@ -9119,246 +9074,103 @@ useEffect(() => {
           {currentPage === 'fraud-monitoring' && (
             <div className="space-y-8">
               <PageHeader
-                icon={<Radar className="h-6 w-6" />}
-                title="Surveillance"
-                subtitle="Surveillance proactive des numéros et IMEI"
+                icon={<Smartphone className="h-6 w-6" />}
+                title="Changement de téléphone"
+                subtitle="Numéros associés à au moins deux IMEI"
               />
 
-              <section className="relative overflow-hidden rounded-[32px] border border-slate-200/80 bg-white/85 shadow-2xl shadow-slate-200/60 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
-                <div className="pointer-events-none absolute inset-0">
-                  <div className="absolute -left-24 top-12 h-72 w-72 rounded-full bg-gradient-to-br from-blue-500/25 via-indigo-500/10 to-purple-500/10 blur-3xl" />
-                  <div className="absolute -right-20 bottom-4 h-72 w-72 rounded-full bg-gradient-to-br from-emerald-400/15 via-cyan-400/15 to-blue-500/15 blur-3xl" />
-                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 opacity-70" />
-                </div>
-                <div className="relative space-y-6 p-8">
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-400/40">
-                        <SatelliteDish className="h-6 w-6" />
-                      </div>
-                      <div className="space-y-2">
-                        <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Surveillance proactive</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-300">
-                          Lancez une veille ciblée sur un numéro ou un IMEI et recevez des alertes dès qu’un nouveau correspondant apparaît.
-                        </p>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-300">
-                          <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 font-semibold text-slate-700 shadow-sm ring-1 ring-white/70 backdrop-blur dark:bg-white/10 dark:text-slate-200 dark:ring-white/5">
-                            <Radar className="h-4 w-4" />
-                            Veille continue
-                          </span>
-                          <span className="inline-flex items-center gap-2 rounded-full bg-blue-600/10 px-3 py-1 font-semibold text-blue-700 ring-1 ring-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
-                            <BellRing className="h-4 w-4" />
-                            Alertes automatiques
-                          </span>
-                          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 font-semibold text-emerald-700 ring-1 ring-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
-                            <Activity className="h-4 w-4" />
-                            Réactivité instantanée
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid w-full max-w-md grid-cols-2 gap-3 rounded-2xl border border-white/80 bg-white/70 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/60">
-                      <div className="rounded-2xl bg-white/80 p-3 text-center shadow-inner dark:bg-white/5">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cibles actives</p>
-                        <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{monitoringTargets.length}</p>
-                      </div>
-                      <div className="rounded-2xl bg-white/80 p-3 text-center shadow-inner dark:bg-white/5">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Alertes récentes</p>
-                        <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{monitoringAlerts.length}</p>
-                      </div>
-                    </div>
+              <section className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Date de début</label>
+                    <input
+                      type="date"
+                      value={globalFraudStart}
+                      onChange={(e) => setGlobalFraudStart(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    />
                   </div>
-
-                  <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-                    <div className="space-y-4 rounded-2xl border border-white/80 bg-white/90 p-5 shadow-lg shadow-slate-200/40 backdrop-blur dark:border-white/10 dark:bg-slate-900/60 dark:shadow-black/30">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-100">
-                          <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                          Nouvelle cible à surveiller
-                        </div>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 shadow-inner dark:bg-white/5 dark:text-slate-300">
-                          {monitoringTargets.length} cible{monitoringTargets.length > 1 ? 's' : ''} suivie{monitoringTargets.length > 1 ? 's' : ''}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                        <div className="inline-flex rounded-full bg-slate-100/80 p-1 shadow-inner dark:bg-slate-800/70">
-                          <button
-                            type="button"
-                            onClick={() => setMonitoringType('number')}
-                            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition ${
-                              monitoringType === 'number'
-                                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
-                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                            }`}
-                          >
-                            <Phone className="h-3.5 w-3.5" />
-                            Numéro
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setMonitoringType('imei')}
-                            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition ${
-                              monitoringType === 'imei'
-                                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
-                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                            }`}
-                          >
-                            <Fingerprint className="h-3.5 w-3.5" />
-                            IMEI
-                          </button>
-                        </div>
-                        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-                          <div className="relative flex-1">
-                            <input
-                              type="text"
-                              value={monitoringInput}
-                              onChange={(e) => setMonitoringInput(e.target.value)}
-                              placeholder={monitoringType === 'imei' ? 'Ex : 356789104567890' : 'Ex : 221771234567'}
-                              className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm font-medium text-slate-800 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
-                            />
-                            <div className="pointer-events-none absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-2 text-slate-300 dark:text-slate-500">
-                              <Sparkles className="h-4 w-4" />
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleAddMonitoringTarget}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-400/30 transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                          >
-                            <Plus className="h-4 w-4" />
-                            Activer la veille
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        {monitoringTargets.length === 0 ? (
-                          <div className="flex flex-col items-start gap-2 rounded-2xl border border-dashed border-slate-300/80 bg-slate-50 px-4 py-4 text-sm text-slate-600 shadow-inner dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
-                            <div className="inline-flex items-center gap-2 rounded-full bg-blue-100/70 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-100">
-                              <Bell className="h-3.5 w-3.5" />
-                              Notification instantanée
-                            </div>
-                            Commencez par ajouter un numéro ou un IMEI pour être notifié des nouvelles associations détectées.
-                          </div>
-                        ) : (
-                          monitoringTargets.map((target) => (
-                            <div
-                              key={target.id}
-                              className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/60"
-                            >
-                              <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/5 to-purple-500/10 opacity-0 transition group-hover:opacity-100" />
-                              <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                <div className="space-y-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 shadow-inner dark:bg-white/10 dark:text-slate-200">
-                                      {target.type === 'imei' ? <Fingerprint className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
-                                      {target.type === 'imei' ? 'IMEI' : 'Numéro'}
-                                    </span>
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-3 py-1 text-sm font-semibold text-white shadow-lg shadow-blue-400/40">
-                                      {target.value}
-                                    </span>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-300">
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-700 dark:bg-white/5 dark:text-slate-200">
-                                      <Activity className="h-3.5 w-3.5 text-blue-500" />
-                                      {target.knownPeers.length} correspondant{target.knownPeers.length > 1 ? 's' : ''} surveillée{target.knownPeers.length > 1 ? 's' : ''}
-                                    </span>
-                                    {target.lastAlertAt && (
-                                      <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-100">
-                                        <AlertTriangle className="h-3.5 w-3.5" />
-                                        Dernière alerte {formatDistanceToNow(parseISO(target.lastAlertAt), { addSuffix: true, locale: fr })}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-300">
-                                    Créé le {formatFraudDate(target.createdAt)}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveMonitoringTarget(target)}
-                                    className="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/80 p-2 text-slate-500 transition hover:text-rose-600 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:text-rose-300"
-                                    title="Arrêter la surveillance"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 rounded-2xl border border-white/80 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-5 text-white shadow-lg shadow-indigo-500/30">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-white/60">Notifications</p>
-                          <h4 className="text-lg font-semibold">Timeline des alertes</h4>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleClearMonitoringAlerts}
-                          disabled={monitoringAlerts.length === 0}
-                          className="inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white/80 transition hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <History className="h-3.5 w-3.5" />
-                          Nettoyer
-                        </button>
-                      </div>
-
-                      {monitoringAlerts.length === 0 ? (
-                        <div className="flex flex-col items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-5 text-sm text-white/80">
-                          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
-                            <Sparkles className="h-3.5 w-3.5" />
-                            En attente d’alertes
-                          </div>
-                          Les nouvelles associations détectées apparaîtront ici automatiquement.
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {monitoringAlerts.map((alert) => (
-                            <div key={alert.id} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-black/20">
-                              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-indigo-500/10 to-purple-500/10 opacity-0 transition group-hover:opacity-100" />
-                              <div className="relative flex flex-col gap-3">
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                  <div className="flex items-center gap-2">
-                                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white shadow-inner shadow-black/30">
-                                      <BellRing className="h-5 w-5" />
-                                    </span>
-                                    <div>
-                                      <p className="text-sm font-semibold text-white">
-                                        {alert.targetType === 'imei' ? 'Nouveaux numéros détectés' : 'Nouveaux IMEI détectés'}
-                                      </p>
-                                      <p className="text-xs text-white/70">{alert.targetValue}</p>
-                                    </div>
-                                  </div>
-                                  <span className="text-xs font-semibold uppercase tracking-wide text-white/60">
-                                    {formatDistanceToNow(parseISO(alert.createdAt), { addSuffix: true, locale: fr })}
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  {alert.newPeers.map((peer) => (
-                                    <span
-                                      key={`${alert.id}-${peer}`}
-                                      className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white"
-                                    >
-                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
-                                      {peer}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">Date de fin</label>
+                    <input
+                      type="date"
+                      value={globalFraudEnd}
+                      onChange={(e) => setGlobalFraudEnd(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={fetchPhoneChanges}
+                      disabled={phoneChangesLoading}
+                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-300/40 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {phoneChangesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      <span>Actualiser</span>
+                    </button>
                   </div>
                 </div>
               </section>
+
+              {phoneChangesError && (
+                <div className="rounded-3xl border border-rose-200 bg-rose-50/80 px-6 py-4 text-sm text-rose-700 shadow-sm dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+                  {phoneChangesError}
+                </div>
+              )}
+
+              {phoneChangesLoading ? (
+                <div className="flex justify-center py-12">
+                  <LoadingSpinner />
+                </div>
+              ) : phoneChangesResult && phoneChangesResult.numbers.length > 0 ? (
+                <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+                  <div className="border-b border-slate-200/70 px-8 py-5 dark:border-slate-700/60">
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Résultats</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-300">
+                      {phoneChangesResult.numbers.length} numéro{phoneChangesResult.numbers.length > 1 ? 's' : ''} avec changement d'IMEI.
+                    </p>
+                  </div>
+                  <div className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                    {phoneChangesResult.numbers.map((entry) => (
+                      <div key={entry.number} className="space-y-4 p-6">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{formatPhoneDisplay(entry.number)}</p>
+                          <div className="text-sm text-slate-500 dark:text-slate-300">
+                            {entry.imeis.length} IMEI • {entry.totalOccurrences} occurrences
+                          </div>
+                        </div>
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200/70 dark:border-slate-700/60">
+                          <table className="min-w-full divide-y divide-slate-200/70 text-sm dark:divide-slate-700/60">
+                            <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                              <tr>
+                                <th className="px-4 py-3 text-left">IMEI</th>
+                                <th className="px-4 py-3 text-left">Première apparition</th>
+                                <th className="px-4 py-3 text-left">Dernière apparition</th>
+                                <th className="px-4 py-3 text-left">Occurrences</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100/80 dark:divide-white/10">
+                              {entry.imeis.map((imeiInfo) => (
+                                <tr key={`${entry.number}-${imeiInfo.imei}`}>
+                                  <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{formatImeiForDisplay(imeiInfo.imei)}</td>
+                                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatFraudDate(imeiInfo.firstSeen)}</td>
+                                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatFraudDate(imeiInfo.lastSeen)}</td>
+                                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{imeiInfo.occurrences}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : (
+                <section className="rounded-3xl border border-slate-200/80 bg-white/95 p-8 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
+                  <p className="text-sm text-slate-500 dark:text-slate-300">Aucun numéro avec au moins 2 IMEI sur la période sélectionnée.</p>
+                </section>
+              )}
             </div>
           )}
 
