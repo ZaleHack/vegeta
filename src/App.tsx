@@ -60,8 +60,7 @@ import {
   SatelliteDish,
   Calendar,
   Sparkles,
-  FileDown,
-  Route
+  FileDown
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
@@ -255,7 +254,7 @@ const REPORT_SECTION_OPTIONS: ReportSectionOption[] = [
     label: 'Historique des déplacements',
     description: 'Chronologie des mouvements et des changements de lieux.',
     defaultLimit: 25,
-    icon: <Route className="h-4 w-4" />
+    icon: <Car className="h-4 w-4" />
   }
 ];
 
