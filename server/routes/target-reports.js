@@ -608,8 +608,9 @@ router.post('/export', authenticate, async (req, res) => {
 
     doc.y = cardsStartY + cardHeight * 2 + cardGap * 2 + 6;
 
-    const drawSectionHeader = (title, description) => {
-      ensureSpace(description ? 70 : 56);
+    const drawSectionHeader = (title, description, options = {}) => {
+      const headerSpacing = options.compact ? (description ? 56 : 46) : description ? 70 : 56;
+      ensureSpace(headerSpacing);
       doc.fillColor(colors.title).fontSize(13).font('Helvetica-Bold').text(title);
       if (description) {
         doc.fillColor(colors.muted).fontSize(9).font('Helvetica').text(description);
@@ -620,16 +621,16 @@ router.post('/export', authenticate, async (req, res) => {
         .lineWidth(2)
         .strokeColor(colors.accent)
         .stroke();
-      doc.moveDown(0.6);
+      doc.moveDown(options.compact ? 0.35 : 0.6);
     };
 
-    const renderTable = (headers, rows) => {
+    const renderTable = (headers, rows, options = {}) => {
       const columnCount = headers.length;
       const defaultWeights =
         columnCount === 4 ? [0.28, 0.2, 0.2, 0.32] : Array.from({ length: columnCount }, () => 1);
       const totalWeight = defaultWeights.reduce((sum, value) => sum + value, 0);
       const columnWidths = defaultWeights.map((weight) => (availableWidth * weight) / totalWeight);
-      const rowHeight = 20;
+      const rowHeight = options.rowHeight ?? 20;
 
       const drawRow = (row, options = {}) => {
         const rowY = doc.y;
@@ -663,7 +664,7 @@ router.post('/export', authenticate, async (req, res) => {
         ensureSpace(rowHeight);
         drawRow(row, { background: index % 2 === 0 ? '#FFFFFF' : '#F8FAFC' });
       });
-      doc.moveDown(1);
+      doc.moveDown(options.compact ? 0.55 : 1);
     };
 
     selectedSections.forEach((section) => {
@@ -671,14 +672,15 @@ router.post('/export', authenticate, async (req, res) => {
       if (!table) {
         return;
       }
-      drawSectionHeader(section.label, section.description);
+      const isLocationSection = ['recent-locations', 'top-places', 'last-location'].includes(section.id);
+      drawSectionHeader(section.label, section.description, { compact: isLocationSection });
       doc
         .fillColor(colors.accent)
         .fontSize(10)
         .font('Helvetica-Bold')
         .text(`Volume sélectionné : ${section.limit}`);
       doc.fillColor(colors.text).fontSize(11).font('Helvetica-Bold').text(table.title);
-      renderTable(table.headers, table.rows);
+      renderTable(table.headers, table.rows, { compact: isLocationSection, rowHeight: isLocationSection ? 18 : 20 });
     });
 
     doc.end();
