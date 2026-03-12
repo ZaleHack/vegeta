@@ -59,7 +59,9 @@ import {
   Radar,
   SatelliteDish,
   Calendar,
-  Sparkles
+  Sparkles,
+  FileDown,
+  Route
 } from 'lucide-react';
 import { Line, Bar } from 'react-chartjs-2';
 import {
@@ -217,6 +219,45 @@ interface PhoneIdentifierResult {
   };
   devices: PhoneIdentifierDevice[];
 }
+
+interface ReportSectionOption {
+  id: string;
+  label: string;
+  description: string;
+  defaultLimit: number;
+  icon: React.ReactNode;
+}
+
+const REPORT_SECTION_OPTIONS: ReportSectionOption[] = [
+  {
+    id: 'contacts',
+    label: 'Personnes en contact',
+    description: 'Réseau de contacts directs et fréquents autour du numéro analysé.',
+    defaultLimit: 20,
+    icon: <Users className="h-4 w-4" />
+  },
+  {
+    id: 'recent-locations',
+    label: 'Localisations récentes',
+    description: 'Dernières positions observées dans la table Realtime.',
+    defaultLimit: 15,
+    icon: <MapPin className="h-4 w-4" />
+  },
+  {
+    id: 'top-places',
+    label: 'Lieux les plus visités',
+    description: 'Zones les plus fréquentées selon les événements CDR.',
+    defaultLimit: 12,
+    icon: <Radar className="h-4 w-4" />
+  },
+  {
+    id: 'travel-history',
+    label: 'Historique des déplacements',
+    description: 'Chronologie des mouvements et des changements de lieux.',
+    defaultLimit: 25,
+    icon: <Route className="h-4 w-4" />
+  }
+];
 
 const extractHitsFromPayload = (hits: RawHitsPayload): RawSearchResult[] => {
   if (Array.isArray(hits)) {
@@ -1635,6 +1676,22 @@ const App: React.FC = () => {
   const [phoneIdentifierResult, setPhoneIdentifierResult] = useState<PhoneIdentifierResult | null>(null);
   const [phoneIdentifierLoading, setPhoneIdentifierLoading] = useState(false);
   const [phoneIdentifierError, setPhoneIdentifierError] = useState('');
+
+  const [reportPhoneInput, setReportPhoneInput] = useState('');
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportGenerating, setReportGenerating] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const [reportDateStart, setReportDateStart] = useState('');
+  const [reportDateEnd, setReportDateEnd] = useState('');
+  const [reportSections, setReportSections] = useState<Record<string, { enabled: boolean; limit: number }>>(() =>
+    REPORT_SECTION_OPTIONS.reduce(
+      (acc, section) => {
+        acc[section.id] = { enabled: true, limit: section.defaultLimit };
+        return acc;
+      },
+      {} as Record<string, { enabled: boolean; limit: number }>
+    )
+  );
 
   const displayedResultsCount = displayedHits.length;
   const totalResultsCount = searchResults?.total ?? searchResults?.hits?.length ?? 0;
@@ -3712,6 +3769,107 @@ const App: React.FC = () => {
       return value;
     }
   }, []);
+
+  const selectedReportSectionsCount = useMemo(
+    () => Object.values(reportSections).filter((section) => section.enabled).length,
+    [reportSections]
+  );
+
+  const openReportModal = useCallback(() => {
+    const normalizedPhone = reportPhoneInput.trim();
+    if (!normalizedPhone) {
+      setReportError('Veuillez saisir un numéro de téléphone valide.');
+      return;
+    }
+    setReportError('');
+    setReportModalOpen(true);
+  }, [reportPhoneInput]);
+
+  const closeReportModal = useCallback(() => {
+    setReportModalOpen(false);
+  }, []);
+
+  const handleReportSectionToggle = useCallback((id: string) => {
+    setReportSections((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        enabled: !prev[id]?.enabled
+      }
+    }));
+  }, []);
+
+  const handleReportLimitChange = useCallback((id: string, value: string) => {
+    const numericValue = Number(value);
+    setReportSections((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        limit: Number.isFinite(numericValue) ? Math.min(Math.max(Math.round(numericValue), 1), 200) : prev[id]?.limit ?? 10
+      }
+    }));
+  }, []);
+
+  const handleReportExport = useCallback(async () => {
+    const phoneNumber = reportPhoneInput.trim();
+    if (!phoneNumber) {
+      setReportError('Veuillez saisir un numéro de téléphone valide.');
+      return;
+    }
+
+    const sections = REPORT_SECTION_OPTIONS.map((option) => ({
+      id: option.id,
+      label: option.label,
+      enabled: reportSections[option.id]?.enabled ?? false,
+      limit: reportSections[option.id]?.limit ?? option.defaultLimit
+    })).filter((section) => section.enabled);
+
+    if (sections.length === 0) {
+      setReportError('Sélectionnez au moins une catégorie de données à exporter.');
+      return;
+    }
+
+    setReportError('');
+    setReportGenerating(true);
+
+    try {
+      const response = await fetch('/api/target-reports/export', {
+        method: 'POST',
+        headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          phoneNumber,
+          sections,
+          startDate: reportDateStart || null,
+          endDate: reportDateEnd || null
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Impossible de générer le rapport PDF.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const safeNumber = phoneNumber.replace(/[^0-9+]/g, '') || 'numero';
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `rapport-activite-${safeNumber}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setReportModalOpen(false);
+      notifySuccess('Rapport PDF généré avec succès.');
+    } catch (error) {
+      console.error('Erreur export rapport cible:', error);
+      const message = error instanceof Error ? error.message : "Impossible de générer le rapport PDF.";
+      setReportError(message);
+    } finally {
+      setReportGenerating(false);
+    }
+  }, [createAuthHeaders, notifySuccess, reportDateEnd, reportDateStart, reportPhoneInput, reportSections]);
 
   const handleRequestIdentification = async () => {
     const normalizedSearchPhone = searchQuery.replace(/\D/g, '');
@@ -6891,6 +7049,19 @@ useEffect(() => {
               {sidebarOpen && <span className="ml-3">Identifier Téléphone</span>}
             </button>
 
+            <button
+              onClick={() => navigateToPage('report')}
+              title="Rapport"
+              className={`w-full group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all ${
+                currentPage === 'report'
+                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white'
+              } ${!sidebarOpen && 'justify-center px-0'}`}
+            >
+              <FileDown className="h-5 w-5 transition-transform duration-200 group-hover:scale-110" />
+              {sidebarOpen && <span className="ml-3">Rapport</span>}
+            </button>
+
             <div className="space-y-1">
               <button
                 type="button"
@@ -9409,6 +9580,182 @@ useEffect(() => {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {currentPage === 'report' && (
+            <div className="space-y-8">
+              <PageHeader
+                icon={<FileDown className="h-6 w-6" />}
+                title="Rapport d'activité"
+                subtitle="Générez en quelques clics un rapport PDF moderne basé sur un numéro de téléphone."
+              />
+
+              <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-indigo-50 via-white to-blue-50 p-8 shadow-xl shadow-indigo-200/40 dark:border-slate-700/60 dark:from-slate-900 dark:via-slate-900/80 dark:to-indigo-950/40">
+                <div className="pointer-events-none absolute -left-20 top-0 h-56 w-56 rounded-full bg-indigo-400/20 blur-3xl" />
+                <div className="pointer-events-none absolute right-0 top-0 h-52 w-52 rounded-full bg-blue-400/20 blur-3xl" />
+
+                <div className="relative grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+                  <div className="space-y-6">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">Rapport intelligent</p>
+                      <h3 className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-50">Construire un rapport opérationnel</h3>
+                      <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                        Entrez un numéro, choisissez les données à exporter dans la fenêtre de configuration, puis générez votre PDF prêt pour l'investigation.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                        Numéro de téléphone
+                      </label>
+                      <div className="flex flex-col gap-3 sm:flex-row">
+                        <div className="relative flex-1">
+                          <Phone className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                          <input
+                            value={reportPhoneInput}
+                            onChange={(event) => {
+                              setReportPhoneInput(event.target.value);
+                              if (reportError) setReportError('');
+                            }}
+                            className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-800 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-500/20"
+                            placeholder="Ex: +221771234567"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={openReportModal}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:from-indigo-500 hover:to-blue-500"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          Configurer l'export
+                        </button>
+                      </div>
+                      {reportError && (
+                        <p className="text-sm font-medium text-rose-600 dark:text-rose-300">{reportError}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-2xl border border-white/70 bg-white/80 p-5 shadow-inner dark:border-slate-700/70 dark:bg-slate-900/70">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Sections disponibles</p>
+                    {REPORT_SECTION_OPTIONS.map((section) => (
+                      <div key={section.id} className="flex items-start gap-3 rounded-xl bg-slate-50/80 p-3 ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/60">
+                        <span className="mt-0.5 text-indigo-600 dark:text-indigo-300">{section.icon}</span>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{section.label}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-300">{section.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {reportModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+                  <div className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                    <div className="mb-6 flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Configurer les données à exporter</h3>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
+                          Numéro: <span className="font-semibold text-slate-700 dark:text-slate-100">{reportPhoneInput.trim()}</span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={closeReportModal}
+                        className="rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        aria-label="Fermer"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {REPORT_SECTION_OPTIONS.map((section) => {
+                        const sectionState = reportSections[section.id] ?? { enabled: false, limit: section.defaultLimit };
+                        return (
+                          <div key={section.id} className="rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
+                            <label className="flex cursor-pointer items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={sectionState.enabled}
+                                onChange={() => handleReportSectionToggle(section.id)}
+                                className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                                  <span className="text-indigo-600 dark:text-indigo-300">{section.icon}</span>
+                                  {section.label}
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{section.description}</p>
+                                <div className="mt-3 flex items-center gap-2">
+                                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Limite</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={200}
+                                    value={sectionState.limit}
+                                    onChange={(event) => handleReportLimitChange(section.id, event.target.value)}
+                                    disabled={!sectionState.enabled}
+                                    className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-sm outline-none focus:border-indigo-500 dark:border-slate-600 dark:bg-slate-800"
+                                  />
+                                </div>
+                              </div>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                      <label className="text-sm text-slate-600 dark:text-slate-300">
+                        Date de début (optionnel)
+                        <input
+                          type="date"
+                          value={reportDateStart}
+                          onChange={(event) => setReportDateStart(event.target.value)}
+                          className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-slate-600 dark:bg-slate-800"
+                        />
+                      </label>
+                      <label className="text-sm text-slate-600 dark:text-slate-300">
+                        Date de fin (optionnel)
+                        <input
+                          type="date"
+                          value={reportDateEnd}
+                          onChange={(event) => setReportDateEnd(event.target.value)}
+                          className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-slate-600 dark:bg-slate-800"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-700">
+                      <p className="text-sm text-slate-500 dark:text-slate-300">
+                        {selectedReportSectionsCount} section(s) sélectionnée(s).
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={closeReportModal}
+                          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="button"
+                          disabled={reportGenerating}
+                          onClick={handleReportExport}
+                          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:from-indigo-500 hover:to-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {reportGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                          Générer le rapport PDF
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
