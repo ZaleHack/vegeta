@@ -31,6 +31,36 @@ const UNSUPPORTED_TYPES = new Set(['json']);
 
 const ADDITIONAL_INDEXING_TABLES = ['autres.data_orange'];
 
+const resolveAdditionalTableIdentifier = (identifier) => {
+  if (typeof identifier !== 'string') {
+    return null;
+  }
+
+  const parts = identifier
+    .split('.')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const [schema = 'autres', ...tableParts] = parts.length === 1
+    ? ['autres', ...parts]
+    : parts;
+  const table = tableParts.join('.');
+
+  if (!table) {
+    return null;
+  }
+
+  return {
+    key: `${schema}.${table}`,
+    schema,
+    table
+  };
+};
+
 const getAdditionalIndexingTables = () => {
   const tables = new Set(ADDITIONAL_INDEXING_TABLES);
 
@@ -253,11 +283,15 @@ class DatabaseIndexingService {
     const catalog = this.loadCatalog();
 
     for (const table of getAdditionalIndexingTables()) {
-      if (!catalog[table]) {
-        const [schema = 'autres', tableName = ''] = table.split('.');
-        const resolvedTable = tableName || schema;
-        catalog[table] = { database: schema, display: resolvedTable };
+      const resolvedTable = resolveAdditionalTableIdentifier(table);
+      if (!resolvedTable || catalog[resolvedTable.key]) {
+        continue;
       }
+
+      catalog[resolvedTable.key] = {
+        database: resolvedTable.schema,
+        display: resolvedTable.table
+      };
     }
     const summary = {
       tablesProcessed: 0,
