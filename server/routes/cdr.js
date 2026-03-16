@@ -332,7 +332,7 @@ router.get('/realtime/export', authenticate, async (req, res) => {
           c.cgi,
           c.route_reseau,
           c.device_id
-        FROM ${REALTIME_CDR_TABLE_SQL} c
+        FROM autres.cdr_temps_reel c
         ${whereClause}
         ORDER BY c.date_debut DESC, c.heure_debut DESC, c.id DESC
       `,
