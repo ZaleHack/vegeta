@@ -1845,6 +1845,14 @@ class RealtimeCdrService {
       return;
     }
 
+    const tableMaxIdResult = await this.database.query(
+      `SELECT COALESCE(MAX(c.id), 0) AS max_id FROM ${REALTIME_CDR_TABLE_SQL} AS c`
+    );
+    const tableMaxId = Number(tableMaxIdResult?.[0]?.max_id);
+    const safeTableMaxId = Number.isFinite(tableMaxId)
+      ? Math.max(0, Math.floor(tableMaxId))
+      : 0;
+
     const response = await client.search({
       index: this.indexName,
       size: 1,
@@ -1857,7 +1865,21 @@ class RealtimeCdrService {
       const value = hits[0]?._source?.record_id;
       const parsed = Number(value);
       if (Number.isFinite(parsed)) {
-        this.lastIndexedId = parsed;
+        const normalizedCursor = Math.max(0, Math.floor(parsed));
+
+        if (normalizedCursor > safeTableMaxId) {
+          console.warn(
+            [
+              'Cursor Elasticsearch invalide détecté pour CDR temps réel.',
+              `record_id=${normalizedCursor} dépasse MAX(id) SQL=${safeTableMaxId}.`,
+              "Réinitialisation du curseur vers MAX(id) SQL pour reprendre l'indexation."
+            ].join(' ')
+          );
+          this.lastIndexedId = safeTableMaxId;
+          return;
+        }
+
+        this.lastIndexedId = normalizedCursor;
       }
     }
   }
