@@ -4,8 +4,7 @@ import { isElasticsearchEnabled, isElasticsearchForced } from '../config/environ
 import {
   REALTIME_CDR_TABLE_NAME,
   REALTIME_CDR_TABLE_SCHEMA,
-  REALTIME_CDR_TABLE_SQL,
-  getRealtimeCdrTablesMetadata
+  REALTIME_CDR_TABLE_SQL
 } from '../config/realtime-table.js';
 import cgiBtsEnricher from './CgiBtsEnrichmentService.js';
 import { normalizeCgi } from '../utils/cgi.js';
@@ -22,49 +21,6 @@ const EMPTY_RESULT = {
 const REALTIME_INDEX = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
 const MAX_BATCH_SIZE = 5000;
 const DEFAULT_RECONNECT_DELAY_MS = 15000;
-
-const REALTIME_INDEX_TABLE_ID_MULTIPLIER = 1_000_000_000_000;
-
-const escapeSqlStringLiteral = (value) => String(value).replace(/'/g, "''");
-
-const buildRealtimeIndexSourceSql = () => {
-  const tables = getRealtimeCdrTablesMetadata();
-
-  if (!Array.isArray(tables) || tables.length === 0) {
-    return REALTIME_CDR_TABLE_SQL;
-  }
-
-  if (tables.length === 1) {
-    const [table] = tables;
-    const source = escapeSqlStringLiteral(table.raw || table.table || 'realtime');
-    return `(
-      SELECT
-        c.*,
-        '${source}' AS source_table,
-        c.id AS source_row_id,
-        c.id AS source_record_id
-      FROM ${table.formatted} AS c
-    )`;
-  }
-
-  const unionSql = tables
-    .map((table, index) => {
-      const source = escapeSqlStringLiteral(table.raw || table.table || `realtime_${index + 1}`);
-      const tableRank = index + 1;
-      return `
-      SELECT
-        c.*,
-        '${source}' AS source_table,
-        c.id AS source_row_id,
-        (${tableRank} * ${REALTIME_INDEX_TABLE_ID_MULTIPLIER}) + c.id AS source_record_id
-      FROM ${table.formatted} AS c`;
-    })
-    .join('\n      UNION ALL');
-
-  return `(\n${unionSql}\n    )`;
-};
-
-const REALTIME_CDR_INDEX_SOURCE_SQL = buildRealtimeIndexSourceSql();
 
 const parseNonNegativeInteger = (value, fallback) => {
   const parsed = Number(value);
@@ -1775,7 +1731,7 @@ class RealtimeCdrService {
       return hits.map((hit) => {
         const source = hit._source || {};
         return {
-          id: source.source_row_id ?? source.record_id ?? hit._id,
+          id: source.record_id ?? hit._id,
           seq_number: source.seq_number ?? null,
           type_appel: source.type_appel ?? null,
           statut_appel: source.statut_appel ?? null,
@@ -1828,8 +1784,6 @@ class RealtimeCdrService {
           mappings: {
             properties: {
               record_id: { type: 'long' },
-              source_row_id: { type: 'long' },
-              record_source: { type: 'keyword' },
               seq_number: { type: 'long' },
               type_appel: { type: 'keyword' },
               event_type: { type: 'keyword' },
@@ -1954,13 +1908,10 @@ class RealtimeCdrService {
           c.device_id,
           ${coordinateSelect},
           c.fichier_source AS source_file,
-          c.inserted_at,
-          c.source_table,
-          c.source_row_id,
-          c.source_record_id
-        FROM ${REALTIME_CDR_INDEX_SOURCE_SQL} AS c
-        WHERE c.source_record_id > ?
-        ORDER BY c.source_record_id ASC
+          c.inserted_at
+        FROM ${REALTIME_CDR_TABLE_SQL} AS c
+        WHERE c.id > ?
+        ORDER BY c.id ASC
         LIMIT ?
       `,
       [startId, effectiveLimit]
@@ -2218,7 +2169,7 @@ class RealtimeCdrService {
         const indexedCount = await this.#indexBatch(rows);
         totalIndexed += indexedCount;
         batchCount += 1;
-        lastId = rows[rows.length - 1].source_record_id;
+        lastId = rows[rows.length - 1].id;
         this.lastIndexedId = lastId;
 
         if (typeof onBatchComplete === 'function') {
@@ -2303,7 +2254,7 @@ class RealtimeCdrService {
         }
 
         await this.#indexBatch(rows);
-        this.lastIndexedId = rows[rows.length - 1].source_record_id;
+        this.lastIndexedId = rows[rows.length - 1].id;
         hasMore = rows.length === batchLimit;
       }
     } catch (error) {
@@ -2337,7 +2288,7 @@ class RealtimeCdrService {
       if (!document) {
         continue;
       }
-      operations.push({ index: { _index: this.indexName, _id: `${row.source_table || 'realtime'}:${row.source_row_id ?? row.id}` } });
+      operations.push({ index: { _index: this.indexName, _id: String(row.id) } });
       operations.push(document);
       documentsToIndex += 1;
     }
@@ -2400,7 +2351,7 @@ class RealtimeCdrService {
     const endTime = normalizeTimeBound(row.heure_fin_appel);
 
     return {
-      record_id: toNullableNumber(row.source_record_id) ?? toNullableNumber(row.id),
+      record_id: row.id,
       seq_number: normalizeString(row.seq_number),
       type_appel: normalizeString(row.type_appel),
       event_type: resolveEventType(row.type_appel),
@@ -2432,8 +2383,6 @@ class RealtimeCdrService {
       azimut: normalizeString(row.azimut),
       nom_bts: normalizeString(row.nom_bts),
       source_file: normalizeString(row.source_file),
-      source_row_id: toNullableNumber(row.source_row_id) ?? toNullableNumber(row.id),
-      record_source: normalizeString(row.source_table),
       inserted_at: normalizeDateTimeInput(row.inserted_at),
       call_timestamp: buildCallTimestampValue(dateStart, startTime),
       start_time_seconds: timeToSeconds(startTime),
