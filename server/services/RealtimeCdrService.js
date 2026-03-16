@@ -4,7 +4,7 @@ import { isElasticsearchEnabled, isElasticsearchForced } from '../config/environ
 import {
   REALTIME_CDR_TABLE_NAME,
   REALTIME_CDR_TABLE_SCHEMA,
-  REALTIME_CDR_TABLE_SQL
+  REALTIME_CDR_TABLES_METADATA
 } from '../config/realtime-table.js';
 import cgiBtsEnricher from './CgiBtsEnrichmentService.js';
 import { normalizeCgi } from '../utils/cgi.js';
@@ -21,6 +21,16 @@ const EMPTY_RESULT = {
 const REALTIME_INDEX = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
 const MAX_BATCH_SIZE = 5000;
 const DEFAULT_RECONNECT_DELAY_MS = 15000;
+
+
+const escapeSqlString = (value = '') => String(value).replace(/'/g, "''");
+
+const REALTIME_CDR_UNIFIED_SOURCE_SQL = REALTIME_CDR_TABLES_METADATA.map(
+  (table) =>
+    `SELECT c.*, c.id AS source_record_id, '${escapeSqlString(table.raw)}' AS source_table FROM ${table.formatted} AS c`
+).join('\nUNION ALL\n');
+
+const REALTIME_CDR_UNIFIED_TABLE_SQL = `(${REALTIME_CDR_UNIFIED_SOURCE_SQL})`;
 
 const parseNonNegativeInteger = (value, fallback) => {
   const parsed = Number(value);
@@ -598,6 +608,9 @@ class RealtimeCdrService {
     this.indexEnsured = false;
     this.indexReady = false;
     this.lastIndexedId = 0;
+    this.lastIndexedByTable = new Map(
+      REALTIME_CDR_TABLES_METADATA.map((table) => [table.raw, 0])
+    );
     this.indexing = false;
     this.indexTimer = null;
     this.coordinateSelectClausePromise = null;
@@ -763,7 +776,7 @@ class RealtimeCdrService {
           COUNT(*) AS occurrences,
           MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
           MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
-        FROM ${REALTIME_CDR_TABLE_SQL} AS c
+        FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} AS c
         ${whereClause}
         GROUP BY c.numero_appelant
         HAVING c.numero_appelant IS NOT NULL AND c.numero_appelant <> ''
@@ -775,7 +788,7 @@ class RealtimeCdrService {
           COUNT(*) AS occurrences,
           MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
           MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
-        FROM ${REALTIME_CDR_TABLE_SQL} AS c
+        FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} AS c
         ${whereClause}
         GROUP BY c.imei_appelant
         HAVING c.imei_appelant IS NOT NULL AND c.imei_appelant <> ''
@@ -821,7 +834,7 @@ class RealtimeCdrService {
             COUNT(*) AS occurrences,
             MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
             MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
-          FROM ${REALTIME_CDR_TABLE_SQL} AS c
+          FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} AS c
           ${entrantWhereClause}
           GROUP BY c.numero_appelant, c.imei_entrant
           HAVING c.numero_appelant IS NOT NULL AND c.numero_appelant <> ''
@@ -966,7 +979,7 @@ class RealtimeCdrService {
       SELECT
         c.numero_appelant AS number,
         MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
-      FROM ${REALTIME_CDR_TABLE_SQL} AS c
+      FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} AS c
       WHERE ${conditions.join(' AND ')}
       GROUP BY c.numero_appelant
       HAVING COUNT(DISTINCT c.imei_appelant) >= 2
@@ -1001,7 +1014,7 @@ class RealtimeCdrService {
         COUNT(*) AS occurrences,
         MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
         MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
-      FROM ${REALTIME_CDR_TABLE_SQL} AS c
+      FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} AS c
       WHERE ${conditions.join(' AND ')}
         AND c.numero_appelant IN (${numberPlaceholders})
       GROUP BY c.numero_appelant, c.imei_appelant
@@ -1166,7 +1179,7 @@ class RealtimeCdrService {
     const sql = `
       SELECT
         ${selectColumns.join(',\n        ')}
-      FROM ${REALTIME_CDR_TABLE_SQL} AS c
+      FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} AS c
       ${whereClause}
       LIMIT 20000
     `;
@@ -1391,7 +1404,7 @@ class RealtimeCdrService {
         ${coordinateSelect},
         c.fichier_source AS source_file,
         c.inserted_at
-      FROM ${REALTIME_CDR_TABLE_SQL} AS c
+      FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} AS c
       LEFT JOIN best_bts AS coords ON LOWER(coords.cgi) = LOWER(c.cgi)
       ${whereClause}
       ORDER BY c.inserted_at DESC, c.date_debut DESC, c.heure_debut DESC, c.id DESC
@@ -1784,6 +1797,8 @@ class RealtimeCdrService {
           mappings: {
             properties: {
               record_id: { type: 'long' },
+              source_record_id: { type: 'long' },
+              source_table: { type: 'keyword' },
               seq_number: { type: 'long' },
               type_appel: { type: 'keyword' },
               event_type: { type: 'keyword' },
@@ -1842,24 +1857,33 @@ class RealtimeCdrService {
   async #loadLastIndexedId() {
     if (!this.elasticEnabled) {
       this.lastIndexedId = 0;
+      this.lastIndexedByTable = new Map(REALTIME_CDR_TABLES_METADATA.map((table) => [table.raw, 0]));
       return;
     }
 
     const response = await client.search({
       index: this.indexName,
-      size: 1,
-      sort: [{ record_id: { order: 'desc' } }],
-      _source: ['record_id']
+      size: Math.max(REALTIME_CDR_TABLES_METADATA.length, 1) * 5,
+      sort: [{ source_record_id: { order: 'desc' } }],
+      _source: ['source_record_id', 'source_table']
     });
 
+    const lastIndexedByTable = new Map(REALTIME_CDR_TABLES_METADATA.map((table) => [table.raw, 0]));
     const hits = response?.hits?.hits || [];
-    if (hits.length > 0) {
-      const value = hits[0]?._source?.record_id;
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) {
-        this.lastIndexedId = parsed;
+    for (const hit of hits) {
+      const source = hit?._source || {};
+      const sourceTable = typeof source.source_table === 'string' ? source.source_table : '';
+      if (!sourceTable || !lastIndexedByTable.has(sourceTable)) {
+        continue;
+      }
+      const value = Number(source.source_record_id);
+      if (Number.isFinite(value) && value > (lastIndexedByTable.get(sourceTable) || 0)) {
+        lastIndexedByTable.set(sourceTable, value);
       }
     }
+
+    this.lastIndexedByTable = lastIndexedByTable;
+    this.lastIndexedId = Math.max(0, ...Array.from(lastIndexedByTable.values()));
   }
 
   #resolveBatchSize(limit) {
@@ -1879,43 +1903,65 @@ class RealtimeCdrService {
   async #fetchRows(afterId, limit) {
     const coordinateSelect = await this.#getCoordinateSelectClause();
     const numericAfterId = Number(afterId);
-    const startId = Number.isFinite(numericAfterId)
+    const fallbackStartId = Number.isFinite(numericAfterId)
       ? Math.max(0, Math.floor(numericAfterId))
       : 0;
 
     const effectiveLimit = this.#resolveBatchSize(limit);
 
-    const rows = await this.database.query(
-      `
-        SELECT
-          c.id,
-          c.seq_number,
-          c.type_appel,
-          c.statut_appel,
-          c.cause_liberation,
-          c.facturation,
-          c.date_debut AS date_debut_appel,
-          c.date_fin AS date_fin_appel,
-          c.heure_debut AS heure_debut_appel,
-          c.heure_fin AS heure_fin_appel,
-          c.duree_sec AS duree_appel,
-          c.numero_appelant,
-          c.imei_appelant,
-          c.numero_appele,
-          c.imsi_appelant,
-          c.cgi,
-          c.route_reseau,
-          c.device_id,
-          ${coordinateSelect},
-          c.fichier_source AS source_file,
-          c.inserted_at
-        FROM ${REALTIME_CDR_TABLE_SQL} AS c
-        WHERE c.id > ?
-        ORDER BY c.id ASC
-        LIMIT ?
-      `,
-      [startId, effectiveLimit]
-    );
+    const tableStates = REALTIME_CDR_TABLES_METADATA.map((table) => ({
+      table,
+      lastId: Math.max(
+        0,
+        Math.floor(Number(this.lastIndexedByTable?.get(table.raw) ?? fallbackStartId) || 0)
+      )
+    }));
+
+    const tableSelects = tableStates
+      .map(
+        ({ table }) => `
+          SELECT
+            c.id,
+            c.id AS source_record_id,
+            '${escapeSqlString(table.raw)}' AS source_table,
+            c.seq_number,
+            c.type_appel,
+            c.statut_appel,
+            c.cause_liberation,
+            c.facturation,
+            c.date_debut AS date_debut_appel,
+            c.date_fin AS date_fin_appel,
+            c.heure_debut AS heure_debut_appel,
+            c.heure_fin AS heure_fin_appel,
+            c.duree_sec AS duree_appel,
+            c.numero_appelant,
+            c.imei_appelant,
+            c.numero_appele,
+            c.imsi_appelant,
+            c.cgi,
+            c.route_reseau,
+            c.device_id,
+            ${coordinateSelect},
+            c.fichier_source AS source_file,
+            c.inserted_at
+          FROM ${table.formatted} AS c
+          WHERE c.id > ?`
+      )
+      .join('\nUNION ALL\n');
+
+    const sql = `
+      SELECT *
+      FROM (
+        ${tableSelects}
+      ) AS unified
+      ORDER BY unified.source_record_id ASC
+      LIMIT ?
+    `;
+
+    const params = tableStates.map(({ lastId }) => lastId);
+    params.push(effectiveLimit);
+
+    const rows = await this.database.query(sql, params);
 
     await this.#applyCgiEnrichment(rows);
     return rows;
@@ -1933,12 +1979,14 @@ class RealtimeCdrService {
       }
       this.indexEnsured = false;
       this.lastIndexedId = 0;
+      this.lastIndexedByTable = new Map(REALTIME_CDR_TABLES_METADATA.map((table) => [table.raw, 0]));
       return true;
     } catch (error) {
       const statusCode = error?.meta?.statusCode;
       if (statusCode === 404) {
         this.indexEnsured = false;
         this.lastIndexedId = 0;
+        this.lastIndexedByTable = new Map(REALTIME_CDR_TABLES_METADATA.map((table) => [table.raw, 0]));
         return true;
       }
 
@@ -2171,6 +2219,17 @@ class RealtimeCdrService {
         batchCount += 1;
         lastId = rows[rows.length - 1].id;
         this.lastIndexedId = lastId;
+        for (const row of rows) {
+          const sourceTable = typeof row.source_table === 'string' ? row.source_table : '';
+          const sourceRecordId = Number(row.source_record_id ?? row.id);
+          if (!sourceTable || !Number.isFinite(sourceRecordId)) {
+            continue;
+          }
+          const current = this.lastIndexedByTable.get(sourceTable) || 0;
+          if (sourceRecordId > current) {
+            this.lastIndexedByTable.set(sourceTable, sourceRecordId);
+          }
+        }
 
         if (typeof onBatchComplete === 'function') {
           try {
@@ -2254,7 +2313,18 @@ class RealtimeCdrService {
         }
 
         await this.#indexBatch(rows);
-        this.lastIndexedId = rows[rows.length - 1].id;
+        this.lastIndexedId = Number(rows[rows.length - 1].source_record_id ?? rows[rows.length - 1].id) || this.lastIndexedId;
+        for (const row of rows) {
+          const sourceTable = typeof row.source_table === 'string' ? row.source_table : '';
+          const sourceRecordId = Number(row.source_record_id ?? row.id);
+          if (!sourceTable || !Number.isFinite(sourceRecordId)) {
+            continue;
+          }
+          const current = this.lastIndexedByTable.get(sourceTable) || 0;
+          if (sourceRecordId > current) {
+            this.lastIndexedByTable.set(sourceTable, sourceRecordId);
+          }
+        }
         hasMore = rows.length === batchLimit;
       }
     } catch (error) {
@@ -2288,7 +2358,10 @@ class RealtimeCdrService {
       if (!document) {
         continue;
       }
-      operations.push({ index: { _index: this.indexName, _id: String(row.id) } });
+      const recordId = Number(row.source_record_id ?? row.id);
+      const sourceTable = normalizeString(row.source_table);
+      const documentId = sourceTable ? `${sourceTable}:${recordId}` : String(recordId);
+      operations.push({ index: { _index: this.indexName, _id: documentId } });
       operations.push(document);
       documentsToIndex += 1;
     }
@@ -2351,7 +2424,9 @@ class RealtimeCdrService {
     const endTime = normalizeTimeBound(row.heure_fin_appel);
 
     return {
-      record_id: row.id,
+      record_id: Number(row.source_record_id ?? row.id),
+      source_record_id: Number(row.source_record_id ?? row.id),
+      source_table: normalizeString(row.source_table),
       seq_number: normalizeString(row.seq_number),
       type_appel: normalizeString(row.type_appel),
       event_type: resolveEventType(row.type_appel),
