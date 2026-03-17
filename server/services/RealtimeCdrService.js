@@ -1864,8 +1864,11 @@ class RealtimeCdrService {
     const response = await client.search({
       index: this.indexName,
       size: Math.max(REALTIME_CDR_TABLES_METADATA.length, 1) * 5,
-      sort: [{ source_record_id: { order: 'desc' } }],
-      _source: ['source_record_id', 'source_table']
+      sort: [
+        { source_record_id: { order: 'desc', unmapped_type: 'long' } },
+        { record_id: { order: 'desc', unmapped_type: 'long' } }
+      ],
+      _source: ['source_record_id', 'record_id', 'source_table']
     });
 
     const lastIndexedByTable = new Map(REALTIME_CDR_TABLES_METADATA.map((table) => [table.raw, 0]));
@@ -1876,7 +1879,7 @@ class RealtimeCdrService {
       if (!sourceTable || !lastIndexedByTable.has(sourceTable)) {
         continue;
       }
-      const value = Number(source.source_record_id);
+      const value = Number(source.source_record_id ?? source.record_id);
       if (Number.isFinite(value) && value > (lastIndexedByTable.get(sourceTable) || 0)) {
         lastIndexedByTable.set(sourceTable, value);
       }
