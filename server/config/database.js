@@ -10,6 +10,16 @@ class DatabaseManager {
     this.initPromise = null;
     this.isInitialized = false;
     this.logQueries = this.#shouldLogQueries();
+    this.retryableErrorCodes = new Set([
+      'PROTOCOL_CONNECTION_LOST',
+      'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
+      'ECONNRESET',
+      'ECONNREFUSED',
+      'ETIMEDOUT',
+      'EPIPE'
+    ]);
+    this.maxQueryRetries = Number.parseInt(process.env.DB_QUERY_MAX_RETRIES || '3', 10);
+    this.retryDelayMs = Number.parseInt(process.env.DB_QUERY_RETRY_DELAY_MS || '500', 10);
     this.init();
   }
 
@@ -115,6 +125,59 @@ class DatabaseManager {
     if (!this.pool) {
       throw new Error('Database pool not initialized');
     }
+  }
+
+  #shouldRetry(error) {
+    const code = error?.code;
+    return Boolean(code && this.retryableErrorCodes.has(code));
+  }
+
+  async #resetPool() {
+    const previousPool = this.pool;
+    this.pool = null;
+    this.isInitialized = false;
+    this.initPromise = null;
+
+    if (previousPool) {
+      try {
+        await previousPool.end();
+      } catch (closeError) {
+        console.warn('⚠️ Impossible de fermer proprement le pool MySQL précédent:', closeError.message);
+      }
+    }
+
+    await this.ensureInitialized();
+  }
+
+  async #executeWithRetry(executor, options = {}) {
+    const maxRetries = Math.max(Number.isInteger(this.maxQueryRetries) ? this.maxQueryRetries : 3, 0);
+
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      try {
+        return await executor();
+      } catch (error) {
+        const isLastAttempt = attempt >= maxRetries;
+        if (isLastAttempt || !this.#shouldRetry(error)) {
+          throw error;
+        }
+
+        const nextAttempt = attempt + 2;
+        console.warn(
+          `⚠️ Connexion MySQL perdue (${error.code}). Nouvelle tentative ${nextAttempt}/${maxRetries + 1}...`
+        );
+
+        await this.#resetPool();
+
+        const retryDelay = Math.max(Number.isFinite(this.retryDelayMs) ? this.retryDelayMs : 500, 0);
+        if (retryDelay > 0) {
+          await new Promise((resolve) => {
+            setTimeout(resolve, retryDelay);
+          });
+        }
+      }
+    }
+
+    return null;
   }
 
   async createSystemTables() {
@@ -1096,7 +1159,7 @@ class DatabaseManager {
         await this.ensureInitialized();
       }
       this.#logQuery(sql, params, options.logQuery);
-      const [rows] = await this.pool.execute(sql, params);
+      const [rows] = await this.#executeWithRetry(() => this.pool.execute(sql, params), options);
       return DatabaseManager.#normalizeRows(rows);
     } catch (error) {
       const suppressErrorCodes = options.suppressErrorCodes || [];
@@ -1128,7 +1191,7 @@ class DatabaseManager {
 
       this.#logQuery(sql, params, options.logQuery);
 
-      const [rows] = await this.pool.execute(sql, params);
+      const [rows] = await this.#executeWithRetry(() => this.pool.execute(sql, params), options);
       const [row] = DatabaseManager.#normalizeRows(rows);
       return row || null;
     } catch (error) {
