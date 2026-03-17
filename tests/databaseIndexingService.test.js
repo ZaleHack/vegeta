@@ -46,11 +46,11 @@ describe('DatabaseIndexingService', () => {
     await service.ensureIndexes({ dryRun: true });
 
     assert.equal(mockDb.inspectedTables.includes('autres.cdr_temps_reel'), true);
-    assert.equal(mockDb.inspectedTables.includes('autres.cdr_temps_reel_live'), true);
+    assert.equal(mockDb.inspectedTables.includes('autres.cdr_temps_reel_live'), false);
   });
 
-  it('defaults unqualified realtime table names to autres schema', async () => {
-    process.env.REALTIME_CDR_TABLES = 'cdr_temps_reel_live';
+  it('does not inspect cdr_temps_reel_live by default', async () => {
+    delete process.env.REALTIME_CDR_TABLES;
     delete process.env.REALTIME_CDR_TABLE;
 
     const DatabaseIndexingService = await loadDatabaseIndexingService();
@@ -67,6 +67,6 @@ describe('DatabaseIndexingService', () => {
 
     await service.ensureIndexes({ dryRun: true });
 
-    assert.equal(mockDb.inspectedTables.includes('autres.cdr_temps_reel_live'), true);
+    assert.equal(mockDb.inspectedTables.includes('autres.cdr_temps_reel_live'), false);
   });
 });
