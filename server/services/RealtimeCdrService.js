@@ -2026,17 +2026,14 @@ class RealtimeCdrService {
     this.initializationPromise = null;
     this.#clearIndexTimer();
 
-    if (!forced) {
-      if (this.initialElasticEnabled) {
-        console.warn(
-          `⚠️ Elasticsearch temps réel désactivé après échec (${context}). Redémarrage requis pour réactiver cette fonctionnalité.`
-        );
-      }
+    if (!this.initialElasticEnabled) {
       return;
     }
 
-    if (!this.initialElasticEnabled) {
-      return;
+    if (!forced) {
+      console.warn(
+        `⚠️ Elasticsearch temps réel désactivé après échec (${context}). Tentative de reconnexion automatique activée.`
+      );
     }
 
     this.#scheduleReconnect(context, error);
