@@ -6,6 +6,7 @@ import database from '../config/database.js';
 import baseCatalog from '../config/tables-catalog.js';
 import {
   getRealtimeCdrTableIdentifiers,
+  getRealtimeCdrTablesMetadata,
   REALTIME_CDR_TABLE_METADATA
 } from '../config/realtime-table.js';
 
@@ -29,6 +30,50 @@ const BLOB_TYPES = new Set(['blob', 'mediumblob', 'longblob', 'tinyblob']);
 const UNSUPPORTED_TYPES = new Set(['json']);
 
 const ADDITIONAL_INDEXING_TABLES = ['autres.data_orange'];
+
+const resolveAdditionalTableIdentifier = (identifier) => {
+  if (typeof identifier !== 'string') {
+    return null;
+  }
+
+  const parts = identifier
+    .split('.')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const [schema = 'autres', ...tableParts] = parts.length === 1
+    ? ['autres', ...parts]
+    : parts;
+  const table = tableParts.join('.');
+
+  if (!table) {
+    return null;
+  }
+
+  return {
+    key: `${schema}.${table}`,
+    schema,
+    table
+  };
+};
+
+const getAdditionalIndexingTables = () => {
+  const tables = new Set(ADDITIONAL_INDEXING_TABLES);
+
+  for (const realtimeTable of getRealtimeCdrTablesMetadata()) {
+    if (!realtimeTable?.raw) {
+      continue;
+    }
+
+    tables.add(realtimeTable.raw);
+  }
+
+  return [...tables];
+};
 
 const sanitizeIdentifier = (name) => name.replace(/[^a-zA-Z0-9_]/g, '_');
 
@@ -237,12 +282,16 @@ class DatabaseIndexingService {
   async ensureIndexes({ dryRun = false } = {}) {
     const catalog = this.loadCatalog();
 
-    for (const table of ADDITIONAL_INDEXING_TABLES) {
-      if (!catalog[table]) {
-        const [schema = 'autres', tableName = ''] = table.split('.');
-        const resolvedTable = tableName || schema;
-        catalog[table] = { database: schema, display: resolvedTable };
+    for (const table of getAdditionalIndexingTables()) {
+      const resolvedTable = resolveAdditionalTableIdentifier(table);
+      if (!resolvedTable || catalog[resolvedTable.key]) {
+        continue;
       }
+
+      catalog[resolvedTable.key] = {
+        database: resolvedTable.schema,
+        display: resolvedTable.table
+      };
     }
     const summary = {
       tablesProcessed: 0,
