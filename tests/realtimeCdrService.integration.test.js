@@ -40,7 +40,7 @@ test('Realtime CDR search enriches BTS metadata via CGI', async () => {
       if (/INFORMATION_SCHEMA\.COLUMNS/i.test(sql)) {
         return [];
       }
-      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`)) {
+      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`) || /cdr_temps_reel/i.test(sql)) {
         return [JSON.parse(JSON.stringify(sampleRow))];
       }
       throw new Error(`Unexpected SQL in test: ${sql}`);
@@ -110,7 +110,7 @@ test('Realtime CDR search treats position events as location points', async () =
       if (/INFORMATION_SCHEMA\.COLUMNS/i.test(sql)) {
         return [];
       }
-      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`)) {
+      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`) || /cdr_temps_reel/i.test(sql)) {
         return [JSON.parse(JSON.stringify(sampleRow))];
       }
       throw new Error(`Unexpected SQL in test: ${sql}`);
@@ -165,7 +165,7 @@ test('Realtime CDR search surfaces USSD event types in map data', async () => {
       if (/INFORMATION_SCHEMA\.COLUMNS/i.test(sql)) {
         return [];
       }
-      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`)) {
+      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`) || /cdr_temps_reel/i.test(sql)) {
         return [JSON.parse(JSON.stringify(sampleRow))];
       }
       throw new Error(`Unexpected SQL in test: ${sql}`);
@@ -217,7 +217,7 @@ test('Realtime CDR search ignores callee matches for position events', async () 
       if (/INFORMATION_SCHEMA\.COLUMNS/i.test(sql)) {
         return [];
       }
-      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`)) {
+      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`) || /cdr_temps_reel/i.test(sql)) {
         return [JSON.parse(JSON.stringify(sampleRow))];
       }
       throw new Error(`Unexpected SQL in test: ${sql}`);
@@ -268,7 +268,7 @@ test('Realtime CDR search includes SMS contacts when callee is a non-phone label
       if (/INFORMATION_SCHEMA\.COLUMNS/i.test(sql)) {
         return [];
       }
-      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`)) {
+      if (sql.includes(`FROM ${REALTIME_CDR_TABLE_SQL}`) || /cdr_temps_reel/i.test(sql)) {
         return [JSON.parse(JSON.stringify(sampleRow))];
       }
       throw new Error(`Unexpected SQL in test: ${sql}`);
