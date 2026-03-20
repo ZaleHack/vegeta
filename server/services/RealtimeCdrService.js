@@ -1992,29 +1992,95 @@ class RealtimeCdrService {
       return null;
     }
 
-    const filterClauses = [
-      searchType === 'imei'
-        ? { terms: { imei_appelant: variantList } }
-        : { terms: { identifiers: variantList } }
-    ];
+    const normalizedVariants = searchType === 'imei'
+      ? []
+      : Array.from(
+          new Set(
+            variantList
+              .map((value) => normalizePhoneNumber(value))
+              .filter(Boolean)
+          )
+        );
+    const filterClauses = [];
+
+    if (searchType === 'imei') {
+      filterClauses.push({ terms: { imei_appelant: variantList } });
+    } else {
+      const shouldClauses = [
+        { terms: { identifiers: variantList } },
+        { terms: { numero_appelant: variantList } },
+        { terms: { numero_appele: variantList } },
+        { terms: { caller_variants: variantList } },
+        { terms: { callee_variants: variantList } }
+      ];
+
+      if (normalizedVariants.length) {
+        shouldClauses.push({ terms: { numero_appelant_normalized: normalizedVariants } });
+        shouldClauses.push({ terms: { numero_appele_normalized: normalizedVariants } });
+        shouldClauses.push({ terms: { caller_variants: normalizedVariants } });
+        shouldClauses.push({ terms: { callee_variants: normalizedVariants } });
+        shouldClauses.push({ terms: { identifiers: normalizedVariants } });
+      }
+
+      filterClauses.push({
+        bool: {
+          should: shouldClauses,
+          minimum_should_match: 1
+        }
+      });
+    }
 
     if (filters.startDate) {
-      filterClauses.push({ range: { date_debut_appel: { gte: filters.startDate } } });
+      filterClauses.push({
+        bool: {
+          should: [
+            { range: { date_debut_appel: { gte: filters.startDate } } },
+            { range: { date_debut: { gte: filters.startDate } } }
+          ],
+          minimum_should_match: 1
+        }
+      });
     }
     if (filters.endDate) {
-      filterClauses.push({ range: { date_debut_appel: { lte: filters.endDate } } });
+      filterClauses.push({
+        bool: {
+          should: [
+            { range: { date_debut_appel: { lte: filters.endDate } } },
+            { range: { date_debut: { lte: filters.endDate } } }
+          ],
+          minimum_should_match: 1
+        }
+      });
     }
 
     if (filters.startTimeBound) {
-      const seconds = timeToSeconds(filters.startTimeBound);
+      const startTime = formatTimeValue(filters.startTimeBound) || filters.startTimeBound;
+      const seconds = timeToSeconds(startTime);
+      const timeShould = [];
       if (seconds !== null) {
-        filterClauses.push({ range: { start_time_seconds: { gte: seconds } } });
+        timeShould.push({ range: { start_time_seconds: { gte: seconds } } });
+      }
+      if (startTime) {
+        timeShould.push({ range: { heure_debut_appel: { gte: startTime } } });
+        timeShould.push({ range: { heure_debut: { gte: startTime } } });
+      }
+      if (timeShould.length > 0) {
+        filterClauses.push({ bool: { should: timeShould, minimum_should_match: 1 } });
       }
     }
     if (filters.endTimeBound) {
-      const seconds = timeToSeconds(filters.endTimeBound);
+      const endTime = formatTimeValue(filters.endTimeBound) || filters.endTimeBound;
+      const seconds = timeToSeconds(endTime);
+      const timeShould = [];
       if (seconds !== null) {
-        filterClauses.push({ range: { start_time_seconds: { lte: seconds } } });
+        timeShould.push({ range: { start_time_seconds: { lte: seconds } } });
+      }
+      if (endTime) {
+        timeShould.push({ range: { heure_debut_appel: { lte: endTime } } });
+        timeShould.push({ range: { heure_debut: { lte: endTime } } });
+      }
+      if (timeShould.length > 0) {
+        filterClauses.push({ bool: { should: timeShould, minimum_should_match: 1 } });
       }
     }
 
@@ -2044,11 +2110,11 @@ class RealtimeCdrService {
           statut_appel: source.statut_appel ?? null,
           cause_liberation: source.cause_liberation ?? null,
           facturation: source.facturation ?? null,
-          date_debut_appel: source.date_debut_appel ?? null,
-          date_fin_appel: source.date_fin_appel ?? null,
-          heure_debut_appel: source.heure_debut_appel ?? null,
-          heure_fin_appel: source.heure_fin_appel ?? null,
-          duree_appel: source.duree_appel ?? null,
+          date_debut_appel: source.date_debut_appel ?? source.date_debut ?? null,
+          date_fin_appel: source.date_fin_appel ?? source.date_fin ?? null,
+          heure_debut_appel: source.heure_debut_appel ?? source.heure_debut ?? null,
+          heure_fin_appel: source.heure_fin_appel ?? source.heure_fin ?? null,
+          duree_appel: source.duree_appel ?? source.duree_sec ?? source.duration_seconds ?? null,
           numero_appelant:
             source.numero_appelant ?? source.numero_appelant_normalized ?? null,
           imei_appelant: source.imei_appelant ?? null,
@@ -2061,7 +2127,7 @@ class RealtimeCdrService {
           latitude: source.latitude ?? null,
           azimut: source.azimut ?? null,
           nom_bts: source.nom_bts ?? null,
-          source_file: source.source_file ?? null,
+          source_file: source.source_file ?? source.fichier_source ?? null,
           inserted_at: source.inserted_at ?? null
         };
       });
