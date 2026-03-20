@@ -28,6 +28,15 @@ const toTrimmed = (value) => {
   return String(value).trim();
 };
 
+const normalizeHeaderKey = (value) => toTrimmed(value)
+  .replace(/^\uFEFF/, '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '_')
+  .replace(/^_+|_+$/g, '')
+  .replace(/_+/g, '_');
+
 const toNumberOrNull = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
@@ -333,7 +342,12 @@ const processCsvFile = async (filePath, options) => {
     const values = parseCsvLine(line, separator);
     const row = {};
     headers.forEach((header, index) => {
-      row[header] = values[index] ?? '';
+      const value = values[index] ?? '';
+      row[header] = value;
+      const normalizedHeader = normalizeHeaderKey(header);
+      if (normalizedHeader && row[normalizedHeader] === undefined) {
+        row[normalizedHeader] = value;
+      }
     });
 
     const normalized = normalizeRow(row, sourceFile);
