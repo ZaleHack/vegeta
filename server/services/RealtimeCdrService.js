@@ -317,6 +317,12 @@ const normalizeDateValue = (value) => {
   return text;
 };
 
+const getEventTimestampText = (source = {}) =>
+  source.call_timestamp ||
+  (source.date_debut_appel || source.date_debut
+    ? `${source.date_debut_appel || source.date_debut}T${source.heure_debut_appel || source.heure_debut || '00:00:00'}`
+    : null);
+
 const matchesIdentifier = (identifierSet, value, type = 'phone') => {
   if (!value) {
     return false;
@@ -882,6 +888,165 @@ class RealtimeCdrService {
       return { imeis: [], numbers: [], updatedAt: new Date().toISOString() };
     }
 
+    const startDate = typeof options.startDate === 'string' && options.startDate.trim() ? options.startDate.trim() : null;
+    const endDate = typeof options.endDate === 'string' && options.endDate.trim() ? options.endDate.trim() : null;
+
+    if (this.elasticEnabled) {
+      try {
+        if (await this.#ensureElasticsearchIndex()) {
+          const variantList = Array.from(variants);
+          const shouldClauses = searchType === 'imei'
+            ? [{ terms: { imei_appelant: variantList } }]
+            : [
+                { terms: { numero_appelant: variantList } },
+                { terms: { numero_appelant_normalized: variantList } },
+                { terms: { caller_variants: variantList } }
+              ];
+          const filterClauses = [
+            { bool: { should: shouldClauses, minimum_should_match: 1 } }
+          ];
+
+          if (startDate) {
+            filterClauses.push({
+              bool: {
+                should: [
+                  { range: { date_debut_appel: { gte: startDate } } },
+                  { range: { date_debut: { gte: startDate } } }
+                ],
+                minimum_should_match: 1
+              }
+            });
+          }
+          if (endDate) {
+            filterClauses.push({
+              bool: {
+                should: [
+                  { range: { date_debut_appel: { lte: endDate } } },
+                  { range: { date_debut: { lte: endDate } } }
+                ],
+                minimum_should_match: 1
+              }
+            });
+          }
+
+          const esResponse = await client.search({
+            index: this.indexName,
+            size: 12000,
+            _source: [
+              'numero_appelant',
+              'numero_appelant_normalized',
+              'imei_appelant',
+              'call_timestamp',
+              'date_debut_appel',
+              'heure_debut_appel',
+              'date_debut',
+              'heure_debut'
+            ],
+            query: { bool: { filter: filterClauses } },
+            sort: [
+              { call_timestamp: { order: 'desc', unmapped_type: 'date' } },
+              { inserted_at: { order: 'desc', unmapped_type: 'date' } },
+              { record_id: { order: 'desc' } }
+            ],
+            track_total_hits: false
+          });
+
+          const hits = esResponse?.hits?.hits || [];
+          const updatedAt = new Date().toISOString();
+
+          if (searchType === 'imei') {
+            const imeiValue = normalizedImeiInput || sanitizedImei || trimmedIdentifier;
+            const numbersMap = new Map();
+
+            hits.forEach((hit) => {
+              const source = hit?._source || {};
+              const number = normalizePhoneNumber(source.numero_appelant || source.numero_appelant_normalized)
+                || sanitizeNumber(source.numero_appelant || source.numero_appelant_normalized)
+                || '';
+              if (!number) {
+                return;
+              }
+
+              const timestamp = normalizeDateValue(getEventTimestampText(source));
+              const current = numbersMap.get(number) || {
+                number,
+                occurrences: 0,
+                firstSeen: timestamp,
+                lastSeen: timestamp,
+                roles: [],
+                cases: []
+              };
+              current.occurrences += 1;
+              if (!current.firstSeen || (timestamp && timestamp < current.firstSeen)) {
+                current.firstSeen = timestamp;
+              }
+              if (!current.lastSeen || (timestamp && timestamp > current.lastSeen)) {
+                current.lastSeen = timestamp;
+              }
+              numbersMap.set(number, current);
+            });
+
+            return {
+              imeis: [
+                {
+                  imei: imeiValue,
+                  numbers: Array.from(numbersMap.values()),
+                  roleSummary: { caller: numbersMap.size, callee: 0 },
+                  cases: []
+                }
+              ],
+              numbers: [],
+              updatedAt
+            };
+          }
+
+          const imeiMap = new Map();
+          hits.forEach((hit) => {
+            const source = hit?._source || {};
+            const imei = source.imei_appelant ? String(source.imei_appelant).trim() : '';
+            if (!imei) {
+              return;
+            }
+            const timestamp = normalizeDateValue(getEventTimestampText(source));
+            const current = imeiMap.get(imei) || {
+              imei,
+              occurrences: 0,
+              firstSeen: timestamp,
+              lastSeen: timestamp,
+              roles: [],
+              cases: []
+            };
+            current.occurrences += 1;
+            if (!current.firstSeen || (timestamp && timestamp < current.firstSeen)) {
+              current.firstSeen = timestamp;
+            }
+            if (!current.lastSeen || (timestamp && timestamp > current.lastSeen)) {
+              current.lastSeen = timestamp;
+            }
+            imeiMap.set(imei, current);
+          });
+
+          const normalizedNumber = normalizePhoneNumber(sanitizedNumber) || sanitizedNumber || trimmedIdentifier;
+          return {
+            imeis: [],
+            numbers: [
+              {
+                number: normalizedNumber,
+                imeis: Array.from(imeiMap.values()),
+                roleSummary: { caller: imeiMap.size, callee: 0 },
+                cases: []
+              }
+            ],
+            updatedAt
+          };
+        }
+      } catch (error) {
+        if (isElasticsearchForced()) {
+          throw error;
+        }
+      }
+    }
+
     const conditions = [];
     const params = [];
     const variantList = Array.from(variants);
@@ -892,9 +1057,6 @@ class RealtimeCdrService {
       conditions.push(`c.numero_appelant IN (${variantList.map(() => '?').join(', ')})`);
     }
     params.push(...variantList);
-
-    const startDate = typeof options.startDate === 'string' && options.startDate.trim() ? options.startDate.trim() : null;
-    const endDate = typeof options.endDate === 'string' && options.endDate.trim() ? options.endDate.trim() : null;
 
     if (startDate) {
       conditions.push('c.date_debut >= ?');
@@ -1259,6 +1421,117 @@ class RealtimeCdrService {
     const parsedLimit = Number.parseInt(String(options.limit ?? ''), 10);
     const resultLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 1000) : 200;
 
+    if (this.elasticEnabled) {
+      try {
+        if (await this.#ensureElasticsearchIndex()) {
+          const filterClauses = [
+            { exists: { field: 'numero_appelant' } },
+            { exists: { field: 'imei_appelant' } }
+          ];
+
+          if (startDate) {
+            filterClauses.push({
+              bool: {
+                should: [
+                  { range: { date_debut_appel: { gte: startDate } } },
+                  { range: { date_debut: { gte: startDate } } }
+                ],
+                minimum_should_match: 1
+              }
+            });
+          }
+          if (endDate) {
+            filterClauses.push({
+              bool: {
+                should: [
+                  { range: { date_debut_appel: { lte: endDate } } },
+                  { range: { date_debut: { lte: endDate } } }
+                ],
+                minimum_should_match: 1
+              }
+            });
+          }
+
+          const esResponse = await client.search({
+            index: this.indexName,
+            size: 20000,
+            _source: [
+              'numero_appelant',
+              'numero_appelant_normalized',
+              'imei_appelant',
+              'call_timestamp',
+              'date_debut_appel',
+              'heure_debut_appel',
+              'date_debut',
+              'heure_debut'
+            ],
+            query: { bool: { filter: filterClauses } },
+            sort: [
+              { call_timestamp: { order: 'desc', unmapped_type: 'date' } },
+              { inserted_at: { order: 'desc', unmapped_type: 'date' } },
+              { record_id: { order: 'desc' } }
+            ],
+            track_total_hits: false
+          });
+
+          const byNumber = new Map();
+          const hits = esResponse?.hits?.hits || [];
+          hits.forEach((hit) => {
+            const source = hit?._source || {};
+            const number = normalizePhoneNumber(source.numero_appelant || source.numero_appelant_normalized)
+              || sanitizeNumber(source.numero_appelant || source.numero_appelant_normalized)
+              || '';
+            const imei = source.imei_appelant ? String(source.imei_appelant).trim() : '';
+            if (!number || !imei) {
+              return;
+            }
+
+            const ts = normalizeDateValue(getEventTimestampText(source));
+            const entry = byNumber.get(number) || {
+              number,
+              imeisMap: new Map(),
+              totalOccurrences: 0,
+              firstSeen: null,
+              lastSeen: null
+            };
+            const imeiEntry = entry.imeisMap.get(imei) || {
+              imei,
+              occurrences: 0,
+              firstSeen: ts,
+              lastSeen: ts
+            };
+            imeiEntry.occurrences += 1;
+            if (!imeiEntry.firstSeen || (ts && ts < imeiEntry.firstSeen)) imeiEntry.firstSeen = ts;
+            if (!imeiEntry.lastSeen || (ts && ts > imeiEntry.lastSeen)) imeiEntry.lastSeen = ts;
+            entry.imeisMap.set(imei, imeiEntry);
+
+            entry.totalOccurrences += 1;
+            if (!entry.firstSeen || (ts && ts < entry.firstSeen)) entry.firstSeen = ts;
+            if (!entry.lastSeen || (ts && ts > entry.lastSeen)) entry.lastSeen = ts;
+            byNumber.set(number, entry);
+          });
+
+          const numbers = Array.from(byNumber.values())
+            .filter((item) => item.imeisMap.size >= 2)
+            .map((item) => ({
+              number: item.number,
+              imeis: Array.from(item.imeisMap.values()).sort((a, b) => String(b.lastSeen || '').localeCompare(String(a.lastSeen || ''))),
+              totalOccurrences: item.totalOccurrences,
+              firstSeen: item.firstSeen,
+              lastSeen: item.lastSeen
+            }))
+            .sort((a, b) => String(b.lastSeen || '').localeCompare(String(a.lastSeen || '')))
+            .slice(0, resultLimit);
+
+          return { numbers, updatedAt: new Date().toISOString() };
+        }
+      } catch (error) {
+        if (isElasticsearchForced()) {
+          throw error;
+        }
+      }
+    }
+
     if (startDate) {
       conditions.push('c.date_debut >= ?');
       params.push(startDate);
@@ -1412,6 +1685,170 @@ class RealtimeCdrService {
 
     const startTimeBound = normalizeTimeBound(startTime);
     const endTimeBound = normalizeTimeBound(endTime);
+
+    if (this.elasticEnabled) {
+      try {
+        if (await this.#ensureElasticsearchIndex()) {
+          const filterClauses = [
+            {
+              bool: {
+                should: [
+                  { terms: { numero_appelant_normalized: uniqueNumbers } },
+                  { terms: { numero_appele_normalized: uniqueNumbers } },
+                  { terms: { numero_appelant: uniqueNumbers } },
+                  { terms: { numero_appele: uniqueNumbers } }
+                ],
+                minimum_should_match: 1
+              }
+            }
+          ];
+
+          if (startDate) {
+            filterClauses.push({
+              bool: {
+                should: [
+                  { range: { date_debut_appel: { gte: startDate } } },
+                  { range: { date_debut: { gte: startDate } } }
+                ],
+                minimum_should_match: 1
+              }
+            });
+          }
+
+          if (endDate) {
+            filterClauses.push({
+              bool: {
+                should: [
+                  { range: { date_debut_appel: { lte: endDate } } },
+                  { range: { date_debut: { lte: endDate } } }
+                ],
+                minimum_should_match: 1
+              }
+            });
+          }
+
+          if (startTimeBound) {
+            const seconds = timeToSeconds(startTimeBound);
+            const should = [];
+            if (seconds !== null) {
+              should.push({ range: { start_time_seconds: { gte: seconds } } });
+            }
+            should.push({ range: { heure_debut_appel: { gte: startTimeBound } } });
+            should.push({ range: { heure_debut: { gte: startTimeBound } } });
+            filterClauses.push({ bool: { should, minimum_should_match: 1 } });
+          }
+
+          if (endTimeBound) {
+            const seconds = timeToSeconds(endTimeBound);
+            const should = [];
+            if (seconds !== null) {
+              should.push({ range: { start_time_seconds: { lte: seconds } } });
+            }
+            should.push({ range: { heure_debut_appel: { lte: endTimeBound } } });
+            should.push({ range: { heure_debut: { lte: endTimeBound } } });
+            filterClauses.push({ bool: { should, minimum_should_match: 1 } });
+          }
+
+          const response = await client.search({
+            index: this.indexName,
+            size: 20000,
+            _source: [
+              'numero_appelant',
+              'numero_appelant_normalized',
+              'numero_appele',
+              'numero_appele_normalized',
+              'type_appel',
+              'event_type'
+            ],
+            query: { bool: { filter: filterClauses } },
+            sort: [
+              { call_timestamp: { order: 'asc', unmapped_type: 'date' } },
+              { record_id: { order: 'asc' } }
+            ],
+            track_total_hits: false
+          });
+
+          const filteredSet = new Set(uniqueNumbers);
+          const contactSources = {};
+          const edgeMap = {};
+          const hits = response?.hits?.hits || [];
+
+          const buildEventType = (row) => {
+            const typeStr = (row.call_type || '').toLowerCase();
+            if (typeStr.includes('sms')) return 'sms';
+            if (typeStr.includes('data')) return 'web';
+            return 'call';
+          };
+
+          for (const hit of hits) {
+            const sourceDoc = hit?._source || {};
+            const row = {
+              caller: sourceDoc.numero_appelant || sourceDoc.numero_appelant_normalized,
+              callee: sourceDoc.numero_appele || sourceDoc.numero_appele_normalized,
+              call_type: sourceDoc.type_appel || sourceDoc.event_type || ''
+            };
+
+            const caller = normalizePhoneNumber(row.caller);
+            const callee = normalizePhoneNumber(row.callee);
+
+            let source = null;
+            let contact = null;
+
+            if (filteredSet.has(caller)) {
+              source = caller;
+              contact = callee;
+            } else if (filteredSet.has(callee)) {
+              source = callee;
+              contact = caller;
+            }
+
+            if (!source || !contact || !contact.startsWith('221')) continue;
+
+            if (!contactSources[contact]) {
+              contactSources[contact] = new Set();
+            }
+            contactSources[contact].add(source);
+
+            const key = `${source}-${contact}`;
+            if (!edgeMap[key]) {
+              edgeMap[key] = { source, target: contact, callCount: 0, smsCount: 0 };
+            }
+
+            const eventType = buildEventType(row);
+            if (eventType === 'sms') {
+              edgeMap[key].smsCount += 1;
+            } else {
+              edgeMap[key].callCount += 1;
+            }
+          }
+
+          const nodes = uniqueNumbers.map((number) => ({
+            id: number,
+            type: number === rootNumber ? 'root' : 'source'
+          }));
+          const links = [];
+
+          for (const contact in contactSources) {
+            const sourcesSet = contactSources[contact];
+            if (singleSource || sourcesSet.size >= 2) {
+              nodes.push({ id: contact, type: 'contact' });
+              for (const source of sourcesSet) {
+                const edgeKey = `${source}-${contact}`;
+                if (edgeMap[edgeKey]) {
+                  links.push(edgeMap[edgeKey]);
+                }
+              }
+            }
+          }
+
+          return { nodes, links, root: rootNumber };
+        }
+      } catch (error) {
+        if (isElasticsearchForced()) {
+          throw error;
+        }
+      }
+    }
 
     const placeholders = uniqueNumbers.map(() => '?').join(', ');
     const conditions = [`(c.numero_appelant IN (${placeholders}) OR c.numero_appele IN (${placeholders}))`];
