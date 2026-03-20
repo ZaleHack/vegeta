@@ -3296,6 +3296,7 @@ class RealtimeCdrService {
     const contactsMap = new Map();
     const locationsMap = new Map();
     const path = [];
+    const events = [];
     const normalizedType = searchType === 'imei' ? 'imei' : 'phone';
 
     for (const row of rows) {
@@ -3345,6 +3346,22 @@ class RealtimeCdrService {
         }
         contactsMap.set(normalizedOtherNumber, entry);
       }
+
+      events.push({
+        type_appel: row.type_appel ?? null,
+        date_debut: row.date_debut ?? formatDateValue(row.date_debut_appel),
+        heure_debut: row.heure_debut ?? formatTimeValue(row.heure_debut_appel),
+        duree_sec: row.duree_sec ?? formatDuration(row.duree_appel),
+        date_fin: row.date_fin ?? formatDateValue(row.date_fin_appel),
+        heure_fin: row.heure_fin ?? formatTimeValue(row.heure_fin_appel),
+        numero_appelant: row.numero_appelant ?? null,
+        numero_appele: row.numero_appele ?? null,
+        imsi_appelant: row.imsi_appelant ?? null,
+        imei_appelant: row.imei_appelant ?? null,
+        cgi: row.cgi ?? null,
+        route_reseau: row.route_reseau ?? null,
+        device_id: row.device_id ?? null
+      });
 
       const latitude = toTrimmedString(getFirstDefinedValue(row, LATITUDE_FIELD_CANDIDATES));
       const longitude = toTrimmedString(getFirstDefinedValue(row, LONGITUDE_FIELD_CANDIDATES));
@@ -3411,6 +3428,7 @@ class RealtimeCdrService {
       topContacts: contacts.slice(0, 10),
       locations,
       topLocations: locations.slice(0, 10),
+      events,
       path
     };
   }

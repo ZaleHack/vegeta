@@ -219,7 +219,7 @@ router.get('/realtime/export', authenticate, async (req, res) => {
       searchType: 'phone',
       limit: 20000
     });
-    const rows = Array.isArray(result?.contacts) ? result.contacts : [];
+    const rows = Array.isArray(result?.events) ? result.events : [];
 
     const headers = [
       'type_appel',
