@@ -1,7 +1,6 @@
 import express from 'express';
 import XLSX from 'xlsx';
 import { authenticate } from '../middleware/auth.js';
-import database from '../config/database.js';
 import Blacklist from '../models/Blacklist.js';
 import UserLog from '../models/UserLog.js';
 import realtimeCdrService from '../services/RealtimeCdrService.js';
@@ -214,55 +213,13 @@ router.get('/realtime/export', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'La date de début doit précéder la date de fin' });
     }
 
-    const identifierVariants = new Set([trimmedNumber]);
-    const normalizedIdentifier = normalizePhoneNumber(trimmedNumber);
-    if (normalizedIdentifier) {
-      identifierVariants.add(normalizedIdentifier);
-    }
-
-    const variantList = Array.from(identifierVariants).filter(Boolean);
-    const params = [];
-    const conditions = [];
-
-    if (variantList.length > 0) {
-      const placeholders = variantList.map(() => '?').join(', ');
-      conditions.push(`(c.numero_appelant IN (${placeholders}) OR c.numero_appele IN (${placeholders}))`);
-      params.push(...variantList, ...variantList);
-    }
-
-    if (start) {
-      conditions.push('c.date_debut >= ?');
-      params.push(start);
-    }
-
-    if (end) {
-      conditions.push('c.date_debut <= ?');
-      params.push(end);
-    }
-
-    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const rows = await database.query(
-      `
-        SELECT
-          c.type_appel,
-          c.date_debut,
-          c.heure_debut,
-          c.duree_sec,
-          c.date_fin,
-          c.heure_fin,
-          c.numero_appelant,
-          c.numero_appele,
-          c.imsi_appelant,
-          c.imei_appelant,
-          c.cgi,
-          c.route_reseau,
-          c.device_id
-        FROM autres.cdr_temps_reel c
-        ${whereClause}
-        ORDER BY c.date_debut DESC, c.heure_debut DESC, c.id DESC
-      `,
-      params
-    );
+    const result = await realtimeCdrService.search(trimmedNumber, {
+      startDate: start || null,
+      endDate: end || null,
+      searchType: 'phone',
+      limit: 20000
+    });
+    const rows = Array.isArray(result?.contacts) ? result.contacts : [];
 
     const headers = [
       'type_appel',
@@ -298,11 +255,11 @@ router.get('/realtime/export', authenticate, async (req, res) => {
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData, { header: headers });
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'cdr_temps_reel');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'cdr_indexed');
 
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     const timestamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
-    const filename = `export-cdr-temps-reel-${timestamp}.xlsx`;
+    const filename = `export-cdr-indexed-${timestamp}.xlsx`;
 
     res.setHeader(
       'Content-Type',
