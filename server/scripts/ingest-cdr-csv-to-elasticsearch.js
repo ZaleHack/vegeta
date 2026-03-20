@@ -33,6 +33,11 @@ const toNumberOrNull = (value) => {
   return Number.isFinite(n) ? n : null;
 };
 
+const toNullIfEmpty = (value) => {
+  const trimmed = toTrimmed(value);
+  return trimmed === '' ? null : trimmed;
+};
+
 const firstValue = (row, keys) => {
   for (const key of keys) {
     const value = row[key];
@@ -44,13 +49,22 @@ const firstValue = (row, keys) => {
 };
 
 const normalizeDateTime = (dateValue, timeValue) => {
-  const date = toTrimmed(dateValue);
+  const date = toNullIfEmpty(dateValue);
   if (!date) {
     return null;
   }
   const time = toTrimmed(timeValue) || '00:00:00';
   const merged = `${date}T${time}`;
   const parsed = new Date(merged);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
+
+const normalizeDateField = (value) => {
+  const trimmed = toNullIfEmpty(value);
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = new Date(trimmed);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 };
 
@@ -62,10 +76,10 @@ const normalizeRow = (row, sourceFile) => {
     statut_appel: toTrimmed(firstValue(row, ['statut_appel', 'statutAppel'])),
     cause_liberation: toTrimmed(firstValue(row, ['cause_liberation', 'causeLiberation'])),
     facturation: toTrimmed(firstValue(row, ['facturation'])),
-    date_debut: toTrimmed(firstValue(row, ['date_debut', 'dateDebut'])),
+    date_debut: normalizeDateField(firstValue(row, ['date_debut', 'dateDebut'])),
     heure_debut: toTrimmed(firstValue(row, ['heure_debut', 'heureDebut'])),
     duree_sec: toTrimmed(firstValue(row, ['duree_sec', 'dureeSec'])),
-    date_fin: toTrimmed(firstValue(row, ['date_fin', 'dateFin'])),
+    date_fin: normalizeDateField(firstValue(row, ['date_fin', 'dateFin'])),
     heure_fin: toTrimmed(firstValue(row, ['heure_fin', 'heureFin'])),
     numero_appelant: toTrimmed(firstValue(row, ['numero_appelant', 'numeroAppelant'])),
     numero_appele: toTrimmed(firstValue(row, ['numero_appele', 'numeroAppele'])),
@@ -75,12 +89,13 @@ const normalizeRow = (row, sourceFile) => {
     route_reseau: toTrimmed(firstValue(row, ['route_reseau', 'routeReseau'])),
     device_id: toTrimmed(firstValue(row, ['device_id', 'deviceId'])),
     fichier_source: toTrimmed(firstValue(row, ['fichier_source', 'fichierSource'])) || sourceFile,
-    inserted_at: toTrimmed(firstValue(row, ['inserted_at', 'insertedAt']))
+    inserted_at: normalizeDateField(firstValue(row, ['inserted_at', 'insertedAt']))
   };
 
   const timestamp = normalizeDateTime(normalized.date_debut, normalized.heure_debut)
     || normalizeDateTime(normalized.date_fin, normalized.heure_fin)
-    || (normalized.inserted_at ? new Date(normalized.inserted_at).toISOString() : new Date().toISOString());
+    || normalized.inserted_at
+    || new Date().toISOString();
 
   return {
     ...normalized,
