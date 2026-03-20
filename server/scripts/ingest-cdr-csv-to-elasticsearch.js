@@ -137,9 +137,18 @@ const detectSeparator = async (filePath) => {
     const { bytesRead } = await fd.read(buffer, 0, buffer.length, 0);
     const sample = buffer.subarray(0, bytesRead).toString('utf8');
     const firstLine = sample.split(/\r?\n/).find((line) => line.trim()) || '';
-    const commaCount = (firstLine.match(/,/g) || []).length;
-    const semicolonCount = (firstLine.match(/;/g) || []).length;
-    return semicolonCount > commaCount ? ';' : ',';
+    const candidates = [',', ';', '\t', '|'];
+    const separatorScores = candidates.map((separator) => ({
+      separator,
+      score: firstLine.split(separator).length - 1
+    }));
+
+    const best = separatorScores.reduce(
+      (currentBest, candidate) => (candidate.score > currentBest.score ? candidate : currentBest),
+      { separator: ',', score: -1 }
+    );
+
+    return best.score > 0 ? best.separator : ',';
   } finally {
     await fd.close();
   }
