@@ -127,6 +127,81 @@ Pour résoudre le problème :
 
 Une fois la connexion rétablie, redémarrez le serveur Node.js pour réactiver automatiquement la recherche Elasticsearch.
 
+### Mise en place complète du flux CDR temps réel vers Elasticsearch
+
+Cette mise en place permet d'utiliser Elasticsearch comme moteur principal pour la géolocalisation CDR temps réel
+(`GET /api/cdr/realtime/numbers`, `GET /api/cdr/realtime/monitor`, `GET /api/cdr/realtime/search`) tout en gardant un fallback
+SQL si Elasticsearch est indisponible.
+
+1. **Configurer les variables d'environnement**
+
+   ```bash
+   USE_ELASTICSEARCH=true
+   ELASTICSEARCH_URL=http://localhost:9200
+   ELASTICSEARCH_CDR_REALTIME_INDEX=cdr-realtime-events
+   REALTIME_CDR_INDEX_BATCH_SIZE=500
+   REALTIME_CDR_INDEX_INTERVAL_MS=5000
+   ```
+
+2. **Démarrer l'API**
+
+   ```bash
+   npm run server
+   ```
+
+3. **Indexer l'historique initial de `cdr_temps_reel` vers Elasticsearch**
+
+   ```bash
+   npm run cdr:sync:realtime -- --reset --batch-size=2000
+   ```
+
+   > `--reset` recrée l'index CDR temps réel avant ingestion. Retirez ce flag pour une synchronisation incrémentale.
+
+4. **Lancer le worker d'indexation continue**
+
+   ```bash
+   npm run cdr:worker -- --bootstrap --batch-size=2000
+   ```
+
+   - `--bootstrap` : charge d'abord l'existant.
+   - ensuite, le worker suit les nouveaux CDR et les pousse en continu vers Elasticsearch.
+
+5. **Vérifier que les endpoints temps réel utilisent bien Elasticsearch**
+
+   - `GET /api/cdr/realtime/numbers?q=...`
+   - `GET /api/cdr/realtime/monitor?numbers=...`
+   - `GET /api/cdr/realtime/search?phone=...`
+
+   Les routes `numbers` et `monitor` interrogent désormais d'abord Elasticsearch et ne sollicitent MySQL qu'en secours.
+
+### Variante recommandée : ingestion directe depuis des CSV (sans insertion MySQL)
+
+Si votre autre machine réseau génère des CSV décodés puis les supprime après insertion SQL, vous pouvez désormais envoyer
+directement ces CSV au serveur applicatif et les indexer dans Elasticsearch, sans passer par `cdr_temps_reel`.
+
+1. Déposer les fichiers `.csv` dans un dossier d'entrée (par défaut `/var/cdr/incoming`).
+2. Lancer l'ingestion ponctuelle :
+
+   ```bash
+   npm run cdr:ingest:csv -- --input-dir=/var/cdr/incoming --processed-dir=/var/cdr/processed --failed-dir=/var/cdr/failed --batch-size=1000
+   ```
+
+3. Lancer en mode continu (watch) :
+
+   ```bash
+   npm run cdr:ingest:csv -- --watch --input-dir=/var/cdr/incoming --processed-dir=/var/cdr/processed --failed-dir=/var/cdr/failed --batch-size=1000
+   ```
+
+4. Si vous voulez reproduire votre comportement actuel (suppression du CSV après succès) :
+
+   ```bash
+   npm run cdr:ingest:csv -- --watch --delete-on-success --input-dir=/var/cdr/incoming
+   ```
+
+Le script enrichit automatiquement les coordonnées BTS à partir du CGI quand possible, indexe en bulk dans
+`ELASTICSEARCH_CDR_REALTIME_INDEX` (défaut: `cdr-realtime-events`), puis déplace le fichier vers `processed` (ou le supprime
+si `--delete-on-success` est activé). En cas d'échec, le fichier est déplacé dans `failed`.
+
 ## Tests
 
 Une suite de tests automatisés n'est pas fournie. Utilisez le lint et les tests manuels fonctionnels avant toute mise en production.
