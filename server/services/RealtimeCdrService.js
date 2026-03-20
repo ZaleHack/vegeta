@@ -812,6 +812,11 @@ class RealtimeCdrService {
 
     params.push(limit);
 
+    const hasLongitudeColumn = await this.#hasRealtimeColumn('longitude');
+    const hasLatitudeColumn = await this.#hasRealtimeColumn('latitude');
+    const longitudeSelect = hasLongitudeColumn ? 'c.longitude' : 'NULL AS longitude';
+    const latitudeSelect = hasLatitudeColumn ? 'c.latitude' : 'NULL AS latitude';
+
     const rows = await this.database.query(
       `
         SELECT
@@ -824,8 +829,8 @@ class RealtimeCdrService {
           c.heure_fin,
           c.type_appel,
           c.inserted_at,
-          c.longitude,
-          c.latitude
+          ${longitudeSelect},
+          ${latitudeSelect}
         FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} c
         ${whereClause}
         ORDER BY c.inserted_at ASC
