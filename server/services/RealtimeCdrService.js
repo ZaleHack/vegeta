@@ -896,7 +896,10 @@ class RealtimeCdrService {
         if (await this.#ensureElasticsearchIndex()) {
           const variantList = Array.from(variants);
           const shouldClauses = searchType === 'imei'
-            ? [{ terms: { imei_appelant: variantList } }]
+            ? [
+                { terms: { imei_appelant: variantList } },
+                { terms: { imei_entrant: variantList } }
+              ]
             : [
                 { terms: { numero_appelant: variantList } },
                 { terms: { numero_appelant_normalized: variantList } },
@@ -936,6 +939,7 @@ class RealtimeCdrService {
               'numero_appelant',
               'numero_appelant_normalized',
               'imei_appelant',
+              'imei_entrant',
               'call_timestamp',
               'date_debut_appel',
               'heure_debut_appel',

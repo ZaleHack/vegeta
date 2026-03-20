@@ -219,7 +219,7 @@ router.get('/realtime/export', authenticate, async (req, res) => {
       searchType: 'phone',
       limit: 20000
     });
-    const rows = Array.isArray(result?.contacts) ? result.contacts : [];
+    const rows = Array.isArray(result?.path) ? result.path : [];
 
     const headers = [
       'type_appel',
@@ -238,19 +238,19 @@ router.get('/realtime/export', authenticate, async (req, res) => {
     ];
 
     const worksheetData = rows.map((row) => ({
-      type_appel: row.type_appel ?? null,
-      date_debut: row.date_debut ?? null,
-      heure_debut: row.heure_debut ?? null,
-      duree_sec: row.duree_sec ?? null,
-      date_fin: row.date_fin ?? null,
-      heure_fin: row.heure_fin ?? null,
-      numero_appelant: row.numero_appelant ?? null,
-      numero_appele: row.numero_appele ?? null,
-      imsi_appelant: row.imsi_appelant ?? null,
-      imei_appelant: row.imei_appelant ?? null,
+      type_appel: row.type_appel ?? row.type ?? null,
+      date_debut: row.date_debut ?? row.callDate ?? null,
+      heure_debut: row.heure_debut ?? row.startTime ?? null,
+      duree_sec: row.duree_sec ?? row.duration ?? null,
+      date_fin: row.date_fin ?? row.endDate ?? null,
+      heure_fin: row.heure_fin ?? row.endTime ?? null,
+      numero_appelant: row.numero_appelant ?? row.caller ?? null,
+      numero_appele: row.numero_appele ?? row.callee ?? null,
+      imsi_appelant: row.imsi_appelant ?? row.imsiCaller ?? null,
+      imei_appelant: row.imei_appelant ?? row.imeiCaller ?? null,
       cgi: row.cgi ?? null,
-      route_reseau: row.route_reseau ?? null,
-      device_id: row.device_id ?? null
+      route_reseau: row.route_reseau ?? row.networkRoute ?? null,
+      device_id: row.device_id ?? row.deviceId ?? null
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData, { header: headers });
