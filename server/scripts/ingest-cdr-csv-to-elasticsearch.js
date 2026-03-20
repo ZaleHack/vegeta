@@ -11,6 +11,7 @@ const DEFAULT_BATCH_SIZE = 1000;
 const DEFAULT_INPUT_DIR = process.env.CDR_CSV_INPUT_DIR || '/var/cdr/incoming';
 const DEFAULT_PROCESSED_DIR = process.env.CDR_CSV_PROCESSED_DIR || '/var/cdr/processed';
 const DEFAULT_FAILED_DIR = process.env.CDR_CSV_FAILED_DIR || '/var/cdr/failed';
+const DEFAULT_ELASTICSEARCH_URL = 'http://localhost:9200';
 
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number(value);
@@ -206,14 +207,26 @@ const isElasticsearchConnectionError = (error) => {
   return error?.meta?.statusCode === 0;
 };
 
+const getElasticsearchUrl = () => process.env.ELASTICSEARCH_URL || DEFAULT_ELASTICSEARCH_URL;
+
+const verifyElasticsearchConnection = async () => {
+  await client.ping();
+};
+
 const logElasticsearchConnectionHints = () => {
-  const elasticsearchUrl = process.env.ELASTICSEARCH_URL || 'http://localhost:9200';
+  const elasticsearchUrl = getElasticsearchUrl();
 
   console.error('ℹ️ Vérifiez que le service Elasticsearch est démarré et accessible.');
   console.error(`ℹ️ URL Elasticsearch utilisée: ${elasticsearchUrl}`);
   console.error(`ℹ️ Test rapide: curl -fsS ${elasticsearchUrl}`);
   console.error(
     'ℹ️ Si Elasticsearch est sur une autre machine, exportez ELASTICSEARCH_URL avant la commande.'
+  );
+  console.error(
+    'ℹ️ Si vous lancez ce script depuis un conteneur Docker, localhost cible le conteneur lui-même.'
+  );
+  console.error(
+    'ℹ️ Dans ce cas, utilisez l’IP/hostname du serveur Elasticsearch (ex: http://host.docker.internal:9200).'
   );
 };
 
@@ -384,6 +397,7 @@ const processSingleFile = async (filePath, options) => {
 
 const run = async () => {
   const options = parseArgs(process.argv.slice(2));
+  await verifyElasticsearchConnection();
   await ensureRealtimeIndex();
   await fsp.mkdir(options.inputDir, { recursive: true });
 
