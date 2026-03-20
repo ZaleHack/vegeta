@@ -1,5 +1,7 @@
 import database from '../config/database.js';
 import { REALTIME_CDR_TABLE_SQL } from '../config/realtime-table.js';
+import client from '../config/elasticsearch.js';
+import { isElasticsearchEnabled, isElasticsearchForced } from '../config/environment.js';
 import { checkImei, ImeiFunctionalError } from './ImeiService.js';
 
 const sanitizeNumber = (value) => {
@@ -53,6 +55,7 @@ const buildNumberVariants = (value) => {
 };
 
 const MAX_ASSOCIATIONS = 120;
+const REALTIME_INDEX = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
 
 const normalizeDateTime = (value) => {
   if (!value) return null;
@@ -143,25 +146,125 @@ export const findDevicesByNumber = async (inputNumber) => {
 
   const placeholders = variants.map(() => '?').join(', ');
 
-  const rows = await database.query(
-    `
-      SELECT
-        c.numero_appelant AS number,
-        c.imsi_appelant AS imsi,
-        c.imei_appelant AS imei,
-        MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
-        MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen,
-        COUNT(*) AS occurrences
-      FROM ${REALTIME_CDR_TABLE_SQL} c
-      WHERE c.imei_appelant IS NOT NULL
-        AND c.imei_appelant <> ''
-        AND c.numero_appelant IN (${placeholders})
-      GROUP BY c.numero_appelant, c.imsi_appelant, c.imei_appelant
-      ORDER BY last_seen DESC
-      LIMIT ${MAX_ASSOCIATIONS}
-    `,
-    variants
-  );
+  let rows = [];
+  const elasticEnabled = isElasticsearchEnabled();
+  const elasticForced = isElasticsearchForced();
+
+  if (elasticEnabled) {
+    try {
+      const response = await client.search({
+        index: REALTIME_INDEX,
+        size: Math.min(MAX_ASSOCIATIONS * 40, 5000),
+        _source: [
+          'numero_appelant',
+          'numero_appelant_normalized',
+          'imsi_appelant',
+          'imei_appelant',
+          'call_timestamp',
+          'date_debut_appel',
+          'heure_debut_appel',
+          'date_debut',
+          'heure_debut'
+        ],
+        query: {
+          bool: {
+            filter: [
+              {
+                bool: {
+                  should: [
+                    { terms: { numero_appelant: variants } },
+                    { terms: { numero_appelant_normalized: variants } },
+                    { terms: { caller_variants: variants } }
+                  ],
+                  minimum_should_match: 1
+                }
+              },
+              { exists: { field: 'imei_appelant' } }
+            ]
+          }
+        },
+        sort: [
+          { call_timestamp: { order: 'desc', unmapped_type: 'date' } },
+          { inserted_at: { order: 'desc', unmapped_type: 'date' } },
+          { record_id: { order: 'desc' } }
+        ],
+        track_total_hits: false
+      });
+
+      const grouped = new Map();
+      const hits = response?.hits?.hits || [];
+
+      hits.forEach((hit) => {
+        const source = hit?._source || {};
+        const imei = source.imei_appelant ? String(source.imei_appelant).trim() : '';
+        if (!imei) {
+          return;
+        }
+
+        const number = source.numero_appelant || source.numero_appelant_normalized || '';
+        const normalizedNumber = normalizePhoneNumber(number) || sanitizeNumber(number) || '';
+        if (!normalizedNumber) {
+          return;
+        }
+
+        const imsi = source.imsi_appelant ? String(source.imsi_appelant).trim() : '';
+        const stamp = source.call_timestamp
+          || (source.date_debut_appel || source.date_debut
+            ? `${source.date_debut_appel || source.date_debut}T${source.heure_debut_appel || source.heure_debut || '00:00:00'}`
+            : null);
+
+        const key = `${normalizedNumber}::${imsi}::${imei}`;
+        const current = grouped.get(key) || {
+          number: normalizedNumber,
+          imsi: imsi || null,
+          imei,
+          first_seen: stamp,
+          last_seen: stamp,
+          occurrences: 0
+        };
+
+        current.occurrences += 1;
+        if (!current.first_seen || (stamp && stamp < current.first_seen)) {
+          current.first_seen = stamp;
+        }
+        if (!current.last_seen || (stamp && stamp > current.last_seen)) {
+          current.last_seen = stamp;
+        }
+
+        grouped.set(key, current);
+      });
+
+      rows = Array.from(grouped.values())
+        .sort((a, b) => String(b.last_seen || '').localeCompare(String(a.last_seen || '')))
+        .slice(0, MAX_ASSOCIATIONS);
+    } catch (error) {
+      if (elasticForced) {
+        throw error;
+      }
+    }
+  }
+
+  if (rows.length === 0 && !elasticForced) {
+    rows = await database.query(
+      `
+        SELECT
+          c.numero_appelant AS number,
+          c.imsi_appelant AS imsi,
+          c.imei_appelant AS imei,
+          MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
+          MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen,
+          COUNT(*) AS occurrences
+        FROM ${REALTIME_CDR_TABLE_SQL} c
+        WHERE c.imei_appelant IS NOT NULL
+          AND c.imei_appelant <> ''
+          AND c.numero_appelant IN (${placeholders})
+        GROUP BY c.numero_appelant, c.imsi_appelant, c.imei_appelant
+        ORDER BY last_seen DESC
+        LIMIT ${MAX_ASSOCIATIONS}
+      `,
+      variants
+    );
+  }
 
   const uniqueImeis = [...new Set(rows.map((row) => row.imei).filter(Boolean))];
   const uniqueImsis = new Set(rows.map((row) => row.imsi).filter(Boolean));
