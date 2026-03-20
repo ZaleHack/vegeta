@@ -194,6 +194,29 @@ const ensureRealtimeIndex = async () => {
   });
 };
 
+const isElasticsearchConnectionError = (error) => {
+  if (!error) {
+    return false;
+  }
+
+  if (error.name === 'ConnectionError') {
+    return true;
+  }
+
+  return error?.meta?.statusCode === 0;
+};
+
+const logElasticsearchConnectionHints = () => {
+  const elasticsearchUrl = process.env.ELASTICSEARCH_URL || 'http://localhost:9200';
+
+  console.error('ℹ️ Vérifiez que le service Elasticsearch est démarré et accessible.');
+  console.error(`ℹ️ URL Elasticsearch utilisée: ${elasticsearchUrl}`);
+  console.error(`ℹ️ Test rapide: curl -fsS ${elasticsearchUrl}`);
+  console.error(
+    'ℹ️ Si Elasticsearch est sur une autre machine, exportez ELASTICSEARCH_URL avant la commande.'
+  );
+};
+
 const enrichCoordinates = async (records) => {
   const cgis = records.map((item) => item.cgi).filter(Boolean);
   const lookup = await cgiBtsEnricher.fetchMany(cgis);
@@ -389,6 +412,11 @@ const run = async () => {
 };
 
 run().catch((error) => {
-  console.error('❌ Erreur ingestion CSV CDR:', error);
+  console.error('❌ Erreur ingestion CSV CDR:', error.message || error);
+
+  if (isElasticsearchConnectionError(error)) {
+    logElasticsearchConnectionHints();
+  }
+
   process.exit(1);
 });
