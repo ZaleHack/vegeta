@@ -2186,6 +2186,10 @@ class RealtimeCdrService {
 
   async #fetchRows(afterId, limit) {
     const coordinateSelect = await this.#getCoordinateSelectClause();
+    const btsSegments = await this.#getBtsLookupSegments();
+    const unionSegments = btsSegments.length
+      ? btsSegments.join('\n        UNION ALL\n        ')
+      : 'SELECT NULL AS CGI, NULL AS NOM_BTS, NULL AS LONGITUDE, NULL AS LATITUDE, NULL AS AZIMUT, 1 AS priority, 1 AS source_rank FROM (SELECT 1) AS empty WHERE 1 = 0';
     const numericAfterId = Number(afterId);
     const fallbackStartId = Number.isFinite(numericAfterId)
       ? Math.max(0, Math.floor(numericAfterId))
@@ -2229,11 +2233,34 @@ class RealtimeCdrService {
             c.fichier_source AS source_file,
             c.inserted_at
           FROM ${table.formatted} AS c
+          LEFT JOIN best_bts AS coords ON LOWER(coords.cgi) = LOWER(c.cgi)
           WHERE c.id > ?`
       )
       .join('\nUNION ALL\n');
 
     const sql = `
+      WITH prioritized_bts AS (
+        ${unionSegments}
+      ),
+      best_bts AS (
+        SELECT
+          ranked.cgi,
+          ranked.nom_bts,
+          ranked.longitude,
+          ranked.latitude,
+          ranked.azimut
+        FROM (
+          SELECT
+            p.CGI AS cgi,
+            p.NOM_BTS AS nom_bts,
+            p.LONGITUDE AS longitude,
+            p.LATITUDE AS latitude,
+            p.AZIMUT AS azimut,
+            ROW_NUMBER() OVER (PARTITION BY p.CGI ORDER BY p.priority ASC, p.source_rank ASC) AS rn
+          FROM prioritized_bts p
+        ) ranked
+        WHERE ranked.rn = 1
+      )
       SELECT *
       FROM (
         ${tableSelects}
