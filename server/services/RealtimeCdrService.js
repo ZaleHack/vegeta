@@ -430,7 +430,17 @@ const normalizeDateTimeInput = (value) => {
   if (value instanceof Date) {
     return value.toISOString();
   }
-  return normalizeString(value);
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return null;
+  }
+
+  const parsedTimestamp = Date.parse(normalized);
+  if (!Number.isNaN(parsedTimestamp)) {
+    return new Date(parsedTimestamp).toISOString();
+  }
+
+  return null;
 };
 
 const toNullableNumber = (value) => {
@@ -2766,7 +2776,7 @@ class RealtimeCdrService {
       azimut: normalizeString(row.azimut),
       nom_bts: normalizeString(row.nom_bts),
       source_file: normalizeString(row.source_file),
-      inserted_at: normalizeDateTimeInput(row.inserted_at),
+      inserted_at: normalizeDateTimeInput(row.inserted_at) || new Date().toISOString(),
       call_timestamp: buildCallTimestampValue(dateStart, startTime),
       start_time_seconds: timeToSeconds(startTime),
       end_time_seconds: timeToSeconds(endTime)
