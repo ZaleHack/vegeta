@@ -727,6 +727,135 @@ class RealtimeCdrService {
     return this.#buildResult(rows, identifierVariants, searchType);
   }
 
+  async listRecentNumbers(options = {}) {
+    const search = typeof options.search === 'string' ? options.search.trim() : '';
+    const limit = Math.min(Math.max(parsePositiveInteger(options.limit, 200), 1), 1000);
+
+    if (this.elasticEnabled && this.initializationPromise) {
+      try {
+        await this.initializationPromise;
+      } catch (error) {
+        console.error('Erreur initialisation indexation CDR temps réel:', error);
+      }
+    }
+
+    if (this.elasticEnabled) {
+      const numbersFromElasticsearch = await this.#listRecentNumbersElasticsearch({ search, limit });
+      if (Array.isArray(numbersFromElasticsearch)) {
+        return numbersFromElasticsearch;
+      }
+    }
+
+    const params = [];
+    const conditions = ['c.numero_appelant IS NOT NULL', "c.numero_appelant <> ''"];
+
+    if (search) {
+      conditions.push('c.numero_appelant LIKE ?');
+      params.push(`%${search}%`);
+    }
+
+    params.push(limit);
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const rows = await this.database.query(
+      `
+        SELECT c.numero_appelant AS number, MAX(c.inserted_at) AS lastSeen
+        FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} c
+        ${whereClause}
+        GROUP BY c.numero_appelant
+        ORDER BY lastSeen DESC
+        LIMIT ?
+      `,
+      params
+    );
+
+    return rows.map((row) => ({
+      number: row.number,
+      lastSeen: row.lastSeen ?? null
+    }));
+  }
+
+  async monitorNumbers(options = {}) {
+    const numbers = Array.isArray(options.numbers)
+      ? options.numbers.map((value) => String(value || '').trim()).filter(Boolean)
+      : [];
+    if (numbers.length === 0) {
+      return [];
+    }
+
+    const since = typeof options.since === 'string' ? options.since.trim() : '';
+    const limit = Math.min(Math.max(parsePositiveInteger(options.limit, 500), 1), 5000);
+
+    if (this.elasticEnabled && this.initializationPromise) {
+      try {
+        await this.initializationPromise;
+      } catch (error) {
+        console.error('Erreur initialisation indexation CDR temps réel:', error);
+      }
+    }
+
+    if (this.elasticEnabled) {
+      const eventsFromElasticsearch = await this.#monitorNumbersElasticsearch({ numbers, since, limit });
+      if (Array.isArray(eventsFromElasticsearch)) {
+        return eventsFromElasticsearch;
+      }
+    }
+
+    const placeholders = numbers.map(() => '?').join(', ');
+    const params = [...numbers];
+    let whereClause = `WHERE c.numero_appelant IN (${placeholders})`;
+
+    if (since) {
+      whereClause += ' AND c.inserted_at > ?';
+      params.push(since);
+    }
+
+    params.push(limit);
+
+    const rows = await this.database.query(
+      `
+        SELECT
+          c.id,
+          c.numero_appelant,
+          c.cgi,
+          c.date_debut,
+          c.heure_debut,
+          c.date_fin,
+          c.heure_fin,
+          c.type_appel,
+          c.inserted_at,
+          c.longitude,
+          c.latitude
+        FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} c
+        ${whereClause}
+        ORDER BY c.inserted_at ASC
+        LIMIT ?
+      `,
+      params
+    );
+
+    const coverageRadiusMeters = parsePositiveInteger(process.env.CGI_COVERAGE_RADIUS_METERS, 500);
+
+    return rows.map((row) => {
+      const latitude = Number(row.latitude);
+      const longitude = Number(row.longitude);
+      return {
+        id: row.id,
+        number: row.numero_appelant,
+        cgi: row.cgi ?? null,
+        latitude: Number.isFinite(latitude) ? latitude : null,
+        longitude: Number.isFinite(longitude) ? longitude : null,
+        coverageRadiusMeters,
+        insertedAt: row.inserted_at ?? null,
+        dateStart: row.date_debut ?? null,
+        timeStart: row.heure_debut ?? null,
+        dateEnd: row.date_fin ?? null,
+        timeEnd: row.heure_fin ?? null,
+        callType: row.type_appel ?? null
+      };
+    });
+  }
+
   async findAssociations(identifier, options = {}) {
     const trimmedIdentifier = typeof identifier === 'string' ? identifier.trim() : '';
     if (!trimmedIdentifier) {
@@ -949,6 +1078,161 @@ class RealtimeCdrService {
       ],
       updatedAt
     };
+  }
+
+  async #listRecentNumbersElasticsearch(options = {}) {
+    const search = typeof options.search === 'string' ? options.search.trim() : '';
+    const limit = Math.min(Math.max(parsePositiveInteger(options.limit, 200), 1), 1000);
+    const fetchSize = Math.min(Math.max(limit * 12, 500), 5000);
+    const searchNormalized = normalizePhoneNumber(search);
+
+    try {
+      const response = await client.search({
+        index: this.indexName,
+        size: fetchSize,
+        _source: ['numero_appelant', 'numero_appelant_normalized', 'inserted_at', 'call_timestamp'],
+        query: {
+          bool: {
+            must: [{ exists: { field: 'numero_appelant' } }]
+          }
+        },
+        sort: [
+          { inserted_at: { order: 'desc', unmapped_type: 'date' } },
+          { call_timestamp: { order: 'desc', unmapped_type: 'date' } },
+          { record_id: { order: 'desc' } }
+        ],
+        track_total_hits: false
+      });
+
+      const hits = response?.hits?.hits || [];
+      if (hits.length === 0) {
+        return [];
+      }
+
+      const collected = [];
+      const seen = new Set();
+
+      for (const hit of hits) {
+        const source = hit?._source || {};
+        const rawNumber = toTrimmedString(source.numero_appelant);
+        const normalizedNumber = normalizePhoneNumber(source.numero_appelant_normalized || rawNumber);
+        const comparisonValue = normalizedNumber || rawNumber;
+        if (!comparisonValue) {
+          continue;
+        }
+
+        if (search) {
+          const matchesRaw = rawNumber.includes(search);
+          const matchesNormalized = searchNormalized
+            ? normalizedNumber.includes(searchNormalized)
+            : false;
+          if (!matchesRaw && !matchesNormalized) {
+            continue;
+          }
+        }
+
+        if (seen.has(comparisonValue)) {
+          continue;
+        }
+        seen.add(comparisonValue);
+
+        collected.push({
+          number: rawNumber || comparisonValue,
+          lastSeen: source.inserted_at || source.call_timestamp || null
+        });
+
+        if (collected.length >= limit) {
+          break;
+        }
+      }
+
+      return collected;
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.error('Erreur recherche Elasticsearch CDR temps réel (liste numéros):', error.message);
+        this.#handleConnectionLoss('liste numéros', error);
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async #monitorNumbersElasticsearch(options = {}) {
+    const numbers = Array.isArray(options.numbers)
+      ? options.numbers.map((value) => String(value || '').trim()).filter(Boolean)
+      : [];
+    if (numbers.length === 0) {
+      return [];
+    }
+    const since = typeof options.since === 'string' ? options.since.trim() : '';
+    const limit = Math.min(Math.max(parsePositiveInteger(options.limit, 500), 1), 5000);
+    const coverageRadiusMeters = parsePositiveInteger(process.env.CGI_COVERAGE_RADIUS_METERS, 500);
+
+    const normalizedValues = Array.from(
+      new Set(
+        numbers
+          .map((value) => normalizePhoneNumber(value))
+          .filter((value) => typeof value === 'string' && value.length > 0)
+      )
+    );
+
+    const shouldClauses = [{ terms: { numero_appelant: numbers } }];
+    if (normalizedValues.length > 0) {
+      shouldClauses.push({ terms: { numero_appelant_normalized: normalizedValues } });
+      shouldClauses.push({ terms: { caller_variants: normalizedValues } });
+    }
+
+    const filterClauses = [{ bool: { should: shouldClauses, minimum_should_match: 1 } }];
+    if (since) {
+      filterClauses.push({ range: { inserted_at: { gt: since } } });
+    }
+
+    try {
+      const response = await client.search({
+        index: this.indexName,
+        size: limit,
+        query: { bool: { filter: filterClauses } },
+        sort: [
+          { inserted_at: { order: 'asc', unmapped_type: 'date' } },
+          { call_timestamp: { order: 'asc', unmapped_type: 'date' } },
+          { record_id: { order: 'asc' } }
+        ],
+        track_total_hits: false
+      });
+
+      const hits = response?.hits?.hits || [];
+      if (hits.length === 0) {
+        return [];
+      }
+
+      return hits.map((hit) => {
+        const source = hit?._source || {};
+        const latitude = Number(source.latitude);
+        const longitude = Number(source.longitude);
+
+        return {
+          id: source.record_id ?? hit?._id ?? null,
+          number: source.numero_appelant ?? source.numero_appelant_normalized ?? null,
+          cgi: source.cgi ?? null,
+          latitude: Number.isFinite(latitude) ? latitude : null,
+          longitude: Number.isFinite(longitude) ? longitude : null,
+          coverageRadiusMeters,
+          insertedAt: source.inserted_at ?? source.call_timestamp ?? null,
+          dateStart: source.date_debut_appel ?? null,
+          timeStart: source.heure_debut_appel ?? null,
+          dateEnd: source.date_fin_appel ?? null,
+          timeEnd: source.heure_fin_appel ?? null,
+          callType: source.type_appel ?? source.event_type ?? null
+        };
+      });
+    } catch (error) {
+      if (isConnectionError(error)) {
+        console.error('Erreur recherche Elasticsearch CDR temps réel (monitor):', error.message);
+        this.#handleConnectionLoss('monitor temps réel', error);
+        return null;
+      }
+      throw error;
+    }
   }
 
   async findPhoneChanges(options = {}) {
