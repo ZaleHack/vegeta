@@ -132,6 +132,23 @@ class ElasticSearchService {
     return error?.meta?.statusCode === 0;
   }
 
+  isHealthcheckError(error) {
+    if (this.isConnectionError(error)) {
+      return true;
+    }
+
+    if (error?.name === 'TimeoutError') {
+      return true;
+    }
+
+    const statusCode = error?.meta?.statusCode;
+    if (error?.name === 'ResponseError') {
+      return [400, 401, 403, 408, 429, 500, 502, 503, 504].includes(statusCode);
+    }
+
+    return false;
+  }
+
   disableForSession(context, error) {
     if (!this.enabled) {
       return;
@@ -209,7 +226,7 @@ class ElasticSearchService {
           this.currentReconnectDelay = this.retryDelayMs;
           console.info('✅ Connexion Elasticsearch rétablie.');
         } catch (error) {
-          if (this.isConnectionError(error)) {
+          if (this.isHealthcheckError(error)) {
             console.warn(
               `⚠️ Nouvelle tentative de connexion Elasticsearch échouée (${effectiveDelay}ms): ${error.message}`
             );
@@ -267,7 +284,7 @@ class ElasticSearchService {
       this.connectionChecked = true;
       return true;
     } catch (error) {
-      if (this.isConnectionError(error)) {
+      if (this.isHealthcheckError(error)) {
         console.error('❌ Elasticsearch indisponible:', error.message);
         this.disableForSession(context, error);
         return false;
