@@ -32,6 +32,155 @@ const toNumberOrNull = (value) => {
   return Number.isFinite(n) ? n : null;
 };
 
+const sanitizeNumber = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  let text = String(value).trim();
+  if (!text) {
+    return '';
+  }
+  text = text.replace(/\s+/g, '');
+  if (text.startsWith('+')) {
+    text = text.slice(1);
+  }
+  while (text.startsWith('00')) {
+    text = text.slice(2);
+  }
+  return text.replace(/[^0-9]/g, '');
+};
+
+const normalizePhoneNumber = (value) => {
+  const sanitized = sanitizeNumber(value);
+  if (!sanitized) {
+    return '';
+  }
+  if (sanitized.length === 8) {
+    return `216${sanitized}`;
+  }
+  if (sanitized.length === 11 && sanitized.startsWith('216')) {
+    return sanitized;
+  }
+  return sanitized;
+};
+
+const buildIdentifierVariants = (value) => {
+  const variants = new Set();
+  const trimmed = toTrimmed(value);
+  if (!trimmed) {
+    return variants;
+  }
+
+  variants.add(trimmed);
+  const sanitized = sanitizeNumber(trimmed);
+  if (sanitized) {
+    variants.add(sanitized);
+  }
+  const normalized = normalizePhoneNumber(trimmed);
+  if (normalized) {
+    variants.add(normalized);
+  }
+  return variants;
+};
+
+const normalizeDateInput = (value) => {
+  const trimmed = toTrimmed(value);
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+    const [day, month, year] = trimmed.split('/');
+    return `${year}-${month}-${day}`;
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString().slice(0, 10);
+};
+
+const normalizeTimeBound = (value) => {
+  const trimmed = toTrimmed(value);
+  if (!trimmed) {
+    return null;
+  }
+
+  const parts = trimmed.split(':');
+  if (parts.length < 2 || parts.length > 3) {
+    return null;
+  }
+
+  const [hours, minutes, secondsRaw = '00'] = parts;
+  const hh = Number(hours);
+  const mm = Number(minutes);
+  const ss = Number(secondsRaw);
+  if (![hh, mm, ss].every((n) => Number.isFinite(n))) {
+    return null;
+  }
+
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+};
+
+const buildCallTimestampValue = (dateValue, timeValue) => {
+  if (!dateValue) {
+    return null;
+  }
+  const safeTime = timeValue || '00:00:00';
+  const parsed = new Date(`${dateValue}T${safeTime}Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
+
+const timeToSeconds = (value) => {
+  if (!value) {
+    return null;
+  }
+  const [hours, minutes, seconds] = value.split(':').map((part) => Number(part));
+  if (![hours, minutes, seconds].every((n) => Number.isFinite(n))) {
+    return null;
+  }
+  return (hours * 3600) + (minutes * 60) + seconds;
+};
+
+const parseDurationSeconds = (value) => {
+  const text = toTrimmed(value);
+  if (!text) {
+    return 0;
+  }
+
+  if (/^\d+$/.test(text)) {
+    return Number.parseInt(text, 10) || 0;
+  }
+
+  const parsedTime = normalizeTimeBound(text);
+  return timeToSeconds(parsedTime) || 0;
+};
+
+const resolveEventType = (value) => {
+  const text = toTrimmed(value).toLowerCase();
+  if (!text) {
+    return 'call';
+  }
+  if (text.includes('ussd')) {
+    return 'ussd';
+  }
+  if (text.includes('sms')) {
+    return 'sms';
+  }
+  if (text.includes('data') || text.includes('gprs') || text.includes('web')) {
+    return 'web';
+  }
+  if (text.includes('position')) {
+    return 'position';
+  }
+  return 'call';
+};
+
 const firstValue = (row, keys) => {
   for (const key of keys) {
     const value = row[key];
@@ -53,8 +202,17 @@ const normalizeDateTime = (dateValue, timeValue) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 };
 
+const normalizeDateTimeInput = (value) => {
+  const trimmed = toTrimmed(value);
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
+
 const normalizeRow = (row, sourceFile) => {
-  const normalized = {
+  const base = {
     id: toTrimmed(firstValue(row, ['id'])),
     seq_number: toTrimmed(firstValue(row, ['seq_number', 'seqNumber'])),
     type_appel: toTrimmed(firstValue(row, ['type_appel', 'typeAppel'])),
@@ -73,18 +231,43 @@ const normalizeRow = (row, sourceFile) => {
     cgi: toTrimmed(firstValue(row, ['cgi'])),
     route_reseau: toTrimmed(firstValue(row, ['route_reseau', 'routeReseau'])),
     device_id: toTrimmed(firstValue(row, ['device_id', 'deviceId'])),
-    fichier_source: toTrimmed(firstValue(row, ['fichier_source', 'fichierSource'])) || sourceFile,
+    source_file: toTrimmed(firstValue(row, ['source_file', 'fichier_source', 'fichierSource'])) || sourceFile,
     inserted_at: toTrimmed(firstValue(row, ['inserted_at', 'insertedAt']))
   };
 
-  const timestamp = normalizeDateTime(normalized.date_debut, normalized.heure_debut)
-    || normalizeDateTime(normalized.date_fin, normalized.heure_fin)
-    || (normalized.inserted_at ? new Date(normalized.inserted_at).toISOString() : new Date().toISOString());
+  const rawCaller = base.numero_appelant;
+  const rawCallee = base.numero_appele;
+  const callerVariants = buildIdentifierVariants(rawCaller);
+  const calleeVariants = buildIdentifierVariants(rawCallee);
+  const dateStart = normalizeDateInput(base.date_debut);
+  const dateEnd = normalizeDateInput(base.date_fin);
+  const timeStart = normalizeTimeBound(base.heure_debut);
+  const timeEnd = normalizeTimeBound(base.heure_fin);
+  const insertedAt = normalizeDateTimeInput(base.inserted_at) || new Date().toISOString();
+  const callTimestamp = buildCallTimestampValue(dateStart, timeStart)
+    || normalizeDateTime(base.date_fin, base.heure_fin)
+    || insertedAt;
 
   return {
-    ...normalized,
-    call_timestamp: timestamp,
-    duration_seconds: Number.parseInt(normalized.duree_sec, 10) || 0
+    ...base,
+    event_type: resolveEventType(base.type_appel),
+    date_debut_appel: dateStart,
+    date_fin_appel: dateEnd,
+    heure_debut_appel: timeStart,
+    heure_fin_appel: timeEnd,
+    duree_appel: base.duree_sec,
+    duration_seconds: parseDurationSeconds(base.duree_sec),
+    numero_appelant_sanitized: sanitizeNumber(rawCaller) || null,
+    numero_appelant_normalized: normalizePhoneNumber(rawCaller) || null,
+    numero_appele_sanitized: sanitizeNumber(rawCallee) || null,
+    numero_appele_normalized: normalizePhoneNumber(rawCallee) || null,
+    caller_variants: Array.from(callerVariants),
+    callee_variants: Array.from(calleeVariants),
+    identifiers: Array.from(new Set([...callerVariants, ...calleeVariants])),
+    inserted_at: insertedAt,
+    call_timestamp: callTimestamp,
+    start_time_seconds: timeToSeconds(timeStart),
+    end_time_seconds: timeToSeconds(timeEnd)
   };
 };
 
@@ -95,7 +278,7 @@ const buildDocumentId = (record) => {
     record.numero_appele,
     record.date_debut,
     record.heure_debut,
-    record.fichier_source
+    record.source_file
   ].join('|');
 
   if (!key.replace(/\|/g, '').trim()) {
@@ -163,24 +346,41 @@ const ensureRealtimeIndex = async () => {
     mappings: {
       properties: {
         id: { type: 'keyword' },
+        record_id: { type: 'long' },
+        source_record_id: { type: 'long' },
+        source_table: { type: 'keyword' },
         seq_number: { type: 'long' },
         type_appel: { type: 'keyword' },
+        event_type: { type: 'keyword' },
         statut_appel: { type: 'keyword' },
         cause_liberation: { type: 'keyword' },
         facturation: { type: 'keyword' },
         date_debut: { type: 'date' },
         heure_debut: { type: 'keyword' },
+        date_debut_appel: { type: 'date' },
+        heure_debut_appel: { type: 'keyword' },
         duree_sec: { type: 'integer' },
+        duree_appel: { type: 'keyword' },
         date_fin: { type: 'date' },
         heure_fin: { type: 'keyword' },
+        date_fin_appel: { type: 'date' },
+        heure_fin_appel: { type: 'keyword' },
         numero_appelant: { type: 'keyword' },
+        numero_appelant_sanitized: { type: 'keyword' },
+        numero_appelant_normalized: { type: 'keyword' },
         numero_appele: { type: 'keyword' },
+        numero_appele_sanitized: { type: 'keyword' },
+        numero_appele_normalized: { type: 'keyword' },
+        caller_variants: { type: 'keyword' },
+        callee_variants: { type: 'keyword' },
+        identifiers: { type: 'keyword' },
         imsi_appelant: { type: 'keyword' },
         imei_appelant: { type: 'keyword' },
         cgi: { type: 'keyword' },
         route_reseau: { type: 'keyword' },
         device_id: { type: 'keyword' },
         fichier_source: { type: 'keyword' },
+        source_file: { type: 'keyword' },
         inserted_at: { type: 'date' },
         longitude: { type: 'double' },
         latitude: { type: 'double' },
@@ -188,6 +388,8 @@ const ensureRealtimeIndex = async () => {
         nom_bts: { type: 'keyword' },
         call_timestamp: { type: 'date' },
         duration_seconds: { type: 'integer' },
+        start_time_seconds: { type: 'integer' },
+        end_time_seconds: { type: 'integer' },
         location: { type: 'geo_point' }
       }
     }
