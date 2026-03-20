@@ -817,8 +817,12 @@ class RealtimeCdrService {
       }
     }
 
-    const placeholders = numbers.map(() => '?').join(', ');
-    const params = [...numbers];
+    const lookupVariants = Array.from(
+      new Set(numbers.flatMap((value) => Array.from(buildIdentifierVariants(value, 'phone'))))
+    );
+    const sqlLookupNumbers = lookupVariants.length > 0 ? lookupVariants : numbers;
+    const placeholders = sqlLookupNumbers.map(() => '?').join(', ');
+    const params = [...sqlLookupNumbers];
     let whereClause = `WHERE c.numero_appelant IN (${placeholders})`;
 
     if (since) {
@@ -1347,8 +1351,11 @@ class RealtimeCdrService {
           .filter((value) => typeof value === 'string' && value.length > 0)
       )
     );
+    const lookupVariants = Array.from(
+      new Set(numbers.flatMap((value) => Array.from(buildIdentifierVariants(value, 'phone'))))
+    );
 
-    const shouldClauses = [{ terms: { numero_appelant: numbers } }];
+    const shouldClauses = [{ terms: { numero_appelant: lookupVariants.length > 0 ? lookupVariants : numbers } }];
     if (normalizedValues.length > 0) {
       shouldClauses.push({ terms: { numero_appelant_normalized: normalizedValues } });
       shouldClauses.push({ terms: { caller_variants: normalizedValues } });
@@ -1356,7 +1363,15 @@ class RealtimeCdrService {
 
     const filterClauses = [{ bool: { should: shouldClauses, minimum_should_match: 1 } }];
     if (since) {
-      filterClauses.push({ range: { inserted_at: { gt: since } } });
+      filterClauses.push({
+        bool: {
+          should: [
+            { range: { inserted_at: { gt: since } } },
+            { range: { call_timestamp: { gt: since } } }
+          ],
+          minimum_should_match: 1
+        }
+      });
     }
 
     try {
@@ -1666,6 +1681,11 @@ class RealtimeCdrService {
       : [];
 
     const uniqueNumbers = Array.from(new Set(normalizedNumbers));
+    const lookupVariants = Array.from(
+      new Set(
+        uniqueNumbers.flatMap((number) => Array.from(buildIdentifierVariants(number, 'phone')))
+      )
+    );
     const rootNumber = uniqueNumbers[0] || null;
     const singleSource = uniqueNumbers.length === 1;
 
@@ -1695,8 +1715,10 @@ class RealtimeCdrService {
                 should: [
                   { terms: { numero_appelant_normalized: uniqueNumbers } },
                   { terms: { numero_appele_normalized: uniqueNumbers } },
-                  { terms: { numero_appelant: uniqueNumbers } },
-                  { terms: { numero_appele: uniqueNumbers } }
+                  { terms: { caller_variants: uniqueNumbers } },
+                  { terms: { callee_variants: uniqueNumbers } },
+                  { terms: { numero_appelant: lookupVariants } },
+                  { terms: { numero_appele: lookupVariants } }
                 ],
                 minimum_should_match: 1
               }
@@ -1850,9 +1872,10 @@ class RealtimeCdrService {
       }
     }
 
-    const placeholders = uniqueNumbers.map(() => '?').join(', ');
+    const sqlLookupNumbers = lookupVariants.length > 0 ? lookupVariants : uniqueNumbers;
+    const placeholders = sqlLookupNumbers.map(() => '?').join(', ');
     const conditions = [`(c.numero_appelant IN (${placeholders}) OR c.numero_appele IN (${placeholders}))`];
-    const params = [...uniqueNumbers, ...uniqueNumbers];
+    const params = [...sqlLookupNumbers, ...sqlLookupNumbers];
 
     if (startDate) {
       conditions.push('c.date_debut >= ?');
