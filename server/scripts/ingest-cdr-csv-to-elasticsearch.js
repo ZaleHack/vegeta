@@ -12,6 +12,26 @@ const DEFAULT_INPUT_DIR = process.env.CDR_CSV_INPUT_DIR || '/var/cdr/incoming';
 const DEFAULT_PROCESSED_DIR = process.env.CDR_CSV_PROCESSED_DIR || '/var/cdr/processed';
 const DEFAULT_FAILED_DIR = process.env.CDR_CSV_FAILED_DIR || '/var/cdr/failed';
 const DEFAULT_ELASTICSEARCH_URL = 'http://localhost:9200';
+const RAW_PIPE_HEADERS = [
+  'id',
+  'type_appel',
+  'statut_appel',
+  'cause_liberation',
+  'facturation',
+  'date_debut',
+  'heure_debut',
+  'duree_sec',
+  'date_fin',
+  'heure_fin',
+  'numero_appelant',
+  'numero_appele',
+  'imsi_appelant',
+  'imei_appelant',
+  'cgi',
+  'route_reseau',
+  'device_id',
+  'fichier_source'
+];
 
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number(value);
@@ -139,10 +159,39 @@ const detectSeparator = async (filePath) => {
     const firstLine = sample.split(/\r?\n/).find((line) => line.trim()) || '';
     const commaCount = (firstLine.match(/,/g) || []).length;
     const semicolonCount = (firstLine.match(/;/g) || []).length;
+    const pipeCount = (firstLine.match(/\|/g) || []).length;
+    if (pipeCount > commaCount && pipeCount > semicolonCount) {
+      return '|';
+    }
     return semicolonCount > commaCount ? ';' : ',';
   } finally {
     await fd.close();
   }
+};
+
+const hasHeaderRow = (values) => {
+  if (!Array.isArray(values) || values.length === 0) {
+    return false;
+  }
+
+  const headerSignals = new Set([
+    'id',
+    'seq_number',
+    'type_appel',
+    'date_debut',
+    'numero_appelant'
+  ]);
+
+  return values.some((value) => headerSignals.has(normalizeHeaderKey(value)));
+};
+
+const mapRawPipeValuesToRow = (values) => {
+  const row = {};
+  RAW_PIPE_HEADERS.forEach((header, index) => {
+    row[header] = values[index] ?? '';
+  });
+  row.seq_number = row.id;
+  return row;
 };
 
 const parseCsvLine = (line, separator) => {
@@ -327,6 +376,7 @@ const processCsvFile = async (filePath, options) => {
   const input = fs.createReadStream(filePath, { encoding: 'utf8' });
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
   let headers = null;
+  let rawPipeWithoutHeader = false;
 
   for await (const rawLine of rl) {
     const line = toTrimmed(rawLine);
@@ -335,20 +385,43 @@ const processCsvFile = async (filePath, options) => {
     }
 
     if (!headers) {
-      headers = parseCsvLine(line, separator);
-      continue;
+      const firstValues = parseCsvLine(line, separator);
+      if (separator === '|' && !hasHeaderRow(firstValues)) {
+        rawPipeWithoutHeader = true;
+      } else {
+        headers = firstValues;
+        continue;
+      }
     }
 
     const values = parseCsvLine(line, separator);
-    const row = {};
-    headers.forEach((header, index) => {
-      const value = values[index] ?? '';
-      row[header] = value;
-      const normalizedHeader = normalizeHeaderKey(header);
-      if (normalizedHeader && row[normalizedHeader] === undefined) {
-        row[normalizedHeader] = value;
+    const row = rawPipeWithoutHeader ? mapRawPipeValuesToRow(values) : {};
+
+    if (!rawPipeWithoutHeader) {
+      headers.forEach((header, index) => {
+        const value = values[index] ?? '';
+        row[header] = value;
+        const normalizedHeader = normalizeHeaderKey(header);
+        if (normalizedHeader && row[normalizedHeader] === undefined) {
+          row[normalizedHeader] = value;
+        }
+      });
+
+      if (!row.seq_number && row.id) {
+        row.seq_number = row.id;
       }
-    });
+    } else if (!row.id && values[0]) {
+      row.id = values[0];
+      row.seq_number = values[0];
+    }
+
+    if (rawPipeWithoutHeader && !row.fichier_source) {
+      row.fichier_source = sourceFile;
+    }
+
+    if (rawPipeWithoutHeader && values.length <= 1) {
+      continue;
+    }
 
     const normalized = normalizeRow(row, sourceFile);
     batch.push(normalized);
