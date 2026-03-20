@@ -484,6 +484,15 @@ const listCsvFiles = async (inputDir) => {
 
 const processSingleFile = async (filePath, options) => {
   try {
+    await fsp.access(filePath, fs.constants.F_OK);
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return;
+    }
+    throw error;
+  }
+
+  try {
     const summary = await processCsvFile(filePath, options);
     console.log(`✅ ${path.basename(filePath)} traité: ${summary.indexed} documents indexés (${summary.target}).`);
   } catch (error) {
@@ -492,6 +501,10 @@ const processSingleFile = async (filePath, options) => {
       const moved = await moveFile(filePath, options.failedDir);
       console.error(`➡️ Fichier déplacé vers ${moved}`);
     } catch (moveError) {
+      if (moveError?.code === 'ENOENT') {
+        console.warn(`ℹ️ Fichier introuvable après échec, probablement déjà déplacé/supprimé: ${filePath}`);
+        return;
+      }
       console.error(`⚠️ Impossible de déplacer le fichier en échec: ${moveError.message}`);
     }
   }
@@ -513,16 +526,23 @@ const run = async () => {
   }
 
   console.log(`👀 Watch activé sur ${options.inputDir}`);
+  const processingFiles = new Set();
   fs.watch(options.inputDir, async (_eventType, filename) => {
     if (!filename || !filename.toLowerCase().endsWith('.csv')) {
       return;
     }
     const filePath = path.join(options.inputDir, filename);
+    if (processingFiles.has(filePath)) {
+      return;
+    }
+    processingFiles.add(filePath);
     try {
       await fsp.access(filePath, fs.constants.F_OK);
       await processSingleFile(filePath, options);
     } catch (_error) {
       // Le fichier peut avoir été déplacé/supprimé entre temps.
+    } finally {
+      processingFiles.delete(filePath);
     }
   });
 };
