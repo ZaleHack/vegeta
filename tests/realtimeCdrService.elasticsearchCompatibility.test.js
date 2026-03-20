@@ -78,3 +78,71 @@ test('Realtime CDR Elasticsearch search supports legacy indexed field names', as
     }
   }
 });
+
+test('Realtime CDR link diagram Elasticsearch query supports normalized and legacy phone variants', async () => {
+  const originalUseElastic = process.env.USE_ELASTICSEARCH;
+  const originalExists = client.indices.exists;
+  const originalCreate = client.indices.create;
+  const originalSearch = client.search;
+
+  process.env.USE_ELASTICSEARCH = 'true';
+
+  const capturedQueries = [];
+  client.indices.exists = async () => true;
+  client.indices.create = async () => ({ acknowledged: true });
+  client.search = async (params) => {
+    capturedQueries.push(params?.query || null);
+    return {
+      hits: {
+        hits: [
+          {
+            _id: 'legacy-link-1',
+            _source: {
+              numero_appelant: '770000000',
+              numero_appele: '771111111',
+              type_appel: 'VOIX'
+            }
+          }
+        ]
+      }
+    };
+  };
+
+  const databaseStub = {
+    async query() {
+      return [];
+    }
+  };
+
+  try {
+    const service = new RealtimeCdrService({
+      autoStart: false,
+      databaseClient: databaseStub,
+      cgiEnricher: null
+    });
+
+    const result = await service.buildLinkDiagram(['+221770000000']);
+    assert.ok(Array.isArray(result.nodes), 'buildLinkDiagram should return nodes');
+    assert.equal(result.nodes.some((node) => node.id === '221771111111'), true);
+    assert.equal(result.links.length, 1);
+
+    const query = capturedQueries[0];
+    const phoneFilter = query?.bool?.filter?.find((item) => item?.bool?.minimum_should_match === 1);
+    assert.ok(phoneFilter, 'phone filter should use compatibility should clauses');
+
+    const shouldClauses = phoneFilter?.bool?.should || [];
+    const rawCallerTerms = shouldClauses.find((item) => item?.terms?.numero_appelant)?.terms?.numero_appelant || [];
+    assert.equal(rawCallerTerms.includes('770000000'), true);
+    assert.equal(rawCallerTerms.includes('221770000000'), true);
+  } finally {
+    client.indices.exists = originalExists;
+    client.indices.create = originalCreate;
+    client.search = originalSearch;
+
+    if (typeof originalUseElastic === 'undefined') {
+      delete process.env.USE_ELASTICSEARCH;
+    } else {
+      process.env.USE_ELASTICSEARCH = originalUseElastic;
+    }
+  }
+});
