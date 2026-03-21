@@ -27,7 +27,7 @@ const loadDatabaseIndexingService = async () => {
 };
 
 describe('DatabaseIndexingService', () => {
-  it('includes every realtime CDR table in indexing bootstrap candidates', async () => {
+  it('inspects the default generic realtime CDR table when no env configuration is provided', async () => {
     delete process.env.REALTIME_CDR_TABLES;
     delete process.env.REALTIME_CDR_TABLE;
 
@@ -45,11 +45,12 @@ describe('DatabaseIndexingService', () => {
 
     await service.ensureIndexes({ dryRun: true });
 
-    assert.equal(mockDb.inspectedTables.includes('autres.cdr_temps_reel'), true);
+    assert.equal(mockDb.inspectedTables.includes('autres.cdr_realtime'), true);
+    assert.equal(mockDb.inspectedTables.includes('autres.cdr_temps_reel'), false);
     assert.equal(mockDb.inspectedTables.includes('autres.cdr_temps_reel_live'), false);
   });
 
-  it('does not inspect cdr_temps_reel_live by default', async () => {
+  it('does not inspect cdr_temps_reel nor cdr_temps_reel_live by default', async () => {
     delete process.env.REALTIME_CDR_TABLES;
     delete process.env.REALTIME_CDR_TABLE;
 
@@ -67,6 +68,7 @@ describe('DatabaseIndexingService', () => {
 
     await service.ensureIndexes({ dryRun: true });
 
+    assert.equal(mockDb.inspectedTables.includes('autres.cdr_temps_reel'), false);
     assert.equal(mockDb.inspectedTables.includes('autres.cdr_temps_reel_live'), false);
   });
 });

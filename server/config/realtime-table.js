@@ -1,4 +1,13 @@
-const DEFAULT_REALTIME_CDR_TABLES = ['autres.cdr_temps_reel'];
+const DEFAULT_REALTIME_CDR_TABLES = ['autres.cdr_realtime'];
+
+const EMPTY_REALTIME_CDR_TABLE_METADATA = {
+  raw: null,
+  schema: null,
+  table: null,
+  formatted: null,
+  normalizedQualified: null,
+  normalizedUnqualified: null
+};
 
 const quoteIdentifier = (segment) => `\`${segment.replace(/`/g, '``')}\``;
 
@@ -92,16 +101,11 @@ const parseRealtimeTables = () => {
     parsedTables.push(parsed);
   }
 
-  if (parsedTables.length === 0) {
-    const fallback = parseTableName(DEFAULT_REALTIME_CDR_TABLES[0]);
-    return fallback ? [fallback] : [];
-  }
-
   return parsedTables;
 };
 
 const resolvedTables = parseRealtimeTables();
-const resolvedMetadata = resolvedTables[0];
+const resolvedMetadata = resolvedTables[0] || EMPTY_REALTIME_CDR_TABLE_METADATA;
 
 export const REALTIME_CDR_TABLE_METADATA = resolvedMetadata;
 export const REALTIME_CDR_TABLE_SQL = resolvedMetadata.formatted;
