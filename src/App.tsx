@@ -3681,7 +3681,7 @@ const App: React.FC = () => {
     async (event?: React.FormEvent<HTMLFormElement>) => {
       event?.preventDefault();
 
-      const value = phoneIdentifierInput.trim();
+      const value = normalizeCdrNumber(phoneIdentifierInput);
       if (!value) {
         setPhoneIdentifierError('Veuillez saisir un numéro valide.');
         setPhoneIdentifierResult(null);
@@ -3753,7 +3753,7 @@ const App: React.FC = () => {
         setPhoneIdentifierLoading(false);
       }
     },
-    [phoneIdentifierInput, createAuthHeaders]
+    [phoneIdentifierInput, createAuthHeaders, normalizeCdrNumber]
   );
 
   const formatPhoneIdentifierDate = useCallback((value: string | null) => {
@@ -4965,9 +4965,14 @@ useEffect(() => {
           identifiant: id,
           requete: requestDescription
         });
-        const res = await fetch(`/api/cdr/realtime/search?${params.toString()}`, {
+        let res = await fetch(`/api/cdr/realtime/search?${params.toString()}`, {
           headers: { Authorization: token ? `Bearer ${token}` : '' }
         });
+        if (!res.ok) {
+          res = await fetch(`/api/cdr/realtime/search?${params.toString()}`, {
+            headers: { Authorization: token ? `Bearer ${token}` : '' }
+          });
+        }
         const data = await res.json();
         if (res.ok) {
           const rawPath = Array.isArray(data.path) ? data.path : [];
@@ -5484,7 +5489,7 @@ useEffect(() => {
 
   const handleCdrExport = async (event?: React.FormEvent) => {
     event?.preventDefault();
-    const trimmedNumber = cdrExportNumber.trim();
+    const trimmedNumber = normalizeCdrNumber(cdrExportNumber);
 
     if (!trimmedNumber) {
       setCdrExportError('Veuillez renseigner un numéro.');
@@ -5523,7 +5528,7 @@ useEffect(() => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `export-cdr-temps-reel-${trimmedNumber}.xlsx`;
+      link.download = `export-cdr-indexed-${trimmedNumber}.xlsx`;
       link.click();
       window.URL.revokeObjectURL(url);
       setCdrExportInfo('Export terminé avec succès.');

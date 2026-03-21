@@ -699,7 +699,8 @@ class RealtimeCdrService {
       endDate = null,
       startTime = null,
       endTime = null,
-      limit = 2000
+      limit = 2000,
+      indexedOnly = false
     } = options;
 
     const startTimeBound = normalizeTimeBound(startTime);
@@ -730,6 +731,10 @@ class RealtimeCdrService {
       if (Array.isArray(rowsFromElasticsearch)) {
         return this.#buildResult(rowsFromElasticsearch, identifierVariants, searchType);
       }
+    }
+
+    if (indexedOnly) {
+      return { ...EMPTY_RESULT };
     }
 
     const rows = await this.#searchDatabase(identifierVariants, {
@@ -894,6 +899,7 @@ class RealtimeCdrService {
 
     const startDate = typeof options.startDate === 'string' && options.startDate.trim() ? options.startDate.trim() : null;
     const endDate = typeof options.endDate === 'string' && options.endDate.trim() ? options.endDate.trim() : null;
+    const indexedOnly = Boolean(options.indexedOnly);
 
     if (this.elasticEnabled) {
       try {
@@ -1049,6 +1055,10 @@ class RealtimeCdrService {
           throw error;
         }
       }
+    }
+
+    if (indexedOnly) {
+      return { imeis: [], numbers: [], updatedAt: new Date().toISOString() };
     }
 
     const conditions = [];
@@ -1435,6 +1445,7 @@ class RealtimeCdrService {
     const endDate = typeof options.endDate === 'string' && options.endDate.trim() ? options.endDate.trim() : null;
     const parsedLimit = Number.parseInt(String(options.limit ?? ''), 10);
     const resultLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 1000) : 200;
+    const indexedOnly = Boolean(options.indexedOnly);
 
     if (this.elasticEnabled) {
       try {
@@ -1545,6 +1556,10 @@ class RealtimeCdrService {
           throw error;
         }
       }
+    }
+
+    if (indexedOnly) {
+      return { numbers: [], updatedAt: new Date().toISOString() };
     }
 
     if (startDate) {
@@ -1697,6 +1712,7 @@ class RealtimeCdrService {
     const endDate = typeof options.endDate === 'string' ? options.endDate.trim() : '';
     const startTime = typeof options.startTime === 'string' ? options.startTime.trim() : '';
     const endTime = typeof options.endTime === 'string' ? options.endTime.trim() : '';
+    const indexedOnly = Boolean(options.indexedOnly);
 
     const normalizeTimeBound = (value) => {
       if (!value) return null;
@@ -1870,6 +1886,10 @@ class RealtimeCdrService {
           throw error;
         }
       }
+    }
+
+    if (indexedOnly) {
+      return { nodes: [], links: [], root: rootNumber };
     }
 
     const sqlLookupNumbers = lookupVariants.length > 0 ? lookupVariants : uniqueNumbers;
