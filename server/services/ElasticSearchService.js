@@ -132,6 +132,19 @@ class ElasticSearchService {
     return error?.meta?.statusCode === 0;
   }
 
+  isRecoverableHealthcheckError(error) {
+    if (this.isConnectionError(error)) {
+      return true;
+    }
+
+    if (error?.name !== 'ResponseError') {
+      return false;
+    }
+
+    const statusCode = Number(error?.meta?.statusCode);
+    return Number.isFinite(statusCode) && statusCode >= 400 && statusCode < 600;
+  }
+
   disableForSession(context, error) {
     if (!this.enabled) {
       return;
@@ -267,8 +280,10 @@ class ElasticSearchService {
       this.connectionChecked = true;
       return true;
     } catch (error) {
-      if (this.isConnectionError(error)) {
-        console.error('❌ Elasticsearch indisponible:', error.message);
+      if (this.isRecoverableHealthcheckError(error)) {
+        const statusCode = error?.meta?.statusCode;
+        const statusInfo = Number.isFinite(Number(statusCode)) ? ` (HTTP ${statusCode})` : '';
+        console.error(`❌ Elasticsearch indisponible${statusInfo}:`, error.message);
         this.disableForSession(context, error);
         return false;
       }
