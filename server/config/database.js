@@ -154,6 +154,10 @@ class DatabaseManager {
 
     for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
       try {
+        if (!this.pool) {
+          await this.ensureInitialized();
+        }
+
         return await executor();
       } catch (error) {
         const isLastAttempt = attempt >= maxRetries;
