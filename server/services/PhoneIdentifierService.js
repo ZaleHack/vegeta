@@ -3,6 +3,11 @@ import { REALTIME_CDR_TABLE_SQL } from '../config/realtime-table.js';
 import client from '../config/elasticsearch.js';
 import { isElasticsearchEnabled, isElasticsearchForced } from '../config/environment.js';
 import { checkImei, ImeiFunctionalError } from './ImeiService.js';
+import {
+  buildIdentifierVariants as buildPhoneIdentifierVariants,
+  normalizePhoneNumber as normalizePhoneNumberVariant,
+  sanitizeNumber as sanitizePhoneNumber
+} from './phoneUtils.js';
 
 const sanitizeNumber = (value) => {
   if (value === null || value === undefined) {
@@ -43,14 +48,14 @@ const normalizePhoneNumber = (value) => {
 };
 
 const buildNumberVariants = (value) => {
-  const sanitized = sanitizeNumber(value);
-  const normalized = normalizePhoneNumber(value);
-  const variants = new Set([sanitized, normalized].filter(Boolean));
+  const sanitized = sanitizePhoneNumber(value);
+  const normalized = normalizePhoneNumberVariant(value);
+  const variants = buildPhoneIdentifierVariants(value);
 
   return {
     sanitized,
     normalized,
-    variants: [...variants]
+    variants: Array.from(variants)
   };
 };
 
@@ -137,8 +142,9 @@ const resolveImeiDetails = async (imeis = []) => {
   return new Map(results);
 };
 
-export const findDevicesByNumber = async (inputNumber) => {
+export const findDevicesByNumber = async (inputNumber, options = {}) => {
   const { variants, normalized } = buildNumberVariants(inputNumber);
+  const indexedOnly = Boolean(options?.indexedOnly);
 
   if (variants.length === 0) {
     throw new Error('Numéro de téléphone invalide');
@@ -244,7 +250,7 @@ export const findDevicesByNumber = async (inputNumber) => {
     }
   }
 
-  if (rows.length === 0 && !elasticForced) {
+  if (rows.length === 0 && !elasticForced && !indexedOnly) {
     rows = await database.query(
       `
         SELECT

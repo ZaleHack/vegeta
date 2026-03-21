@@ -14,7 +14,9 @@ router.get('/search', async (req, res) => {
       return res.status(400).json({ error: 'Numéro de téléphone requis' });
     }
 
-    const result = await phoneIdentifierService.findDevicesByNumber(String(rawNumber));
+    const result = await phoneIdentifierService.findDevicesByNumber(String(rawNumber), {
+      indexedOnly: true
+    });
     return res.json(result);
   } catch (error) {
     const message = error?.message || "Impossible d'identifier ce numéro pour le moment";
