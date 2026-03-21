@@ -11,7 +11,12 @@ import {
 } from '../config/realtime-table.js';
 
 const EXCLUDED_DATA_TABLES = new Set(
-  ['autres.cdr_temps_reel', 'cdr_temps_reel'].map((name) => name.toLowerCase())
+  [
+    'autres.cdr_temps_reel',
+    'cdr_temps_reel',
+    'autres.cdr_temps_reel_live',
+    'cdr_temps_reel_live'
+  ].map((name) => name.toLowerCase())
 );
 
 const realtimeDataExclusions = getRealtimeCdrTableIdentifiers();
@@ -541,4 +546,3 @@ class StatsService {
 }
 
 export default StatsService;
-
