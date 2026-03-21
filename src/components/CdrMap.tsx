@@ -1505,6 +1505,7 @@ const CdrMap: React.FC<Props> = ({
   const [triangulationZones, setTriangulationZones] = useState<TriangulationZone[]>([]);
   const [activeMeetingNumber, setActiveMeetingNumber] = useState<string | null>(null);
   const [isSatellite, setIsSatellite] = useState(false);
+  const [showBaseMarkers, setShowBaseMarkers] = useState(true);
   const [showLatestLocationDetailsPanel, setShowLatestLocationDetailsPanel] = useState(false);
   const [activeContactDetailsId, setActiveContactDetailsId] = useState<string | null>(null);
   const renderEventPopupContent = useCallback(
@@ -1729,38 +1730,42 @@ const CdrMap: React.FC<Props> = ({
     setContactPage(1);
   }, [selectedSource]);
 
+  const isPointVisibleBySource = useCallback(
+    (point: Point) => {
+      const value = getPointSourceValue(point);
+      if (!value) return false;
 
-
-  const displayedPoints = useMemo(() => {
-    let filtered = callerPoints;
-    if (selectedSource) {
-      const selectedKey = normalizeSourceKey(selectedSource);
-      filtered = filtered.filter((p) => {
-        const value = getPointSourceValue(p);
-        if (!value) return false;
+      if (selectedSource) {
+        const selectedKey = normalizeSourceKey(selectedSource);
         if (value === selectedSource) return true;
         const pointKey = normalizeSourceKey(value);
         if (selectedKey && pointKey) {
           return pointKey === selectedKey;
         }
         return pointKey ? pointKey === selectedSource : false;
-      });
-    } else if (visibleSources.size > 0) {
-      filtered = filtered.filter((p) => {
-        const value = getPointSourceValue(p);
-        if (!value) return false;
-        if (visibleSources.has(value)) {
-          return true;
-        }
-        const key = normalizeSourceKey(value);
-        if (!key) {
-          return false;
-        }
-        return visibleSources.has(key) || normalizedVisibleSources.has(key);
-      });
-    }
-    return filtered;
-  }, [callerPoints, selectedSource, visibleSources, normalizedVisibleSources]);
+      }
+
+      if (visibleSources.size === 0) {
+        return true;
+      }
+
+      if (visibleSources.has(value)) {
+        return true;
+      }
+
+      const key = normalizeSourceKey(value);
+      if (!key) {
+        return false;
+      }
+
+      return visibleSources.has(key) || normalizedVisibleSources.has(key);
+    },
+    [selectedSource, visibleSources, normalizedVisibleSources]
+  );
+
+  const displayedPoints = useMemo(() => {
+    return callerPoints.filter(isPointVisibleBySource);
+  }, [callerPoints, isPointVisibleBySource]);
 
   const latestLocationPoint = useMemo(() => {
     const trackedDigits = normalizePhoneDigits(points[0]?.tracked);
@@ -1954,31 +1959,11 @@ const CdrMap: React.FC<Props> = ({
   const isContactEventWithinScope = useCallback((_point: Point) => true, []);
 
   const contactPoints = useMemo(() => {
-    const matchesVisible = (point: Point): boolean => {
-      if (visibleSources.size === 0) {
-        return true;
-      }
-      const value = getPointSourceValue(point);
-      if (!value) {
-        return false;
-      }
-      if (visibleSources.has(value)) {
-        return true;
-      }
-      const key = normalizeSourceKey(value);
-      if (!key) {
-        return false;
-      }
-      return visibleSources.has(key) || normalizedVisibleSources.has(key);
-    };
-
     const base = points.filter((point) => {
       if (!isContactEventWithinScope(point)) return false;
-
-      if (!selectedSource && !matchesVisible(point)) {
+      if (!isPointVisibleBySource(point)) {
         return false;
       }
-
       return !isLocationEventType(point.type);
     });
 
@@ -2011,9 +1996,8 @@ const CdrMap: React.FC<Props> = ({
   }, [
     selectedSource,
     points,
-    visibleSources,
-    normalizedVisibleSources,
-    isContactEventWithinScope
+    isContactEventWithinScope,
+    isPointVisibleBySource
   ]);
 
   const activeSourceCount = useMemo(() => {
@@ -2676,7 +2660,6 @@ const CdrMap: React.FC<Props> = ({
     hiddenLocations
   ]);
 
-  const showBaseMarkers = true;
   const showLocationMarkers = activeInfo === 'recent' || activeInfo === 'popular';
 
   const routePositions = useMemo(() => {
@@ -3484,6 +3467,13 @@ const CdrMap: React.FC<Props> = ({
             isToggle
           />
         )}
+        <MapControlButton
+          title={showBaseMarkers ? 'Masquer les points' : 'Afficher les points'}
+          icon={showBaseMarkers ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          onClick={() => setShowBaseMarkers((visible) => !visible)}
+          active={!showBaseMarkers}
+          isToggle
+        />
         <MapControlButton
           title="Zoomer"
           icon={<Plus className="h-5 w-5" />}
