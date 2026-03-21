@@ -728,7 +728,7 @@ class RealtimeCdrService {
         searchType
       );
 
-      if (Array.isArray(rowsFromElasticsearch)) {
+      if (Array.isArray(rowsFromElasticsearch) && rowsFromElasticsearch.length > 0) {
         return this.#buildResult(rowsFromElasticsearch, identifierVariants, searchType);
       }
     }
@@ -762,7 +762,7 @@ class RealtimeCdrService {
 
     if (this.elasticEnabled) {
       const numbersFromElasticsearch = await this.#listRecentNumbersElasticsearch({ search, limit });
-      if (Array.isArray(numbersFromElasticsearch)) {
+      if (Array.isArray(numbersFromElasticsearch) && numbersFromElasticsearch.length > 0) {
         return numbersFromElasticsearch;
       }
     }
@@ -817,7 +817,7 @@ class RealtimeCdrService {
 
     if (this.elasticEnabled) {
       const eventsFromElasticsearch = await this.#monitorNumbersElasticsearch({ numbers, since, limit });
-      if (Array.isArray(eventsFromElasticsearch)) {
+      if (Array.isArray(eventsFromElasticsearch) && eventsFromElasticsearch.length > 0) {
         return eventsFromElasticsearch;
       }
     }
@@ -1886,7 +1886,9 @@ class RealtimeCdrService {
             }
           }
 
-          return { nodes, links, root: rootNumber };
+          if (links.length > 0) {
+            return { nodes, links, root: rootNumber };
+          }
         }
       } catch (error) {
         if (isElasticsearchForced()) {

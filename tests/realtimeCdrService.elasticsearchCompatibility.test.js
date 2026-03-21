@@ -147,6 +147,59 @@ test('Realtime CDR link diagram Elasticsearch query supports normalized and lega
   }
 });
 
+test('Realtime CDR link diagram falls back to SQL when Elasticsearch has no links', async () => {
+  const originalUseElastic = process.env.USE_ELASTICSEARCH;
+  const originalExists = client.indices.exists;
+  const originalCreate = client.indices.create;
+  const originalSearch = client.search;
+
+  process.env.USE_ELASTICSEARCH = 'true';
+
+  client.indices.exists = async () => true;
+  client.indices.create = async () => ({ acknowledged: true });
+  client.search = async () => ({ hits: { hits: [] } });
+
+  const databaseStub = {
+    async query() {
+      return [
+        {
+          caller: '770000000',
+          callee: '771111111',
+          call_type: 'VOIX',
+          date_debut: '2025-01-10',
+          heure_debut: '09:00:00'
+        }
+      ];
+    },
+    async queryOne() {
+      return null;
+    }
+  };
+
+  try {
+    const service = new RealtimeCdrService({
+      autoStart: false,
+      databaseClient: databaseStub,
+      cgiEnricher: null
+    });
+
+    const result = await service.buildLinkDiagram(['+221770000000']);
+    assert.equal(result.links.length, 1);
+    assert.equal(result.links[0].source, '221770000000');
+    assert.equal(result.links[0].target, '221771111111');
+  } finally {
+    client.indices.exists = originalExists;
+    client.indices.create = originalCreate;
+    client.search = originalSearch;
+
+    if (typeof originalUseElastic === 'undefined') {
+      delete process.env.USE_ELASTICSEARCH;
+    } else {
+      process.env.USE_ELASTICSEARCH = originalUseElastic;
+    }
+  }
+});
+
 test('Realtime CDR fraud detection query matches phone identifier on both caller and callee fields', async () => {
   const originalUseElastic = process.env.USE_ELASTICSEARCH;
   const originalExists = client.indices.exists;
