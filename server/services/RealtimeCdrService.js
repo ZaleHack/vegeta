@@ -968,9 +968,16 @@ class RealtimeCdrService {
             });
           }
 
+          const maxResultWindow = 10000;
+          const configuredSearchSize = parsePositiveInteger(
+            process.env.FRAUD_ASSOCIATIONS_SEARCH_SIZE,
+            maxResultWindow
+          );
+          const searchSize = Math.min(configuredSearchSize, maxResultWindow);
+
           const esResponse = await client.search({
             index: this.indexName,
-            size: 12000,
+            size: searchSize,
             _source: [
               'numero_appelant',
               'numero_appelant_normalized',
