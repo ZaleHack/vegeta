@@ -240,16 +240,7 @@ class CaseService {
       indexedOnly: true
     });
 
-    if (Array.isArray(realtimeResult?.links) && realtimeResult.links.length > 0) {
-      return realtimeResult;
-    }
-
-    return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.id, {
-      startDate,
-      endDate,
-      startTime,
-      endTime
-    });
+    return realtimeResult;
   }
 
   async detectFraud(caseId, options = {}, user) {
@@ -297,13 +288,6 @@ class CaseService {
       endDate
     });
 
-    if (!Array.isArray(detections) || detections.length === 0) {
-      detections = await this.cdrService.detectNumberChanges(existingCase.id, {
-        startDate,
-        endDate,
-        referenceNumbers: referenceNumberList
-      });
-    }
     const imeis = detections.map((entry) => {
       const numbers = entry.numbers.map((numberEntry) => {
         const { fileIds, ...rest } = numberEntry;

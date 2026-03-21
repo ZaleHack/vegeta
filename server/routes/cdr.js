@@ -287,7 +287,7 @@ router.post('/realtime/link-diagram', authenticate, async (req, res) => {
       endDate: typeof endDate === 'string' && endDate.trim() ? endDate.trim() : null,
       startTime: typeof startTime === 'string' && startTime.trim() ? startTime.trim() : null,
       endTime: typeof endTime === 'string' && endTime.trim() ? endTime.trim() : null,
-      indexedOnly: false
+      indexedOnly: true
     });
 
     res.json(result);
