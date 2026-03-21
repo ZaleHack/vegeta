@@ -1484,18 +1484,6 @@ const CdrMap: React.FC<Props> = ({
   const center: [number, number] = [parseFloat(first.latitude), parseFloat(first.longitude)];
   const mapRef = useRef<L.Map | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
-  const mapBounds = useMemo(() => {
-    const coordinates = points
-      .map((point) => [Number.parseFloat(point.latitude), Number.parseFloat(point.longitude)] as const)
-      .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
-
-    if (coordinates.length < 2) {
-      return null;
-    }
-
-    return L.latLngBounds(coordinates.map(([lat, lng]) => L.latLng(lat, lng)));
-  }, [points]);
-
   const handleZoomIn = () => {
     if (mapRef.current) {
       mapRef.current.setZoom(mapRef.current.getZoom() + 1);
@@ -1711,16 +1699,9 @@ const CdrMap: React.FC<Props> = ({
       return;
     }
 
-    if (!mapBounds) {
-      mapRef.current.setView(center, 13, { animate: false });
-      return;
-    }
-
-    mapRef.current.fitBounds(mapBounds, {
-      padding: [40, 40],
-      animate: false
-    });
-  }, [isMapReady, mapBounds, center]);
+    const currentZoom = mapRef.current.getZoom();
+    mapRef.current.setView(center, Number.isFinite(currentZoom) ? currentZoom : 13, { animate: false });
+  }, [isMapReady, center]);
 
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular' | 'history') => {
     if (showMeetingPoints) onToggleMeetingPoints?.();
