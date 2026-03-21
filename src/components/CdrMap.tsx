@@ -1497,7 +1497,6 @@ const CdrMap: React.FC<Props> = ({
   };
 
   const [activeInfo, setActiveInfo] = useState<'contacts' | 'recent' | 'popular' | 'history' | null>(null);
-  const [showOthers, setShowOthers] = useState(true);
   const [showOnlyLatestLocation, setShowOnlyLatestLocation] = useState(false);
   const pageSize = 20;
   const [contactPage, setContactPage] = useState(1);
@@ -1715,7 +1714,6 @@ const CdrMap: React.FC<Props> = ({
       }
       return next;
     });
-    if (key !== 'recent' && key !== 'popular') setShowOthers(true);
   };
 
   const handleContactDetailsToggle = (contactId: string) => {
@@ -2678,13 +2676,8 @@ const CdrMap: React.FC<Props> = ({
     hiddenLocations
   ]);
 
-  const showBaseMarkers = useMemo(() => showOthers, [showOthers]);
-  const showLocationMarkers = useMemo(
-    () => {
-      return showOthers || activeInfo === 'recent' || activeInfo === 'popular';
-    },
-    [showOthers, activeInfo]
-  );
+  const showBaseMarkers = true;
+  const showLocationMarkers = activeInfo === 'recent' || activeInfo === 'popular';
 
   const routePositions = useMemo(() => {
     if (!showRoute) return [];
@@ -2814,17 +2807,6 @@ const CdrMap: React.FC<Props> = ({
       }),
     [callerPoints, visibleSimilar]
   );
-
-  const connectorPoints = useMemo(() => {
-    const coords = new Set(
-      similarSegments.flatMap((seg) =>
-        seg.positions.map((pos) => pos.join(','))
-      )
-    );
-    return similarPoints.filter((p) =>
-      coords.has(`${parseFloat(p.latitude)},${parseFloat(p.longitude)}`)
-    );
-  }, [similarSegments, similarPoints]);
 
   const [carIndex, setCarIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
@@ -3379,7 +3361,7 @@ const CdrMap: React.FC<Props> = ({
           )
         )}
       {showBaseMarkers && showSimilar &&
-        (showOthers ? similarPoints : connectorPoints).map((loc, idx) => (
+        similarPoints.map((loc, idx) => (
           <Marker
             key={`similar-point-${idx}`}
             position={[
@@ -3573,17 +3555,6 @@ const CdrMap: React.FC<Props> = ({
                 <span>Points de rencontre</span>
               </button>
             )}
-            <button
-              onClick={() => setShowOthers((s) => !s)}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                showOthers
-                  ? 'text-gray-600 hover:bg-gray-100'
-                  : 'bg-gray-600 text-white'
-              }`}
-              title={showOthers ? 'Masquer autres éléments' : 'Afficher tous les éléments'}
-            >
-              {showOthers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            </button>
         </div>
       </div>
 

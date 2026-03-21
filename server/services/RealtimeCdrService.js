@@ -2888,14 +2888,15 @@ class RealtimeCdrService {
 
   #handleConnectionLoss(context = 'operation', error = null) {
     const forced = isElasticsearchForced();
-
+    this.elasticEnabled = true;
     if (forced) {
       console.warn(
         `⚠️ USE_ELASTICSEARCH=force actif : maintien de l\'indexation malgré l'échec (${context}).`
       );
-      this.elasticEnabled = true;
     } else {
-      this.elasticEnabled = false;
+      console.warn(
+        `⚠️ Elasticsearch temps réel temporairement indisponible (${context}) : maintien du mode actif et reconnexion automatique.`
+      );
     }
     this.indexEnsured = false;
     this.indexReady = false;
@@ -2904,12 +2905,6 @@ class RealtimeCdrService {
 
     if (!this.initialElasticEnabled) {
       return;
-    }
-
-    if (!forced) {
-      console.warn(
-        `⚠️ Elasticsearch temps réel désactivé après échec (${context}). Tentative de reconnexion automatique activée.`
-      );
     }
 
     this.#scheduleReconnect(context, error);
