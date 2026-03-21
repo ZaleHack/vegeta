@@ -1,4 +1,4 @@
-const DEFAULT_REALTIME_CDR_TABLES = ['autres.cdr_temps_reel'];
+const DEFAULT_REALTIME_CDR_TABLES = ['autres.cdr_temps_reel_live'];
 
 const quoteIdentifier = (segment) => `\`${segment.replace(/`/g, '``')}\``;
 
