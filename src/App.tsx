@@ -120,7 +120,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 import { AppPage, pageToPath, usePageNavigation } from './features/navigation/usePageNavigation';
 import { useSearchHistory } from './features/search/useSearchHistory';
 
-const LINK_DIAGRAM_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
+const LINK_DIAGRAM_PREFIX = '221';
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 const CASE_PAGE_SIZE_OPTIONS = [6, 12, 24];
 const FRAUD_ROLE_LABELS: Record<string, string> = {
@@ -2960,8 +2960,7 @@ const App: React.FC = () => {
     (value: string) => {
       const normalized = normalizeCdrNumber(value);
       if (!normalized) return null;
-      const isAllowedPrefix = LINK_DIAGRAM_PREFIXES.some((prefix) => normalized.startsWith(prefix));
-      return isAllowedPrefix ? normalized : null;
+      return normalized.startsWith(LINK_DIAGRAM_PREFIX) ? normalized : null;
     },
     [normalizeCdrNumber]
   );

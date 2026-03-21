@@ -909,8 +909,11 @@ class RealtimeCdrService {
             ? [{ terms: { imei_appelant: variantList } }]
             : [
                 { terms: { numero_appelant: variantList } },
+                { terms: { numero_appele: variantList } },
                 { terms: { numero_appelant_normalized: variantList } },
-                { terms: { caller_variants: variantList } }
+                { terms: { numero_appele_normalized: variantList } },
+                { terms: { caller_variants: variantList } },
+                { terms: { callee_variants: variantList } }
               ];
           const filterClauses = [
             { bool: { should: shouldClauses, minimum_should_match: 1 } }
@@ -1068,9 +1071,13 @@ class RealtimeCdrService {
     if (searchType === 'imei') {
       conditions.push(`c.imei_appelant IN (${variantList.map(() => '?').join(', ')})`);
     } else {
-      conditions.push(`c.numero_appelant IN (${variantList.map(() => '?').join(', ')})`);
+      const phonePlaceholders = variantList.map(() => '?').join(', ');
+      conditions.push(`(c.numero_appelant IN (${phonePlaceholders}) OR c.numero_appele IN (${phonePlaceholders}))`);
     }
     params.push(...variantList);
+    if (searchType === 'phone') {
+      params.push(...variantList);
+    }
 
     if (startDate) {
       conditions.push('c.date_debut >= ?');
