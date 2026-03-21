@@ -1,6 +1,7 @@
 import { PassThrough } from 'stream';
 import Case from '../models/Case.js';
 import CdrService from './CdrService.js';
+import realtimeCdrService from './RealtimeCdrService.js';
 import User from '../models/User.js';
 import CaseShare from '../models/CaseShare.js';
 import Division from '../models/Division.js';
@@ -227,8 +228,22 @@ class CaseService {
       endTime = null
     } = options;
     const filteredNumbers = Array.isArray(numbers)
-      ? numbers.filter((n) => String(n).startsWith(ALLOWED_PREFIX))
+      ? numbers
+          .map((value) => normalizeCaseNumber(value))
+          .filter((value) => value && value.startsWith(ALLOWED_PREFIX))
       : [];
+    const realtimeResult = await realtimeCdrService.buildLinkDiagram(filteredNumbers, {
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      indexedOnly: true
+    });
+
+    if (Array.isArray(realtimeResult?.links) && realtimeResult.links.length > 0) {
+      return realtimeResult;
+    }
+
     return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.id, {
       startDate,
       endDate,
@@ -276,11 +291,19 @@ class CaseService {
 
     const statusReferenceSet = new Set([...fileReferenceNumbers, ...referenceNumbers]);
 
-    const detections = await this.cdrService.detectNumberChanges(existingCase.id, {
+    const referenceNumberList = Array.from(referenceNumbers);
+    let detections = await this.#detectFraudFromRealtime(referenceNumberList, {
       startDate,
-      endDate,
-      referenceNumbers: Array.from(referenceNumbers)
+      endDate
     });
+
+    if (!Array.isArray(detections) || detections.length === 0) {
+      detections = await this.cdrService.detectNumberChanges(existingCase.id, {
+        startDate,
+        endDate,
+        referenceNumbers: referenceNumberList
+      });
+    }
     const imeis = detections.map((entry) => {
       const numbers = entry.numbers.map((numberEntry) => {
         const { fileIds, ...rest } = numberEntry;
@@ -316,6 +339,80 @@ class CaseService {
       imeis,
       updatedAt: new Date().toISOString()
     };
+  }
+
+  async #detectFraudFromRealtime(referenceNumbers, options = {}) {
+    const normalizedReferences = Array.isArray(referenceNumbers)
+      ? referenceNumbers.map((value) => normalizeCaseNumber(value)).filter((value) => Boolean(value))
+      : [];
+    if (normalizedReferences.length === 0) {
+      return [];
+    }
+
+    const referenceSet = new Set(normalizedReferences);
+    const { startDate = null, endDate = null } = options;
+
+    const candidateImeis = new Set();
+    for (const number of normalizedReferences) {
+      const result = await realtimeCdrService.findAssociations(number, {
+        startDate,
+        endDate,
+        indexedOnly: true
+      });
+      const numberEntries = Array.isArray(result?.numbers) ? result.numbers : [];
+      for (const entry of numberEntries) {
+        const imeis = Array.isArray(entry?.imeis) ? entry.imeis : [];
+        for (const imeiInfo of imeis) {
+          const imei = imeiInfo?.imei ? String(imeiInfo.imei).trim() : '';
+          if (imei) {
+            candidateImeis.add(imei);
+          }
+        }
+      }
+    }
+
+    const detections = [];
+    for (const imei of candidateImeis) {
+      const result = await realtimeCdrService.findAssociations(imei, {
+        startDate,
+        endDate,
+        indexedOnly: true
+      });
+      const imeiEntries = Array.isArray(result?.imeis) ? result.imeis : [];
+      const currentEntry = imeiEntries.find((entry) => String(entry?.imei || '').trim() === imei) || imeiEntries[0];
+      if (!currentEntry) {
+        continue;
+      }
+
+      const numbers = Array.isArray(currentEntry.numbers)
+        ? currentEntry.numbers
+            .map((numberEntry) => ({
+              number: normalizeCaseNumber(numberEntry?.number),
+              firstSeen: numberEntry?.firstSeen || null,
+              lastSeen: numberEntry?.lastSeen || null,
+              occurrences: Number(numberEntry?.occurrences) || 0,
+              roles: Array.isArray(numberEntry?.roles) ? numberEntry.roles : [],
+              fileIds: []
+            }))
+            .filter((numberEntry) => Boolean(numberEntry.number))
+        : [];
+
+      if (numbers.length < 2) {
+        continue;
+      }
+
+      const hasReferenceNumber = numbers.some((numberEntry) => referenceSet.has(numberEntry.number));
+      if (!hasReferenceNumber) {
+        continue;
+      }
+
+      detections.push({
+        imei,
+        numbers
+      });
+    }
+
+    return detections;
   }
 
   async deleteCase(id, user) {
