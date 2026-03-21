@@ -881,6 +881,29 @@ class RealtimeCdrService {
     });
   }
 
+  async isIndexedDataAvailable() {
+    if (this.elasticEnabled && this.initializationPromise) {
+      try {
+        await this.initializationPromise;
+      } catch (error) {
+        console.error('Erreur initialisation indexation CDR temps réel:', error);
+      }
+    }
+
+    if (!this.elasticEnabled) {
+      return false;
+    }
+
+    try {
+      return await this.#ensureElasticsearchIndex();
+    } catch (error) {
+      if (isElasticsearchForced()) {
+        throw error;
+      }
+      return false;
+    }
+  }
+
   async findAssociations(identifier, options = {}) {
     const trimmedIdentifier = typeof identifier === 'string' ? identifier.trim() : '';
     if (!trimmedIdentifier) {

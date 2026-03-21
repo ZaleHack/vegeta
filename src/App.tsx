@@ -8854,7 +8854,7 @@ useEffect(() => {
               <PageHeader
                 icon={<AlertTriangle className="h-6 w-6" />}
                 title="Formulaire de Détection"
-                subtitle="Analyse centralisée des communications sensibles"
+                subtitle="Analyse centralisée des communications sensibles (données indexées uniquement)"
               />
 
               <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-black/40">
@@ -8867,7 +8867,7 @@ useEffect(() => {
                           Détection de changement de numéro ou d'appareil
                         </h3>
                         <p className="text-sm text-slate-500 dark:text-slate-300">
-                          Surveillez les comportements critiques sans exposer les paramètres de détection.
+                          Surveillez les comportements critiques à partir des enregistrements déjà indexés.
                         </p>
                       </div>
                       <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200/80 backdrop-blur dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
