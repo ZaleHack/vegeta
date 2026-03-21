@@ -1939,6 +1939,31 @@ const CdrMap: React.FC<Props> = ({
   const isLatestLocationOnlyView = hasLatestLocation && showOnlyLatestLocation;
 
   useEffect(() => {
+    if (!isMapReady || !mapRef.current || isLatestLocationOnlyView) return;
+
+    const points = displayedPoints
+      .map((point) => {
+        const lat = parseFloat(point.latitude);
+        const lng = parseFloat(point.longitude);
+        if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+        return [lat, lng] as [number, number];
+      })
+      .filter((value): value is [number, number] => Boolean(value));
+
+    if (latestLocationPosition) {
+      points.push(latestLocationPosition);
+    }
+
+    if (points.length === 0) return;
+
+    const bounds = L.latLngBounds(points);
+    mapRef.current.fitBounds(bounds, {
+      padding: [40, 40],
+      maxZoom: 13
+    });
+  }, [displayedPoints, isLatestLocationOnlyView, isMapReady, latestLocationPosition]);
+
+  useEffect(() => {
     if (!latestLocationPoint) {
       setShowLatestLocationDetailsPanel(false);
       setShowOnlyLatestLocation(false);
