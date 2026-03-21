@@ -166,7 +166,20 @@ class DatabaseManager {
           `⚠️ Connexion MySQL perdue (${error.code}). Nouvelle tentative ${nextAttempt}/${maxRetries + 1}...`
         );
 
-        await this.#resetPool();
+        try {
+          await this.#resetPool();
+        } catch (resetError) {
+          const resetIsLastAttempt = attempt >= maxRetries;
+          const resetShouldRetry = this.#shouldRetry(resetError);
+
+          if (resetIsLastAttempt || !resetShouldRetry) {
+            throw resetError;
+          }
+
+          console.warn(
+            `⚠️ Réinitialisation du pool MySQL impossible (${resetError.code || resetError.message}).`
+          );
+        }
 
         const retryDelay = Math.max(Number.isFinite(this.retryDelayMs) ? this.retryDelayMs : 500, 0);
         if (retryDelay > 0) {
