@@ -222,6 +222,19 @@ class ElasticSearchService {
           this.currentReconnectDelay = this.retryDelayMs;
           console.info('✅ Connexion Elasticsearch rétablie.');
         } catch (error) {
+          if (this.isPingBadRequest(error)) {
+            const fallbackSucceeded = await this.tryInfoHealthcheck();
+            if (fallbackSucceeded) {
+              this.enabled = true;
+              this.indexes = this.getActiveIndexes(this.catalog);
+              this.connectionChecked = true;
+              this.cache.clear();
+              this.currentReconnectDelay = this.retryDelayMs;
+              console.info('✅ Connexion Elasticsearch rétablie (fallback info).');
+              return;
+            }
+          }
+
           if (this.isConnectionError(error)) {
             console.warn(
               `⚠️ Nouvelle tentative de connexion Elasticsearch échouée (${effectiveDelay}ms): ${error.message}`
@@ -286,6 +299,15 @@ class ElasticSearchService {
           this.connectionChecked = true;
           return true;
         }
+
+        // Certains proxys/OpenSearch renvoient HTTP 400 sur ping/info tout en acceptant
+        // les requêtes de recherche. On conserve donc Elasticsearch actif et on laisse
+        // la première vraie requête décider si la connexion doit être désactivée.
+        console.warn(
+          '⚠️ Healthcheck Elasticsearch en HTTP 400 (ping/info). Connexion conservée en mode dégradé.'
+        );
+        this.connectionChecked = true;
+        return true;
       }
 
       if (this.isRecoverableHealthcheckError(error)) {
