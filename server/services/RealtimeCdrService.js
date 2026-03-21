@@ -1829,29 +1829,52 @@ class RealtimeCdrService {
             filterClauses.push({ bool: { should, minimum_should_match: 1 } });
           }
 
-          const response = await client.search({
-            index: this.indexName,
-            size: 20000,
-            _source: [
-              'numero_appelant',
-              'numero_appelant_normalized',
-              'numero_appele',
-              'numero_appele_normalized',
-              'type_appel',
-              'event_type'
-            ],
-            query: { bool: { filter: filterClauses } },
-            sort: [
-              { call_timestamp: { order: 'asc', unmapped_type: 'date' } },
-              { record_id: { order: 'asc' } }
-            ],
-            track_total_hits: false
-          });
+          const pageSize = 5000;
+          const maxHits = 50000;
+          const hits = [];
+          let searchAfter;
+          let hasMore = true;
+
+          while (hasMore && hits.length < maxHits) {
+            const response = await client.search({
+              index: this.indexName,
+              size: Math.min(pageSize, maxHits - hits.length),
+              _source: [
+                'numero_appelant',
+                'numero_appelant_normalized',
+                'numero_appele',
+                'numero_appele_normalized',
+                'type_appel',
+                'event_type'
+              ],
+              query: { bool: { filter: filterClauses } },
+              sort: [
+                { call_timestamp: { order: 'asc', unmapped_type: 'date' } },
+                { record_id: { order: 'asc' } }
+              ],
+              search_after: searchAfter,
+              track_total_hits: false
+            });
+
+            const pageHits = response?.hits?.hits || [];
+            hits.push(...pageHits);
+
+            if (pageHits.length < pageSize) {
+              hasMore = false;
+              break;
+            }
+
+            const lastHit = pageHits[pageHits.length - 1];
+            if (!Array.isArray(lastHit?.sort) || lastHit.sort.length === 0) {
+              hasMore = false;
+              break;
+            }
+            searchAfter = lastHit.sort;
+          }
 
           const filteredSet = new Set(uniqueNumbers);
           const contactSources = {};
           const edgeMap = {};
-          const hits = response?.hits?.hits || [];
 
           const buildEventType = (row) => {
             const typeStr = (row.call_type || '').toLowerCase();
