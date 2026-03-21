@@ -3302,7 +3302,6 @@ const CdrMap: React.FC<Props> = ({
           chunkedLoading
           chunkInterval={120}
           chunkDelay={40}
-          removeOutsideVisibleBounds
         >
           {groupedPoints.flatMap((group, idx) => {
             const perSourceEntries = group.perSource;
