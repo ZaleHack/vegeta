@@ -1703,6 +1703,11 @@ const CdrMap: React.FC<Props> = ({
     mapRef.current.setView(center, Number.isFinite(currentZoom) ? currentZoom : 13, { animate: false });
   }, [isMapReady, center]);
 
+  useEffect(() => {
+    setShowBaseMarkers(true);
+    setHiddenLocations(new Set());
+  }, [points]);
+
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular' | 'history') => {
     if (showMeetingPoints) onToggleMeetingPoints?.();
     setActiveInfo((prev) => {
@@ -2841,7 +2846,10 @@ const CdrMap: React.FC<Props> = ({
       .map((p) => ({
         location: p.nom || `${p.latitude},${p.longitude}`,
         date: p.callDate,
-        time: p.startTime
+        time: p.startTime,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        nom: p.nom
       }))
       .sort((a, b) => {
         const da = new Date(`${a.date}T${a.time}`).getTime();
@@ -2860,6 +2868,20 @@ const CdrMap: React.FC<Props> = ({
     if (!historyDateFilter) return historyEvents;
     return historyEvents.filter((h) => h.date === historyDateFilter);
   }, [historyEvents, historyDateFilter]);
+
+  const toggleAllHistoryLocations = () => {
+    setHiddenLocations((prev) => {
+      const next = new Set(prev);
+      const keys = filteredHistoryEvents.map((h) => `${h.latitude},${h.longitude},${h.nom || ''}`);
+      const allHidden = keys.length > 0 && keys.every((k) => next.has(k));
+      if (allHidden) {
+        keys.forEach((k) => next.delete(k));
+      } else {
+        keys.forEach((k) => next.add(k));
+      }
+      return next;
+    });
+  };
 
 
   useEffect(() => {
@@ -4104,7 +4126,19 @@ const CdrMap: React.FC<Props> = ({
           )}
           {activeInfo === 'history' && historyEvents.length > 0 && (
             <div>
-              <p className="font-semibold mb-2">Historique des déplacements</p>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="font-semibold">Historique des déplacements</p>
+                <button
+                  className="text-blue-600 hover:underline"
+                  onClick={toggleAllHistoryLocations}
+                >
+                  {filteredHistoryEvents.length > 0 && filteredHistoryEvents.every((h) =>
+                    hiddenLocations.has(`${h.latitude},${h.longitude},${h.nom || ''}`)
+                  )
+                    ? 'Tout afficher'
+                    : 'Tout cacher'}
+                </button>
+              </div>
               <div className="mb-2">
                 <label className="mr-2">Filtrer par date:</label>
                 <select
