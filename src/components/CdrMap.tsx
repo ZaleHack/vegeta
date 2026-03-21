@@ -1703,6 +1703,31 @@ const CdrMap: React.FC<Props> = ({
     mapRef.current.setView(center, Number.isFinite(currentZoom) ? currentZoom : 13, { animate: false });
   }, [isMapReady, center]);
 
+  useEffect(() => {
+    if (!isMapReady || !mapRef.current || displayedPoints.length === 0) {
+      return;
+    }
+
+    const map = mapRef.current;
+    const bounds = L.latLngBounds(
+      displayedPoints.map((point) => [
+        Number.parseFloat(point.latitude),
+        Number.parseFloat(point.longitude)
+      ] as [number, number])
+    );
+
+    if (!bounds.isValid()) {
+      return;
+    }
+
+    map.invalidateSize();
+    map.fitBounds(bounds, {
+      padding: [36, 36],
+      maxZoom: 16,
+      animate: false
+    });
+  }, [isMapReady, displayedPoints]);
+
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular' | 'history') => {
     if (showMeetingPoints) onToggleMeetingPoints?.();
     setActiveInfo((prev) => {
