@@ -18,6 +18,13 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const { identifier = '', start, end, limit } = req.query;
     const trimmedIdentifier = typeof identifier === 'string' ? identifier.trim() : '';
+    const indexedDataAvailable = await realtimeCdrService.isIndexedDataAvailable();
+
+    if (!indexedDataAvailable) {
+      return res.status(503).json({
+        error: "La détection globale est disponible uniquement avec les données indexées. Vérifiez l'indexation Elasticsearch."
+      });
+    }
 
     if ((start && !isValidDate(start)) || (end && !isValidDate(end))) {
       return res.status(400).json({ error: 'Format de date invalide (YYYY-MM-DD)' });
