@@ -232,13 +232,18 @@ class CaseService {
           .map((value) => normalizeCaseNumber(value))
           .filter((value) => value && value.startsWith(ALLOWED_PREFIX))
       : [];
-    const realtimeResult = await realtimeCdrService.buildLinkDiagram(filteredNumbers, {
-      startDate,
-      endDate,
-      startTime,
-      endTime,
-      indexedOnly: true
-    });
+    let realtimeResult = null;
+    try {
+      realtimeResult = await realtimeCdrService.buildLinkDiagram(filteredNumbers, {
+        startDate,
+        endDate,
+        startTime,
+        endTime,
+        indexedOnly: true
+      });
+    } catch (error) {
+      console.error('Realtime link diagram lookup failed, falling back to case data:', error);
+    }
 
     if (Array.isArray(realtimeResult?.links) && realtimeResult.links.length > 0) {
       return realtimeResult;
@@ -292,10 +297,15 @@ class CaseService {
     const statusReferenceSet = new Set([...fileReferenceNumbers, ...referenceNumbers]);
 
     const referenceNumberList = Array.from(referenceNumbers);
-    let detections = await this.#detectFraudFromRealtime(referenceNumberList, {
-      startDate,
-      endDate
-    });
+    let detections = [];
+    try {
+      detections = await this.#detectFraudFromRealtime(referenceNumberList, {
+        startDate,
+        endDate
+      });
+    } catch (error) {
+      console.error('Realtime fraud detection failed, falling back to case data:', error);
+    }
 
     if (!Array.isArray(detections) || detections.length === 0) {
       detections = await this.cdrService.detectNumberChanges(existingCase.id, {
