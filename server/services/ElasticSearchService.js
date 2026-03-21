@@ -280,6 +280,14 @@ class ElasticSearchService {
       this.connectionChecked = true;
       return true;
     } catch (error) {
+      if (this.isPingBadRequest(error)) {
+        const fallbackSucceeded = await this.tryInfoHealthcheck();
+        if (fallbackSucceeded) {
+          this.connectionChecked = true;
+          return true;
+        }
+      }
+
       if (this.isRecoverableHealthcheckError(error)) {
         const statusCode = error?.meta?.statusCode;
         const statusInfo = Number.isFinite(Number(statusCode)) ? ` (HTTP ${statusCode})` : '';
@@ -290,6 +298,31 @@ class ElasticSearchService {
 
       console.error('❌ Erreur lors de la vérification Elasticsearch:', error);
       throw error;
+    }
+  }
+
+  isPingBadRequest(error) {
+    if (error?.name !== 'ResponseError') {
+      return false;
+    }
+
+    const statusCode = Number(error?.meta?.statusCode);
+    return statusCode === 400;
+  }
+
+  async tryInfoHealthcheck() {
+    if (typeof client.info !== 'function') {
+      return false;
+    }
+
+    try {
+      await client.info({ requestTimeout: this.connectionTimeout });
+      console.warn(
+        '⚠️ Ping Elasticsearch en échec (HTTP 400), mais la requête info a réussi. Connexion conservée.'
+      );
+      return true;
+    } catch {
+      return false;
     }
   }
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import ElasticSearchService from '../server/services/ElasticSearchService.js';
 import UnifiedSearchService from '../server/services/UnifiedSearchService.js';
+import client from '../server/config/elasticsearch.js';
 
 class FakeSearchService {
   async search(query, filters, page, limit) {
@@ -45,11 +46,15 @@ describe('UnifiedSearchService Elasticsearch fallback', () => {
   let previousUseElastic;
   let previousUrl;
   let previousAutoReconnect;
+  let originalPing;
+  let originalInfo;
 
   beforeEach(() => {
     previousUseElastic = process.env.USE_ELASTICSEARCH;
     previousUrl = process.env.ELASTICSEARCH_URL;
     previousAutoReconnect = process.env.ELASTICSEARCH_AUTO_RECONNECT;
+    originalPing = client.ping;
+    originalInfo = client.info;
     process.env.USE_ELASTICSEARCH = 'false';
     delete process.env.ELASTICSEARCH_URL;
     delete process.env.ELASTICSEARCH_AUTO_RECONNECT;
@@ -73,6 +78,9 @@ describe('UnifiedSearchService Elasticsearch fallback', () => {
     } else {
       process.env.ELASTICSEARCH_AUTO_RECONNECT = previousAutoReconnect;
     }
+
+    client.ping = originalPing;
+    client.info = originalInfo;
   });
 
   it('returns null when Elasticsearch is disabled', async () => {
@@ -151,6 +159,28 @@ describe('UnifiedSearchService Elasticsearch fallback', () => {
         service.reconnectTimer = null;
       }
     }
+  });
+
+  it('keeps Elasticsearch enabled when ping returns HTTP 400 but info succeeds', async () => {
+    process.env.USE_ELASTICSEARCH = 'true';
+    const service = new ElasticSearchService();
+    service.connectionTimeout = 1;
+
+    const pingError = new Error('Bad Request');
+    pingError.name = 'ResponseError';
+    pingError.meta = { statusCode: 400 };
+
+    client.ping = async () => {
+      throw pingError;
+    };
+    client.info = async () => ({ version: { number: '8.0.0' } });
+
+    const isHealthy = await service.verifyConnection('test');
+
+    assert.equal(isHealthy, true);
+    assert.equal(service.enabled, true);
+    assert.equal(service.connectionChecked, true);
+    assert.equal(process.env.USE_ELASTICSEARCH, 'true');
   });
 
   it('exposes diagnostics metadata when requested', async () => {
