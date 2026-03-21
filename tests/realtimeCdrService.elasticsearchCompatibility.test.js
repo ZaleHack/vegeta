@@ -146,3 +146,106 @@ test('Realtime CDR link diagram Elasticsearch query supports normalized and lega
     }
   }
 });
+
+test('Realtime CDR fraud detection query matches phone identifier on both caller and callee fields', async () => {
+  const originalUseElastic = process.env.USE_ELASTICSEARCH;
+  const originalExists = client.indices.exists;
+  const originalCreate = client.indices.create;
+  const originalSearch = client.search;
+
+  process.env.USE_ELASTICSEARCH = 'true';
+
+  const capturedQueries = [];
+  client.indices.exists = async () => true;
+  client.indices.create = async () => ({ acknowledged: true });
+  client.search = async (params) => {
+    capturedQueries.push(params?.query || null);
+    return {
+      hits: {
+        hits: [
+          {
+            _id: 'fraud-es-1',
+            _source: {
+              numero_appelant: '221771111111',
+              numero_appele: '221770000000',
+              imei_appelant: '358240051111110',
+              date_debut: '2025-01-10',
+              heure_debut: '08:10:00'
+            }
+          }
+        ]
+      }
+    };
+  };
+
+  const databaseStub = {
+    async query() {
+      return [];
+    }
+  };
+
+  try {
+    const service = new RealtimeCdrService({
+      autoStart: false,
+      databaseClient: databaseStub,
+      cgiEnricher: null
+    });
+
+    const result = await service.findAssociations('221770000000');
+    assert.equal(result.numbers.length, 1);
+    assert.equal(result.numbers[0].imeis.length, 1);
+
+    const query = capturedQueries[0];
+    const phoneFilter = query?.bool?.filter?.find((item) => item?.bool?.minimum_should_match === 1);
+    const shouldClauses = phoneFilter?.bool?.should || [];
+    assert.equal(shouldClauses.some((item) => item?.terms?.numero_appelant), true);
+    assert.equal(shouldClauses.some((item) => item?.terms?.numero_appele), true);
+  } finally {
+    client.indices.exists = originalExists;
+    client.indices.create = originalCreate;
+    client.search = originalSearch;
+
+    if (typeof originalUseElastic === 'undefined') {
+      delete process.env.USE_ELASTICSEARCH;
+    } else {
+      process.env.USE_ELASTICSEARCH = originalUseElastic;
+    }
+  }
+});
+
+test('Realtime CDR fraud detection SQL fallback checks caller and callee fields', async () => {
+  const originalUseElastic = process.env.USE_ELASTICSEARCH;
+  process.env.USE_ELASTICSEARCH = 'false';
+
+  const captured = { sql: '', params: [] };
+  const databaseStub = {
+    async query(sql, params) {
+      captured.sql = sql;
+      captured.params = params;
+      return [];
+    },
+    async queryOne() {
+      return null;
+    }
+  };
+
+  try {
+    const service = new RealtimeCdrService({
+      autoStart: false,
+      databaseClient: databaseStub,
+      cgiEnricher: null
+    });
+
+    await service.findAssociations('221770000000');
+
+    assert.match(captured.sql, /numero_appelant IN/i);
+    assert.match(captured.sql, /numero_appele IN/i);
+    assert.equal(captured.params.length >= 2, true);
+  } finally {
+    if (typeof originalUseElastic === 'undefined') {
+      delete process.env.USE_ELASTICSEARCH;
+    } else {
+      process.env.USE_ELASTICSEARCH = originalUseElastic;
+    }
+  }
+});

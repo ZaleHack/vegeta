@@ -12,7 +12,7 @@ import { isElasticsearchEnabled, isElasticsearchForced } from '../config/environ
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ALLOWED_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
+const ALLOWED_PREFIX = '221';
 const CDR_INDEX = process.env.ELASTICSEARCH_CDR_INDEX || 'cdr-events';
 const SUPPORTED_EXTENSIONS = new Set(['.csv', '.xls', '.xlsx']);
 
@@ -1093,7 +1093,7 @@ class CdrService {
   }
 
   async findCommonContacts(numbers, caseId, options = {}) {
-    const isAllowed = (n) => ALLOWED_PREFIXES.some((p) => String(n).startsWith(p));
+    const isAllowed = (n) => String(n).startsWith(ALLOWED_PREFIX);
     const filteredNumbers = Array.isArray(numbers) ? numbers.filter(isAllowed) : [];
     if (filteredNumbers.length === 0) {
       return { nodes: [], links: [] };

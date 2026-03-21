@@ -7,7 +7,7 @@ import Division from '../models/Division.js';
 import Notification from '../models/Notification.js';
 import statsCache from './stats-cache.js';
 
-const ALLOWED_PREFIXES = ['22177', '22176', '22178', '22170', '22175', '22133'];
+const ALLOWED_PREFIX = '221';
 
 const normalizeCaseNumber = (value) => {
   if (!value) return '';
@@ -227,7 +227,7 @@ class CaseService {
       endTime = null
     } = options;
     const filteredNumbers = Array.isArray(numbers)
-      ? numbers.filter(n => ALLOWED_PREFIXES.some(p => String(n).startsWith(p)))
+      ? numbers.filter((n) => String(n).startsWith(ALLOWED_PREFIX))
       : [];
     return await this.cdrService.findCommonContacts(filteredNumbers, existingCase.id, {
       startDate,
