@@ -1736,12 +1736,15 @@ class RealtimeCdrService {
             {
               bool: {
                 should: [
+                  { terms: { identifiers: lookupVariants } },
                   { terms: { numero_appelant_normalized: uniqueNumbers } },
                   { terms: { numero_appele_normalized: uniqueNumbers } },
                   { terms: { caller_variants: uniqueNumbers } },
                   { terms: { callee_variants: uniqueNumbers } },
                   { terms: { numero_appelant: lookupVariants } },
-                  { terms: { numero_appele: lookupVariants } }
+                  { terms: { numero_appele: lookupVariants } },
+                  { terms: { caller_variants: lookupVariants } },
+                  { terms: { callee_variants: lookupVariants } }
                 ],
                 minimum_should_match: 1
               }
