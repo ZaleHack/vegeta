@@ -1706,7 +1706,7 @@ const CdrMap: React.FC<Props> = ({
   useEffect(() => {
     setShowBaseMarkers(true);
     setHiddenLocations(new Set());
-  }, [points]);
+  }, [rawPoints]);
 
   const toggleInfo = (key: 'contacts' | 'recent' | 'popular' | 'history') => {
     if (showMeetingPoints) onToggleMeetingPoints?.();
@@ -3515,13 +3515,6 @@ const CdrMap: React.FC<Props> = ({
           />
         )}
         <MapControlButton
-          title={showBaseMarkers ? 'Masquer les points' : 'Afficher les points'}
-          icon={showBaseMarkers ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-          onClick={() => setShowBaseMarkers((visible) => !visible)}
-          active={!showBaseMarkers}
-          isToggle
-        />
-        <MapControlButton
           title="Zoomer"
           icon={<Plus className="h-5 w-5" />}
           onClick={handleZoomIn}
@@ -3567,6 +3560,20 @@ const CdrMap: React.FC<Props> = ({
             >
               <Flame className="w-4 h-4" />
               <span>Lieux les plus visités</span>
+            </button>
+            <button
+              onClick={() => setShowBaseMarkers((visible) => !visible)}
+              title={showBaseMarkers ? 'Masquer les points' : 'Afficher les points'}
+              aria-label={showBaseMarkers ? 'Masquer les points' : 'Afficher les points'}
+              aria-pressed={!showBaseMarkers}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                showBaseMarkers
+                  ? 'text-gray-600 hover:bg-gray-100'
+                  : 'bg-blue-600 text-white'
+              }`}
+            >
+              {showBaseMarkers ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <span>{showBaseMarkers ? 'Masquer les points' : 'Afficher les points'}</span>
             </button>
             <button
               onClick={() => toggleInfo('history')}
