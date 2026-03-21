@@ -200,6 +200,60 @@ test('Realtime CDR link diagram falls back to SQL when Elasticsearch has no link
   }
 });
 
+test('Realtime CDR link diagram indexedOnly interroge Elasticsearch même si USE_ELASTICSEARCH=false', async () => {
+  const originalUseElastic = process.env.USE_ELASTICSEARCH;
+  const originalSearch = client.search;
+
+  process.env.USE_ELASTICSEARCH = 'false';
+
+  const capturedQueries = [];
+  client.search = async (params) => {
+    capturedQueries.push(params?.query || null);
+    return {
+      hits: {
+        hits: [
+          {
+            _id: 'indexed-only-1',
+            _source: {
+              numero_appelant: '221770000000',
+              numero_appele: '221771111111',
+              type_appel: 'SMS'
+            }
+          }
+        ]
+      }
+    };
+  };
+
+  const databaseStub = {
+    async query() {
+      return [];
+    }
+  };
+
+  try {
+    const service = new RealtimeCdrService({
+      autoStart: false,
+      databaseClient: databaseStub,
+      cgiEnricher: null
+    });
+
+    const result = await service.buildLinkDiagram(['+221770000000'], { indexedOnly: true });
+    assert.equal(result.links.length, 1);
+    assert.equal(result.links[0].source, '221770000000');
+    assert.equal(result.links[0].target, '221771111111');
+    assert.equal(capturedQueries.length, 1);
+  } finally {
+    client.search = originalSearch;
+
+    if (typeof originalUseElastic === 'undefined') {
+      delete process.env.USE_ELASTICSEARCH;
+    } else {
+      process.env.USE_ELASTICSEARCH = originalUseElastic;
+    }
+  }
+});
+
 test('Realtime CDR fraud detection query matches phone identifier on both caller and callee fields', async () => {
   const originalUseElastic = process.env.USE_ELASTICSEARCH;
   const originalExists = client.indices.exists;
