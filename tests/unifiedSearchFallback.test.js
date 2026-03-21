@@ -153,6 +153,19 @@ describe('UnifiedSearchService Elasticsearch fallback', () => {
     }
   });
 
+  it('treats Elasticsearch ping response errors as healthcheck failures', () => {
+    const service = new ElasticSearchService();
+    const pingError = {
+      name: 'ResponseError',
+      meta: {
+        statusCode: 400
+      }
+    };
+
+    assert.equal(service.isHealthcheckError(pingError), true);
+    assert.equal(service.isConnectionError(pingError), false);
+  });
+
   it('exposes diagnostics metadata when requested', async () => {
     const unified = new UnifiedSearchService({
       searchService: new FakeSearchService(),
