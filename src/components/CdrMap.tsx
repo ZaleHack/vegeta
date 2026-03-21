@@ -8,7 +8,6 @@ import {
   Polyline,
   Popup
 } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import {
   Activity,
@@ -3289,41 +3288,33 @@ const CdrMap: React.FC<Props> = ({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         )}
-      {showBaseMarkers && (
-        <MarkerClusterGroup
-          maxClusterRadius={45}
-          chunkedLoading
-          chunkInterval={120}
-          chunkDelay={40}
-        >
-          {groupedPoints.flatMap((group, idx) => {
-            const perSourceEntries = group.perSource;
-            if (perSourceEntries.length <= 1) {
-              const marker = createMarkerForEvents(
-                group.events,
-                [group.lat, group.lng],
-                `group-${idx}`
-              );
-              return marker ? [marker] : [];
-            }
+      {showBaseMarkers &&
+        groupedPoints.flatMap((group, idx) => {
+          const perSourceEntries = group.perSource;
+          if (perSourceEntries.length <= 1) {
+            const marker = createMarkerForEvents(
+              group.events,
+              [group.lat, group.lng],
+              `group-${idx}`
+            );
+            return marker ? [marker] : [];
+          }
 
-            return perSourceEntries.flatMap((entry, entryIdx) => {
-              const position = computeOffsetPosition(
-                group.lat,
-                group.lng,
-                entryIdx,
-                perSourceEntries.length
-              );
-              const marker = createMarkerForEvents(
-                entry.events,
-                position,
-                `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
-              );
-              return marker ? [marker] : [];
-            });
-          })}
-        </MarkerClusterGroup>
-      )}
+          return perSourceEntries.flatMap((entry, entryIdx) => {
+            const position = computeOffsetPosition(
+              group.lat,
+              group.lng,
+              entryIdx,
+              perSourceEntries.length
+            );
+            const marker = createMarkerForEvents(
+              entry.events,
+              position,
+              `group-${idx}-${entry.source ?? 'unknown'}-${entryIdx}`
+            );
+            return marker ? [marker] : [];
+          });
+        })}
       {showBaseMarkers && showMeetingPoints &&
         meetingPoints
           .filter(
@@ -3562,20 +3553,6 @@ const CdrMap: React.FC<Props> = ({
               <span>Lieux les plus visités</span>
             </button>
             <button
-              onClick={() => setShowBaseMarkers((visible) => !visible)}
-              title={showBaseMarkers ? 'Masquer les points' : 'Afficher les points'}
-              aria-label={showBaseMarkers ? 'Masquer les points' : 'Afficher les points'}
-              aria-pressed={!showBaseMarkers}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                showBaseMarkers
-                  ? 'text-gray-600 hover:bg-gray-100'
-                  : 'bg-blue-600 text-white'
-              }`}
-            >
-              {showBaseMarkers ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              <span>{showBaseMarkers ? 'Masquer les points' : 'Afficher les points'}</span>
-            </button>
-            <button
               onClick={() => toggleInfo('history')}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
                 activeInfo === 'history'
@@ -3585,6 +3562,19 @@ const CdrMap: React.FC<Props> = ({
             >
               <History className="w-4 h-4" />
               <span>Historique des déplacements</span>
+            </button>
+            <button
+              onClick={() => setShowBaseMarkers((visible) => !visible)}
+              title={showBaseMarkers ? 'Masquer les points' : 'Afficher les points'}
+              aria-label={showBaseMarkers ? 'Masquer les points' : 'Afficher les points'}
+              aria-pressed={showBaseMarkers}
+              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-colors ${
+                showBaseMarkers
+                  ? 'text-gray-600 hover:bg-gray-100'
+                  : 'bg-blue-600 text-white'
+              }`}
+            >
+              {showBaseMarkers ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
             {sourceNumbers.length >= 2 && (
               <button
