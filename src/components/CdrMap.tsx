@@ -399,6 +399,22 @@ const getPointColor = (_type: string, _direction?: string) => {
   return MAP_POINT_COLOR;
 };
 
+const iconCache = new Map<string, L.DivIcon>();
+
+const getCachedDivIcon = (
+  cacheKey: string,
+  renderer: () => L.DivIcon
+): L.DivIcon => {
+  const existingIcon = iconCache.get(cacheKey);
+  if (existingIcon) {
+    return existingIcon;
+  }
+
+  const nextIcon = renderer();
+  iconCache.set(cacheKey, nextIcon);
+  return nextIcon;
+};
+
 const getIcon = (
   type: string,
   direction: string | undefined,
@@ -440,12 +456,15 @@ const getIcon = (
     </div>
   );
 
-  return L.divIcon({
-    html: renderToStaticMarkup(icon),
-    className: '',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2]
-  });
+  const cacheKey = `point:${normalizedType}:${direction || 'none'}:${colorOverride || 'default'}`;
+  return getCachedDivIcon(cacheKey, () =>
+    L.divIcon({
+      html: renderToStaticMarkup(icon),
+      className: '',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2]
+    })
+  );
 };
 
 const normalizePhoneDigits = (value?: string): string => {
@@ -529,12 +548,15 @@ const getArrowIcon = (angle: number) => {
       </div>
     </div>
   );
-  return L.divIcon({
-    html: renderToStaticMarkup(icon),
-    className: '',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2]
-  });
+  const roundedAngle = Math.round(angle);
+  return getCachedDivIcon(`arrow:${roundedAngle}`, () =>
+    L.divIcon({
+      html: renderToStaticMarkup(icon),
+      className: '',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2]
+    })
+  );
 };
 
 const getSegmentDistanceKm = (start: [number, number], end: [number, number]) => {
@@ -565,12 +587,14 @@ const createLabelIcon = (text: string, bgColor: string) => {
     </div>
   );
 
-  return L.divIcon({
-    html: renderToStaticMarkup(icon),
-    className: '',
-    iconSize: [32, 32],
-    iconAnchor: [16, 32]
-  });
+  return getCachedDivIcon(`label:${text}:${bgColor}`, () =>
+    L.divIcon({
+      html: renderToStaticMarkup(icon),
+      className: '',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32]
+    })
+  );
 };
 
 const getGroupIcon = (
@@ -594,12 +618,15 @@ const getGroupIcon = (
       </span>
     </div>
   );
-  return L.divIcon({
-    html: renderToStaticMarkup(icon),
-    className: '',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size]
-  });
+  const cacheKey = `group:${count}:${type.trim().toLowerCase()}:${direction || 'none'}:${color}`;
+  return getCachedDivIcon(cacheKey, () =>
+    L.divIcon({
+      html: renderToStaticMarkup(icon),
+      className: '',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size]
+    })
+  );
 };
 
 const numberColors = NUMBER_COLOR_PALETTE;
@@ -3243,7 +3270,13 @@ const CdrMap: React.FC<Props> = ({
           />
         )}
       {showBaseMarkers && (
-        <MarkerClusterGroup maxClusterRadius={0}>
+        <MarkerClusterGroup
+          maxClusterRadius={45}
+          chunkedLoading
+          chunkInterval={120}
+          chunkDelay={40}
+          removeOutsideVisibleBounds
+        >
           {groupedPoints.flatMap((group, idx) => {
             const perSourceEntries = group.perSource;
             if (perSourceEntries.length <= 1) {
