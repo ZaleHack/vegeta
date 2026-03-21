@@ -15,7 +15,7 @@ router.get('/search', async (req, res) => {
     }
 
     const result = await phoneIdentifierService.findDevicesByNumber(String(rawNumber), {
-      indexedOnly: false
+      indexedOnly: true
     });
     return res.json(result);
   } catch (error) {

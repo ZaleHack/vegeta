@@ -34,7 +34,7 @@ router.get('/', authenticate, async (req, res) => {
         startDate: start || null,
         endDate: end || null,
         limit: limitValue,
-        indexedOnly: false,
+        indexedOnly: true,
       });
       return res.json(result);
     }
@@ -42,7 +42,7 @@ router.get('/', authenticate, async (req, res) => {
     const result = await realtimeCdrService.findAssociations(trimmedIdentifier, {
       startDate: start || null,
       endDate: end || null,
-      indexedOnly: false,
+      indexedOnly: true,
     });
 
     res.json(result);
