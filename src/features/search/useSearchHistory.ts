@@ -10,6 +10,7 @@ export interface SearchHistoryEntry {
 const SEARCH_HISTORY_STORAGE_KEY = 'sora-unified-search-history';
 const SEARCH_HISTORY_PREVIEW_LIMIT = 6;
 const SEARCH_HISTORY_LIMIT = 10;
+const SEARCH_HISTORY_SAVE_DEBOUNCE_MS = 300;
 
 const loadSearchHistoryFromStorage = (): SearchHistoryEntry[] => {
   if (typeof window === 'undefined') {
@@ -65,14 +66,20 @@ export const useSearchHistory = ({ onSelect }: UseSearchHistoryOptions) => {
       return;
     }
 
-    try {
-      window.localStorage.setItem(
-        SEARCH_HISTORY_STORAGE_KEY,
-        JSON.stringify(searchHistory.slice(0, SEARCH_HISTORY_LIMIT))
-      );
-    } catch (error) {
-      console.error("Impossible d'enregistrer l'historique de recherche:", error);
-    }
+    const timeoutId = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          SEARCH_HISTORY_STORAGE_KEY,
+          JSON.stringify(searchHistory.slice(0, SEARCH_HISTORY_LIMIT))
+        );
+      } catch (error) {
+        console.error("Impossible d'enregistrer l'historique de recherche:", error);
+      }
+    }, SEARCH_HISTORY_SAVE_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [searchHistory]);
 
   useEffect(() => {

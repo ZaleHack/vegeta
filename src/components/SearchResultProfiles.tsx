@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { User } from 'lucide-react';
 import { SearchHit, NormalizedPreviewEntry } from '../utils/search';
 import StructuredPreviewValue from './StructuredPreviewValue';
+import PaginationControls from './PaginationControls';
 
 interface ProfilesProps {
   hits: SearchHit[];
@@ -14,6 +15,25 @@ interface ProfilesProps {
 }
 
 const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreateProfile }) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [hits, query]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(hits.length / Math.max(pageSize, 1))),
+    [hits.length, pageSize]
+  );
+
+  const visibleHits = useMemo(() => {
+    const safePageSize = Math.max(pageSize, 1);
+    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+    const start = (safePage - 1) * safePageSize;
+    return hits.slice(start, start + safePageSize);
+  }, [currentPage, hits, pageSize, totalPages]);
+
   if (hits.length === 0) {
     return (
       <div className="text-center text-gray-500">Aucun résultat pour {query}</div>
@@ -22,7 +42,8 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
 
   return (
     <div className="space-y-8">
-      {hits.map((hit, idx) => {
+      {visibleHits.map((hit, idx) => {
+        const absoluteIndex = (currentPage - 1) * pageSize + idx;
         const previewEntries = hit.previewEntries.filter((entry) => {
           const comparableLabel = (entry.label || entry.key || '').toLowerCase();
           return comparableLabel !== 'upload id' && comparableLabel !== 'created at';
@@ -35,7 +56,7 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
               <div className="flex items-center">
                 <User className="w-8 h-8 text-white mr-3" />
                 <div>
-                  <h3 className="text-xl font-semibold text-white">Résultat {idx + 1}</h3>
+                  <h3 className="text-xl font-semibold text-white">Résultat {absoluteIndex + 1}</h3>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-blue-100">
                     {databaseLabel && (
                       <span className="inline-flex items-center rounded-full bg-blue-900/40 px-2 py-0.5 font-medium text-blue-50">
@@ -102,6 +123,16 @@ const SearchResultProfiles: React.FC<ProfilesProps> = ({ hits, query, onCreatePr
           Créer profil
         </button>
       </div>
+      {hits.length > pageSize && (
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          pageSize={pageSize}
+          pageSizeOptions={[10, 20, 50]}
+          onPageSizeChange={setPageSize}
+        />
+      )}
     </div>
   );
 };

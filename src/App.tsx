@@ -98,6 +98,7 @@ import {
   formatServerDateTime,
   parseServerDate
 } from './utils/dateTime';
+import { getAuthToken } from './utils/apiClient';
 import BtsPage, { BtsProvider } from './features/bts/BtsPage';
 
 const VisibleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -1753,7 +1754,7 @@ const App: React.FC = () => {
       return sanitized;
     }
 
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = getAuthToken();
 
     if (token) {
       sanitized.Authorization = `Bearer ${token}`;
@@ -3030,7 +3031,7 @@ const App: React.FC = () => {
 
   // Vérification de l'authentification au démarrage
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (token) {
       verifyToken(token);
     }
@@ -3101,7 +3102,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = useCallback((reason?: 'inactivity') => {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (token) {
       fetch('/api/auth/logout', {
         method: 'POST',
