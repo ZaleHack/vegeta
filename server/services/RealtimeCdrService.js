@@ -924,9 +924,12 @@ class RealtimeCdrService {
     const endDate = typeof options.endDate === 'string' && options.endDate.trim() ? options.endDate.trim() : null;
     const indexedOnly = Boolean(options.indexedOnly);
 
-    if (this.elasticEnabled) {
+    const shouldQueryElasticsearch = this.elasticEnabled || indexedOnly;
+
+    if (shouldQueryElasticsearch) {
       try {
-        if (await this.#ensureElasticsearchIndex()) {
+        const elasticReady = this.elasticEnabled ? await this.#ensureElasticsearchIndex() : true;
+        if (elasticReady) {
           const variantList = Array.from(variants);
           const shouldClauses = searchType === 'imei'
             ? [{ terms: { imei_appelant: variantList } }]
@@ -1077,7 +1080,7 @@ class RealtimeCdrService {
           };
         }
       } catch (error) {
-        if (isElasticsearchForced()) {
+        if (indexedOnly || isElasticsearchForced()) {
           throw error;
         }
       }
@@ -1477,9 +1480,12 @@ class RealtimeCdrService {
     const resultLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 1000) : 200;
     const indexedOnly = Boolean(options.indexedOnly);
 
-    if (this.elasticEnabled) {
+    const shouldQueryElasticsearch = this.elasticEnabled || indexedOnly;
+
+    if (shouldQueryElasticsearch) {
       try {
-        if (await this.#ensureElasticsearchIndex()) {
+        const elasticReady = this.elasticEnabled ? await this.#ensureElasticsearchIndex() : true;
+        if (elasticReady) {
           const filterClauses = [
             { exists: { field: 'numero_appelant' } },
             { exists: { field: 'imei_appelant' } }
@@ -1582,7 +1588,7 @@ class RealtimeCdrService {
           return { numbers, updatedAt: new Date().toISOString() };
         }
       } catch (error) {
-        if (isElasticsearchForced()) {
+        if (indexedOnly || isElasticsearchForced()) {
           throw error;
         }
       }
@@ -1752,9 +1758,12 @@ class RealtimeCdrService {
     const startTimeBound = normalizeTimeBound(startTime);
     const endTimeBound = normalizeTimeBound(endTime);
 
-    if (this.elasticEnabled) {
+    const shouldQueryElasticsearch = this.elasticEnabled || indexedOnly;
+
+    if (shouldQueryElasticsearch) {
       try {
-        if (await this.#ensureElasticsearchIndex()) {
+        const elasticReady = this.elasticEnabled ? await this.#ensureElasticsearchIndex() : true;
+        if (elasticReady) {
           const filterClauses = [
             {
               bool: {
@@ -1917,7 +1926,7 @@ class RealtimeCdrService {
           }
         }
       } catch (error) {
-        if (isElasticsearchForced()) {
+        if (indexedOnly || isElasticsearchForced()) {
           throw error;
         }
       }
