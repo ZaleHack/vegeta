@@ -1,7 +1,7 @@
 import { REALTIME_CDR_TABLE_METADATA } from './realtime-table.js';
 
-const REALTIME_TABLE_KEY = REALTIME_CDR_TABLE_METADATA.raw;
-const REALTIME_TABLE_DISPLAY = REALTIME_CDR_TABLE_METADATA.table || 'cdr_temps_reel';
+const REALTIME_TABLE_KEY = REALTIME_CDR_TABLE_METADATA.raw || null;
+const REALTIME_TABLE_DISPLAY = REALTIME_CDR_TABLE_METADATA.table || 'cdr_realtime';
 const REALTIME_TABLE_DATABASE = REALTIME_CDR_TABLE_METADATA.schema || 'autres';
 
 export default {
@@ -961,42 +961,46 @@ export default {
     theme: 'telecom'
   },
 
-  [REALTIME_TABLE_KEY]: {
-    display: REALTIME_TABLE_DISPLAY,
-    database: REALTIME_TABLE_DATABASE,
-    searchable: [
-      'type_appel',
-      'numero_appelant',
-      'numero_appele',
-      'imei_appelant',
-      'imsi_appelant',
-      'cgi',
-      'route_reseau',
-      'device_id',
-      'fichier_source'
-    ],
-    preview: [
-      'type_appel',
-      'numero_appelant',
-      'numero_appele',
-      'date_debut',
-      'heure_debut',
-      'cgi'
-    ],
-    filters: {
-      type_appel: 'string',
-      date_debut: 'date',
-      date_fin: 'date',
-      heure_debut: 'string',
-      heure_fin: 'string',
-      numero_appelant: 'string',
-      numero_appele: 'string'
-    },
-    theme: 'telecom',
-    sync: {
-      disabled: true
-    }
-  },
+  ...(REALTIME_TABLE_KEY
+    ? {
+        [REALTIME_TABLE_KEY]: {
+          display: REALTIME_TABLE_DISPLAY,
+          database: REALTIME_TABLE_DATABASE,
+          searchable: [
+            'type_appel',
+            'numero_appelant',
+            'numero_appele',
+            'imei_appelant',
+            'imsi_appelant',
+            'cgi',
+            'route_reseau',
+            'device_id',
+            'fichier_source'
+          ],
+          preview: [
+            'type_appel',
+            'numero_appelant',
+            'numero_appele',
+            'date_debut',
+            'heure_debut',
+            'cgi'
+          ],
+          filters: {
+            type_appel: 'string',
+            date_debut: 'date',
+            date_fin: 'date',
+            heure_debut: 'string',
+            heure_fin: 'string',
+            numero_appelant: 'string',
+            numero_appele: 'string'
+          },
+          theme: 'telecom',
+          sync: {
+            disabled: true
+          }
+        }
+      }
+    : {}),
 
   'autres.fichemilitaire': {
     display: 'fichemilitaire',
