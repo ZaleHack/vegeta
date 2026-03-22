@@ -5555,6 +5555,10 @@ useEffect(() => {
       setLinkDiagramError('Ajoutez au moins un numéro valide (préfixe 221).');
       return;
     }
+    if (!linkDiagramStart || !linkDiagramEnd) {
+      setLinkDiagramError('Veuillez renseigner la date de début et la date de fin.');
+      return;
+    }
     if (linkDiagramStart && linkDiagramEnd && new Date(linkDiagramStart) > new Date(linkDiagramEnd)) {
       setLinkDiagramError('La date de début doit précéder la date de fin.');
       return;
@@ -8137,6 +8141,7 @@ useEffect(() => {
                         <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Date de début</label>
                         <input
                           type="date"
+                          required
                           value={linkDiagramStart}
                           onChange={(event) => setLinkDiagramStart(event.target.value)}
                           className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
@@ -8146,6 +8151,7 @@ useEffect(() => {
                         <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Date de fin</label>
                         <input
                           type="date"
+                          required
                           value={linkDiagramEnd}
                           onChange={(event) => setLinkDiagramEnd(event.target.value)}
                           className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
