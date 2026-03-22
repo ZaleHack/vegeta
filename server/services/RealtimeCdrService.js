@@ -981,7 +981,10 @@ class RealtimeCdrService {
             _source: [
               'numero_appelant',
               'numero_appelant_normalized',
+              'numero_appele',
+              'numero_appele_normalized',
               'imei_appelant',
+              'imei_appele',
               'call_timestamp',
               'date_debut_appel',
               'heure_debut_appel',
@@ -1049,27 +1052,45 @@ class RealtimeCdrService {
           const imeiMap = new Map();
           hits.forEach((hit) => {
             const source = hit?._source || {};
-            const imei = source.imei_appelant ? String(source.imei_appelant).trim() : '';
-            if (!imei) {
-              return;
-            }
+            const callerMatches = matchesIdentifier(
+              variants,
+              source.numero_appelant_normalized || source.numero_appelant,
+              'phone'
+            );
+            const calleeMatches = matchesIdentifier(
+              variants,
+              source.numero_appele_normalized || source.numero_appele,
+              'phone'
+            );
             const timestamp = normalizeDateValue(getEventTimestampText(source));
-            const current = imeiMap.get(imei) || {
-              imei,
-              occurrences: 0,
-              firstSeen: timestamp,
-              lastSeen: timestamp,
-              roles: [],
-              cases: []
-            };
-            current.occurrences += 1;
-            if (!current.firstSeen || (timestamp && timestamp < current.firstSeen)) {
-              current.firstSeen = timestamp;
-            }
-            if (!current.lastSeen || (timestamp && timestamp > current.lastSeen)) {
-              current.lastSeen = timestamp;
-            }
-            imeiMap.set(imei, current);
+            const imeiCandidates = [
+              callerMatches ? source.imei_appelant : null,
+              calleeMatches ? source.imei_appele : null,
+            ];
+
+            imeiCandidates.forEach((rawImei) => {
+              const imei = rawImei ? String(rawImei).trim() : '';
+              if (!imei) {
+                return;
+              }
+
+              const current = imeiMap.get(imei) || {
+                imei,
+                occurrences: 0,
+                firstSeen: timestamp,
+                lastSeen: timestamp,
+                roles: [],
+                cases: []
+              };
+              current.occurrences += 1;
+              if (!current.firstSeen || (timestamp && timestamp < current.firstSeen)) {
+                current.firstSeen = timestamp;
+              }
+              if (!current.lastSeen || (timestamp && timestamp > current.lastSeen)) {
+                current.lastSeen = timestamp;
+              }
+              imeiMap.set(imei, current);
+            });
           });
 
           const normalizedNumber = normalizePhoneNumber(sanitizedNumber) || sanitizedNumber || trimmedIdentifier;
@@ -1110,6 +1131,8 @@ class RealtimeCdrService {
     params.push(...variantList);
     if (searchType === 'phone') {
       params.push(...variantList);
+      params.push(...variantList);
+      params.push(...variantList);
     }
 
     if (startDate) {
@@ -1139,14 +1162,18 @@ class RealtimeCdrService {
       `
       : `
         SELECT
-          c.imei_appelant AS imei,
+          CASE
+            WHEN c.numero_appelant IN (${variantList.map(() => '?').join(', ')}) THEN c.imei_appelant
+            WHEN c.numero_appele IN (${variantList.map(() => '?').join(', ')}) THEN c.imei_appele
+            ELSE NULL
+          END AS imei,
           COUNT(*) AS occurrences,
           MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
           MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
         FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} AS c
         ${whereClause}
-        GROUP BY c.imei_appelant
-        HAVING c.imei_appelant IS NOT NULL AND c.imei_appelant <> ''
+        GROUP BY imei
+        HAVING imei IS NOT NULL AND imei <> ''
         ORDER BY last_seen DESC, occurrences DESC
       `;
 
