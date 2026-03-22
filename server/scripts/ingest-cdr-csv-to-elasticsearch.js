@@ -7,7 +7,7 @@ import client from '../config/elasticsearch.js';
 import cgiBtsEnricher from '../services/CgiBtsEnrichmentService.js';
 
 const INDEX_NAME = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
-const DEFAULT_BATCH_SIZE = 300;
+const DEFAULT_BATCH_SIZE = 1000;
 const DEFAULT_BULK_MAX_RETRIES = 4;
 const DEFAULT_BULK_RETRY_DELAY_MS = 750;
 const DEFAULT_BULK_THROTTLE_MS = 150;
