@@ -5539,7 +5539,6 @@ useEffect(() => {
 
   const handleCdrSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!selectedCase) return;
     if (!cdrStart || !cdrEnd) {
       setCdrError('Veuillez renseigner la date de début et la date de fin.');
       return;
@@ -5707,20 +5706,6 @@ useEffect(() => {
       console.error('Erreur chargement cases:', error);
     }
   };
-
-  useEffect(() => {
-    if (currentPage !== 'cdr') return;
-
-    if (selectedCase) {
-      navigateToPage('cdr-case', { replace: true });
-      return;
-    }
-
-    if (cases.length > 0) {
-      setSelectedCase(cases[0]);
-      navigateToPage('cdr-case', { replace: true });
-    }
-  }, [cases, currentPage, navigateToPage, selectedCase]);
 
   const openShareModalForCase = async (cdrCase: CdrCase) => {
     setShareTargetCase(cdrCase);
@@ -8642,15 +8627,9 @@ useEffect(() => {
                 subtitle="Le module affiche uniquement le formulaire de recherche."
               />
 
-              {selectedCase ? (
-                <div className="grid grid-cols-1 gap-6">
-                  {renderCdrSearchForm('standalone')}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-slate-300/80 bg-white/70 p-8 text-center text-sm text-slate-500 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-300">
-                  Aucun dossier de géolocalisation disponible.
-                </div>
-              )}
+              <div className="grid grid-cols-1 gap-6">
+                {renderCdrSearchForm('standalone')}
+              </div>
             </div>
           )}
 
