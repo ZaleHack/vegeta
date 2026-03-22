@@ -7,7 +7,10 @@ import client from '../config/elasticsearch.js';
 import cgiBtsEnricher from '../services/CgiBtsEnrichmentService.js';
 
 const INDEX_NAME = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
-const DEFAULT_BATCH_SIZE = 1000;
+const DEFAULT_BATCH_SIZE = 300;
+const DEFAULT_BULK_MAX_RETRIES = 4;
+const DEFAULT_BULK_RETRY_DELAY_MS = 750;
+const DEFAULT_BULK_THROTTLE_MS = 150;
 const DEFAULT_INPUT_DIR = process.env.CDR_CSV_INPUT_DIR || '/var/cdr/incoming';
 const DEFAULT_PROCESSED_DIR = process.env.CDR_CSV_PROCESSED_DIR || '/var/cdr/processed';
 const DEFAULT_FAILED_DIR = process.env.CDR_CSV_FAILED_DIR || '/var/cdr/failed';
@@ -39,6 +42,13 @@ const parsePositiveInteger = (value, fallback) => {
     return Math.floor(parsed);
   }
   return fallback;
+};
+
+const wait = async (durationMs) => {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    return;
+  }
+  await new Promise((resolve) => setTimeout(resolve, durationMs));
 };
 
 const toTrimmed = (value) => {
@@ -280,6 +290,26 @@ const isElasticsearchConnectionError = (error) => {
   return error?.meta?.statusCode === 0;
 };
 
+const getElasticsearchStatusCode = (error) => (
+  error?.meta?.statusCode
+  || error?.statusCode
+  || error?.meta?.body?.status
+  || 0
+);
+
+const isRecoverableElasticsearchError = (error) => {
+  if (!error) {
+    return false;
+  }
+
+  if (isElasticsearchConnectionError(error)) {
+    return true;
+  }
+
+  const statusCode = getElasticsearchStatusCode(error);
+  return statusCode === 408 || statusCode === 429 || statusCode === 502 || statusCode === 503 || statusCode === 504;
+};
+
 const getElasticsearchUrl = () => process.env.ELASTICSEARCH_URL || DEFAULT_ELASTICSEARCH_URL;
 
 const verifyElasticsearchConnection = async () => {
@@ -327,7 +357,7 @@ const enrichCoordinates = async (records) => {
   });
 };
 
-const bulkIndexRecords = async (records) => {
+const bulkIndexRecords = async (records, options) => {
   if (!records.length) {
     return { indexed: 0 };
   }
@@ -338,17 +368,43 @@ const bulkIndexRecords = async (records) => {
     actions.push(record);
   }
 
-  const response = await client.bulk({
-    refresh: false,
-    operations: actions
-  });
+  let lastError = null;
 
-  if (response.errors) {
-    const firstError = response.items?.find((item) => item.index?.error)?.index?.error;
-    throw new Error(`Bulk indexing partiellement échoué: ${firstError?.reason || 'erreur inconnue'}`);
+  for (let attempt = 0; attempt <= options.bulkMaxRetries; attempt += 1) {
+    try {
+      const response = await client.bulk({
+        refresh: false,
+        operations: actions
+      });
+
+      if (response.errors) {
+        const itemWithError = response.items?.find((item) => item.index?.error);
+        const firstError = itemWithError?.index?.error;
+        const statusCode = itemWithError?.index?.status || 0;
+        const error = new Error(`Bulk indexing partiellement échoué: ${firstError?.reason || 'erreur inconnue'}`);
+        error.statusCode = statusCode;
+        throw error;
+      }
+
+      return { indexed: records.length };
+    } catch (error) {
+      lastError = error;
+      const canRetry = attempt < options.bulkMaxRetries && isRecoverableElasticsearchError(error);
+      if (!canRetry) {
+        throw error;
+      }
+
+      const delay = options.bulkRetryDelayMs * (2 ** attempt);
+      const statusCode = getElasticsearchStatusCode(error);
+      console.warn(
+        `⚠️ Elasticsearch saturé/indisponible (status=${statusCode || 'n/a'}) pendant le bulk (${records.length} docs). `
+        + `Nouvelle tentative ${attempt + 1}/${options.bulkMaxRetries} dans ${delay}ms.`
+      );
+      await wait(delay);
+    }
   }
 
-  return { indexed: records.length };
+  throw lastError;
 };
 
 const moveFile = async (source, destinationDir) => {
@@ -368,8 +424,9 @@ const processCsvFile = async (filePath, options) => {
       return;
     }
     const enriched = await enrichCoordinates(batch);
-    const result = await bulkIndexRecords(enriched);
+    const result = await bulkIndexRecords(enriched, options);
     indexedTotal += result.indexed;
+    await wait(options.bulkThrottleMs);
   };
 
   const batch = [];
@@ -452,6 +509,9 @@ const parseArgs = (argv = []) => {
     failedDir: DEFAULT_FAILED_DIR,
     watch: false,
     batchSize: parsePositiveInteger(process.env.CDR_CSV_BULK_SIZE, DEFAULT_BATCH_SIZE),
+    bulkMaxRetries: parsePositiveInteger(process.env.CDR_CSV_BULK_MAX_RETRIES, DEFAULT_BULK_MAX_RETRIES),
+    bulkRetryDelayMs: parsePositiveInteger(process.env.CDR_CSV_BULK_RETRY_DELAY_MS, DEFAULT_BULK_RETRY_DELAY_MS),
+    bulkThrottleMs: parsePositiveInteger(process.env.CDR_CSV_BULK_THROTTLE_MS, DEFAULT_BULK_THROTTLE_MS),
     deleteOnSuccess: false
   };
 
@@ -468,6 +528,12 @@ const parseArgs = (argv = []) => {
       options.failedDir = arg.split('=')[1] || options.failedDir;
     } else if (arg.startsWith('--batch-size=')) {
       options.batchSize = parsePositiveInteger(arg.split('=')[1], options.batchSize);
+    } else if (arg.startsWith('--bulk-max-retries=')) {
+      options.bulkMaxRetries = parsePositiveInteger(arg.split('=')[1], options.bulkMaxRetries);
+    } else if (arg.startsWith('--bulk-retry-delay-ms=')) {
+      options.bulkRetryDelayMs = parsePositiveInteger(arg.split('=')[1], options.bulkRetryDelayMs);
+    } else if (arg.startsWith('--bulk-throttle-ms=')) {
+      options.bulkThrottleMs = parsePositiveInteger(arg.split('=')[1], options.bulkThrottleMs);
     }
   }
 
