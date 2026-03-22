@@ -45,7 +45,7 @@ router.get('/:id', authenticate, requireAdmin, async (req, res) => {
 // Créer un nouvel utilisateur (ADMIN seulement)
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const { login, password, role = 'USER', active = true, divisionId } = req.body;
+    const { login, password, role = 'USER', active = true, divisionId, pagePermissions } = req.body;
 
     if (!login || !password) {
       return res.status(400).json({ error: 'Login et mot de passe requis' });
@@ -86,7 +86,15 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 
     // Créer l'utilisateur
     const admin = isAdminRole ? 1 : 0;
-    const newUser = await User.create({ login, mdp: password, admin, active: active ? 1 : 0, division_id });
+    const normalizedPagePermissions = admin === 1 ? null : pagePermissions;
+    const newUser = await User.create({
+      login,
+      mdp: password,
+      admin,
+      active: active ? 1 : 0,
+      division_id,
+      page_permissions: normalizedPagePermissions
+    });
 
     const { mdp, ...userResponse } = newUser;
     res.status(201).json({
@@ -107,7 +115,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const { login, admin, password, active, divisionId } = req.body;
+    const { login, admin, password, active, divisionId, pagePermissions } = req.body;
 
     if (isNaN(userId)) {
       return res.status(400).json({ error: 'ID utilisateur invalide' });
@@ -148,6 +156,13 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
     const existingUser = await User.findById(userId);
     if (!existingUser) {
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    if (pagePermissions !== undefined) {
+      const effectiveAdmin = updates.admin !== undefined ? updates.admin : existingUser.admin;
+      updates.page_permissions = (effectiveAdmin === 1 || effectiveAdmin === '1' || effectiveAdmin === true)
+        ? null
+        : pagePermissions;
     }
 
     // Vérifier l'unicité du login si modifié
