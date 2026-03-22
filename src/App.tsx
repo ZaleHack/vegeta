@@ -8624,12 +8624,75 @@ useEffect(() => {
               <PageHeader
                 icon={<Clock className="h-6 w-6" />}
                 title="Géolocalisation"
-                subtitle="Le module affiche uniquement le formulaire de recherche."
+                subtitle="Lancez une recherche et visualisez immédiatement les résultats cartographiques."
               />
 
               <div className="grid grid-cols-1 gap-6">
                 {renderCdrSearchForm('standalone')}
               </div>
+
+              {cdrLoading && (
+                <div className="loading-bar-container my-4">
+                  <div className="loading-bar"></div>
+                </div>
+              )}
+              {cdrError && <p className="text-red-600">{cdrError}</p>}
+              {cdrInfoMessage && <p className="text-gray-600">{cdrInfoMessage}</p>}
+              {cdrSearchRequests.length > 0 && (
+                <div className="mt-4 space-y-2 rounded-lg border border-slate-200 bg-white/80 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900/60">
+                  <ol className="space-y-1">
+                    {cdrSearchRequests.map((request, index) => (
+                      <li key={`${request}-${index}`} className="flex items-start gap-2 text-slate-700 dark:text-slate-200">
+                        <span className="mt-[2px] rounded bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                          {index + 1}
+                        </span>
+                        <code className="break-all text-[13px]">{request}</code>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+              {showCdrMap && cdrResult && !cdrLoading && (
+                <>
+                  <div className="fixed inset-0 z-0 flex">
+                    {renderCdrSearchForm('map')}
+                    <div className="flex-1 relative h-screen">
+                      {cdrResult.total > 0 ? (
+                        <CdrMap
+                          points={cdrResult.path}
+                          contactSummaries={cdrResult.contacts}
+                          showRoute={cdrItinerary}
+                          showMeetingPoints={showMeetingPoints}
+                          onToggleMeetingPoints={() => setShowMeetingPoints((v) => !v)}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full flex-col items-center justify-center bg-white/90 text-slate-600 dark:bg-slate-900/80 dark:text-slate-300">
+                          <div className="flex flex-col items-center gap-3 px-6 text-center">
+                            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-inner shadow-blue-500/20 dark:bg-blue-500/20 dark:text-blue-200">
+                              <MapPinOff className="h-8 w-8" />
+                            </span>
+                            <div className="space-y-1">
+                              <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                                Aucun résultat cartographique
+                              </p>
+                              <p className="text-sm text-slate-500 dark:text-slate-300">
+                                Ajustez vos filtres ou élargissez votre recherche pour afficher des points sur la carte.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowCdrMap(false)}
+                    className="fixed top-4 right-4 z-[1000] bg-white/90 backdrop-blur rounded-full p-2 shadow"
+                    aria-label="Fermer la carte"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </>
+              )}
             </div>
           )}
 
