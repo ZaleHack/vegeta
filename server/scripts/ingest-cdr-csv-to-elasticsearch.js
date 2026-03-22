@@ -44,6 +44,16 @@ const parsePositiveInteger = (value, fallback) => {
   return fallback;
 };
 
+const waitForAvailableSlot = async (pendingTasks, maxConcurrentTasks) => {
+  if (!Number.isFinite(maxConcurrentTasks) || maxConcurrentTasks < 1) {
+    return;
+  }
+
+  while (pendingTasks.size >= maxConcurrentTasks) {
+    await Promise.race(pendingTasks);
+  }
+};
+
 const wait = async (durationMs) => {
   if (!Number.isFinite(durationMs) || durationMs <= 0) {
     return;
@@ -419,6 +429,7 @@ const processCsvFile = async (filePath, options) => {
   const sourceFile = path.basename(filePath);
   let indexedTotal = 0;
 
+  const pendingFlushes = new Set();
   const flushBatch = async (batch) => {
     if (!batch.length) {
       return;
@@ -427,6 +438,15 @@ const processCsvFile = async (filePath, options) => {
     const result = await bulkIndexRecords(enriched, options);
     indexedTotal += result.indexed;
     await wait(options.bulkThrottleMs);
+  };
+
+  const scheduleFlush = async (batchToFlush) => {
+    await waitForAvailableSlot(pendingFlushes, options.maxConcurrentBulks);
+    const task = (async () => {
+      await flushBatch(batchToFlush);
+    })();
+    pendingFlushes.add(task);
+    task.finally(() => pendingFlushes.delete(task));
   };
 
   const batch = [];
@@ -485,12 +505,16 @@ const processCsvFile = async (filePath, options) => {
 
     if (batch.length >= options.batchSize) {
       const toFlush = batch.splice(0, batch.length);
-      await flushBatch(toFlush);
+      await scheduleFlush(toFlush);
     }
   }
 
   if (batch.length) {
-    await flushBatch(batch);
+    await scheduleFlush(batch.splice(0, batch.length));
+  }
+
+  if (pendingFlushes.size > 0) {
+    await Promise.all(pendingFlushes);
   }
 
   if (options.deleteOnSuccess) {
@@ -512,6 +536,7 @@ const parseArgs = (argv = []) => {
     bulkMaxRetries: parsePositiveInteger(process.env.CDR_CSV_BULK_MAX_RETRIES, DEFAULT_BULK_MAX_RETRIES),
     bulkRetryDelayMs: parsePositiveInteger(process.env.CDR_CSV_BULK_RETRY_DELAY_MS, DEFAULT_BULK_RETRY_DELAY_MS),
     bulkThrottleMs: parsePositiveInteger(process.env.CDR_CSV_BULK_THROTTLE_MS, DEFAULT_BULK_THROTTLE_MS),
+    maxConcurrentBulks: parsePositiveInteger(process.env.CDR_CSV_BULK_CONCURRENCY, 1),
     deleteOnSuccess: false
   };
 
@@ -534,6 +559,11 @@ const parseArgs = (argv = []) => {
       options.bulkRetryDelayMs = parsePositiveInteger(arg.split('=')[1], options.bulkRetryDelayMs);
     } else if (arg.startsWith('--bulk-throttle-ms=')) {
       options.bulkThrottleMs = parsePositiveInteger(arg.split('=')[1], options.bulkThrottleMs);
+    } else if (arg.startsWith('--bulk-concurrency=')) {
+      options.maxConcurrentBulks = parsePositiveInteger(
+        arg.split('=')[1],
+        options.maxConcurrentBulks
+      );
     }
   }
 
