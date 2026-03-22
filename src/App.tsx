@@ -5469,6 +5469,10 @@ useEffect(() => {
   const handleCdrSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!selectedCase) return;
+    if (!cdrStart || !cdrEnd) {
+      setCdrError('Veuillez renseigner la date de début et la date de fin.');
+      return;
+    }
     if (cdrStart && cdrEnd && new Date(cdrStart) > new Date(cdrEnd)) {
       setCdrError('La date de début doit précéder la date de fin');
       return;
@@ -6651,6 +6655,7 @@ useEffect(() => {
                     type="date"
                     value={cdrStart}
                     onChange={(e) => setCdrStart(e.target.value)}
+                    required
                     className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
                   />
                 </div>
@@ -6660,6 +6665,7 @@ useEffect(() => {
                     type="date"
                     value={cdrEnd}
                     onChange={(e) => setCdrEnd(e.target.value)}
+                    required
                     className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 text-sm shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700/60 dark:bg-slate-900/60"
                   />
                 </div>
