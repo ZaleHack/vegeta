@@ -276,6 +276,7 @@ test('Realtime CDR fraud detection query matches phone identifier on both caller
               numero_appelant: '221771111111',
               numero_appele: '221770000000',
               imei_appelant: '358240051111110',
+              imei_appele: '352099001234560',
               date_debut: '2025-01-10',
               heure_debut: '08:10:00'
             }
@@ -301,6 +302,7 @@ test('Realtime CDR fraud detection query matches phone identifier on both caller
     const result = await service.findAssociations('221770000000');
     assert.equal(result.numbers.length, 1);
     assert.equal(result.numbers[0].imeis.length, 1);
+    assert.equal(result.numbers[0].imeis[0].imei, '352099001234560');
 
     const query = capturedQueries[0];
     const phoneFilter = query?.bool?.filter?.find((item) => item?.bool?.minimum_should_match === 1);
