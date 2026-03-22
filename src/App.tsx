@@ -152,7 +152,25 @@ interface User {
   division_name?: string | null;
   otp_enabled?: number;
   role?: 'ADMIN' | 'USER';
+  page_permissions?: AppPage[] | null;
 }
+
+const PAGE_PERMISSION_OPTIONS: Array<{ page: AppPage; label: string }> = [
+  { page: 'dashboard', label: 'Dashboard' },
+  { page: 'search', label: 'Recherche' },
+  { page: 'profiles', label: 'Fiches de profil' },
+  { page: 'requests', label: 'Demandes' },
+  { page: 'cdr', label: 'Géolocalisation' },
+  { page: 'cdr-export', label: 'Données téléphoniques' },
+  { page: 'link-diagram', label: 'Diagramme des liens' },
+  { page: 'imei-check', label: 'IMEI Check' },
+  { page: 'phone-identifier', label: 'Identifier téléphone' },
+  { page: 'fraud-detection-form', label: 'Détection fraude' },
+  { page: 'bts', label: 'BTS' },
+  { page: 'blacklist', label: 'White List' },
+  { page: 'logs', label: 'Logs' },
+  { page: 'upload', label: 'Import données' }
+];
 
 type RawSearchResult = BaseSearchHit;
 
@@ -1975,7 +1993,28 @@ const App: React.FC = () => {
     () => (currentUser ? currentUser.admin === 1 || currentUser.admin === "1" : false),
     [currentUser]
   );
+  const allowedPages = useMemo<AppPage[]>(() => {
+    if (!currentUser) return [];
+    if (isAdmin) return PAGE_PERMISSION_OPTIONS.map((entry) => entry.page);
+    const configured = Array.isArray(currentUser.page_permissions) ? currentUser.page_permissions : [];
+    return configured.length > 0 ? configured : ['dashboard'];
+  }, [currentUser, isAdmin]);
+  const hasPageAccess = useCallback((page: AppPage) => {
+    if (page === 'login') return true;
+    if (!currentUser) return false;
+    if (isAdmin) return true;
+    if (page === 'users') return false;
+    return allowedPages.includes(page);
+  }, [allowedPages, currentUser, isAdmin]);
   const [hiddenRequestIds, setHiddenRequestIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!currentUser || currentPage === 'login') return;
+    if (!hasPageAccess(currentPage)) {
+      navigateToPage('dashboard', { replace: true });
+      notifyWarning('Accès refusé à cette page pour cet utilisateur.');
+    }
+  }, [currentPage, currentUser, hasPageAccess, navigateToPage, notifyWarning]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -2171,7 +2210,8 @@ const App: React.FC = () => {
     password: '',
     admin: 0,
     active: 1,
-    divisionId: 0
+    divisionId: 0,
+    pagePermissions: PAGE_PERMISSION_OPTIONS.map((entry) => entry.page)
   });
   const [passwordFormData, setPasswordFormData] = useState({
     currentPassword: '',
@@ -3395,6 +3435,29 @@ const App: React.FC = () => {
     }
   }, [fetchLogs]);
 
+  const clearSessions = useCallback(async () => {
+    const confirmClear = window.confirm('Voulez-vous vider toutes les sessions utilisateurs enregistrées ?');
+    if (!confirmClear) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/logs/sessions/clear', {
+        method: 'DELETE',
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      });
+      if (!res.ok) {
+        throw new Error('Erreur lors de la suppression des sessions');
+      }
+      setSessionLogs([]);
+      setSessionTotal(0);
+      setSessionPage(1);
+      await fetchSessions(1);
+      notifySuccess('Sessions utilisateurs vidées avec succès.');
+    } catch (err) {
+      console.error('Erreur lors du vidage des sessions:', err);
+      notifyError('Impossible de vider les sessions utilisateurs.');
+    }
+  }, [fetchSessions, notifyError, notifySuccess]);
+
   const logPageVisit = useCallback(async (page: string, extra: Record<string, any> = {}) => {
     try {
       await fetch('/api/logs', {
@@ -4469,7 +4532,8 @@ useEffect(() => {
           password: userFormData.password,
           role: userFormData.admin === 1 ? 'ADMIN' : 'USER',
           active: userFormData.active === 1 ? 1 : 0,
-          divisionId: isAdminRole ? null : userFormData.divisionId
+          divisionId: isAdminRole ? null : userFormData.divisionId,
+          pagePermissions: isAdminRole ? null : userFormData.pagePermissions
         })
       });
 
@@ -4483,7 +4547,8 @@ useEffect(() => {
           password: '',
           admin: 0,
           active: 1,
-          divisionId: divisions[0]?.id || 0
+          divisionId: divisions[0]?.id || 0,
+          pagePermissions: PAGE_PERMISSION_OPTIONS.map((entry) => entry.page)
         });
         setEditingUser(null);
         loadUsers();
@@ -4523,7 +4588,8 @@ useEffect(() => {
           login: userFormData.login,
           admin: userFormData.admin,
           active: userFormData.active === 1 ? 1 : 0,
-          divisionId: isAdminRole ? null : userFormData.divisionId
+          divisionId: isAdminRole ? null : userFormData.divisionId,
+          pagePermissions: isAdminRole ? null : userFormData.pagePermissions
         })
       });
 
@@ -4537,7 +4603,8 @@ useEffect(() => {
           password: '',
           admin: 0,
           active: 1,
-          divisionId: divisions[0]?.id || 0
+          divisionId: divisions[0]?.id || 0,
+          pagePermissions: PAGE_PERMISSION_OPTIONS.map((entry) => entry.page)
         });
         setEditingUser(null);
         loadUsers();
@@ -4721,7 +4788,10 @@ useEffect(() => {
           ? 0
           : (typeof user.division_id === 'number' && user.division_id > 0
             ? user.division_id
-            : divisions[0]?.id || 0)
+            : divisions[0]?.id || 0),
+        pagePermissions: Array.isArray(user.page_permissions) && user.page_permissions.length > 0
+          ? user.page_permissions
+          : PAGE_PERMISSION_OPTIONS.map((entry) => entry.page)
       });
       setShowUserModal(true);
     };
@@ -4733,7 +4803,8 @@ useEffect(() => {
       password: '',
       admin: 0,
       active: 1,
-      divisionId: divisions[0]?.id || 0
+      divisionId: divisions[0]?.id || 0,
+      pagePermissions: PAGE_PERMISSION_OPTIONS.map((entry) => entry.page)
     });
     setShowUserModal(true);
   };
@@ -8564,216 +8635,22 @@ useEffect(() => {
           )}
 
           {currentPage === 'cdr' && (
-            <div className="space-y-10">
-              <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/80 p-8 shadow-[0_30px_60px_-20px_rgba(30,64,175,0.45)] backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70">
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-500/20 via-indigo-500/10 to-purple-500/20" />
-                <div className="relative space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 shadow-lg shadow-blue-500/40 dark:bg-slate-900/80">
-                      <Clock className="h-6 w-6 text-blue-600 dark:text-blue-200" />
-                    </div>
-                    <div>
-                      <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Géolocalisation</h1>
-                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                        Accédez directement au formulaire de géolocalisation.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                      <Database className="h-3.5 w-3.5" />
-                      {cases.length} dossier{cases.length > 1 ? 's' : ''}
-                    </span>
-                    {ownedCasesCount > 0 && (
-                      <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                        <User className="h-3.5 w-3.5" />
-                        {ownedCasesCount} à votre charge
-                      </span>
-                    )}
-                    {sharedCasesCount > 0 && (
-                      <span className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-200">
-                        <Share2 className="h-3.5 w-3.5" />
-                        {sharedCasesCount} partagées
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </section>
+            <div className="space-y-8">
+              <PageHeader
+                icon={<Clock className="h-6 w-6" />}
+                title="Géolocalisation"
+                subtitle="Le module affiche uniquement le formulaire de recherche."
+              />
 
-              <section className="space-y-6">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Vos dossiers</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-300">
-                      Retrouvez l'ensemble des opérations accessibles.
-                    </p>
-                  </div>
-                  {Math.max(totalCasePages, 1) > 1 && (
-                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-300">
-                      Page {casePage} sur {Math.max(totalCasePages, 1)}
-                    </span>
-                  )}
+              {selectedCase ? (
+                <div className="grid grid-cols-1 gap-6">
+                  {renderCdrSearchForm('standalone')}
                 </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                  {paginatedCases.length === 0 ? (
-                    <div className="col-span-full rounded-3xl border border-dashed border-slate-300/80 bg-white/70 p-10 text-center text-sm text-slate-500 shadow-inner dark:border-slate-600/60 dark:bg-slate-900/60 dark:text-slate-300">
-                      Aucune opération enregistrée pour le moment.
-                    </div>
-                  ) : (
-                    paginatedCases.map((c) => (
-                      <div
-                        key={c.id}
-                        className="group relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-xl shadow-slate-200/60 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl dark:border-slate-700/60 dark:bg-slate-900/70"
-                      >
-                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-500/0 via-indigo-500/10 to-purple-500/20 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                        <div className="relative flex h-full flex-col gap-5">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="space-y-2">
-                              {renamingCaseId === c.id ? (
-                                <input
-                                  type="text"
-                                  value={renamingCaseName}
-                                  onChange={(event) => setRenamingCaseName(event.target.value)}
-                                  onKeyDown={handleRenameKeyDown}
-                                  className="w-full rounded-2xl border border-slate-300/70 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-800 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-100"
-                                  placeholder="Nouveau nom de l'opération"
-                                  autoFocus
-                                />
-                              ) : (
-                                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h4>
-                              )}
-                              {isAdmin && c.user_login && (
-                                <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                  {c.user_login}
-                                </p>
-                              )}
-                              {Boolean(!c.is_owner && c.shared_with_me) ? (
-                                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200">
-                                  <Share2 className="h-3.5 w-3.5" />
-                                  Partagée avec vous
-                                </span>
-                              ) : Boolean(c.is_owner) ? (
-                                <span className="inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-600 dark:bg-blue-500/20 dark:text-blue-200">
-                                  <User className="h-3.5 w-3.5" />
-                                  Propriétaire
-                                </span>
-                              ) : null}
-                              {c.division_name && (
-                                <p className="text-xs text-slate-500 dark:text-slate-400">{c.division_name}</p>
-                              )}
-                              {c.created_at && (
-                                <p className="text-xs text-slate-400 dark:text-slate-500">
-                                  Créée le {format(parseISO(c.created_at), 'd MMM yyyy', { locale: fr })}
-                                </p>
-                              )}
-                              {renamingCaseId === c.id && renamingCaseError && (
-                                <p className="text-xs font-medium text-rose-600 dark:text-rose-300">{renamingCaseError}</p>
-                              )}
-                            </div>
-                            <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-slate-500 shadow-sm dark:bg-white/5 dark:text-slate-300">
-                              #{c.id}
-                            </span>
-                          </div>
-                          <div className="mt-auto flex flex-wrap gap-2">
-                            {renamingCaseId === c.id ? (
-                              <>
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                  onClick={submitRenameCase}
-                                  disabled={renamingCaseLoading}
-                                >
-                                  {renamingCaseLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                                  <span>Enregistrer</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:text-slate-100"
-                                  onClick={cancelRenameCase}
-                                  disabled={renamingCaseLoading}
-                                >
-                                  <X className="h-4 w-4" />
-                                  <span>Annuler</span>
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-                                onClick={() => {
-                                  cancelRenameCase();
-                                  setSelectedCase(c);
-                                  setCdrResult(null);
-                                  setShowCdrMap(false);
-                                  navigateToPage('cdr-case');
-                                }}
-                                >
-                                  <ArrowRight className="h-4 w-4" />
-                                  <span>Ouvrir</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
-                                  onClick={() => openCaseExportModal(c)}
-                                >
-                                  <Download className="h-4 w-4" />
-                                  <span>Exporter</span>
-                                </button>
-                                {(isAdmin || c.is_owner) && (
-                                  <button
-                                    type="button"
-                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
-                                    onClick={() => openShareModalForCase(c)}
-                                  >
-                                    <Share2 className="h-4 w-4" />
-                                    <span>Partager</span>
-                                  </button>
-                                )}
-                                {(isAdmin || c.is_owner) && (
-                                  <button
-                                    type="button"
-                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-600/70 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:text-blue-200"
-                                    onClick={() => startRenameCase(c)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                    <span>Renommer</span>
-                                  </button>
-                                )}
-                                {Boolean(c.is_owner) && (
-                                  <button
-                                    type="button"
-                                    className="inline-flex items-center gap-2 rounded-full border border-rose-300/70 bg-rose-50/80 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:border-rose-400 hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:border-rose-400/60"
-                                    onClick={() => handleDeleteCase(c.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    <span>Supprimer</span>
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-300/80 bg-white/70 p-8 text-center text-sm text-slate-500 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-300">
+                  Aucun dossier de géolocalisation disponible.
                 </div>
-                {cases.length > 0 && (
-                  <div className="border-t border-slate-200/80 pt-4 dark:border-slate-800/60">
-                    <PaginationControls
-                      currentPage={casePage}
-                      totalPages={Math.max(totalCasePages, 1)}
-                      onPageChange={setCasePage}
-                      pageSize={casesPerPage}
-                      pageSizeOptions={CASE_PAGE_SIZE_OPTIONS}
-                      onPageSizeChange={(size) => {
-                        setCasesPerPage(size);
-                        setCasePage(1);
-                      }}
-                    />
-                  </div>
-                )}
-              </section>
+              )}
             </div>
           )}
 
@@ -10819,6 +10696,16 @@ useEffect(() => {
                     Total : {sessionTotal}
                   </span>
                 </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={clearSessions}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-rose-500/60 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-500/20 dark:border-rose-500/40 dark:text-rose-200"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Vider les sessions
+                  </button>
+                </div>
                 <div className="overflow-hidden rounded-2xl border border-white/60 bg-white/90 shadow-inner backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70">
                   {sessionLogs.length === 0 ? (
                     <div className="px-6 py-12 text-center text-sm text-slate-500 dark:text-slate-300">
@@ -12217,6 +12104,50 @@ useEffect(() => {
                 </select>
               </div>
 
+              {userFormData.admin !== 1 && (
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700">Accès par page</label>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+                      onClick={() =>
+                        setUserFormData((prev) => ({
+                          ...prev,
+                          pagePermissions: PAGE_PERMISSION_OPTIONS.map((entry) => entry.page)
+                        }))
+                      }
+                    >
+                      Tout sélectionner
+                    </button>
+                  </div>
+                  <div className="grid max-h-40 grid-cols-2 gap-2 overflow-y-auto rounded-lg border border-gray-200 p-3">
+                    {PAGE_PERMISSION_OPTIONS.map((option) => {
+                      const checked = userFormData.pagePermissions.includes(option.page);
+                      return (
+                        <label key={option.page} className="flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+                              const enabled = event.target.checked;
+                              setUserFormData((prev) => ({
+                                ...prev,
+                                pagePermissions: enabled
+                                  ? Array.from(new Set([...prev.pagePermissions, option.page]))
+                                  : prev.pagePermissions.filter((page) => page !== option.page)
+                              }));
+                            }}
+                          />
+                          <span>{option.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">Choisissez les pages visibles et accessibles par cet utilisateur.</p>
+                </div>
+              )}
+
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
@@ -12228,7 +12159,8 @@ useEffect(() => {
                       password: '',
                       admin: 0,
                       active: 1,
-                      divisionId: divisions[0]?.id || 0
+                      divisionId: divisions[0]?.id || 0,
+                      pagePermissions: PAGE_PERMISSION_OPTIONS.map((entry) => entry.page)
                     });
                   }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-slate-200 dark:bg-slate-700/70 dark:hover:bg-slate-600/70 rounded-lg transition-colors"

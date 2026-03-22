@@ -86,4 +86,23 @@ router.get('/sessions', authenticate, async (req, res) => {
   }
 });
 
+router.delete('/sessions/clear', authenticate, async (req, res) => {
+  const isAdmin = req.user?.admin === 1 || req.user?.admin === '1' || req.user?.admin === true;
+  if (!isAdmin) return res.status(403).json({ error: 'Accès refusé' });
+
+  const rawUserId = req.query.userId;
+  const userId = rawUserId !== undefined ? parseInt(String(rawUserId), 10) : null;
+  if (rawUserId !== undefined && (!Number.isInteger(userId) || userId <= 0)) {
+    return res.status(400).json({ error: 'ID utilisateur invalide' });
+  }
+
+  try {
+    const deleted = await UserSession.clearSessions({ userId });
+    res.json({ success: true, deleted });
+  } catch (error) {
+    console.error('Erreur suppression sessions utilisateurs:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression des sessions' });
+  }
+});
+
 export default router;

@@ -6,15 +6,38 @@ import { getJwtSecret } from '../config/environment.js';
 const USERS_TABLE = 'autres.users';
 
 class User {
+  static normalizePagePermissions(value) {
+    if (!value) return null;
+    try {
+      const parsed = Array.isArray(value) ? value : JSON.parse(value);
+      if (!Array.isArray(parsed)) return null;
+      const cleaned = parsed
+        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+        .filter(Boolean);
+      return cleaned.length > 0 ? cleaned : null;
+    } catch {
+      return null;
+    }
+  }
+
+  static hydrateUserRow(row) {
+    if (!row) return null;
+    return {
+      ...row,
+      page_permissions: this.normalizePagePermissions(row.page_permissions)
+    };
+  }
+
   static async create(userData) {
-    const { login, mdp, admin = 0, active = 1, division_id } = userData;
+    const { login, mdp, admin = 0, active = 1, division_id, page_permissions = null } = userData;
     const hashedPassword = await bcrypt.hash(mdp, 12);
 
     const normalizedDivisionId = division_id ?? null;
+    const normalizedPagePermissions = this.normalizePagePermissions(page_permissions);
 
     const result = await database.query(
-      'INSERT INTO autres.users (login, mdp, admin, active, division_id) VALUES (?, ?, ?, ?, ?)',
-      [login, hashedPassword, admin, active, normalizedDivisionId]
+      'INSERT INTO autres.users (login, mdp, admin, active, division_id, page_permissions) VALUES (?, ?, ?, ?, ?, ?)',
+      [login, hashedPassword, admin, active, normalizedDivisionId, normalizedPagePermissions ? JSON.stringify(normalizedPagePermissions) : null]
     );
 
     return {
@@ -24,6 +47,7 @@ class User {
       admin,
       active,
       division_id: normalizedDivisionId,
+      page_permissions: normalizedPagePermissions,
       otp_enabled: 0
     };
   }
@@ -36,7 +60,7 @@ class User {
        WHERE u.id = ?`,
       [id]
     );
-    return row;
+    return this.hydrateUserRow(row);
   }
 
   static async findByLogin(login) {
@@ -48,7 +72,7 @@ class User {
          WHERE u.login = ?`,
         [login]
       );
-      return user;
+      return this.hydrateUserRow(user);
     } catch (error) {
       console.error('❌ Erreur lors de la recherche utilisateur:', error);
       throw error;
@@ -83,12 +107,12 @@ class User {
 
   static async findAll() {
     const rows = await database.query(
-      `SELECT u.id, u.login, u.admin, u.active, u.created_at, u.division_id, d.name AS division_name
+      `SELECT u.id, u.login, u.admin, u.active, u.created_at, u.division_id, u.page_permissions, d.name AS division_name
        FROM autres.users u
        LEFT JOIN autres.divisions d ON u.division_id = d.id
        ORDER BY u.id DESC`
     );
-    return rows;
+    return rows.map((row) => this.hydrateUserRow(row));
   }
 
   static async findActive({ excludeId } = {}) {
@@ -123,6 +147,10 @@ class User {
         } else if (key === 'otp_secret') {
           fields.push('otp_secret = ?');
           values.push(userData[key]);
+        } else if (key === 'page_permissions') {
+          fields.push('page_permissions = ?');
+          const normalized = this.normalizePagePermissions(userData[key]);
+          values.push(normalized ? JSON.stringify(normalized) : null);
         } else {
           fields.push(`${key} = ?`);
           values.push(userData[key]);

@@ -88,6 +88,15 @@ class UserSession {
       total: totalRow?.total || 0
     };
   }
+
+  static async clearSessions({ userId = null } = {}) {
+    if (userId && Number.isInteger(Number(userId)) && Number(userId) > 0) {
+      const result = await database.query('DELETE FROM autres.user_sessions WHERE user_id = ?', [Number(userId)]);
+      return result?.affectedRows || 0;
+    }
+    const result = await database.query('DELETE FROM autres.user_sessions');
+    return result?.affectedRows || 0;
+  }
 }
 
 export default UserSession;
