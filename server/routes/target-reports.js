@@ -486,7 +486,7 @@ router.post('/export', authenticate, async (req, res) => {
     };
 
     const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const footerHeight = 80;
+    const footerHeight = 52;
     const generatedAt = new Date();
 
     const ensureSpace = (height = 100) => {
@@ -531,7 +531,7 @@ router.post('/export', authenticate, async (req, res) => {
       .fillColor(colors.muted)
       .text(`Source : ${REALTIME_CDR_TABLE_METADATA.table}`, doc.page.margins.left + 24, doc.page.margins.top + 62);
 
-    doc.moveDown(2.2);
+    doc.moveDown(1.4);
     doc.fillColor(colors.text).fontSize(12).font('Helvetica-Bold');
     doc.text('Numéro analysé', { continued: true });
     doc.font('Helvetica').text(` : ${phoneNumber}`);
@@ -555,7 +555,7 @@ router.post('/export', authenticate, async (req, res) => {
       doc.text(periodLabel);
     }
 
-    doc.moveDown(0.8);
+    doc.moveDown(0.45);
 
     const drawStatCard = (label, value, x, y, width, height) => {
       doc
@@ -576,9 +576,9 @@ router.post('/export', authenticate, async (req, res) => {
         .text(String(value ?? '—'), x + 14, y + 26, { width: width - 28 });
     };
 
-    const cardGap = 14;
+    const cardGap = 10;
     const cardWidth = (availableWidth - cardGap) / 2;
-    const cardHeight = 58;
+    const cardHeight = 52;
     const cardsStartY = doc.y;
     drawStatCard('Total événements', summaryRow?.total_calls ?? 0, doc.page.margins.left, cardsStartY, cardWidth, cardHeight);
     drawStatCard(
@@ -606,10 +606,10 @@ router.post('/export', authenticate, async (req, res) => {
       cardHeight
     );
 
-    doc.y = cardsStartY + cardHeight * 2 + cardGap * 2 + 6;
+    doc.y = cardsStartY + cardHeight * 2 + cardGap * 2 + 2;
 
     const drawSectionHeader = (title, description, options = {}) => {
-      const headerSpacing = options.compact ? (description ? 56 : 46) : description ? 70 : 56;
+      const headerSpacing = options.compact ? (description ? 42 : 34) : description ? 50 : 38;
       ensureSpace(headerSpacing);
       doc.fillColor(colors.title).fontSize(13).font('Helvetica-Bold').text(title);
       if (description) {
@@ -621,7 +621,7 @@ router.post('/export', authenticate, async (req, res) => {
         .lineWidth(2)
         .strokeColor(colors.accent)
         .stroke();
-      doc.moveDown(options.compact ? 0.35 : 0.6);
+      doc.moveDown(options.compact ? 0.2 : 0.35);
     };
 
     const renderTable = (headers, rows, options = {}) => {
@@ -630,7 +630,7 @@ router.post('/export', authenticate, async (req, res) => {
         columnCount === 4 ? [0.28, 0.2, 0.2, 0.32] : Array.from({ length: columnCount }, () => 1);
       const totalWeight = defaultWeights.reduce((sum, value) => sum + value, 0);
       const columnWidths = defaultWeights.map((weight) => (availableWidth * weight) / totalWeight);
-      const rowHeight = options.rowHeight ?? 20;
+      const rowHeight = options.rowHeight ?? 18;
 
       const drawRow = (row, options = {}) => {
         const rowY = doc.y;
@@ -664,7 +664,7 @@ router.post('/export', authenticate, async (req, res) => {
         ensureSpace(rowHeight);
         drawRow(row, { background: index % 2 === 0 ? '#FFFFFF' : '#F8FAFC' });
       });
-      doc.moveDown(options.compact ? 0.55 : 1);
+      doc.moveDown(options.compact ? 0.35 : 0.55);
     };
 
     selectedSections.forEach((section) => {
@@ -680,7 +680,7 @@ router.post('/export', authenticate, async (req, res) => {
         .font('Helvetica-Bold')
         .text(`Volume sélectionné : ${section.limit}`);
       doc.fillColor(colors.text).fontSize(11).font('Helvetica-Bold').text(table.title);
-      renderTable(table.headers, table.rows, { compact: isLocationSection, rowHeight: isLocationSection ? 18 : 20 });
+      renderTable(table.headers, table.rows, { compact: isLocationSection, rowHeight: isLocationSection ? 16 : 18 });
     });
 
     doc.end();
