@@ -184,38 +184,6 @@ class DatabaseIndexingService {
     );
   }
 
-  async #indexExists(schema, table, indexName) {
-    const existingIndex = await this.database.queryOne(
-      `
-        SELECT 1
-        FROM information_schema.STATISTICS
-        WHERE TABLE_SCHEMA = ?
-          AND TABLE_NAME = ?
-          AND INDEX_NAME = ?
-        LIMIT 1
-      `,
-      [schema, table, indexName]
-    );
-
-    return Boolean(existingIndex);
-  }
-
-  async #columnExists(schema, table, columnName) {
-    const existingColumn = await this.database.queryOne(
-      `
-        SELECT 1
-        FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA = ?
-          AND TABLE_NAME = ?
-          AND COLUMN_NAME = ?
-        LIMIT 1
-      `,
-      [schema, table, columnName]
-    );
-
-    return Boolean(existingColumn);
-  }
-
   async #getTableColumns(schema, table) {
     const columns = await this.database.query(
       `
@@ -235,20 +203,34 @@ class DatabaseIndexingService {
     }));
   }
 
-  async #isColumnIndexed(schema, table, columnName) {
-    const existing = await this.database.queryOne(
+  async #getTableIndexMetadata(schema, table) {
+    const existingIndexes = await this.database.query(
       `
-        SELECT 1
+        SELECT INDEX_NAME, COLUMN_NAME
         FROM information_schema.STATISTICS
         WHERE TABLE_SCHEMA = ?
           AND TABLE_NAME = ?
-          AND COLUMN_NAME = ?
-        LIMIT 1
       `,
-      [schema, table, columnName]
+      [schema, table]
     );
 
-    return Boolean(existing);
+    const indexNames = new Set();
+    const indexedColumns = new Set();
+
+    for (const row of existingIndexes) {
+      if (row?.index_name) {
+        indexNames.add(row.index_name);
+      }
+
+      if (row?.column_name) {
+        indexedColumns.add(row.column_name);
+      }
+    }
+
+    return {
+      indexNames,
+      indexedColumns
+    };
   }
 
   #getColumnIndexExpression(column) {
@@ -327,6 +309,16 @@ class DatabaseIndexingService {
 
       summary.tablesProcessed += 1;
 
+      let indexMetadata;
+      try {
+        indexMetadata = await this.#getTableIndexMetadata(schema, table);
+      } catch (error) {
+        const message = `❌ Impossible de récupérer les index existants pour ${schema}.${table}: ${error.message}`;
+        this.logger.log(message);
+        summary.errors.push({ table: `${schema}.${table}`, error });
+        continue;
+      }
+
       for (const column of columns) {
         summary.columnsEvaluated += 1;
         const indexExpression = this.#getColumnIndexExpression(column);
@@ -342,23 +334,14 @@ class DatabaseIndexingService {
         const indexName = this.buildIndexName(schema, table, column.name);
 
         try {
-          const hasColumn = await this.#columnExists(schema, table, column.name);
-          if (!hasColumn) {
-            this.logger.log(
-              `⚠️ Colonne ${column.name} introuvable dans ${schema}.${table}, index ${indexName} ignoré`
-            );
-            summary.indexesSkipped += 1;
-            continue;
-          }
-
-          const alreadyIndexed = await this.#isColumnIndexed(schema, table, column.name);
+          const alreadyIndexed = indexMetadata.indexedColumns.has(column.name);
           if (alreadyIndexed) {
             this.logger.log(`ℹ️ Colonne ${column.name} déjà indexée dans ${schema}.${table}`);
             summary.indexesSkipped += 1;
             continue;
           }
 
-          const exists = await this.#indexExists(schema, table, indexName);
+          const exists = indexMetadata.indexNames.has(indexName);
           if (exists) {
             this.logger.log(`ℹ️ Index ${indexName} déjà présent`);
             summary.indexesSkipped += 1;
@@ -374,6 +357,8 @@ class DatabaseIndexingService {
           await this.database.query(
             `CREATE INDEX \`${indexName}\` ON \`${schema}\`.\`${table}\` (${indexExpression})`
           );
+          indexMetadata.indexNames.add(indexName);
+          indexMetadata.indexedColumns.add(column.name);
           this.logger.log(`✅ Index ${indexName} créé`);
           summary.indexesCreated += 1;
         } catch (error) {
