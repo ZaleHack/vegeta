@@ -17,7 +17,7 @@ const parsePositiveInteger = (value, fallback) => {
 
 const REQUEST_TIMEOUT_MS = parsePositiveInteger(
   process.env.ELASTICSEARCH_REQUEST_TIMEOUT_MS,
-  2000
+  30000
 );
 
 const HEALTHCHECK_TIMEOUT_MS = parsePositiveInteger(
