@@ -22,6 +22,34 @@ const PROFILE_BASE_SELECT = `
 `;
 
 class Profile {
+  static archivedAtStrategy = null;
+
+  static async resolveArchivedAtStrategy() {
+    if (this.archivedAtStrategy) {
+      return this.archivedAtStrategy;
+    }
+
+    const row = await database.queryOne(
+      `SELECT IS_NULLABLE AS is_nullable, COLUMN_DEFAULT AS column_default
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = 'autres'
+          AND TABLE_NAME = 'profiles'
+          AND COLUMN_NAME = 'archived_at'
+        LIMIT 1`
+    );
+
+    if (!row) {
+      this.archivedAtStrategy = 'none';
+      return this.archivedAtStrategy;
+    }
+
+    const isNullable = String(row.is_nullable || '').toUpperCase() === 'YES';
+    const hasDefault = row.column_default !== null;
+
+    this.archivedAtStrategy = isNullable || hasDefault ? 'set_null' : 'set_now';
+    return this.archivedAtStrategy;
+  }
+
   static async create(data) {
     const {
       user_id,
@@ -43,19 +71,41 @@ class Profile {
     if (folder_id !== undefined && folder_id !== null && !normalizedFolderId) {
       throw new Error('Dossier introuvable');
     }
+    const archivedAtStrategy = await this.resolveArchivedAtStrategy();
+    const hasArchivedAt = archivedAtStrategy !== 'none';
+    const archivedAtValue = archivedAtStrategy === 'set_now' ? new Date() : null;
+    const columns = [
+      'user_id',
+      'folder_id',
+      'first_name',
+      'last_name',
+      'phone',
+      'email',
+      'comment',
+      'extra_fields',
+      'photo_path'
+    ];
+    const params = [
+      normalizedUserId,
+      normalizedFolderId,
+      first_name,
+      last_name,
+      phone,
+      email,
+      comment ?? '',
+      serializeExtraFields(extra_fields),
+      photo_path
+    ];
+
+    if (hasArchivedAt) {
+      columns.push('archived_at');
+      params.push(archivedAtValue);
+    }
+
+    const placeholders = columns.map(() => '?').join(', ');
     const result = await database.query(
-      `INSERT INTO autres.profiles (user_id, folder_id, first_name, last_name, phone, email, comment, extra_fields, photo_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        normalizedUserId,
-        normalizedFolderId,
-        first_name,
-        last_name,
-        phone,
-        email,
-        comment ?? '',
-        serializeExtraFields(extra_fields),
-        photo_path
-      ]
+      `INSERT INTO autres.profiles (${columns.join(', ')}) VALUES (${placeholders})`,
+      params
     );
     return {
       id: result.insertId,
