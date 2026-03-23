@@ -165,6 +165,16 @@ const INDEX_POLL_INTERVAL = Math.max(
 
 const isConnectionError = (error) =>
   error?.name === 'ConnectionError' || error?.meta?.statusCode === 0;
+const MYSQL_CONNECTION_ERROR_CODES = new Set([
+  'PROTOCOL_CONNECTION_LOST',
+  'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EPIPE'
+]);
+const isDatabaseConnectionError = (error) =>
+  Boolean(error?.code && MYSQL_CONNECTION_ERROR_CODES.has(error.code));
 
 const sanitizeNumber = (value) => {
   if (value === null || value === undefined) {
@@ -2929,7 +2939,9 @@ class RealtimeCdrService {
     const params = tableStates.map(({ lastId }) => lastId);
     params.push(effectiveLimit);
 
-    const rows = await this.database.query(sql, params);
+    const rows = await this.database.query(sql, params, {
+      suppressErrorCodes: [...MYSQL_CONNECTION_ERROR_CODES]
+    });
 
     await this.#applyCgiEnrichment(rows);
     return rows;
@@ -3293,6 +3305,10 @@ class RealtimeCdrService {
           '⚠️ Indexation Elasticsearch désactivée pour les CDR temps réel (connexion perdue).'
         );
         this.#handleConnectionLoss('indexation', error);
+      } else if (isDatabaseConnectionError(error)) {
+        console.warn(
+          `⚠️ Indexation CDR temps réel en attente: MySQL indisponible (${error.code}).`
+        );
       } else {
         console.error("Erreur lors de l'indexation des CDR temps réel:", error);
       }
