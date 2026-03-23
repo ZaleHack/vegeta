@@ -119,7 +119,13 @@ class DatabaseManager {
       await this.createSystemTables();
       this.isInitialized = true;
     } catch (error) {
-      console.error('❌ Erreur connexion MySQL:', error);
+      if (this.#shouldRetry(error)) {
+        console.warn(
+          `⚠️ Connexion MySQL indisponible (${error?.code || error?.message || 'erreur inconnue'}).`
+        );
+      } else {
+        console.error('❌ Erreur connexion MySQL:', error);
+      }
       throw error;
     }
   }
