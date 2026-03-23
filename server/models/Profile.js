@@ -102,11 +102,29 @@ class Profile {
       params.push(archivedAtValue);
     }
 
-    const placeholders = columns.map(() => '?').join(', ');
-    const result = await database.query(
-      `INSERT INTO autres.profiles (${columns.join(', ')}) VALUES (${placeholders})`,
-      params
-    );
+    const executeInsert = async (insertColumns, insertParams) => {
+      const placeholders = insertColumns.map(() => '?').join(', ');
+      return database.query(
+        `INSERT INTO autres.profiles (${insertColumns.join(', ')}) VALUES (${placeholders})`,
+        insertParams
+      );
+    };
+
+    let result;
+    try {
+      result = await executeInsert(columns, params);
+    } catch (error) {
+      const shouldRetryWithArchivedAtNow =
+        !hasArchivedAt &&
+        error?.code === 'ER_NO_DEFAULT_FOR_FIELD' &&
+        String(error?.sqlMessage || '').includes("'archived_at'");
+
+      if (!shouldRetryWithArchivedAtNow) {
+        throw error;
+      }
+
+      result = await executeInsert([...columns, 'archived_at'], [...params, new Date()]);
+    }
     return {
       id: result.insertId,
       user_id: normalizedUserId,
