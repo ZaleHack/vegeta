@@ -20,7 +20,11 @@ class DatabaseManager {
     ]);
     this.maxQueryRetries = Number.parseInt(process.env.DB_QUERY_MAX_RETRIES || '3', 10);
     this.retryDelayMs = Number.parseInt(process.env.DB_QUERY_RETRY_DELAY_MS || '500', 10);
-    this.init();
+    this.init().catch((error) => {
+      console.warn(
+        `⚠️ Initialisation MySQL différée (${error?.code || error?.message || 'erreur inconnue'}).`
+      );
+    });
   }
 
   #shouldLogQueries() {
@@ -74,7 +78,12 @@ class DatabaseManager {
 
   async init() {
     if (!this.initPromise) {
-      this.initPromise = this.#initInternal();
+      this.initPromise = this.#initInternal().catch((error) => {
+        this.initPromise = null;
+        this.isInitialized = false;
+        this.pool = null;
+        throw error;
+      });
     }
     return this.initPromise;
   }
