@@ -14,7 +14,9 @@ const DEFAULT_BULK_RETRY_DELAY_MS = 750;
 const DEFAULT_BULK_THROTTLE_MS = 0;
 const DEFAULT_BULK_REQUEST_TIMEOUT_MS = 120000;
 const DEFAULT_BULK_CONCURRENCY = Math.min(8, Math.max(1, (os.cpus()?.length || 2) - 1));
+const DEFAULT_FILE_CONCURRENCY = Math.min(6, Math.max(1, Math.floor((os.cpus()?.length || 2) / 2)));
 const DEFAULT_READ_STREAM_HIGH_WATER_MARK = 1024 * 1024;
+const DEFAULT_WATCH_SCAN_INTERVAL_MS = 1500;
 const DEFAULT_INPUT_DIR = process.env.CDR_CSV_INPUT_DIR || '/var/cdr/incoming';
 const DEFAULT_PROCESSED_DIR = process.env.CDR_CSV_PROCESSED_DIR || '/var/cdr/processed';
 const DEFAULT_FAILED_DIR = process.env.CDR_CSV_FAILED_DIR || '/var/cdr/failed';
@@ -466,6 +468,7 @@ const processCsvFile = async (filePath, options) => {
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
   let headers = null;
   let rawPipeWithoutHeader = false;
+  let firstDataValues = null;
 
   for await (const rawLine of rl) {
     const line = toTrimmed(rawLine);
@@ -477,13 +480,15 @@ const processCsvFile = async (filePath, options) => {
       const firstValues = parseCsvLine(line, separator);
       if (separator === '|' && !hasHeaderRow(firstValues)) {
         rawPipeWithoutHeader = true;
+        firstDataValues = firstValues;
       } else {
         headers = firstValues;
         continue;
       }
     }
 
-    const values = parseCsvLine(line, separator);
+    const values = firstDataValues || parseCsvLine(line, separator);
+    firstDataValues = null;
     const row = rawPipeWithoutHeader ? mapRawPipeValuesToRow(values) : {};
 
     if (!rawPipeWithoutHeader) {
@@ -553,9 +558,14 @@ const parseArgs = (argv = []) => {
       DEFAULT_BULK_REQUEST_TIMEOUT_MS
     ),
     maxConcurrentBulks: parsePositiveInteger(process.env.CDR_CSV_BULK_CONCURRENCY, DEFAULT_BULK_CONCURRENCY),
+    maxConcurrentFiles: parsePositiveInteger(process.env.CDR_CSV_FILE_CONCURRENCY, DEFAULT_FILE_CONCURRENCY),
     readStreamHighWaterMark: parsePositiveInteger(
       process.env.CDR_CSV_READ_STREAM_HIGH_WATER_MARK,
       DEFAULT_READ_STREAM_HIGH_WATER_MARK
+    ),
+    watchScanIntervalMs: parsePositiveInteger(
+      process.env.CDR_CSV_WATCH_SCAN_INTERVAL_MS,
+      DEFAULT_WATCH_SCAN_INTERVAL_MS
     ),
     deleteOnSuccess: false
   };
@@ -589,10 +599,20 @@ const parseArgs = (argv = []) => {
         arg.split('=')[1],
         options.maxConcurrentBulks
       );
+    } else if (arg.startsWith('--file-concurrency=')) {
+      options.maxConcurrentFiles = parsePositiveInteger(
+        arg.split('=')[1],
+        options.maxConcurrentFiles
+      );
     } else if (arg.startsWith('--read-stream-high-water-mark=')) {
       options.readStreamHighWaterMark = parsePositiveInteger(
         arg.split('=')[1],
         options.readStreamHighWaterMark
+      );
+    } else if (arg.startsWith('--watch-scan-interval-ms=')) {
+      options.watchScanIntervalMs = parsePositiveInteger(
+        arg.split('=')[1],
+        options.watchScanIntervalMs
       );
     }
   }
@@ -636,41 +656,101 @@ const processSingleFile = async (filePath, options) => {
   }
 };
 
+const createFileQueue = (options) => {
+  const queue = [];
+  const queued = new Set();
+  const running = new Set();
+  const idleWaiters = [];
+
+  const notifyIdle = () => {
+    if (queue.length !== 0 || running.size !== 0) {
+      return;
+    }
+    while (idleWaiters.length > 0) {
+      const resolve = idleWaiters.pop();
+      resolve();
+    }
+  };
+
+  const runNext = () => {
+    while (running.size < options.maxConcurrentFiles && queue.length > 0) {
+      const filePath = queue.shift();
+      if (!filePath) {
+        continue;
+      }
+
+      const task = (async () => {
+        try {
+          await processSingleFile(filePath, options);
+        } catch (error) {
+          console.error(`❌ Erreur inattendue dans la file de traitement (${filePath}):`, error?.message || error);
+        }
+      })();
+      running.add(task);
+      task.finally(() => {
+        running.delete(task);
+        queued.delete(filePath);
+        runNext();
+        notifyIdle();
+      });
+    }
+  };
+
+  return {
+    enqueue(filePath) {
+      if (!filePath || queued.has(filePath)) {
+        return;
+      }
+      queued.add(filePath);
+      queue.push(filePath);
+      runNext();
+    },
+    async onIdle() {
+      if (queue.length === 0 && running.size === 0) {
+        return;
+      }
+      await new Promise((resolve) => idleWaiters.push(resolve));
+    }
+  };
+};
+
 const run = async () => {
   const options = parseArgs(process.argv.slice(2));
   await verifyElasticsearchConnection();
   await ensureRealtimeIndex();
   await fsp.mkdir(options.inputDir, { recursive: true });
+  const fileQueue = createFileQueue(options);
 
   const files = await listCsvFiles(options.inputDir);
   for (const filePath of files) {
-    await processSingleFile(filePath, options);
+    fileQueue.enqueue(filePath);
   }
+  await fileQueue.onIdle();
 
   if (!options.watch) {
     return;
   }
 
-  console.log(`👀 Watch activé sur ${options.inputDir}`);
-  const processingFiles = new Set();
+  console.log(`👀 Watch activé sur ${options.inputDir} (concurrency fichiers=${options.maxConcurrentFiles})`);
   fs.watch(options.inputDir, async (_eventType, filename) => {
     if (!filename || !filename.toLowerCase().endsWith('.csv')) {
       return;
     }
     const filePath = path.join(options.inputDir, filename);
-    if (processingFiles.has(filePath)) {
-      return;
-    }
-    processingFiles.add(filePath);
-    try {
-      await fsp.access(filePath, fs.constants.F_OK);
-      await processSingleFile(filePath, options);
-    } catch (_error) {
-      // Le fichier peut avoir été déplacé/supprimé entre temps.
-    } finally {
-      processingFiles.delete(filePath);
-    }
+    fileQueue.enqueue(filePath);
   });
+
+  const periodicScan = setInterval(async () => {
+    try {
+      const pendingFiles = await listCsvFiles(options.inputDir);
+      for (const filePath of pendingFiles) {
+        fileQueue.enqueue(filePath);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Scan périodique input-dir en échec: ${error.message}`);
+    }
+  }, options.watchScanIntervalMs);
+  periodicScan.unref();
 };
 
 run().catch((error) => {
