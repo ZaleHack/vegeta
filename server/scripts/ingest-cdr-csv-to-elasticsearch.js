@@ -2,6 +2,7 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import os from 'os';
 import readline from 'readline';
 import client from '../config/elasticsearch.js';
 import cgiBtsEnricher from '../services/CgiBtsEnrichmentService.js';
@@ -10,8 +11,10 @@ const INDEX_NAME = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime
 const DEFAULT_BATCH_SIZE = 1000;
 const DEFAULT_BULK_MAX_RETRIES = 4;
 const DEFAULT_BULK_RETRY_DELAY_MS = 750;
-const DEFAULT_BULK_THROTTLE_MS = 150;
+const DEFAULT_BULK_THROTTLE_MS = 0;
 const DEFAULT_BULK_REQUEST_TIMEOUT_MS = 120000;
+const DEFAULT_BULK_CONCURRENCY = Math.min(8, Math.max(1, (os.cpus()?.length || 2) - 1));
+const DEFAULT_READ_STREAM_HIGH_WATER_MARK = 1024 * 1024;
 const DEFAULT_INPUT_DIR = process.env.CDR_CSV_INPUT_DIR || '/var/cdr/incoming';
 const DEFAULT_PROCESSED_DIR = process.env.CDR_CSV_PROCESSED_DIR || '/var/cdr/processed';
 const DEFAULT_FAILED_DIR = process.env.CDR_CSV_FAILED_DIR || '/var/cdr/failed';
@@ -456,7 +459,10 @@ const processCsvFile = async (filePath, options) => {
   };
 
   const batch = [];
-  const input = fs.createReadStream(filePath, { encoding: 'utf8' });
+  const input = fs.createReadStream(filePath, {
+    encoding: 'utf8',
+    highWaterMark: options.readStreamHighWaterMark
+  });
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
   let headers = null;
   let rawPipeWithoutHeader = false;
@@ -546,7 +552,11 @@ const parseArgs = (argv = []) => {
       process.env.CDR_CSV_BULK_REQUEST_TIMEOUT_MS,
       DEFAULT_BULK_REQUEST_TIMEOUT_MS
     ),
-    maxConcurrentBulks: parsePositiveInteger(process.env.CDR_CSV_BULK_CONCURRENCY, 1),
+    maxConcurrentBulks: parsePositiveInteger(process.env.CDR_CSV_BULK_CONCURRENCY, DEFAULT_BULK_CONCURRENCY),
+    readStreamHighWaterMark: parsePositiveInteger(
+      process.env.CDR_CSV_READ_STREAM_HIGH_WATER_MARK,
+      DEFAULT_READ_STREAM_HIGH_WATER_MARK
+    ),
     deleteOnSuccess: false
   };
 
@@ -578,6 +588,11 @@ const parseArgs = (argv = []) => {
       options.maxConcurrentBulks = parsePositiveInteger(
         arg.split('=')[1],
         options.maxConcurrentBulks
+      );
+    } else if (arg.startsWith('--read-stream-high-water-mark=')) {
+      options.readStreamHighWaterMark = parsePositiveInteger(
+        arg.split('=')[1],
+        options.readStreamHighWaterMark
       );
     }
   }
