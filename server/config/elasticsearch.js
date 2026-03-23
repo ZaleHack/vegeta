@@ -10,7 +10,7 @@ const parseNonNegativeInteger = (value, fallback) => {
 
 const requestTimeout = parseNonNegativeInteger(
   process.env.ELASTICSEARCH_REQUEST_TIMEOUT_MS,
-  2000
+  30000
 );
 
 const maxRetries = parseNonNegativeInteger(process.env.ELASTICSEARCH_MAX_RETRIES, 0);

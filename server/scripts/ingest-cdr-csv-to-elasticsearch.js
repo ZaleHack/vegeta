@@ -11,6 +11,7 @@ const DEFAULT_BATCH_SIZE = 1000;
 const DEFAULT_BULK_MAX_RETRIES = 4;
 const DEFAULT_BULK_RETRY_DELAY_MS = 750;
 const DEFAULT_BULK_THROTTLE_MS = 150;
+const DEFAULT_BULK_REQUEST_TIMEOUT_MS = 120000;
 const DEFAULT_INPUT_DIR = process.env.CDR_CSV_INPUT_DIR || '/var/cdr/incoming';
 const DEFAULT_PROCESSED_DIR = process.env.CDR_CSV_PROCESSED_DIR || '/var/cdr/processed';
 const DEFAULT_FAILED_DIR = process.env.CDR_CSV_FAILED_DIR || '/var/cdr/failed';
@@ -384,6 +385,7 @@ const bulkIndexRecords = async (records, options) => {
     try {
       const response = await client.bulk({
         refresh: false,
+        requestTimeout: options.bulkRequestTimeoutMs,
         operations: actions
       });
 
@@ -536,6 +538,10 @@ const parseArgs = (argv = []) => {
     bulkMaxRetries: parsePositiveInteger(process.env.CDR_CSV_BULK_MAX_RETRIES, DEFAULT_BULK_MAX_RETRIES),
     bulkRetryDelayMs: parsePositiveInteger(process.env.CDR_CSV_BULK_RETRY_DELAY_MS, DEFAULT_BULK_RETRY_DELAY_MS),
     bulkThrottleMs: parsePositiveInteger(process.env.CDR_CSV_BULK_THROTTLE_MS, DEFAULT_BULK_THROTTLE_MS),
+    bulkRequestTimeoutMs: parsePositiveInteger(
+      process.env.CDR_CSV_BULK_REQUEST_TIMEOUT_MS,
+      DEFAULT_BULK_REQUEST_TIMEOUT_MS
+    ),
     maxConcurrentBulks: parsePositiveInteger(process.env.CDR_CSV_BULK_CONCURRENCY, 1),
     deleteOnSuccess: false
   };
@@ -559,6 +565,11 @@ const parseArgs = (argv = []) => {
       options.bulkRetryDelayMs = parsePositiveInteger(arg.split('=')[1], options.bulkRetryDelayMs);
     } else if (arg.startsWith('--bulk-throttle-ms=')) {
       options.bulkThrottleMs = parsePositiveInteger(arg.split('=')[1], options.bulkThrottleMs);
+    } else if (arg.startsWith('--bulk-request-timeout-ms=')) {
+      options.bulkRequestTimeoutMs = parsePositiveInteger(
+        arg.split('=')[1],
+        options.bulkRequestTimeoutMs
+      );
     } else if (arg.startsWith('--bulk-concurrency=')) {
       options.maxConcurrentBulks = parsePositiveInteger(
         arg.split('=')[1],
