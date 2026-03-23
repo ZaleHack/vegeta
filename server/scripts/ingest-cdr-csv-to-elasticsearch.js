@@ -383,11 +383,15 @@ const bulkIndexRecords = async (records, options) => {
 
   for (let attempt = 0; attempt <= options.bulkMaxRetries; attempt += 1) {
     try {
-      const response = await client.bulk({
-        refresh: false,
-        requestTimeout: options.bulkRequestTimeoutMs,
-        operations: actions
-      });
+      const response = await client.bulk(
+        {
+          refresh: false,
+          operations: actions
+        },
+        {
+          requestTimeout: options.bulkRequestTimeoutMs
+        }
+      );
 
       if (response.errors) {
         const itemWithError = response.items?.find((item) => item.index?.error);
