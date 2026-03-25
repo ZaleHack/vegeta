@@ -3962,9 +3962,7 @@ const CdrMap: React.FC<Props> = ({
                               ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-200'
                               : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-200';
                           const interactionLabel = isSms
-                            ? direction === 'incoming'
-                              ? 'SMS entrant'
-                              : 'SMS'
+                            ? 'SMS'
                             : isUssd
                               ? 'USSD'
                               : direction === 'outgoing'
