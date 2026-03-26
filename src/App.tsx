@@ -5461,7 +5461,7 @@ useEffect(() => {
     const trimmedIdentifier = globalFraudIdentifier.trim();
     const normalizedIdentifier = trimmedIdentifier;
     if (!normalizedIdentifier) {
-      setGlobalFraudError('Numéro requis');
+      setGlobalFraudError('Numéro ou IMEI requis');
       setGlobalFraudResult(null);
       return;
     }
@@ -8811,7 +8811,7 @@ useEffect(() => {
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                            Numéro à analyser
+                            Numéro ou IMEI à analyser
                           </label>
                           <div className="relative">
                             <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
@@ -8824,11 +8824,14 @@ useEffect(() => {
                                 setGlobalFraudIdentifier(e.target.value);
                                 if (globalFraudError) setGlobalFraudError('');
                               }}
-                              placeholder="Ex : 221771234567"
-                              inputMode="tel"
+                              placeholder="Ex : 221771234567 ou 356938035643809"
+                              inputMode="text"
                               className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-12 py-3 text-base font-medium text-slate-800 shadow-inner focus:border-transparent focus:outline-none focus:ring-4 focus:ring-purple-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
                             />
                           </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Recherche possible par numéro de téléphone ou par IMEI.
+                          </p>
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
