@@ -162,6 +162,14 @@ const INDEX_POLL_INTERVAL = Math.max(
   1000,
   parsePositiveInteger(process.env.REALTIME_CDR_INDEX_INTERVAL_MS, 5000)
 );
+const INDEX_MAX_BATCHES_PER_CYCLE = Math.max(
+  1,
+  parsePositiveInteger(process.env.REALTIME_CDR_INDEX_MAX_BATCHES_PER_CYCLE, 3)
+);
+const INDEX_CYCLE_PAUSE_MS = Math.max(
+  0,
+  parseNonNegativeInteger(process.env.REALTIME_CDR_INDEX_CYCLE_PAUSE_MS, 0)
+);
 
 const isConnectionError = (error) =>
   error?.name === 'ConnectionError' || error?.meta?.statusCode === 0;
@@ -383,6 +391,11 @@ const normalizeForOutput = (value) => {
   const normalized = normalizePhoneNumber(sanitized);
   return normalized || sanitized;
 };
+
+const wait = (durationMs = 0) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, Math.max(0, Number(durationMs) || 0));
+  });
 
 const normalizeContactForOutput = (value) => {
   const normalized = normalizeForOutput(value);
@@ -3272,9 +3285,11 @@ class RealtimeCdrService {
     }
 
     this.indexing = true;
+    let shouldRescheduleImmediately = false;
 
     try {
       let hasMore = true;
+      let batchesProcessed = 0;
       while (hasMore && this.elasticEnabled) {
         const batchLimit = this.#resolveBatchSize(this.batchSize);
         const rows = await this.#fetchRows(this.lastIndexedId, batchLimit);
@@ -3285,6 +3300,7 @@ class RealtimeCdrService {
         }
 
         await this.#indexBatch(rows);
+        batchesProcessed += 1;
         this.lastIndexedId = Number(rows[rows.length - 1].source_record_id ?? rows[rows.length - 1].id) || this.lastIndexedId;
         for (const row of rows) {
           const sourceTable = typeof row.source_table === 'string' ? row.source_table : '';
@@ -3297,7 +3313,18 @@ class RealtimeCdrService {
             this.lastIndexedByTable.set(sourceTable, sourceRecordId);
           }
         }
+        const reachedCycleBatchLimit = batchesProcessed >= INDEX_MAX_BATCHES_PER_CYCLE;
+        if (rows.length === batchLimit && reachedCycleBatchLimit) {
+          shouldRescheduleImmediately = true;
+          hasMore = false;
+          break;
+        }
+
         hasMore = rows.length === batchLimit;
+
+        if (hasMore && INDEX_CYCLE_PAUSE_MS > 0) {
+          await wait(INDEX_CYCLE_PAUSE_MS);
+        }
       }
     } catch (error) {
       if (isConnectionError(error)) {
@@ -3316,7 +3343,7 @@ class RealtimeCdrService {
       this.indexReady = true;
       this.indexing = false;
       if (this.elasticEnabled) {
-        this.#scheduleIndexing(this.pollInterval);
+        this.#scheduleIndexing(shouldRescheduleImmediately ? 0 : this.pollInterval);
       }
     }
   }
