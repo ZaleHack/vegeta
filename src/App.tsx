@@ -6351,7 +6351,10 @@ useEffect(() => {
   const canRequestIdentification =
     !!searchResults &&
     searchResults.total === 0 &&
-    (numericSearch.startsWith('77') || numericSearch.startsWith('78')) &&
+    (numericSearch.startsWith('77') ||
+      numericSearch.startsWith('78') ||
+      numericSearch.startsWith('71') ||
+      numericSearch.startsWith('72')) &&
     numericSearch.length >= 9 &&
     !hasPendingRequestForSearch;
 
