@@ -2772,10 +2772,11 @@ const App: React.FC = () => {
     (value: string) => {
       const normalized = normalizeImei(value);
       if (!normalized) return '';
-      if (normalized.length < 15) return normalized;
-      return `${normalized.slice(0, 14)}0`;
+      if (normalized.length < 14) return normalized;
+      const body = normalized.slice(0, 14);
+      return `${body}${computeImeiLuhnCheckDigit(body)}`;
     },
-    [normalizeImei]
+    [computeImeiLuhnCheckDigit, normalizeImei]
   );
 
   const formatImeiForDisplay = useCallback(
@@ -5459,7 +5460,7 @@ useEffect(() => {
   const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmedIdentifier = globalFraudIdentifier.trim();
-    const normalizedIdentifier = trimmedIdentifier;
+    const normalizedIdentifier = replaceImeiCheckDigitWithZero(trimmedIdentifier);
     if (!normalizedIdentifier) {
       setGlobalFraudError('Numéro ou IMEI requis');
       setGlobalFraudResult(null);
