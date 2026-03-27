@@ -20,6 +20,11 @@ const REQUEST_TIMEOUT_MS = parsePositiveInteger(
   30000
 );
 
+const SEARCH_REQUEST_TIMEOUT_MS = parsePositiveInteger(
+  process.env.ELASTICSEARCH_SEARCH_TIMEOUT_MS,
+  Math.min(1500, REQUEST_TIMEOUT_MS)
+);
+
 const HEALTHCHECK_TIMEOUT_MS = parsePositiveInteger(
   process.env.ELASTICSEARCH_HEALTHCHECK_TIMEOUT_MS,
   Math.max(1000, REQUEST_TIMEOUT_MS)
@@ -130,6 +135,28 @@ class ElasticSearchService {
       return true;
     }
     return error?.meta?.statusCode === 0;
+  }
+
+  isTransientSearchError(error) {
+    if (!error) {
+      return false;
+    }
+
+    if (this.isConnectionError(error)) {
+      return true;
+    }
+
+    const errorName = String(error?.name || '').toLowerCase();
+    if (
+      errorName.includes('timeout') ||
+      errorName.includes('requestabortederror') ||
+      errorName.includes('aborterror')
+    ) {
+      return true;
+    }
+
+    const statusCode = Number(error?.meta?.statusCode);
+    return statusCode === 408 || statusCode === 429 || statusCode === 502 || statusCode === 503 || statusCode === 504;
   }
 
   isRecoverableHealthcheckError(error) {
@@ -1055,40 +1082,55 @@ class ElasticSearchService {
     }
 
     try {
-      const response = await client.search({
-        index: indexes,
-        ignore_unavailable: true,
-        from,
-        size: limit,
-        _source: [
-          'id',
-          'user_id',
-          'division_id',
-          'first_name',
-          'last_name',
-          'full_name',
-          'phone',
-          'email',
-          'comment_preview',
-          'extra_fields',
-          'table',
-          'table_name',
-          'database_name',
-          'primary_key',
-          'primary_value',
-          'primary_keys',
-          'preview'
-        ],
-        query: {
-          bool: {
-            should: shouldQueries,
-            minimum_should_match: 1
+      const response = await client.search(
+        {
+          index: indexes,
+          ignore_unavailable: true,
+          from,
+          size: limit,
+          track_total_hits: false,
+          _source: [
+            'id',
+            'user_id',
+            'division_id',
+            'first_name',
+            'last_name',
+            'full_name',
+            'phone',
+            'email',
+            'comment_preview',
+            'extra_fields',
+            'table',
+            'table_name',
+            'database_name',
+            'primary_key',
+            'primary_value',
+            'primary_keys',
+            'preview'
+          ],
+          query: {
+            bool: {
+              should: shouldQueries,
+              minimum_should_match: 1
+            }
           }
+        },
+        {
+          requestTimeout: SEARCH_REQUEST_TIMEOUT_MS
         }
-      });
+      );
       hits = response.hits;
       took = response.took;
     } catch (error) {
+      if (this.isTransientSearchError(error)) {
+        console.warn(
+          `⚠️ Recherche Elasticsearch temporairement dégradée (${error?.name || 'erreur'}). Bascule vers SQL.`
+        );
+        if (this.isConnectionError(error)) {
+          this.disableForSession('search', error);
+        }
+        return null;
+      }
       if (this.isConnectionError(error)) {
         console.error('❌ Recherche Elasticsearch indisponible:', error.message);
         this.disableForSession('search', error);

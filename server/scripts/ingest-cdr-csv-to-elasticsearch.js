@@ -8,13 +8,13 @@ import client from '../config/elasticsearch.js';
 import cgiBtsEnricher from '../services/CgiBtsEnrichmentService.js';
 
 const INDEX_NAME = process.env.ELASTICSEARCH_CDR_REALTIME_INDEX || 'cdr-realtime-events';
-const DEFAULT_BATCH_SIZE = 1000;
+const DEFAULT_BATCH_SIZE = 400;
 const DEFAULT_BULK_MAX_RETRIES = 4;
 const DEFAULT_BULK_RETRY_DELAY_MS = 750;
-const DEFAULT_BULK_THROTTLE_MS = 0;
+const DEFAULT_BULK_THROTTLE_MS = 75;
 const DEFAULT_BULK_REQUEST_TIMEOUT_MS = 120000;
-const DEFAULT_BULK_CONCURRENCY = Math.min(8, Math.max(1, (os.cpus()?.length || 2) - 1));
-const DEFAULT_FILE_CONCURRENCY = Math.min(6, Math.max(1, Math.floor((os.cpus()?.length || 2) / 2)));
+const DEFAULT_BULK_CONCURRENCY = Math.min(2, Math.max(1, Math.floor((os.cpus()?.length || 2) / 4)));
+const DEFAULT_FILE_CONCURRENCY = 1;
 const DEFAULT_READ_STREAM_HIGH_WATER_MARK = 1024 * 1024;
 const DEFAULT_WATCH_SCAN_INTERVAL_MS = 1500;
 const DEFAULT_INPUT_DIR = process.env.CDR_CSV_INPUT_DIR || '/var/cdr/incoming';
