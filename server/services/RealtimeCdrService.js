@@ -658,7 +658,14 @@ class RealtimeCdrService {
     this.realtimeColumnAvailability = new Map();
 
     this.initializationPromise = this.elasticEnabled && this.autoStart
-      ? this.#initializeElasticsearch().catch((error) => {
+      ? this.#initializeElasticsearch()
+        .then((initialized) => {
+          if (initialized) {
+            console.info('✅ Reconnexion Elasticsearch temps réel effectuée.');
+          }
+          return initialized;
+        })
+        .catch((error) => {
           if (isConnectionError(error)) {
             console.error(
               'Erreur initialisation Elasticsearch CDR temps réel:',
