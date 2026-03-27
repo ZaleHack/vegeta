@@ -2484,6 +2484,7 @@ const App: React.FC = () => {
   const [fraudLoading, setFraudLoading] = useState(false);
   const [fraudError, setFraudError] = useState('');
   const [globalFraudIdentifier, setGlobalFraudIdentifier] = useState('');
+  const [globalFraudSearchType, setGlobalFraudSearchType] = useState<'number' | 'imei'>('number');
   const [globalFraudStart, setGlobalFraudStart] = useState('');
   const [globalFraudEnd, setGlobalFraudEnd] = useState('');
   const [globalFraudLoading, setGlobalFraudLoading] = useState(false);
@@ -5460,9 +5461,11 @@ useEffect(() => {
   const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmedIdentifier = globalFraudIdentifier.trim();
-    const normalizedIdentifier = replaceImeiCheckDigitWithZero(trimmedIdentifier);
+    const normalizedIdentifier = globalFraudSearchType === 'imei'
+      ? replaceImeiCheckDigitWithZero(trimmedIdentifier)
+      : normalizeCdrNumber(trimmedIdentifier);
     if (!normalizedIdentifier) {
-      setGlobalFraudError('Numéro ou IMEI requis');
+      setGlobalFraudError(globalFraudSearchType === 'imei' ? 'IMEI requis' : 'Numéro requis');
       setGlobalFraudResult(null);
       return;
     }
@@ -5508,6 +5511,7 @@ useEffect(() => {
 
   const resetGlobalFraudSearch = () => {
     setGlobalFraudIdentifier('');
+    setGlobalFraudSearchType('number');
     setGlobalFraudStart('');
     setGlobalFraudEnd('');
     setGlobalFraudResult(null);
@@ -8815,7 +8819,45 @@ useEffect(() => {
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                            Numéro ou IMEI à analyser
+                            Type de recherche
+                          </label>
+                          <div className="inline-flex rounded-full border border-slate-200/80 bg-white/90 p-1 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGlobalFraudSearchType('number');
+                                setGlobalFraudIdentifier('');
+                                if (globalFraudError) setGlobalFraudError('');
+                              }}
+                              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                                globalFraudSearchType === 'number'
+                                  ? 'bg-blue-600 text-white shadow'
+                                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              Rechercher par numéro
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGlobalFraudSearchType('imei');
+                                setGlobalFraudIdentifier('');
+                                if (globalFraudError) setGlobalFraudError('');
+                              }}
+                              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                                globalFraudSearchType === 'imei'
+                                  ? 'bg-blue-600 text-white shadow'
+                                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              Rechercher par IMEI
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                            {globalFraudSearchType === 'imei' ? 'IMEI à analyser' : 'Numéro à analyser'}
                           </label>
                           <div className="relative">
                             <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
@@ -8828,14 +8870,25 @@ useEffect(() => {
                                 setGlobalFraudIdentifier(e.target.value);
                                 if (globalFraudError) setGlobalFraudError('');
                               }}
-                              placeholder="Ex : 221771234567 ou 356938035643809"
+                              placeholder={globalFraudSearchType === 'imei' ? 'Ex : 356938035643809' : 'Ex : 221771234567'}
                               inputMode="text"
                               className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-12 py-3 text-base font-medium text-slate-800 shadow-inner focus:border-transparent focus:outline-none focus:ring-4 focus:ring-purple-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
                             />
                           </div>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Recherche possible par numéro de téléphone ou par IMEI.
+                            {globalFraudSearchType === 'imei'
+                              ? "Vous pouvez corriger automatiquement le chiffre de contrôle avant l'analyse."
+                              : 'Format conseillé : numéro avec indicatif pays (ex. 221...).'}
                           </p>
+                          {globalFraudSearchType === 'imei' && (
+                            <button
+                              type="button"
+                              onClick={handleReplaceImeiCheckDigit}
+                              className="inline-flex items-center gap-2 rounded-full border border-indigo-200/90 bg-indigo-50/80 px-4 py-1.5 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-100 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-100 dark:hover:border-indigo-400"
+                            >
+                              Corriger automatiquement le dernier chiffre IMEI
+                            </button>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
