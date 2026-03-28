@@ -214,6 +214,18 @@ const REALTIME_INDEX_MAPPINGS = {
   }
 };
 
+const getTopLevelProperties = (mapping = {}) => {
+  const rootMappings = mapping?.mappings;
+  if (!rootMappings || typeof rootMappings !== 'object') {
+    return {};
+  }
+  const properties = rootMappings.properties;
+  if (!properties || typeof properties !== 'object') {
+    return {};
+  }
+  return properties;
+};
+
 const isConnectionError = (error) =>
   error?.name === 'ConnectionError' || error?.meta?.statusCode === 0;
 const isMissingSortMappingError = (error, fieldName) => {
@@ -2827,10 +2839,33 @@ class RealtimeCdrService {
           mappings: REALTIME_INDEX_MAPPINGS
         });
       } else {
-        await client.indices.putMapping({
-          index: this.indexName,
-          ...REALTIME_INDEX_MAPPINGS
-        });
+        const mappingResponse = await client.indices.getMapping({ index: this.indexName });
+        const currentIndexMapping = mappingResponse?.[this.indexName] || {};
+        const currentProperties = getTopLevelProperties(currentIndexMapping);
+        const targetProperties = REALTIME_INDEX_MAPPINGS.properties || {};
+        const missingProperties = {};
+
+        for (const [fieldName, fieldMapping] of Object.entries(targetProperties)) {
+          if (!currentProperties[fieldName]) {
+            missingProperties[fieldName] = fieldMapping;
+            continue;
+          }
+
+          const currentType = String(currentProperties[fieldName]?.type || '').toLowerCase();
+          const expectedType = String(fieldMapping?.type || '').toLowerCase();
+          if (currentType && expectedType && currentType !== expectedType) {
+            console.warn(
+              `Champ Elasticsearch incompatible ignoré pour index ${this.indexName}: ${fieldName} (actuel: ${currentType}, attendu: ${expectedType}).`
+            );
+          }
+        }
+
+        if (Object.keys(missingProperties).length > 0) {
+          await client.indices.putMapping({
+            index: this.indexName,
+            properties: missingProperties
+          });
+        }
       }
       this.indexEnsured = true;
       return true;
