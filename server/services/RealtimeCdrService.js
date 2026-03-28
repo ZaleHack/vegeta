@@ -171,8 +171,67 @@ const INDEX_CYCLE_PAUSE_MS = Math.max(
   parseNonNegativeInteger(process.env.REALTIME_CDR_INDEX_CYCLE_PAUSE_MS, 0)
 );
 
+const REALTIME_INDEX_MAPPINGS = {
+  properties: {
+    record_id: { type: 'long' },
+    source_record_id: { type: 'long' },
+    source_table: { type: 'keyword' },
+    seq_number: { type: 'long' },
+    type_appel: { type: 'keyword' },
+    event_type: { type: 'keyword' },
+    statut_appel: { type: 'keyword' },
+    cause_liberation: { type: 'keyword' },
+    facturation: { type: 'keyword' },
+    date_debut_appel: { type: 'date' },
+    date_fin_appel: { type: 'date' },
+    heure_debut_appel: { type: 'keyword' },
+    heure_fin_appel: { type: 'keyword' },
+    duree_appel: { type: 'keyword' },
+    duration_seconds: { type: 'integer' },
+    numero_appelant: { type: 'keyword' },
+    numero_appelant_sanitized: { type: 'keyword' },
+    numero_appelant_normalized: { type: 'keyword' },
+    numero_appele: { type: 'keyword' },
+    numero_appele_sanitized: { type: 'keyword' },
+    numero_appele_normalized: { type: 'keyword' },
+    caller_variants: { type: 'keyword' },
+    callee_variants: { type: 'keyword' },
+    identifiers: { type: 'keyword' },
+    imei_appelant: { type: 'keyword' },
+    imsi_appelant: { type: 'keyword' },
+    cgi: { type: 'keyword' },
+    route_reseau: { type: 'keyword' },
+    device_id: { type: 'keyword' },
+    longitude: { type: 'double' },
+    latitude: { type: 'double' },
+    azimut: { type: 'keyword' },
+    nom_bts: { type: 'keyword' },
+    source_file: { type: 'keyword' },
+    inserted_at: { type: 'date' },
+    call_timestamp: { type: 'date' },
+    start_time_seconds: { type: 'integer' },
+    end_time_seconds: { type: 'integer' }
+  }
+};
+
 const isConnectionError = (error) =>
   error?.name === 'ConnectionError' || error?.meta?.statusCode === 0;
+const isMissingSortMappingError = (error, fieldName) => {
+  if (!error || !fieldName) {
+    return false;
+  }
+
+  const rootCauses = error?.meta?.body?.error?.root_cause;
+  if (!Array.isArray(rootCauses) || rootCauses.length === 0) {
+    return false;
+  }
+
+  return rootCauses.some((cause) => {
+    const type = String(cause?.type || '').toLowerCase();
+    const reason = String(cause?.reason || '').toLowerCase();
+    return type === 'query_shard_exception' && reason.includes(`no mapping found for [${String(fieldName).toLowerCase()}]`);
+  });
+};
 const MYSQL_CONNECTION_ERROR_CODES = new Set([
   'PROTOCOL_CONNECTION_LOST',
   'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
@@ -2765,48 +2824,12 @@ class RealtimeCdrService {
       if (!exists) {
         await client.indices.create({
           index: this.indexName,
-          mappings: {
-            properties: {
-              record_id: { type: 'long' },
-              source_record_id: { type: 'long' },
-              source_table: { type: 'keyword' },
-              seq_number: { type: 'long' },
-              type_appel: { type: 'keyword' },
-              event_type: { type: 'keyword' },
-              statut_appel: { type: 'keyword' },
-              cause_liberation: { type: 'keyword' },
-              facturation: { type: 'keyword' },
-              date_debut_appel: { type: 'date' },
-              date_fin_appel: { type: 'date' },
-              heure_debut_appel: { type: 'keyword' },
-              heure_fin_appel: { type: 'keyword' },
-              duree_appel: { type: 'keyword' },
-              duration_seconds: { type: 'integer' },
-              numero_appelant: { type: 'keyword' },
-              numero_appelant_sanitized: { type: 'keyword' },
-              numero_appelant_normalized: { type: 'keyword' },
-              numero_appele: { type: 'keyword' },
-              numero_appele_sanitized: { type: 'keyword' },
-              numero_appele_normalized: { type: 'keyword' },
-              caller_variants: { type: 'keyword' },
-              callee_variants: { type: 'keyword' },
-              identifiers: { type: 'keyword' },
-              imei_appelant: { type: 'keyword' },
-              imsi_appelant: { type: 'keyword' },
-              cgi: { type: 'keyword' },
-              route_reseau: { type: 'keyword' },
-              device_id: { type: 'keyword' },
-              longitude: { type: 'double' },
-              latitude: { type: 'double' },
-              azimut: { type: 'keyword' },
-              nom_bts: { type: 'keyword' },
-              source_file: { type: 'keyword' },
-              inserted_at: { type: 'date' },
-              call_timestamp: { type: 'date' },
-              start_time_seconds: { type: 'integer' },
-              end_time_seconds: { type: 'integer' }
-            }
-          }
+          mappings: REALTIME_INDEX_MAPPINGS
+        });
+      } else {
+        await client.indices.putMapping({
+          index: this.indexName,
+          ...REALTIME_INDEX_MAPPINGS
         });
       }
       this.indexEnsured = true;
@@ -2832,12 +2855,34 @@ class RealtimeCdrService {
       return;
     }
 
-    const response = await client.search({
-      index: this.indexName,
-      size: Math.max(REALTIME_CDR_TABLES_METADATA.length, 1) * 5,
-      sort: [{ source_record_id: { order: 'desc' } }],
-      _source: ['source_record_id', 'source_table']
-    });
+    let response;
+    try {
+      response = await client.search({
+        index: this.indexName,
+        size: Math.max(REALTIME_CDR_TABLES_METADATA.length, 1) * 5,
+        sort: [{ source_record_id: { order: 'desc', unmapped_type: 'long' } }],
+        _source: ['source_record_id', 'source_table']
+      });
+    } catch (error) {
+      if (!isMissingSortMappingError(error, 'source_record_id')) {
+        throw error;
+      }
+
+      await client.indices.putMapping({
+        index: this.indexName,
+        properties: {
+          source_record_id: { type: 'long' },
+          source_table: { type: 'keyword' }
+        }
+      });
+
+      response = await client.search({
+        index: this.indexName,
+        size: Math.max(REALTIME_CDR_TABLES_METADATA.length, 1) * 5,
+        sort: [{ source_record_id: { order: 'desc', unmapped_type: 'long' } }],
+        _source: ['source_record_id', 'source_table']
+      });
+    }
 
     const lastIndexedByTable = new Map(REALTIME_CDR_TABLES_METADATA.map((table) => [table.raw, 0]));
     const hits = response?.hits?.hits || [];
