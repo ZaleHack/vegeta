@@ -1989,6 +1989,8 @@ const App: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [highlightedRequestId, setHighlightedRequestId] = useState<number | null>(null);
   const [serverNotifications, setServerNotifications] = useState<ServerNotification[]>([]);
+  const hasFetchedRequestsRef = useRef(false);
+  const hasFetchedServerNotificationsRef = useRef(false);
   const isAdmin = useMemo(
     () => (currentUser ? currentUser.admin === 1 || currentUser.admin === "1" : false),
     [currentUser]
@@ -2020,6 +2022,8 @@ const App: React.FC = () => {
     if (!currentUser) {
       setReadNotifications([]);
       setServerNotifications([]);
+      hasFetchedRequestsRef.current = false;
+      hasFetchedServerNotificationsRef.current = false;
       return;
     }
     try {
@@ -3935,6 +3939,9 @@ const App: React.FC = () => {
   }, [createAuthHeaders, notifySuccess, reportDateEnd, reportDateStart, reportPhoneInput, reportSections]);
 
   const handleRequestIdentification = async () => {
+    if (!hasFetchedRequestsRef.current) {
+      await fetchRequests();
+    }
     const normalizedSearchPhone = searchQuery.replace(/\D/g, '');
     const hasPendingRequest =
       normalizedSearchPhone.length > 0 &&
@@ -3992,6 +3999,7 @@ const App: React.FC = () => {
           new Map(parsed.map(r => [r.id, r])).values()
         );
         setRequests(unique);
+        hasFetchedRequestsRef.current = true;
       }
     } catch (error) {
       console.error('Erreur chargement demandes:', error);
@@ -4013,18 +4021,12 @@ const App: React.FC = () => {
           ? data.notifications
           : [];
         setServerNotifications(entries);
+        hasFetchedServerNotificationsRef.current = true;
       }
     } catch (error) {
       console.error('Erreur chargement notifications serveur:', error);
     }
   }, []);
-
-useEffect(() => {
-  if (currentUser) {
-    fetchRequests();
-    fetchServerNotifications();
-  }
-}, [currentUser, fetchRequests, fetchServerNotifications]);
 
   const markRequestIdentified = async (id: number, profileId?: number) => {
     try {
@@ -6270,13 +6272,19 @@ useEffect(() => {
   const totalNotifications = notifications.length;
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !showNotifications) return;
+    fetchRequests();
+    fetchServerNotifications();
+  }, [currentUser, showNotifications, fetchRequests, fetchServerNotifications]);
+
+  useEffect(() => {
+    if (!currentUser || !showNotifications) return;
     const interval = setInterval(() => {
       fetchRequests();
       fetchServerNotifications();
     }, 60000);
     return () => clearInterval(interval);
-  }, [currentUser, fetchRequests, fetchServerNotifications]);
+  }, [currentUser, showNotifications, fetchRequests, fetchServerNotifications]);
 
   const handleNotificationClick = () => {
     setShowNotifications(prev => !prev);
