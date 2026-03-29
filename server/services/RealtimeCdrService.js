@@ -1033,7 +1033,10 @@ class RealtimeCdrService {
         if (elasticReady) {
           const variantList = Array.from(variants);
           const shouldClauses = searchType === 'imei'
-            ? [{ terms: { imei_appelant: variantList } }]
+            ? [
+                { terms: { imei_appelant: variantList } },
+                { terms: { imei_appele: variantList } }
+              ]
             : [
                 { terms: { numero_appelant: variantList } },
                 { terms: { numero_appele: variantList } },
@@ -1110,30 +1113,37 @@ class RealtimeCdrService {
 
             hits.forEach((hit) => {
               const source = hit?._source || {};
-              const number = normalizePhoneNumber(source.numero_appelant || source.numero_appelant_normalized)
-                || sanitizeNumber(source.numero_appelant || source.numero_appelant_normalized)
-                || '';
-              if (!number) {
-                return;
-              }
+              const callerMatches = matchesIdentifier(variants, source.imei_appelant, 'imei');
+              const calleeMatches = matchesIdentifier(variants, source.imei_appele, 'imei');
+              const numberCandidates = [
+                callerMatches ? (source.numero_appelant_normalized || source.numero_appelant) : null,
+                calleeMatches ? (source.numero_appele_normalized || source.numero_appele) : null
+              ];
 
               const timestamp = normalizeDateValue(getEventTimestampText(source));
-              const current = numbersMap.get(number) || {
-                number,
-                occurrences: 0,
-                firstSeen: timestamp,
-                lastSeen: timestamp,
-                roles: [],
-                cases: []
-              };
-              current.occurrences += 1;
-              if (!current.firstSeen || (timestamp && timestamp < current.firstSeen)) {
-                current.firstSeen = timestamp;
-              }
-              if (!current.lastSeen || (timestamp && timestamp > current.lastSeen)) {
-                current.lastSeen = timestamp;
-              }
-              numbersMap.set(number, current);
+              numberCandidates.forEach((rawNumber) => {
+                const number = normalizePhoneNumber(rawNumber) || sanitizeNumber(rawNumber) || '';
+                if (!number) {
+                  return;
+                }
+
+                const current = numbersMap.get(number) || {
+                  number,
+                  occurrences: 0,
+                  firstSeen: timestamp,
+                  lastSeen: timestamp,
+                  roles: [],
+                  cases: []
+                };
+                current.occurrences += 1;
+                if (!current.firstSeen || (timestamp && timestamp < current.firstSeen)) {
+                  current.firstSeen = timestamp;
+                }
+                if (!current.lastSeen || (timestamp && timestamp > current.lastSeen)) {
+                  current.lastSeen = timestamp;
+                }
+                numbersMap.set(number, current);
+              });
             });
 
             return {
@@ -1224,14 +1234,17 @@ class RealtimeCdrService {
     const variantList = Array.from(variants);
 
     if (searchType === 'imei') {
-      conditions.push(`c.imei_appelant IN (${variantList.map(() => '?').join(', ')})`);
+      const imeiPlaceholders = variantList.map(() => '?').join(', ');
+      conditions.push(`(c.imei_appelant IN (${imeiPlaceholders}) OR c.imei_appele IN (${imeiPlaceholders}))`);
     } else {
       const phonePlaceholders = variantList.map(() => '?').join(', ');
       conditions.push(`(c.numero_appelant IN (${phonePlaceholders}) OR c.numero_appele IN (${phonePlaceholders}))`);
     }
     params.push(...variantList);
-    if (searchType === 'phone') {
+    if (searchType === 'imei' || searchType === 'phone') {
       params.push(...variantList);
+    }
+    if (searchType === 'phone') {
       params.push(...variantList);
       params.push(...variantList);
     }
@@ -1251,14 +1264,18 @@ class RealtimeCdrService {
     const sql = searchType === 'imei'
       ? `
         SELECT
-          c.numero_appelant AS number,
+          CASE
+            WHEN c.imei_appelant IN (${variantList.map(() => '?').join(', ')}) THEN c.numero_appelant
+            WHEN c.imei_appele IN (${variantList.map(() => '?').join(', ')}) THEN c.numero_appele
+            ELSE NULL
+          END AS number,
           COUNT(*) AS occurrences,
           MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
           MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
         FROM ${REALTIME_CDR_UNIFIED_TABLE_SQL} AS c
         ${whereClause}
-        GROUP BY c.numero_appelant
-        HAVING c.numero_appelant IS NOT NULL AND c.numero_appelant <> ''
+        GROUP BY number
+        HAVING number IS NOT NULL AND number <> ''
         ORDER BY last_seen DESC, occurrences DESC
       `
       : `
