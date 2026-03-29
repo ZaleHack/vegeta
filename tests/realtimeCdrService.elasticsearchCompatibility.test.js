@@ -322,6 +322,80 @@ test('Realtime CDR fraud detection query matches phone identifier on both caller
   }
 });
 
+test('Realtime CDR fraud detection query matches IMEI identifier on both caller and callee fields', async () => {
+  const originalUseElastic = process.env.USE_ELASTICSEARCH;
+  const originalExists = client.indices.exists;
+  const originalCreate = client.indices.create;
+  const originalGetMapping = client.indices.getMapping;
+  const originalPutMapping = client.indices.putMapping;
+  const originalSearch = client.search;
+
+  process.env.USE_ELASTICSEARCH = 'true';
+
+  const capturedQueries = [];
+  client.indices.exists = async () => true;
+  client.indices.create = async () => ({ acknowledged: true });
+  client.indices.getMapping = async () => ({});
+  client.indices.putMapping = async () => ({ acknowledged: true });
+  client.search = async (params) => {
+    capturedQueries.push(params?.query || null);
+    return {
+      hits: {
+        hits: [
+          {
+            _id: 'fraud-es-imei-1',
+            _source: {
+              numero_appelant: '221771111111',
+              numero_appele: '221770000000',
+              imei_appelant: '358240051111110',
+              imei_appele: '352099001234560',
+              date_debut: '2025-01-10',
+              heure_debut: '08:10:00'
+            }
+          }
+        ]
+      }
+    };
+  };
+
+  const databaseStub = {
+    async query() {
+      return [];
+    }
+  };
+
+  try {
+    const service = new RealtimeCdrService({
+      autoStart: false,
+      databaseClient: databaseStub,
+      cgiEnricher: null
+    });
+
+    const result = await service.findAssociations('352099001234560');
+    assert.equal(result.imeis.length, 1);
+    assert.equal(result.imeis[0].numbers.length, 1);
+    assert.equal(result.imeis[0].numbers[0].number, '221770000000');
+
+    const query = capturedQueries[0];
+    const imeiFilter = query?.bool?.filter?.find((item) => item?.bool?.minimum_should_match === 1);
+    const shouldClauses = imeiFilter?.bool?.should || [];
+    assert.equal(shouldClauses.some((item) => item?.terms?.imei_appelant), true);
+    assert.equal(shouldClauses.some((item) => item?.terms?.imei_appele), true);
+  } finally {
+    client.indices.exists = originalExists;
+    client.indices.create = originalCreate;
+    client.indices.getMapping = originalGetMapping;
+    client.indices.putMapping = originalPutMapping;
+    client.search = originalSearch;
+
+    if (typeof originalUseElastic === 'undefined') {
+      delete process.env.USE_ELASTICSEARCH;
+    } else {
+      process.env.USE_ELASTICSEARCH = originalUseElastic;
+    }
+  }
+});
+
 test('Realtime CDR fraud detection SQL fallback checks caller and callee fields', async () => {
   const originalUseElastic = process.env.USE_ELASTICSEARCH;
   process.env.USE_ELASTICSEARCH = 'false';
@@ -350,6 +424,47 @@ test('Realtime CDR fraud detection SQL fallback checks caller and callee fields'
     assert.match(captured.sql, /numero_appelant IN/i);
     assert.match(captured.sql, /numero_appele IN/i);
     assert.equal(captured.params.length >= 2, true);
+  } finally {
+    if (typeof originalUseElastic === 'undefined') {
+      delete process.env.USE_ELASTICSEARCH;
+    } else {
+      process.env.USE_ELASTICSEARCH = originalUseElastic;
+    }
+  }
+});
+
+test('Realtime CDR fraud detection SQL fallback checks IMEI caller and callee fields', async () => {
+  const originalUseElastic = process.env.USE_ELASTICSEARCH;
+  process.env.USE_ELASTICSEARCH = 'false';
+
+  const captured = { sqls: [], paramsList: [] };
+  const databaseStub = {
+    async query(sql, params) {
+      captured.sqls.push(sql);
+      captured.paramsList.push(params);
+      return [];
+    },
+    async queryOne() {
+      return null;
+    }
+  };
+
+  try {
+    const service = new RealtimeCdrService({
+      autoStart: false,
+      databaseClient: databaseStub,
+      cgiEnricher: null
+    });
+
+    await service.findAssociations('352099001234560');
+
+    const fraudSql = captured.sqls.find((sql) => /FROM .*cdr_temps_reel|FROM .*REALTIME_CDR_UNIFIED_TABLE_SQL/i.test(sql))
+      || captured.sqls.find((sql) => /imei_appelant IN/i.test(sql))
+      || '';
+    assert.match(fraudSql, /imei_appelant IN/i);
+    assert.match(fraudSql, /imei_appele IN/i);
+    const fraudParams = captured.paramsList.find((params) => Array.isArray(params) && params.length >= 4) || [];
+    assert.equal(fraudParams.length >= 4, true);
   } finally {
     if (typeof originalUseElastic === 'undefined') {
       delete process.env.USE_ELASTICSEARCH;
