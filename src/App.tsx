@@ -5451,15 +5451,6 @@ const App: React.FC = () => {
     await fetchFraudDetection(numbersForDetection);
   };
 
-  const handleReplaceImeiCheckDigit = useCallback(() => {
-    if (!globalFraudIdentifier.trim()) {
-      setGlobalFraudError('IMEI requis');
-      return;
-    }
-    setGlobalFraudIdentifier(replaceImeiCheckDigitWithZero(globalFraudIdentifier));
-    if (globalFraudError) setGlobalFraudError('');
-  }, [globalFraudError, globalFraudIdentifier, replaceImeiCheckDigitWithZero]);
-
   const handleGlobalFraudSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmedIdentifier = globalFraudIdentifier.trim();
@@ -8883,19 +8874,10 @@ const App: React.FC = () => {
                               className="w-full rounded-2xl border border-slate-200/80 bg-white/90 px-12 py-3 text-base font-medium text-slate-800 shadow-inner focus:border-transparent focus:outline-none focus:ring-4 focus:ring-purple-500/30 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
                             />
                           </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {globalFraudSearchType === 'imei'
-                              ? "Vous pouvez corriger automatiquement le chiffre de contrôle avant l'analyse."
-                              : 'Format conseillé : numéro avec indicatif pays (ex. 221...).'}
-                          </p>
-                          {globalFraudSearchType === 'imei' && (
-                            <button
-                              type="button"
-                              onClick={handleReplaceImeiCheckDigit}
-                              className="inline-flex items-center gap-2 rounded-full border border-indigo-200/90 bg-indigo-50/80 px-4 py-1.5 text-xs font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-100 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-100 dark:hover:border-indigo-400"
-                            >
-                              Corriger automatiquement le dernier chiffre IMEI
-                            </button>
+                          {globalFraudSearchType !== 'imei' && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              Format conseillé : numéro avec indicatif pays (ex. 221...).
+                            </p>
                           )}
                         </div>
 
