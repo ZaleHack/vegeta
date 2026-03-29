@@ -258,6 +258,8 @@ test('Realtime CDR fraud detection query matches phone identifier on both caller
   const originalUseElastic = process.env.USE_ELASTICSEARCH;
   const originalExists = client.indices.exists;
   const originalCreate = client.indices.create;
+  const originalGetMapping = client.indices.getMapping;
+  const originalPutMapping = client.indices.putMapping;
   const originalSearch = client.search;
 
   process.env.USE_ELASTICSEARCH = 'true';
@@ -265,6 +267,8 @@ test('Realtime CDR fraud detection query matches phone identifier on both caller
   const capturedQueries = [];
   client.indices.exists = async () => true;
   client.indices.create = async () => ({ acknowledged: true });
+  client.indices.getMapping = async () => ({});
+  client.indices.putMapping = async () => ({ acknowledged: true });
   client.search = async (params) => {
     capturedQueries.push(params?.query || null);
     return {
@@ -312,6 +316,8 @@ test('Realtime CDR fraud detection query matches phone identifier on both caller
   } finally {
     client.indices.exists = originalExists;
     client.indices.create = originalCreate;
+    client.indices.getMapping = originalGetMapping;
+    client.indices.putMapping = originalPutMapping;
     client.search = originalSearch;
 
     if (typeof originalUseElastic === 'undefined') {
@@ -322,7 +328,7 @@ test('Realtime CDR fraud detection query matches phone identifier on both caller
   }
 });
 
-test('Realtime CDR fraud detection query matches IMEI identifier on both caller and callee fields', async () => {
+test('Realtime CDR fraud detection query matches IMEI identifier only on caller IMEI field', async () => {
   const originalUseElastic = process.env.USE_ELASTICSEARCH;
   const originalExists = client.indices.exists;
   const originalCreate = client.indices.create;
@@ -347,8 +353,8 @@ test('Realtime CDR fraud detection query matches IMEI identifier on both caller 
             _source: {
               numero_appelant: '221771111111',
               numero_appele: '221770000000',
-              imei_appelant: '358240051111110',
-              imei_appele: '352099001234560',
+              imei_appelant: '352099001234560',
+              imei_appele: '358240051111110',
               date_debut: '2025-01-10',
               heure_debut: '08:10:00'
             }
@@ -374,13 +380,13 @@ test('Realtime CDR fraud detection query matches IMEI identifier on both caller 
     const result = await service.findAssociations('352099001234560');
     assert.equal(result.imeis.length, 1);
     assert.equal(result.imeis[0].numbers.length, 1);
-    assert.equal(result.imeis[0].numbers[0].number, '221770000000');
+    assert.equal(result.imeis[0].numbers[0].number, '221771111111');
 
     const query = capturedQueries[0];
     const imeiFilter = query?.bool?.filter?.find((item) => item?.bool?.minimum_should_match === 1);
     const shouldClauses = imeiFilter?.bool?.should || [];
     assert.equal(shouldClauses.some((item) => item?.terms?.imei_appelant), true);
-    assert.equal(shouldClauses.some((item) => item?.terms?.imei_appele), true);
+    assert.equal(shouldClauses.some((item) => item?.terms?.imei_appele), false);
   } finally {
     client.indices.exists = originalExists;
     client.indices.create = originalCreate;
@@ -433,7 +439,7 @@ test('Realtime CDR fraud detection SQL fallback checks caller and callee fields'
   }
 });
 
-test('Realtime CDR fraud detection SQL fallback checks IMEI caller and callee fields', async () => {
+test('Realtime CDR fraud detection SQL fallback checks only caller IMEI field', async () => {
   const originalUseElastic = process.env.USE_ELASTICSEARCH;
   process.env.USE_ELASTICSEARCH = 'false';
 
@@ -462,9 +468,9 @@ test('Realtime CDR fraud detection SQL fallback checks IMEI caller and callee fi
       || captured.sqls.find((sql) => /imei_appelant IN/i.test(sql))
       || '';
     assert.match(fraudSql, /imei_appelant IN/i);
-    assert.match(fraudSql, /imei_appele IN/i);
-    const fraudParams = captured.paramsList.find((params) => Array.isArray(params) && params.length >= 4) || [];
-    assert.equal(fraudParams.length >= 4, true);
+    assert.doesNotMatch(fraudSql, /imei_appele IN/i);
+    const fraudParams = captured.paramsList.find((params) => Array.isArray(params) && params.length >= 3) || [];
+    assert.equal(fraudParams.length >= 3, true);
   } finally {
     if (typeof originalUseElastic === 'undefined') {
       delete process.env.USE_ELASTICSEARCH;

@@ -1034,8 +1034,7 @@ class RealtimeCdrService {
           const variantList = Array.from(variants);
           const shouldClauses = searchType === 'imei'
             ? [
-                { terms: { imei_appelant: variantList } },
-                { terms: { imei_appele: variantList } }
+                { terms: { imei_appelant: variantList } }
               ]
             : [
                 { terms: { numero_appelant: variantList } },
@@ -1114,10 +1113,8 @@ class RealtimeCdrService {
             hits.forEach((hit) => {
               const source = hit?._source || {};
               const callerMatches = matchesIdentifier(variants, source.imei_appelant, 'imei');
-              const calleeMatches = matchesIdentifier(variants, source.imei_appele, 'imei');
               const numberCandidates = [
                 callerMatches ? (source.numero_appelant_normalized || source.numero_appelant) : null,
-                calleeMatches ? (source.numero_appele_normalized || source.numero_appele) : null
               ];
 
               const timestamp = normalizeDateValue(getEventTimestampText(source));
@@ -1235,16 +1232,14 @@ class RealtimeCdrService {
 
     if (searchType === 'imei') {
       const imeiPlaceholders = variantList.map(() => '?').join(', ');
-      conditions.push(`(c.imei_appelant IN (${imeiPlaceholders}) OR c.imei_appele IN (${imeiPlaceholders}))`);
+      conditions.push(`c.imei_appelant IN (${imeiPlaceholders})`);
     } else {
       const phonePlaceholders = variantList.map(() => '?').join(', ');
       conditions.push(`(c.numero_appelant IN (${phonePlaceholders}) OR c.numero_appele IN (${phonePlaceholders}))`);
     }
     params.push(...variantList);
-    if (searchType === 'imei' || searchType === 'phone') {
-      params.push(...variantList);
-    }
     if (searchType === 'phone') {
+      params.push(...variantList);
       params.push(...variantList);
       params.push(...variantList);
     }
@@ -1264,11 +1259,7 @@ class RealtimeCdrService {
     const sql = searchType === 'imei'
       ? `
         SELECT
-          CASE
-            WHEN c.imei_appelant IN (${variantList.map(() => '?').join(', ')}) THEN c.numero_appelant
-            WHEN c.imei_appele IN (${variantList.map(() => '?').join(', ')}) THEN c.numero_appele
-            ELSE NULL
-          END AS number,
+          c.numero_appelant AS number,
           COUNT(*) AS occurrences,
           MIN(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS first_seen,
           MAX(CONCAT_WS('T', c.date_debut, COALESCE(c.heure_debut, '00:00:00'))) AS last_seen
