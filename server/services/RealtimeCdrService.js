@@ -327,11 +327,7 @@ const normalizeImeiForComparison = (value) => {
     return digits;
   }
   const base = digits.slice(0, 14);
-  if (digits.length === 15) {
-    return digits.slice(0, 15);
-  }
-  const checkDigit = computeImeiCheckDigit(base);
-  return checkDigit ? `${base}${checkDigit}` : digits;
+  return `${base}0`;
 };
 
 const normalizePhoneNumber = (value) => {
@@ -359,6 +355,7 @@ const buildIdentifierVariants = (value, type = 'phone') => {
     }
     if (sanitized.length >= 14) {
       variants.add(sanitized.slice(0, 14));
+      variants.add(`${sanitized.slice(0, 14)}0`);
     }
     const normalized = normalizeImeiWithCheckDigit(sanitized);
     if (normalized) {
@@ -427,6 +424,10 @@ const matchesIdentifier = (identifierSet, value, type = 'phone') => {
     }
     const normalized = normalizeImeiWithCheckDigit(sanitized);
     if (normalized && identifierSet.has(normalized)) {
+      return true;
+    }
+    const body = sanitized.slice(0, 14);
+    if (body && identifierSet.has(`${body}0`)) {
       return true;
     }
     if (identifierSet.has(sanitized)) {
@@ -1386,8 +1387,7 @@ class RealtimeCdrService {
 
       if (Array.isArray(imeiEntrantRows) && imeiEntrantRows.length > 0) {
         imeiEntrantRows.forEach((row) => {
-          const normalizedFromEntrant = normalizeImeiWithCheckDigit(row.imei_entrant);
-          if (normalizedFromEntrant && normalizedImeiInput && normalizedFromEntrant === normalizedImeiInput) {
+          if (matchesIdentifier(variants, row.imei_entrant, 'imei')) {
             addNumberRow(row);
           }
         });
