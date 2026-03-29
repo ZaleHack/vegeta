@@ -2331,11 +2331,11 @@ class RealtimeCdrService {
     }
 
     if (filters.startTimeBound) {
-      conditions.push('c.heure_debut >= ?');
+      conditions.push('TIME_TO_SEC(c.heure_debut) >= TIME_TO_SEC(?)');
       params.push(filters.startTimeBound);
     }
     if (filters.endTimeBound) {
-      conditions.push('c.heure_debut <= ?');
+      conditions.push('TIME_TO_SEC(c.heure_debut) <= TIME_TO_SEC(?)');
       params.push(filters.endTimeBound);
     }
 
@@ -2791,7 +2791,7 @@ class RealtimeCdrService {
         return [];
       }
 
-      return hits.map((hit) => {
+      const rows = hits.map((hit) => {
         const source = hit._source || {};
         return {
           id: source.record_id ?? hit._id,
@@ -2820,6 +2820,20 @@ class RealtimeCdrService {
           source_file: source.source_file ?? source.fichier_source ?? null,
           inserted_at: source.inserted_at ?? null
         };
+      });
+
+      if (!filters.startTimeBound && !filters.endTimeBound) {
+        return rows;
+      }
+
+      return rows.filter((row) => {
+        const rawTime = row.heure_debut_appel ?? row.heure_debut ?? null;
+        if (!rawTime) return false;
+        const normalized = normalizeTimeBound(rawTime);
+        if (!normalized) return false;
+        if (filters.startTimeBound && normalized < filters.startTimeBound) return false;
+        if (filters.endTimeBound && normalized > filters.endTimeBound) return false;
+        return true;
       });
     } catch (error) {
       if (isConnectionError(error)) {
