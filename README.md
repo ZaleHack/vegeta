@@ -111,7 +111,7 @@ npm run search:bootstrap
 
 Les scripts créent les index SQL sur toutes les colonnes déclarées `searchable`, puis lisent les tables référencées dans `server/config/tables-catalog.js` (dont `autres.profiles`) pour alimenter l'index `profiles` d'Elasticsearch en purgant l'index si besoin. Assurez-vous que la base MySQL contient les données à indexer avant de lancer cette opération.
 
-Par défaut, l'API attend jusqu'à 2 secondes la réponse d'Elasticsearch avant de basculer automatiquement sur le moteur SQL classique. Adaptez ce délai grâce à la variable `ELASTICSEARCH_SEARCH_TIMEOUT_MS` (valeur en millisecondes, définissez `0` pour désactiver la limite) si votre cluster met plus de temps à répondre. Pour éviter qu'une instance hors-ligne ne ralentisse l'application, le client Elasticsearch échoue désormais rapidement (`ELASTICSEARCH_REQUEST_TIMEOUT_MS`, par défaut `2000`) et ne tente pas de multiples reconnections (`ELASTICSEARCH_MAX_RETRIES`, par défaut `0`).
+Par défaut, l'API impose maintenant un timeout court sur les requêtes de recherche Elasticsearch (`ELASTICSEARCH_SEARCH_TIMEOUT_MS`, par défaut `1500ms`) pour déclencher rapidement le fallback SQL si le cluster est saturé pendant une indexation lourde. Le timeout réseau global du client reste configurable via `ELASTICSEARCH_REQUEST_TIMEOUT_MS` (par défaut `30000ms`), et `ELASTICSEARCH_MAX_RETRIES` reste à `0` pour éviter d'empiler des retries coûteux côté API.
 
 ### Diagnostic : « Elasticsearch indisponible. Bascule sur le moteur de recherche local pour les CDR. »
 
@@ -141,6 +141,7 @@ SQL si Elasticsearch est indisponible.
    ELASTICSEARCH_CDR_REALTIME_INDEX=cdr-realtime-events
    REALTIME_CDR_INDEX_BATCH_SIZE=500
    REALTIME_CDR_INDEX_INTERVAL_MS=5000
+   REALTIME_CDR_INDEX_BATCH_PAUSE_MS=75
    ```
 
 2. **Démarrer l'API**
@@ -165,6 +166,7 @@ SQL si Elasticsearch est indisponible.
 
    - `--bootstrap` : charge d'abord l'existant.
    - ensuite, le worker suit les nouveaux CDR et les pousse en continu vers Elasticsearch.
+   - pour garder l'UI fluide pendant une réindexation massive, augmentez `REALTIME_CDR_INDEX_BATCH_PAUSE_MS` (ex: `150` à `300`).
 
 5. **Vérifier que les endpoints temps réel utilisent bien Elasticsearch**
 
@@ -183,13 +185,13 @@ directement ces CSV au serveur applicatif et les indexer dans Elasticsearch, san
 2. Lancer l'ingestion ponctuelle :
 
    ```bash
-   npm run cdr:ingest:csv -- --input-dir=/var/cdr/incoming --processed-dir=/var/cdr/processed --failed-dir=/var/cdr/failed --batch-size=1000
+   npm run cdr:ingest:csv -- --input-dir=/var/cdr/incoming --processed-dir=/var/cdr/processed --failed-dir=/var/cdr/failed --batch-size=400
    ```
 
 3. Lancer en mode continu (watch) :
 
    ```bash
-   npm run cdr:ingest:csv -- --watch --input-dir=/var/cdr/incoming --processed-dir=/var/cdr/processed --failed-dir=/var/cdr/failed --batch-size=1000
+   npm run cdr:ingest:csv -- --watch --input-dir=/var/cdr/incoming --processed-dir=/var/cdr/processed --failed-dir=/var/cdr/failed --batch-size=400
    ```
 
 4. Si vous voulez reproduire votre comportement actuel (suppression du CSV après succès) :
@@ -200,7 +202,9 @@ directement ces CSV au serveur applicatif et les indexer dans Elasticsearch, san
 
 Le script enrichit automatiquement les coordonnées BTS à partir du CGI quand possible, indexe en bulk dans
 `ELASTICSEARCH_CDR_REALTIME_INDEX` (défaut: `cdr-realtime-events`), puis déplace le fichier vers `processed` (ou le supprime
-si `--delete-on-success` est activé). En cas d'échec, le fichier est déplacé dans `failed`.
+si `--delete-on-success` est activé). Les valeurs par défaut sont désormais orientées « background » (`--bulk-concurrency=2`,
+`--file-concurrency=1`, `--bulk-throttle-ms=75`) pour préserver la réactivité de l'application pendant l'indexation.
+En cas d'échec, le fichier est déplacé dans `failed`.
 
 ## Tests
 
