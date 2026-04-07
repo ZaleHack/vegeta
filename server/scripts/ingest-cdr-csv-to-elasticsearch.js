@@ -167,10 +167,16 @@ const buildDocumentId = (record) => {
     record.date_debut,
     record.heure_debut,
     record.fichier_source
-  ].join('|');
+  ]
+    .map((value) => toTrimmed(value))
+    .join('|');
 
   if (!key.replace(/\|/g, '').trim()) {
     return crypto.randomUUID();
+  }
+
+  if (key.length <= 512) {
+    return key;
   }
 
   return crypto.createHash('sha1').update(key).digest('hex');
@@ -249,7 +255,7 @@ const parseCsvLine = (line, separator) => {
   }
 
   values.push(current);
-  return values.map((value) => toTrimmed(value));
+  return values;
 };
 
 const ensureRealtimeIndex = async () => {
@@ -467,6 +473,7 @@ const processCsvFile = async (filePath, options) => {
   });
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
   let headers = null;
+  let headerMappings = [];
   let rawPipeWithoutHeader = false;
   let firstDataValues = null;
 
@@ -483,6 +490,11 @@ const processCsvFile = async (filePath, options) => {
         firstDataValues = firstValues;
       } else {
         headers = firstValues;
+        headerMappings = headers.map((header, index) => ({
+          index,
+          header,
+          normalizedHeader: normalizeHeaderKey(header)
+        }));
         continue;
       }
     }
@@ -492,14 +504,13 @@ const processCsvFile = async (filePath, options) => {
     const row = rawPipeWithoutHeader ? mapRawPipeValuesToRow(values) : {};
 
     if (!rawPipeWithoutHeader) {
-      headers.forEach((header, index) => {
-        const value = values[index] ?? '';
-        row[header] = value;
-        const normalizedHeader = normalizeHeaderKey(header);
-        if (normalizedHeader && row[normalizedHeader] === undefined) {
-          row[normalizedHeader] = value;
+      for (const mapping of headerMappings) {
+        const value = values[mapping.index] ?? '';
+        row[mapping.header] = value;
+        if (mapping.normalizedHeader && row[mapping.normalizedHeader] === undefined) {
+          row[mapping.normalizedHeader] = value;
         }
-      });
+      }
 
       if (!row.seq_number && row.id) {
         row.seq_number = row.id;
