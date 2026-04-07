@@ -208,9 +208,11 @@ export const setupEncryptedFetch = () => {
   }
 
   if (!isWebCryptoAvailable()) {
-    console.warn(
-      "Chiffrement des requêtes JSON désactivé : l'API Web Crypto est indisponible dans cet environnement."
-    );
+    if (import.meta.env.DEV) {
+      console.info(
+        "Chiffrement des requêtes JSON désactivé : l'API Web Crypto est indisponible dans cet environnement."
+      );
+    }
     return;
   }
 

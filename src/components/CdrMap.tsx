@@ -1459,7 +1459,20 @@ const CdrMap: React.FC<Props> = ({
     return valid;
   }, [rawPoints]);
 
-  if (points.length === 0) return null;
+  if (points.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-white/95 px-6 text-center text-slate-600 dark:bg-slate-900/90 dark:text-slate-300">
+        <div className="max-w-lg space-y-2">
+          <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+            Aucune coordonnée exploitable pour afficher la carte
+          </p>
+          <p className="text-sm">
+            Les événements ont été reçus mais leurs coordonnées ne sont pas reconnues. Vérifiez les champs latitude/longitude des données source.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const callerPoints = useMemo(
     () =>

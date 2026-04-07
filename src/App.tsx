@@ -8661,7 +8661,7 @@ const App: React.FC = () => {
               )}
               {showCdrMap && cdrResult && !cdrLoading && (
                 <>
-                  <div className="fixed inset-0 z-0 flex">
+                  <div className="fixed inset-0 z-[900] flex">
                     {renderCdrSearchForm('map')}
                     <div className="flex-1 relative h-screen">
                       {cdrResult.total > 0 ? (
@@ -9258,7 +9258,7 @@ const App: React.FC = () => {
               )}
               {showCdrMap && cdrResult && !cdrLoading && (
                 <>
-                  <div className="fixed inset-0 z-0 flex">
+                  <div className="fixed inset-0 z-[900] flex">
                     {renderCdrSearchForm('map')}
                     <div className="flex-1 relative h-screen">
                       {cdrResult.total > 0 ? (
