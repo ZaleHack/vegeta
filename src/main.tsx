@@ -10,7 +10,12 @@ setupEncryptedFetch();
 
 createRoot(document.getElementById('root')!).render(
   <NotificationProvider>
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
       <App />
     </BrowserRouter>
   </NotificationProvider>
