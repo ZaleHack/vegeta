@@ -170,6 +170,10 @@ const INDEX_CYCLE_PAUSE_MS = Math.max(
   0,
   parseNonNegativeInteger(process.env.REALTIME_CDR_INDEX_CYCLE_PAUSE_MS, 0)
 );
+const INDEX_BATCH_PAUSE_MS = Math.max(
+  0,
+  parseNonNegativeInteger(process.env.REALTIME_CDR_INDEX_BATCH_PAUSE_MS, 75)
+);
 
 const REALTIME_INDEX_MAPPINGS = {
   properties: {
@@ -3341,6 +3345,10 @@ class RealtimeCdrService {
         }
 
         hasMore = rows.length === this.batchSize;
+
+        if (hasMore && INDEX_BATCH_PAUSE_MS > 0) {
+          await wait(INDEX_BATCH_PAUSE_MS);
+        }
       }
 
       this.indexReady = true;
@@ -3433,6 +3441,8 @@ class RealtimeCdrService {
 
         if (hasMore && INDEX_CYCLE_PAUSE_MS > 0) {
           await wait(INDEX_CYCLE_PAUSE_MS);
+        } else if (hasMore && INDEX_BATCH_PAUSE_MS > 0) {
+          await wait(INDEX_BATCH_PAUSE_MS);
         }
       }
     } catch (error) {
